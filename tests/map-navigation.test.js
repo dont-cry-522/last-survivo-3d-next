@@ -11,3 +11,10 @@ test('map list and waypoint selection respect both discovery and exploration',()
 test('waypoint directions match the diagonal gameplay camera',()=>{
  const p={x:0,z:0};assert(waypointHint(p,{x:-10,z:-10,name:'营地'}).startsWith('↑'));assert(waypointHint(p,{x:10,z:-10,name:'营地'}).startsWith('→'));assert(waypointHint(p,{x:10,z:10,name:'营地'}).startsWith('↓'));assert(waypointHint(p,{x:-10,z:10,name:'营地'}).startsWith('←'));assert.equal(waypointHint(p,null),'');
 });
+
+test('waypoint bearing follows a freely rotated camera',()=>{
+ const p={x:0,z:0},point={x:0,z:5,name:'Ahead'};
+ assert(waypointHint(p,point,0).startsWith('↑'));
+ assert(waypointHint(p,point,Math.PI/2).startsWith('→'));
+ assert(waypointHint(p,point,Math.PI).startsWith('↓'));
+});

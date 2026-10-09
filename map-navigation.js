@@ -14,8 +14,8 @@ export function mapWaypoint(world,x,z){
  const nearby=knownMapPoints(world).filter(p=>Math.hypot(p.x-x,p.z-z)<world.exploration.half*.065).sort((a,b)=>Math.hypot(a.x-x,a.z-z)-Math.hypot(b.x-x,b.z-z))[0];
  return nearby?{x:nearby.x,z:nearby.z,name:nearby.name}:{x,z,name:'探索路标'};
 }
-export function waypointHint(player,point){
+export function waypointHint(player,point,yaw=-Math.PI*.75){
  if(!point)return '';
- const dx=point.x-player.x,dz=point.z-player.z,distance=Math.hypot(dx,dz),index=(Math.round(Math.atan2(dx-dz,-dx-dz)/(Math.PI/4))+8)%8;
+ const dx=point.x-player.x,dz=point.z-player.z,distance=Math.hypot(dx,dz),index=(Math.round(Math.atan2(-Math.cos(yaw)*dx+Math.sin(yaw)*dz,Math.sin(yaw)*dx+Math.cos(yaw)*dz)/(Math.PI/4))+8)%8;
  return `${['↑','↗','→','↘','↓','↙','←','↖'][index]} ${point.name} · ${Math.ceil(distance)} 米`;
 }

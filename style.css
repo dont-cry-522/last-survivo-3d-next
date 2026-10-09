@@ -225,3 +225,14 @@ body.touch #orientation-help{top:calc(var(--touch-top) + var(--notice-offset) + 
 body.touch #upgrade-ready{padding:5px;font-size:10px;min-height:30px}body.touch #boss-arrival{max-width:132px;font-size:10px}
 
 #game-version{margin-left:8px;padding:2px 5px;border:1px solid #9db2c14a;border-radius:4px;color:#bac5ce;font-size:10px;letter-spacing:0;white-space:nowrap}
+
+/* Free-view controls stay above the canvas and clear of the aiming point. */
+#crosshair{position:fixed;left:50%;top:50%;width:18px;height:18px;transform:translate(-50%,-50%);pointer-events:none;z-index:4;opacity:.85}
+#crosshair::before,#crosshair::after{content:'';position:absolute;background:#f3eee0;box-shadow:0 0 2px #101c23}
+#crosshair::before{width:2px;height:18px;left:8px}#crosshair::after{width:18px;height:2px;top:8px}
+#crosshair i{position:absolute;inset:6px;border:1px solid #111b20;background:#f3eee0;border-radius:50%;z-index:1}
+body.auto-attack #crosshair{opacity:.35;width:8px;height:8px}body.auto-attack #crosshair::before,body.auto-attack #crosshair::after{display:none}body.auto-attack #crosshair i{inset:0}
+#world{touch-action:none}#view-toggle{white-space:nowrap}#mouse-look[hidden],#crosshair[hidden]{display:none}
+@media(max-width:700px){body.playing header .brand{display:none}#view-toggle{padding:6px;font-size:10px}body.playing header .top-actions{gap:4px;flex-wrap:wrap}body.playing #audio-settings>summary{font-size:10px}}
+
+@media(max-width:480px){.dialog-actions{flex-wrap:wrap}.dialog-actions button{flex:1 1 calc(50% - 10px);min-width:0}}

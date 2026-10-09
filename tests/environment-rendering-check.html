@@ -4,6 +4,8 @@
 <script type="module">
 import * as T from'../vendor/three.module.js';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
+const pixelButton=document.createElement('button');pixelButton.id='pixels';pixelButton.disabled=true;pixelButton.textContent='深度解析像素诊断';$('#gpu').after(pixelButton);
+const pixelCaptures=document.createElement('div');pixelCaptures.id='pixel-captures';$('#capture').after(pixelCaptures);
 const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text();let frame,g,win,now=0;const results=[],errors=[];
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
@@ -39,6 +41,53 @@ function spellBattle(){
 }
 async function check(name,fn){$('#status').textContent=name;try{results.push({name,pass:true,detail:await fn()});}catch(e){results.push({name,pass:false,error:e.message});}publish();await sleep(0);}
 function reportFrame(){const r=g.renderer;assert(!win.qaErrors.length,win.qaErrors.join('\n'));assert(r.info.programs.every(p=>p.diagnostics?.runnable!==false),'GPU 着色器未通过');assert(r.getContext().getError()===0,'WebGL 错误');return{calls:r.info.render.calls,triangles:r.info.render.triangles,geometries:r.info.memory.geometries,textures:r.info.memory.textures,pixels:r.domElement.width*r.domElement.height};}
+function pixelDifference(a,b,width){
+ let pixels=0,channels=0,maxDelta=0,total=0,minX=Infinity,minY=Infinity,maxX=-1,maxY=-1;const examples=[];
+ for(let i=0;i<a.length;i+=4){let changed=false;for(let c=0;c<4;c++){const delta=Math.abs(a[i+c]-b[i+c]);if(delta){changed=true;channels++;total+=delta;maxDelta=Math.max(maxDelta,delta);}}
+  if(changed){pixels++;const x=i/4%width,y=Math.floor(i/4/width);minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);if(examples.length<4)examples.push({x,y,before:[...a.slice(i,i+4)],after:[...b.slice(i,i+4)]});}
+ }
+ return{pixels,channels,maxDelta,meanAbsDelta:total/a.length,bbox:pixels?{minX,minY,maxX,maxY}:null,examples};
+}
+// Diagnostic only: expose exact same-mode and cross-mode deltas behind the bounded regression.
+window.depthResolveDiagnostics=async({reload=true,disableLeafCutout=false}={})=>{
+ if(reload){await load();select('forest','silver',true);}g.pause();
+ if(!g.cinema.enabled)return{supported:false};
+ const r=g.renderer,target=g.cinema.sceneTarget,gl=r.getContext(),originalBlit=gl.blitFramebuffer,masks=[],sequence=[true,true,false,false,true,false,true,false],oldResolve=target.resolveDepthBuffer,oldShadowUpdate=r.shadowMap.needsUpdate;
+ const draw=()=>g.cinema.render(()=>r.render(g.hero.parent,g.camera),1),phases=[],leaves=new Map();let worst;
+ gl.blitFramebuffer=function(...args){masks.push(args[8]);return originalBlit.apply(this,args);};
+ const phase=(name,{warmup=0,refreshShadow=false}={})=>{
+  for(let i=0;i<warmup;i++){target.resolveDepthBuffer=sequence[i%sequence.length];draw();}masks.length=0;
+  const frames=[],lastMode=new Map();let previous;
+  for(const resolve of sequence){
+   target.resolveDepthBuffer=resolve;if(refreshShadow)r.shadowMap.needsUpdate=true;
+   const shadowBefore=r.shadowMap.needsUpdate;draw();gl.finish();
+   assert(r.getRenderTarget()===null,'诊断必须读取画布帧缓冲');
+   const width=gl.drawingBufferWidth,height=gl.drawingBufferHeight,data=new Uint8Array(width*height*4);gl.readPixels(0,0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,data);
+   const png=r.domElement.toDataURL('image/png'),sample={resolve,data,png},same=lastMode.get(resolve),difference=previous?pixelDifference(previous.data,data,width):null;
+   frames.push({resolve,width,height,pngLength:png.length,pngEqualPrevious:previous?previous.png===png:null,previousMode:previous?.resolve??null,difference,sameModeDifference:same?pixelDifference(same.data,data,width):null,shadowBefore,shadowAfter:r.shadowMap.needsUpdate,blitMasks:masks.splice(0),...reportFrame()});
+   if(difference?.pixels&&(!worst||difference.pixels>worst.difference.pixels))worst={phase:name,before:previous,after:sample,difference};
+   previous=sample;lastMode.set(resolve,sample);
+  }
+  phases.push({name,frames});
+ };
+ try{
+  phase('initial');phase('warmed',{warmup:6});phase('shadow-refreshed',{warmup:2,refreshShadow:true});
+  if(disableLeafCutout){
+   g.world.group.traverse(o=>{if(o.userData.treeCanopy&&o.material.alphaTest>0)leaves.set(o.material,o.material.alphaTest);});
+   for(const mat of leaves.keys()){mat.alphaTest=0;mat.needsUpdate=true;}r.shadowMap.needsUpdate=true;phase('without-leaf-cutout',{warmup:6});
+  }
+  const report={supported:true,samples:target.samples,sequence,time:g.time,coordinates:'readPixels origin is bottom-left',cutoutMaterials:leaves.size,phases};
+  window.depthResolveReport=report;pixelCaptures.replaceChildren();
+  if(worst)for(const [label,sample]of[['前帧',worst.before],['后帧',worst.after]]){
+   const link=document.createElement('a'),img=document.createElement('img');link.href=sample.png;link.download='depth-'+label+'-'+sample.resolve+'.png';link.title=worst.phase+' '+label+' resolve='+sample.resolve;img.src=sample.png;img.alt=link.title;img.style.maxWidth='49%';link.append(img);pixelCaptures.append(link);
+  }
+  $('#report').textContent=JSON.stringify(report,null,2);$('#status').textContent='深度解析原始像素诊断完成 · '+phases.map(p=>p.name+': '+Math.max(...p.frames.map(f=>f.difference?.pixels||0))+' 个差异像素').join('；');return report;
+ }finally{
+  target.resolveDepthBuffer=oldResolve;gl.blitFramebuffer=originalBlit;
+  for(const[mat,alphaTest]of leaves){mat.alphaTest=alphaTest;mat.needsUpdate=true;}r.shadowMap.needsUpdate=leaves.size?true:oldShadowUpdate;
+ }
+};
+pixelButton.onclick=async()=>{pixelButton.disabled=true;try{await window.depthResolveDiagnostics({disableLeafCutout:true});}catch(e){$('#status').textContent='像素诊断失败：'+e.message;}finally{pixelButton.disabled=false;}};
 $('#run').onclick=async()=>{
  for(const b of document.querySelectorAll('button'))b.disabled=true;results.length=0;errors.length=0;
  try{
@@ -70,7 +119,10 @@ $('#run').onclick=async()=>{
    select('forest','silver',true);g.pause();if(!g.cinema.enabled)return{supported:false};const target=g.cinema.sceneTarget,gl=g.renderer.getContext(),masks=[],original=gl.blitFramebuffer;
    gl.blitFramebuffer=function(...args){masks.push(args[8]);return original.apply(this,args);};
    const draw=()=>g.cinema.render(()=>g.renderer.render(g.hero.parent,g.camera),1);
-   try{assert(target.depthBuffer&&!target.resolveDepthBuffer,'目标深度配置错误');target.resolveDepthBuffer=true;draw();const before=g.renderer.domElement.toDataURL();const oldMasks=masks.splice(0);target.resolveDepthBuffer=false;draw();const after=g.renderer.domElement.toDataURL();assert(before===after,'关闭深度解析改变了可见画面');assert(masks.every(mask=>(mask&gl.DEPTH_BUFFER_BIT)===0),'仍解析整面深度');return{identical:true,samples:target.samples,oldMasks,newMasks:masks.slice(),...reportFrame()};}finally{target.resolveDepthBuffer=false;gl.blitFramebuffer=original;}
+   const width=gl.drawingBufferWidth,height=gl.drawingBufferHeight,read=()=>{const data=new Uint8Array(width*height*4);gl.readPixels(0,0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,data);return data;};
+   // Repeated same-mode draws (also without leaf cutout) measured 1–2 pixels at 1/255
+   // across 1,327,500 pixels. Bound only this observed quantization, not a visual percentage.
+   try{assert(target.depthBuffer&&!target.resolveDepthBuffer,'目标深度配置错误');target.resolveDepthBuffer=true;draw();const before=read(),oldMasks=masks.splice(0);target.resolveDepthBuffer=false;draw();const comparison=pixelDifference(before,read(),width);assert(comparison.maxDelta<=1&&comparison.pixels<=4,'关闭深度解析改变了可见画面 '+JSON.stringify(comparison));assert(masks.every(mask=>(mask&gl.DEPTH_BUFFER_BIT)===0),'仍解析整面深度');return{exact:comparison.pixels===0,comparison,samples:target.samples,oldMasks,newMasks:masks.slice(),...reportFrame()};}finally{target.resolveDepthBuffer=false;gl.blitFramebuffer=original;}
   });
 
   for(const [width,height]of [[2560,1440],[3840,2160]])await check(width+'×'+height+' 大屏像素预算',async()=>{await load(false,width,height);select('forest','silver',true);const r=reportFrame();assert(r.pixels<=3200000,'大屏像素预算超限');assert(Math.abs(g.camera.aspect-width/height)<.001,'大屏相机比例错误');return r;});

@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import{finishRock,installGroundSurface}from'./biome-scenery.js?v=116';
+import{finishRock,installGroundSurface}from'./biome-scenery.js?v=118';
 
 // Shared rounded edges catch side light without adding meshes or changing collision footprints.
 const block=new T.BoxGeometry(1,1,1,3,3,3),p=block.attributes.position,colors=[],v=new T.Vector3(),core=new T.Vector3();

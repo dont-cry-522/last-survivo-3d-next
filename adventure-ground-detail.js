@@ -38,12 +38,14 @@ const near=(x,z,p,r)=>(x-p.x)**2+(z-p.z)**2<r*r;
 
 function tuftGeometry(){
  const positions=[],colors=[],indices=[];
- for(let blade=0;blade<5;blade++){
-  const angle=blade*2.399,s=Math.sin(angle),c=Math.cos(angle),height=.21+blade%3*.04,start=positions.length/3;
-  for(let row=0;row<=3;row++){
-   const t=row/3,bend=.14*t*t,wide=.024*(1-t),shade=.65+t*.35;
-   for(const side of[-1,1]){positions.push(s*(.035+bend)+c*wide*side,-.035+t*height,c*(.035+bend)-s*wide*side);colors.push(shade*.97,shade,shade*.92);}
-   if(row<3){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}
+ // Unequal blades open out from a low crown, rather than five identical upright spikes.
+ // Seven curved blades use 28 triangles: fewer than the former five-blade mesh.
+ for(let blade=0;blade<7;blade++){
+  const angle=blade*2.399+.18*Math.sin(blade*1.8),s=Math.sin(angle),c=Math.cos(angle),height=.19+(.5+.5*Math.sin(blade*1.93))*.085,start=positions.length/3,reach=.12+(.5+.5*Math.cos(blade*2.7))*.10;
+  for(let row=0;row<=2;row++){
+   const t=row/2,bend=reach*t*t,wide=(.018+blade%3*.005)*(1-t),shade=.57+t*.39+Math.sin(blade*2.1)*.035,base=.024+blade%3*.018;
+   for(const side of[-1,1]){positions.push(s*(base+bend)+c*wide*side,-.035+Math.sin(t*Math.PI*.66)*height,c*(base+bend)-s*wide*side);colors.push(shade*.98,shade,shade*.87);}
+   if(row<2){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}
   }
  }
  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(positions.filter((v,i)=>i%3===1).map(y=>Math.max(0,(y+.035)/.29)**2),1));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;

@@ -28,7 +28,18 @@ export function environmentDetailTexture(){
  if(!groundDetailTexture){
   const size=128,pixels=new Uint8Array(size*size*4),random=seeded(5629),layers=[4,16,64].map(n=>({n,values:Float32Array.from({length:n*n},()=>random())}));
   const sample=(layer,x,y)=>{const u=x/size*layer.n,v=y/size*layer.n,ix=Math.floor(u),iy=Math.floor(v),fx=u-ix,fy=v-iy,s=fx*fx*(3-2*fx),t=fy*fy*(3-2*fy),at=(a,b)=>layer.values[(b%layer.n)*layer.n+a%layer.n];return T.MathUtils.lerp(T.MathUtils.lerp(at(ix,iy),at(ix+1,iy),s),T.MathUtils.lerp(at(ix,iy+1),at(ix+1,iy+1),s),t);};
-  for(let y=0;y<size;y++)for(let x=0;x<size;x++){const k=(y*size+x)*4;for(let channel=0;channel<3;channel++)pixels[k+channel]=Math.round(sample(layers[channel],x,y)*255);pixels[k+3]=255;}
+  for(let y=0;y<size;y++)for(let x=0;x<size;x++){const k=(y*size+x)*4;for(let channel=0;channel<3;channel++)pixels[k+channel]=Math.round(sample(layers[channel],x,y)*255);}
+  // The unused alpha channel holds small, pointed fallen leaves. RGB stays shared with water.
+  const litterRandom=seeded(1489);
+  for(let i=0;i<26;i++){
+   const cx=litterRandom()*size,cy=litterRandom()*size,angle=litterRandom()*Math.PI*2,c=Math.cos(angle),s=Math.sin(angle),length=4+litterRandom()*3,width=1.3+litterRandom()*1.2;
+   for(let y=Math.floor(cy-length);y<=cy+length;y++)for(let x=Math.floor(cx-length);x<=cx+length;x++){
+    const dx=x+.5-cx,dy=y+.5-cy,u=(dx*c+dy*s)/length,v=(-dx*s+dy*c)/width,edge=1-u*u-Math.abs(v),mask=T.MathUtils.smoothstep(edge,0,.24);
+    if(!mask)continue;
+    const fold=.70+.23*Math.abs(v)-.19*Math.exp(-Math.abs(v)*18),k=(((y+size)%size)*size+(x+size)%size)*4+3;
+    pixels[k]=Math.max(pixels[k],Math.round(mask*fold*255));
+   }
+  }
   groundDetailTexture=new T.DataTexture(pixels,size,size);groundDetailTexture.wrapS=groundDetailTexture.wrapT=T.RepeatWrapping;groundDetailTexture.magFilter=T.LinearFilter;groundDetailTexture.minFilter=T.LinearMipmapLinearFilter;groundDetailTexture.generateMipmaps=true;groundDetailTexture.anisotropy=4;groundDetailTexture.needsUpdate=true;
  }
  return groundDetailTexture;
@@ -48,22 +59,31 @@ export function installGroundSurface(ground,id='confluence'){
    float soilClump=texture2D(groundDetail,soilPoint*.046+vec2(.23,.61)).g;
    // Mipmaps filter the texture; this also fades its tiny normal slopes before they become subpixel.
    float soilPixel=max(length(dFdx(soilPoint)),length(dFdy(soilPoint)));
-   float soilGrainDetail=1.0-smoothstep(.025,.12,soilPixel);
-   vec3 soilFine=texture2D(groundDetail,soilPoint*.32+vec2(soilClump*.07,soilField*.09)).rgb;
+   float soilGrainDetail=1.0-smoothstep(.015,.07,soilPixel);
+   vec4 soilFine=texture2D(groundDetail,soilPoint*.62+vec2(soilClump*.11,soilField*.09));
    float soilGrain=mix(.5,soilFine.b,soilGrainDetail);
-   float soilPebble=smoothstep(.58,.80,soilFine.g)*soilGrainDetail;
    float soilPatch=smoothstep(.43,.73,soilField+soilClump*.13);
-   diffuseColor.rgb*=.88+soilClump*.17+soilGrain*.095;
-   ${id==='forest'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.083,.070,.037),soilPatch*.53);float moss=smoothstep(.58,.81,soilClump)*(1.0-soilPatch);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.064,.103,.037),moss*.30);`
-    :id==='snow'?`diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.77,.88,.99),soilPatch*.38);diffuseColor.rgb+=vec3(.035,.039,.038)*smoothstep(.59,.83,soilClump);`
-    :id==='ash'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.075,.071,.075),soilPatch*.40);diffuseColor.rgb*=1.0-smoothstep(.68,.86,soilClump)*.16;`
-    :id==='sand'?`float sandRidge=.5+sin((soilPoint.x*.765+soilPoint.y*.644)*3.2+soilField*8.0)*.5*(1.0-smoothstep(.16,.65,soilPixel));diffuseColor.rgb*=.94+sandRidge*.085;diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.91,.84,.72),soilPatch*.23);`
-    :id==='coast'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.110,.117,.082),soilPatch*.36);diffuseColor.rgb*=.96+soilClump*.08;`
-    :`float soilSnow=smoothstep(.25,.48,max(diffuseColor.r,max(diffuseColor.g,diffuseColor.b)));diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*mix(vec3(1.17,.95,.77),vec3(.91,.97,1.04),soilSnow),soilPatch*.30);`}
-   // Fine mineral flecks are texture-filtered and fade at grazing / distant views.
+   float soilSnow=${id==='snow'?'1.0':id==='confluence'?'smoothstep(.23,.48,min(diffuseColor.r,min(diffuseColor.g,diffuseColor.b)))':'0.0'};
+   float soilSand=${id==='sand'?'1.0':id==='confluence'?'smoothstep(.025,.10,diffuseColor.r-diffuseColor.b)*smoothstep(.14,.30,diffuseColor.r)*(1.0-soilSnow)':'0.0'};
+   float soilOrganic=${id==='forest'?'1.0':id==='coast'?'.55':id==='confluence'?'smoothstep(.01,.06,diffuseColor.g-diffuseColor.r)*(1.0-soilSnow)':'0.0'};
+   diffuseColor.rgb*=.94+soilClump*.10+(soilGrain-.5)*.14;
+   ${id==='forest'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.073,.057,.031),soilPatch*.62);`
+    :id==='ash'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.075,.071,.075),soilPatch*.40);diffuseColor.rgb*=1.0-smoothstep(.62,.85,soilFine.g)*.12*soilGrainDetail;`
+    :id==='coast'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.094,.102,.068),soilPatch*.40);`
+    :id==='confluence'?`diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.10,.86,.67),soilPatch*soilOrganic*.30);`:''}
+   float moss=smoothstep(.40,.75,soilClump+soilFine.g*.13)*(1.0-soilPatch)*soilOrganic;
+   diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.82,1.13,.72),moss*.48);
+   float litter=smoothstep(.12,.48,soilFine.a)*(1.0-smoothstep(.045,.18,soilPixel))*soilOrganic*(.45+soilPatch*.55);
+   diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.105,.069,.028)*(.75+soilFine.a*.65),litter*.68);
+   float snowPacked=smoothstep(.32,.76,soilClump+soilPatch*.17)*soilSnow;
+   diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.83,.91,.98),snowPacked*.42);
+   // Wind ripples are about 45 cm apart; only their few-millimetre relief catches light.
+   float sandRidge=sin((soilPoint.x*.765+soilPoint.y*.644)*14.0+soilField*8.0+soilClump*2.0)*(1.0-smoothstep(.03,.18,soilPixel))*soilSand;
+   diffuseColor.rgb*=1.0+sandRidge*.035;
+   diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.94,.88,.77),soilPatch*soilSand*.23);
+   // Millimetre grain replaces the coarse pebble bumps; no specular glitter is added.
    // No displaced terrain: feet, swimming, collision and hazards keep their baseline.
-   diffuseColor.rgb*=1.0+(soilPebble-.15*soilGrainDetail)*${id==='snow'?'.035':id==='sand'?'.06':'.13'};
-   float soilRelief=soilClump*.055+soilGrain*.012+soilPebble*${id==='snow'?'.002':id==='sand'?'.004':'.012'};
+   float soilRelief=soilClump*.014+(soilGrain-.5)*mix(.0018,.0010,soilSnow)+litter*.0012+sandRidge*.003;
   `);
   shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
    vec3 soilDx=dFdx(-vViewPosition),soilDy=dFdy(-vViewPosition);
@@ -72,7 +92,7 @@ export function installGroundSurface(ground,id='confluence'){
    normal=normalize(abs(soilDet)*normal-sign(soilDet)*(dFdx(soilRelief)*soilRx+dFdy(soilRelief)*soilRy));
   `);
  };
- material.customProgramCacheKey=()=> 'ground-close-detail-'+id;material.needsUpdate=true;
+ material.customProgramCacheKey=()=> 'ground-natural-detail-'+id;material.needsUpdate=true;
 }
 // Shared geometry and instanced details: decoration stays low, leaving combat and collision legible.
 const geometries={stone:naturalRockGeometry,snow:null,chip:new T.OctahedronGeometry(1,0),wood:new T.CylinderGeometry(.10,.15,1,7),leaf:null,ice:new T.ConeGeometry(1,1,5),frond:null},materials=new Map();

@@ -20,7 +20,7 @@ test('ponds stay clear of trees, spawn and reward sites; ash stays dry; surface 
 test('water depth finish keeps a single surface pass and the existing two-layer shoreline',()=>{
  for(const id of['forest','snow','coast']){
   const w=buildWorld(id,7),waterMaterials=new Set(w.ponds.map(p=>p.mesh.material));assert.equal(waterMaterials.size,1);
-  for(const p of w.ponds){assert(p.mesh.material.forceSinglePass);assert(!p.mesh.material.depthWrite);assert(p.mesh.material.transparent);assert.equal(p.mesh.position.y,.075);assert.equal(p.bank.position.y,.045);assert.equal(p.mesh.geometry.attributes.position.count,192);assert.equal(waterDepth(p,p.x,p.z),1);}
+  for(const p of w.ponds){assert(p.mesh.material.forceSinglePass);assert(!p.mesh.material.depthWrite);assert(p.mesh.material.transparent);assert(p.bank.material.isMeshLambertMaterial&&p.bank.receiveShadow,'wet banks must respond to the existing light and shadow');assert(!p.bank.material.depthWrite);assert.equal(p.mesh.position.y,.075);assert.equal(p.bank.position.y,.045);assert.equal(p.mesh.geometry.attributes.position.count,192);assert.equal(waterDepth(p,p.x,p.z),1);}
   w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
  }
 });
@@ -28,7 +28,7 @@ test('flow and wet banks share filtered detail and a simulation clock without mo
  let texture;for(const id of['forest','snow','coast']){
   const group=new T.Group(),ponds=buildPonds(group,id,seeded(3),{x:-30,z:-30},[],[{x:2,z:4,rx:6,rz:5,angle:.3}]),p=ponds[0];
   const compile=(material,kind)=>{const shader={uniforms:{},vertexShader:T.ShaderLib[kind].vertexShader,fragmentShader:T.ShaderLib[kind].fragmentShader};material.onBeforeCompile(shader);return shader;};
-  const surface=compile(p.mesh.material,'standard'),bank=compile(p.bank.material,'basic'),detail=surface.uniforms.waterDetail.value;
+  const surface=compile(p.mesh.material,'standard'),bank=compile(p.bank.material,'lambert'),detail=surface.uniforms.waterDetail.value;
   assert.strictEqual(surface.uniforms.waterTime,bank.uniforms.waterTime);assert.strictEqual(detail,bank.uniforms.waterDetail.value);if(texture)assert.strictEqual(detail,texture);texture=detail;assert(detail.generateMipmaps);assert.equal(detail.minFilter,T.LinearMipmapLinearFilter);
   const before=[p.rx,p.rz,p.mesh.position.toArray(),p.mesh.scale.toArray(),waterDepth(p,6,6)],draws=group.children.length;
   for(const time of[8,8,12,0]){animateWater(id,time);assert.equal(surface.uniforms.waterTime.value,time);assert.equal(bank.uniforms.waterTime.value,time);assert.deepEqual([p.rx,p.rz,p.mesh.position.toArray(),p.mesh.scale.toArray(),waterDepth(p,6,6)],before);assert.equal(group.children.length,draws);}
@@ -57,6 +57,42 @@ test('low-angle water uses biome sky colors within the existing surface pass and
   group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
  }
  assert.equal(new Set(palettes).size,3,'forest, snow and coast keep their own reflection palettes');
+});
+test('shore leaves bend and taper within the existing instances and preserve the layout RNG stream',()=>{
+ let sharedGeometry;
+ for(const id of['forest','snow','coast','sand']){
+  let calls=0;const random=seeded(31),rnd=()=>{calls++;return random();},group=new T.Group();
+  const ponds=buildPonds(group,id,rnd,{x:-30,z:-30},[],[{x:2,z:4,rx:6,rz:5,angle:.3}]);
+  assert.equal(calls,222,'visual detail consumed extra layout randomness');assert.equal(rnd(),.9174752309918404);
+  assert.deepEqual(ponds.map(p=>[p.x,p.z,p.rx,p.rz,p.angle]),[[2,4,6,5,.3]]);
+  const reeds=group.getObjectByName('pond-reeds'),stones=group.getObjectByName('pond-shore-stones'),g=reeds.geometry,p=g.attributes.position;
+  assert.equal(reeds.count,24);assert.equal(stones.count,6);assert.equal(group.children.length,4);
+  assert.equal(g.index.count/3,12);assert.equal(reeds.material.side,T.DoubleSide);assert.equal(reeds.material.forceSinglePass,true);
+  assert(reeds.material.vertexColors);if(sharedGeometry)assert.equal(g,sharedGeometry);sharedGeometry=g;
+  const a=new T.Vector3(),b=new T.Vector3(),root=new T.Vector3(),middle=new T.Vector3(),tip=new T.Vector3();
+  for(let leaf=0;leaf<2;leaf++){
+   const offset=leaf*8,center=(row,out)=>out.fromBufferAttribute(p,offset+row*2).add(a.fromBufferAttribute(p,offset+row*2+1)).multiplyScalar(.5);
+   center(0,root);center(1,middle);center(3,tip);
+   assert.equal(root.y,-.5);assert(tip.y>.25&&tip.y<=.5);assert(Math.hypot(tip.x-root.x,tip.z-root.z)>1,'reed silhouette stayed a rigid upright spike');
+   const span=row=>a.fromBufferAttribute(p,offset+row*2).distanceTo(b.fromBufferAttribute(p,offset+row*2+1));
+   assert(span(3)<span(1)*.1,'leaf tip did not taper');assert(middle.x!==root.x||middle.z!==root.z);
+  }
+  for(const attribute of [p,g.attributes.normal,g.attributes.color])assert(Array.from(attribute.array).every(Number.isFinite));
+  group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
+ }
+});
+test('forest wet sediment stays dark and neutral while other shore palettes retain their identity',()=>{
+ const banks={};
+ for(const id of['forest','snow','coast','sand']){
+  const group=new T.Group(),[pond]=buildPonds(group,id,seeded(31),{x:-30,z:-30},[],[{x:2,z:4,rx:6,rz:5,angle:.3}]);
+  banks[id]=pond.bank.material;
+  assert.equal(pond.bank.scale.x,pond.rx*1.12);assert.equal(pond.mesh.scale.x,pond.rx);
+  group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
+ }
+ const forest=banks.forest.color,luminance=c=>c.r*.2126+c.g*.7152+c.b*.0722;
+ assert(luminance(forest)<.08&&luminance(forest)<luminance(banks.coast.color)*.5,'forest bank became a bright sandy outline');
+ assert(forest.g>forest.r&&forest.b>forest.r*.9,'forest sediment became yellow rather than damp neutral soil');assert(banks.forest.opacity<=.25);
+ for(const[id,color]of Object.entries({snow:0x798480,coast:0x82785d,sand:0x97845e}))assert.equal(banks[id].color.getHex(),color);
 });
 test('water pose does not accumulate and returns to land for heroes and ground creatures',()=>{
  for(const kind of ['silver','scout','wraith','wolf','golem','mushroom']){const g=actor(kind),d=g.userData;d.waterDepth=1;

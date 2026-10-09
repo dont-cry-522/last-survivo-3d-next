@@ -19,13 +19,8 @@ material.onBeforeCompile=shader=>{
   float treeFootprint=max(length(dFdx(treePoint)),length(dFdy(treePoint)));
   float treeDetail=1.0-smoothstep(.035,.13,treeFootprint),treeRelief=0.0,treeScatter=0.0;
   if(treeKind>.5){
-   float treeClump=treeNoise(treePoint*5.0),treeLeaf=smoothstep(.28,.72,treeNoise(treePoint*19.0+vec3(3.1,8.7,1.3)));
-   float treeSnow=step(1.5,treeKind);
-   treeScatter=(.35+.65*smoothstep(.38,.78,treeClump))*(1.0-treeSnow);
-   vec3 treePigment=mix(vec3(.84,.89,.78),vec3(1.12,1.11,1.02),treeLeaf);
-   treePigment=mix(treePigment,vec3(.89+treeLeaf*.18),treeSnow);
-   diffuseColor.rgb*=mix(vec3(1.0),treePigment,treeDetail)*(.94+treeClump*.12);
-   treeRelief=(treeClump*.010+treeLeaf*.004)*treeDetail*mix(1.0,.45,treeSnow);
+   // Thin leaves carry their variation in vertices, rather than noisy swollen surfaces.
+   treeScatter=1.0-step(1.5,treeKind);
   }else{
    float treeGrain=treeNoise(treePoint*vec3(27.0,1.15,27.0)),treeFissure=smoothstep(.30,.65,treeGrain);
    float treeBark=treeNoise(treePoint*vec3(53.0,5.0,53.0));
@@ -48,7 +43,7 @@ material.onBeforeCompile=shader=>{
   normal=normalize(abs(treeDet)*normal-sign(treeDet)*(dFdx(treeRelief)*treeRx+dFdy(treeRelief)*treeRy));
  `);
 };
-material.customProgramCacheKey=()=> 'tree-soft-leaf-light';
+material.customProgramCacheKey=()=> 'tree-open-leaf-sprays';
 function tint(geometry,color,canopy=false){
  const p=geometry.attributes.position,n=geometry.attributes.normal,c=new T.Color(color),colors=[];
  for(let i=0;i<p.count;i++){
@@ -70,31 +65,53 @@ function limb(points,radii,sides=7){
  for(const end of[0,radii.length-1]){const p=curve.getPoint(end/(radii.length-1)),center=vertices.length/3;vertices.push(p.x,p.y,p.z);for(let j=0;j<sides;j++){const a=end*sides+j,b=end*sides+(j+1)%sides;indices.push(...(end?[center,b,a]:[center,a,b]));}}
  return surface(vertices,indices);
 }
+// One bounded, canvas-free atlas is shared by all forest crowns. Its real alpha gaps
+// are also consumed by Three's standard shadow depth pass; there is no blended layer.
+function leafAtlas(){
+ const size=256,data=new Uint8Array(size*size*4),random=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
+ for(let i=0;i<data.length;i+=4){data[i]=66;data[i+1]=91;data[i+2]=46;}
+ for(let leaf=0;leaf<240;leaf++){
+  const angle=leaf*2.399963,rad=.398*Math.sqrt((leaf+.5)/240),cx=.5+Math.cos(angle)*rad,cy=.5+Math.sin(angle)*rad;
+  const direction=angle*.47+random(leaf+100)*4,cos=Math.cos(direction),sin=Math.sin(direction),length=.085+random(leaf+200)*.060,half=.023+random(leaf+300)*.016,warm=random(leaf+400);
+  const extent=(length*.5+half)*size,x0=Math.max(0,Math.floor(cx*size-extent)),x1=Math.min(size-1,Math.ceil(cx*size+extent)),y0=Math.max(0,Math.floor(cy*size-extent)),y1=Math.min(size-1,Math.ceil(cy*size+extent));
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+   const dx=(x+.5)/size-cx,dy=(y+.5)/size-cy,t=(dx*cos+dy*sin)/length+.5,across=-dx*sin+dy*cos;
+   if(t<=0||t>=1)continue;
+   const outline=half*Math.pow(Math.sin(t*Math.PI),.80)*(1+.055*Math.sin(t*31+leaf)),distance=(outline-Math.abs(across))*size,alpha=Math.round(T.MathUtils.clamp(distance+.5,0,1)*255);
+   if(!alpha)continue;
+   const fold=across>0?.95:1.04,vein=Math.abs(across)<.0015?1.03:1,light=(.84+t*.21)*fold*vein,index=(y*size+x)*4;
+   data[index]=Math.round((63+warm*23)*light);data[index+1]=Math.round((91+warm*24)*light);data[index+2]=Math.round((42+warm*13)*light);data[index+3]=Math.max(data[index+3],alpha);
+  }
+ }
+ const texture=new T.DataTexture(data,size,size,T.RGBAFormat);texture.name='shared-tree-leaf-atlas';texture.colorSpace=T.SRGBColorSpace;texture.generateMipmaps=true;texture.minFilter=T.LinearMipmapLinearFilter;texture.magFilter=T.LinearFilter;texture.needsUpdate=true;return texture;
+}
+const leafMaterial=new T.MeshStandardMaterial({name:'shared-cutout-leaves',map:leafAtlas(),vertexColors:true,roughness:.96,side:T.DoubleSide,alphaTest:.30,transparent:false});
+leafMaterial.onBeforeCompile=shader=>{
+ shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
+  #if NUM_DIR_LIGHTS > 0
+   float leafTransmission=pow(max(0.0,dot(-normal,directionalLights[0].direction)),2.0);
+   reflectedLight.indirectDiffuse+=diffuseColor.rgb*directionalLights[0].color*vec3(.055,.085,.023)*leafTransmission;
+  #endif
+ `);
+};
+leafMaterial.customProgramCacheKey=()=> 'tree-layered-cutout-sprays';
 function broadFan(x,y,z,width,depth,height,phase){
- // Rounded, overlapping sprays retain open branch gaps at a human-height camera.
- const sides=12,vertices=[],indices=[],cos=Math.cos(phase),sin=Math.sin(phase);
- const point=(u,h,v)=>vertices.push(x+u*cos-v*sin,y+h*height,z+u*sin+v*cos);
- for(let ring=0;ring<3;ring++)for(let j=0;j<sides;j++){
-  const a=j/sides*Math.PI*2,edge=.88+.09*Math.sin(a*5+phase)+.055*Math.sin(a*7-phase*.7)+.055*Math.sin(a*2+phase),r=[1,.72,.29][ring]*edge;
-  const h=[.02,.71,.97][ring]+.08*Math.sin(a+phase)*Math.cos(a*2-phase)+(ring?.035:.07)*Math.sin(a*5+phase);
-  point(Math.cos(a)*width*r+ring*.07*width,h,Math.sin(a)*depth*r);
+ // Five differently tilted, gently bowed sheets fill the former crown volume.
+ // Each tile is a dense small-leaf spray, not a single giant leaf or a solid dome.
+ const vertices=[],indices=[],colors=[],uvs=[],cos=Math.cos(phase),sin=Math.sin(phase),color=new T.Color();
+ const sheets=[[.94,.96,.45,.46,.20,0,0],[.91,.90,-.44,.55,.79,0,0],[.95,.28,.08,1.02,.34,0,-.14],[.24,.94,1.02,.10,.60,-.08,0],[.78,.79,-.72,.72,.47,.09,.08]];
+ for(let sheet=0;sheet<sheets.length;sheet++){
+  const [wu,dv,hu,hv,cy,cx,cz]=sheets[sheet],first=vertices.length/3;
+  for(let row=0;row<3;row++)for(let col=0;col<3;col++){
+   const u=col-1,v=row-1,px=(u*wu+cx)*width*.99,pz=(v*dv+cz)*depth*.99,py=(cy+u*hu+v*hv+.16*(1-u*u)*(1-v*v)+.035*Math.sin(phase+sheet+u*1.7+v))*height;
+   vertices.push(x+px*cos-pz*sin,y+py,z+px*sin+pz*cos);
+   const warmth=.5+.5*Math.sin(phase*2.7+y*.85+sheet*.7),light=.88+cy*.16+y*.06;
+   color.setRGB(light*(.97+warmth*.08),light,light*(.93-warmth*.06));colors.push(Math.min(1,color.r),Math.min(1,color.g),Math.min(1,color.b));
+   uvs.push(sheet%2?1-col/2:col/2,row/2);
+  }
+  for(let row=0;row<2;row++)for(let col=0;col<2;col++){const a=first+row*3+col;indices.push(a,a+3,a+1,a+1,a+3,a+4);}
  }
- const top=vertices.length/3;point(.14*width,1.02,-.05*depth);const bottom=vertices.length/3;point(.04*width,-.32,0);
- // Separate the lower normals so side-lit crowns retain leafy, irregular edges.
- const rim=vertices.length/3;vertices.push(...vertices.slice(0,sides*3));
- for(let j=0;j<sides;j++){
-  const next=(j+1)%sides;
-  for(let ring=0;ring<2;ring++){const a=ring*sides+j,b=ring*sides+next;indices.push(a,a+sides,b,b,a+sides,b+sides);}
-  indices.push(top,next+sides*2,j+sides*2,bottom,rim+j,rim+next);
- }
- const warm=T.MathUtils.smoothstep(.5+.5*Math.sin(phase*2.7+y*.85),.58,.93);
- const g=surface(vertices,indices),p=g.attributes.position,n=g.attributes.normal,colors=[],shade=new T.Color(),low=new T.Color(0x203e37),middle=new T.Color(0x37674f).lerp(new T.Color(0x667845),warm*.64),topColor=new T.Color(0x79945b).lerp(new T.Color(0xa1a864),warm*.60);
- for(let i=0;i<p.count;i++){
-  const rise=(p.getY(i)-y)/height,sun=Math.max(0,n.getY(i)),leaf=.5+.5*Math.sin(p.getX(i)*7.1+p.getY(i)*4.3+phase)*Math.cos(p.getZ(i)*6.2-phase);
-  shade.copy(low).lerp(middle,T.MathUtils.smoothstep(rise,-.12,.65)).lerp(topColor,T.MathUtils.smoothstep(rise,.35,1)*(.46+y*.16)).multiplyScalar(.83+sun*.15+leaf*.15);
-  colors.push(shade.r,shade.g,shade.b);
- }
- g.setAttribute('color',new T.Float32BufferAttribute(colors,3));return g;
+ const g=surface(vertices,indices);g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));return g;
 }
 function rootFlare(angle,snow){
  const reach=snow?.61:.74,width=snow?.12:.16,height=snow?.43:.55,vertices=[0,.04,-width,0,.04,width,reach,.025,width*.16,reach,.025,-width*.16,.13,height,0],indices=[0,1,4,0,4,3,3,4,2,2,4,1,0,2,1,0,3,2];
@@ -153,6 +170,6 @@ export function addTree(parent,id,tall,{angle=0,variation=1,bend=0}={}){
  const variant=Math.abs(Math.floor(angle*1.7))%3,template=treeTemplate(id,variant),height=id==='snow'?5.2+tall*.52:5.6+tall*.26,canopyHeight=height*(id==='snow'?.46:.43),width=(.88+variation*.12)*(id==='snow'?1:1.34);
  parent.userData.treeBiome=id;parent.rotation.y=angle;
  const trunk=new T.Mesh(template.trunk,material);trunk.name='tree-trunk';trunk.scale.set(.94+variation*.06,(height-canopyHeight*.32)/template.trunkHeight,.94+variation*.06);trunk.rotation.z=bend*.10;
- const canopy=new T.Mesh(template.canopy,material);canopy.name='tree-canopy';canopy.userData.treeCanopy=true;canopy.position.set(bend*.5,height-canopyHeight,0);canopy.scale.set(width,canopyHeight/template.canopyHeight,width*(.94+variant*.035));
+ const canopy=new T.Mesh(template.canopy,id==='snow'?material:leafMaterial);canopy.name='tree-canopy';canopy.userData.treeCanopy=true;canopy.position.set(bend*.5,height-canopyHeight,0);canopy.scale.set(width,canopyHeight/template.canopyHeight,width*(.94+variant*.035));
  for(const mesh of[trunk,canopy]){mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);}return canopy;
 }

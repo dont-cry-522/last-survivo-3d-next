@@ -1,7 +1,7 @@
 import{test}from'node:test';import assert from'node:assert/strict';import * as T from'../vendor/three.module.js';
 import{buildWorld,clearAt,animateWorld}from'../world.js';import{sceneryAllowed}from'../biome-scenery.js';
 import{bridgeContains,updateTide}from'../coast.js';import{waterDepth}from'../water.js';
-import{naturalRockGeometry,finishRock,installGroundSurface}from'../biome-scenery.js?v=116';
+import{naturalRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=118';
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
 function dispose(w){w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});}
 test('worn rocks reuse a bounded smooth mesh and preserve placed obstacle transforms',()=>{
@@ -17,9 +17,24 @@ test('all ground finishes share one filtered detail texture without changing ter
   const w=buildWorld(id,7);installGroundSurface(w.ground,id);const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};w.ground.material.onBeforeCompile(shader);
   const detail=shader.uniforms.groundDetail.value;if(texture)assert.strictEqual(detail,texture);texture=detail;
   assert(detail.generateMipmaps);assert.equal(detail.wrapS,T.RepeatWrapping);assert.equal(detail.image.width,128);assert.equal(detail.image.height,128);assert(!w.ground.material.transparent);
+  assert.equal((shader.fragmentShader.match(/texture2D\(groundDetail,/g)||[]).length,3,'ground added another texture fetch');
+  assert.equal(w.ground.material.roughness,1,'ground detail introduced glossy flecks');
   const positions=w.ground.geometry.attributes.position;for(let i=0;i<positions.count;i++)assert.equal(positions.getZ(i),0,'visual relief moved the playable terrain');
   dispose(w);
  }
+});
+test('the shared detail texture packs sparse filtered litter without replacing the water noise channels',()=>{
+ const texture=environmentDetailTexture(),data=texture.image.data,channels=[[],[],[],[]];
+ assert.strictEqual(environmentDetailTexture(),texture,'detail texture is rebuilt on reuse');
+ assert.equal(texture.magFilter,T.LinearFilter);assert.equal(texture.minFilter,T.LinearMipmapLinearFilter);assert.equal(texture.anisotropy,4);
+ for(let i=0;i<data.length;i++)channels[i%4].push(data[i]);
+ for(const noise of channels.slice(0,3)){
+  assert(Math.min(...noise)<35&&Math.max(...noise)>220,'shared noise lost its range');
+  const mean=noise.reduce((sum,v)=>sum+v,0)/noise.length;assert(mean>95&&mean<165,'shared noise became biased');
+ }
+ const litter=channels[3],coverage=litter.filter(v=>v>0).length/litter.length;
+ assert(coverage>.015&&coverage<.09,'fallen leaves became absent or a continuous carpet');
+ assert(litter.some(v=>v>0&&v<100)&&litter.some(v=>v>160),'litter lost its filtered edge and folded center');
 });
 test('biome details are bounded, finite, grounded and clear of rewards, bridges and hazard warnings',()=>{
  for(const id of ['forest','snow','ash','sand','coast'])for(let seed=1;seed<=5;seed++){

@@ -26,6 +26,15 @@ test('journal tolerates blocked/corrupt storage, filters untrusted entries, and 
  raw=JSON.stringify({relics:['wind','wind','bad','__proto__'],wins:['forest:crossbow','bad','forest:crossbow']});assert.deepEqual(readJournal(storage),j);
  assert.equal(writeJournal(undefined,j),false);assert.deepEqual(readJournal(undefined),{relics:[],wins:[]});
 });
+test('NEXT journals stay independent from the original game on the same browser origin',()=>{
+ const old=JSON.stringify({relics:['wind'],wins:['forest:rifle']});
+ const data=new Map([['forest-echoes-expedition-v1',old]]);
+ const storage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};
+ const journal=readJournal(storage);assert.deepEqual(journal,{relics:[],wins:[]});
+ assert(recordVictory(journal,'forest','crossbow'));assert(writeJournal(storage,journal));
+ assert.deepEqual(readJournal(storage),journal);assert.equal(data.get('forest-echoes-expedition-v1'),old);
+ assert.equal(data.size,2);
+});
 test('spore lantern victories persist on every map without discarding retired weapon records',()=>{
  let raw=JSON.stringify({relics:['wind'],wins:['forest:hammer','snow:crossbow','coast:harpoon','confluence:boomerang']});
  const storage={getItem:()=>raw,setItem:(_,v)=>raw=v},journal=readJournal(storage),old=[...journal.wins];

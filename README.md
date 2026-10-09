@@ -1,8 +1,10 @@
-# 林地远征 3D · 林心回响
+# 林地远征 3D NEXT · 林心回响
 
 一款斜俯视角的 3D 生存冒险网页游戏。在森林、雪地、灰烬、沙漠与海港中探索，选择武器与成长路线，迎战各地守卫。
 
-[开始游戏](https://dont-cry-522.github.io/last-survivo-3d/play.html) · [角色与技能资料](docs/设计参考/README.md) · [完整更新记录](docs/更新记录.md)
+[开始游戏](https://dont-cry-522.github.io/last-survivo-3d-next/play.html) · [角色与技能资料](docs/设计参考/README.md) · [完整更新记录](docs/更新记录.md)
+
+从[原版 v114](https://github.com/dont-cry-522/last-survivo-3d/tree/1dd7466fc82e48a98e266d09df49a5de1fce967f)复制的独立开发版本，保留完整提交历史与游戏资源。后续开发在本仓库进行；[原版网址](https://dont-cry-522.github.io/last-survivo-3d/play.html?v=114)继续保留。两个版本的存档、偏好设置与离线缓存相互独立。
 
 ## 游玩内容
 

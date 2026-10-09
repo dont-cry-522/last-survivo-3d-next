@@ -77,12 +77,12 @@ let world,hero,heroId='silver',mapId='forest',weaponIndex=0,state='menu',time=0,
 let battlePhase=encounterPhase(0),phaseKey=null,lastAssault=-1,hunt=null,reliefUntil=0,autoTargetLock=null;
 let storage;try{storage=localStorage;}catch{}
 const journal=readJournal(storage);let journalSaved=true,relicBurst=false;
-let mapVisibility='explore';try{if(localStorage.getItem('forest-echoes-map-visibility')==='visible')mapVisibility='visible';}catch{}
-const attackModeKey=touch?'forest-echoes-mobile-attack-mode':'forest-echoes-attack-mode';
+let mapVisibility='explore';try{if(localStorage.getItem('forest-echoes-next-map-visibility')==='visible')mapVisibility='visible';}catch{}
+const attackModeKey=touch?'forest-echoes-next-mobile-attack-mode':'forest-echoes-next-attack-mode';
 let attackMode=touch?'auto':'manual';try{const saved=localStorage.getItem(attackModeKey);if(saved==='auto'||saved==='manual')attackMode=saved;}catch{}
 const keys=new Set(),stick={x:0,z:0,id:null},aimStick={id:null},aimInput={held:false,angle:0,hasAim:false},mouseAim={x:0,y:0,valid:false},aimRay=new T.Raycaster(),groundPlane=new T.Plane(new T.Vector3(0,1,0),0),camTarget=new T.Vector3(),temp=new T.Vector3();let last=performance.now(),uiTime=0;
 const introduced=new Set(),introductions=[];let encounterTime=0,nextIntroductionAt=8,currentIntroduction=null,nextToastAt=0,nextUpgradeAt=0;
-try{const saved=JSON.parse(storage?.getItem('forest3d-known-notices')||'[]');if(Array.isArray(saved))for(const key of saved.slice(0,256))if(typeof key==='string'&&key.length<100)introduced.add(key);}catch{}
+try{const saved=JSON.parse(storage?.getItem('forest3d-next-known-notices')||'[]');if(Array.isArray(saved))for(const key of saved.slice(0,256))if(typeof key==='string'&&key.length<100)introduced.add(key);}catch{}
 const sound=new GameAudio();
 const heroSkills=new HeroSkills({companion:()=>companion,player:()=>player,active:()=>state==='playing',aim:()=>aimInput.hasAim?aimInput.angle:hero.rotation.y,foes:()=>enemies.filter(e=>e.alive).concat(boss?.alive?[boss]:[]),blocked:(ax,az,bx,bz)=>Math.abs(bx)>mapHalf()-1||Math.abs(bz)>mapHalf()-1||world.obstacles.some(o=>segmentDistance(o.x,o.z,ax,az,bx,bz)<o.r+.1),damage:hurtEnemy,knock:(e,amount)=>{const d=Math.hypot(e.x-player.x,e.z-player.z)||1;moveActor(world,e,(e.x-player.x)/d*amount,(e.z-player.z)/d*amount,e.size*.6);e.mesh.position.set(e.x,0,e.z);e.stagger=Math.max(e.stagger||0,.18);},fx:e=>{vfx.skill(e);sound.skill(e.kind);}});
 const poison=new PoisonCombat({player:()=>player,active:()=>state==='playing',foes:()=>[...enemies,...(boss?.alive?[boss]:[])],blocked:(ax,az,bx,bz)=>world.obstacles.some(o=>segmentDistance(o.x,o.z,ax,az,bx,bz)<o.r+.05),damage:hurtEnemy,release:()=>{hero.updateMatrixWorld(true);const hand=hero.userData.support?.hand;const p=hand?.getWorldPosition(new T.Vector3());return p&&clearAt(world,p.x,p.z,.1)?p:player;},impactTerrain:(x,z,r,n)=>{for(const o of world.breakables||[])if(o.state==='standing'&&Math.hypot(o.x-x,o.z-z)<r+o.r)terrainHit(o,n);},fx:e=>{poisonVFX.event(e);if(e.w&&(e.kind==='poisonLand'&&e.w.stillRank||e.kind==='poisonMove'&&e.w.pathId==='sporelantern_roam'))weaponRouteEffect(vfx,e.w,'hit',e.x,e.z,e.angle||0,{radius:e.r});if(e.kind==='poisonThrow')sound.shot('sporelantern');else poisonSound(sound,e.kind);}});
@@ -98,9 +98,9 @@ function setControlScale(value,persist=true){
  const percent=Number.isFinite(value)?Math.max(75,Math.min(135,Math.round(value/5)*5)):100;
  releaseStick();clearAttack();document.body.style.setProperty('--touch-scale',String(percent/100));
  $('#control-scale').value=percent;$('#control-scale-value').textContent=percent+'%';
- if(persist)try{localStorage.setItem('forest3d-touch-scale',String(percent));}catch{}
+ if(persist)try{localStorage.setItem('forest3d-next-touch-scale',String(percent));}catch{}
 }
-let storedControlScale=100;try{const saved=localStorage.getItem('forest3d-touch-scale');if(saved!==null)storedControlScale=Number(saved);}catch{}
+let storedControlScale=100;try{const saved=localStorage.getItem('forest3d-next-touch-scale');if(saved!==null)storedControlScale=Number(saved);}catch{}
 setControlScale(storedControlScale,false);
 $('#control-scale').addEventListener('input',e=>setControlScale(Number(e.target.value)));
 $('#control-scale-reset').onclick=()=>setControlScale(100);
@@ -112,7 +112,7 @@ function showNextIntroduction(){
  if(nearbyHazard()||enemies.some(e=>e.alive&&Math.hypot(e.x-player.x,e.z-player.z)<6))return;
  while(introductions.length&&time-introductions[0].queuedAt>30)introductions.shift();
  const item=introductions.shift();if(!item)return;
- currentIntroduction=item;introduced.add(item.key);try{storage?.setItem('forest3d-known-notices',JSON.stringify([...introduced].slice(-256)));}catch{}
+ currentIntroduction=item;introduced.add(item.key);try{storage?.setItem('forest3d-next-known-notices',JSON.stringify([...introduced].slice(-256)));}catch{}
  const card=$('#encounter'),kind=item.key.startsWith('enemy:')?item.key.slice(6):null,info=ENEMY_GUIDE[kind],portrait=card.querySelector('img');portrait.hidden=!info;card.classList.toggle('has-portrait',!!info);
  if(info){portrait.src=info.image+'?v=114';portrait.alt=info.name+' · 游戏内外形';}else portrait.removeAttribute('src');
  card.querySelector('strong').textContent=item.title;card.querySelector('span').textContent=info?info.tip:item.text;card.hidden=false;encounterTime=4;syncMobileNotices();
@@ -156,7 +156,7 @@ function setMapVisibility(mode){
  mapVisibility=mode;
  for(const b of document.querySelectorAll('[data-map-visibility]'))b.setAttribute('aria-pressed',String(b.dataset.mapVisibility===mode));
  $('#map-visibility-help').textContent=mode==='explore'?'小地图从黑暗中逐步揭开，走过的区域保留；每局重新探索。':'小地图始终显示完整地形；探索事件仍需靠近才会发现。';
- try{localStorage.setItem('forest-echoes-map-visibility',mode);}catch{}
+ try{localStorage.setItem('forest-echoes-next-map-visibility',mode);}catch{}
 }
 for(const b of document.querySelectorAll('[data-map-visibility]'))b.onclick=()=>setMapVisibility(b.dataset.mapVisibility);
 function drawExplorationFog(c){
@@ -196,7 +196,7 @@ $('#sound').onclick=()=>{if(sound.ctx?.state==='running')sound.setMuted(!sound.m
 function upgrade(force=false){if(player.pending<=0||state!=='playing')return;
  if(!force&&(time<nextUpgradeAt||boss?.alive||nearbyHazard()||['warning','assault'].includes(battlePhase.mode)||enemies.some(e=>e.alive&&(e.wind>0||e.pounce>0||Math.hypot(e.x-player.x,e.z-player.z)<7))))return;
 state='upgrade';sound.stopWeapons(true);sound.stopCreatures();keys.clear();releaseStick();clearAttack();
- const opening=!player.upgradeDraft,openingKey='forest-echoes-opening:'+heroId+':'+player.weaponId;
+ const opening=!player.upgradeDraft,openingKey='forest-echoes-next-opening:'+heroId+':'+player.weaponId;
  if(opening)try{const shown=JSON.parse(storage.getItem(openingKey));if(Array.isArray(shown))player.upgradeDraft={shown:shown.filter(id=>typeof id==='string').slice(0,3),routeMisses:0};}catch{}
  const choices=player.pendingDraft||chooseUpgrades(player);player.pendingDraft=choices;if(!choices.length){player.pending=0;state='playing';return;}
  if(opening)try{storage.setItem(openingKey,JSON.stringify(choices.map(u=>u.id)));}catch{}

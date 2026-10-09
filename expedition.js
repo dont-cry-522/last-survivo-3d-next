@@ -27,7 +27,7 @@ export function relicEvent(p,event,now){
  return null;
 }
 export function incomingRelicDamage(p,damage){return damage*(p.relic?.id==='glass'?1.25:1);}
-export const JOURNAL_KEY='forest-echoes-expedition-v1';
+export const JOURNAL_KEY='forest-echoes-next-expedition-v1';
 const maps=['forest','snow','ash','sand','coast','confluence'],weapons=['boomerang','harpoon','hammer','rifle','shotgun','fire','crossbow','shuriken','dark','shade','shadowblade','grimoire','sporelantern','miasmalantern'];
 const validWins=new Set(maps.flatMap(m=>weapons.map(w=>m+':'+w)));
 export function readJournal(storage){

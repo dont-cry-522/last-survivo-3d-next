@@ -27,10 +27,10 @@ export class GameAudio{
   constructor(context=null){
     this.ctx=context;this.ready=false;this.muted=false;this.musicVolume=.65;this.sfxVolume=.8;this.sfxStyle='standard';
     this.musicBuffers=new Map();this.musicSources=new Set();this.musicVoices=new Set();this.beat=0;this.next=0;this.map='forest';this.pressure=0;this.mode='menu';this.cooldowns=new Map();this.nodes=0;this.proceduralSources=new Set();this.weaponBuffers=new Map();this.weaponTakes=new Map();this.weaponSources=new Set();this.creatureBuffers=new Map();this.creatureSources=new Set();
-    try{const v=JSON.parse(localStorage.getItem('forest3d-audio')||'null');if(v){this.muted=!!v.muted;this.musicVolume=this.clamp(v.music,.65);this.sfxVolume=this.clamp(v.sfx,.8);this.sfxStyle=soundStyle(v.sfxStyle);}}catch{}
+    try{const v=JSON.parse(localStorage.getItem('forest3d-next-audio')||'null');if(v){this.muted=!!v.muted;this.musicVolume=this.clamp(v.music,.65);this.sfxVolume=this.clamp(v.sfx,.8);this.sfxStyle=soundStyle(v.sfxStyle);}}catch{}
   }
   clamp(n,f){return Number.isFinite(n)?Math.max(0,Math.min(1,n)):f;}
-  save(){try{localStorage.setItem('forest3d-audio',JSON.stringify({muted:this.muted,music:this.musicVolume,sfx:this.sfxVolume,sfxStyle:this.sfxStyle}));}catch{}}
+  save(){try{localStorage.setItem('forest3d-next-audio',JSON.stringify({muted:this.muted,music:this.musicVolume,sfx:this.sfxVolume,sfxStyle:this.sfxStyle}));}catch{}}
   get effectProfile(){return SFX_STYLES[soundStyle(this.sfxStyle)];}
   materialCue(key,take=0){return this.effectProfile.material?this.materialEffects?.get(key,take):null;}
   setSfxStyle(value,{persist=true}={}){

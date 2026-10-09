@@ -5,7 +5,7 @@ import {buildWorld} from '../world.js';
 import {waterDepth} from '../water.js';
 import {bridgeContains} from '../coast.js';
 import {segmentDistance} from '../rules.js';
-import {installAdventureGroundDetail} from '../adventure-ground-detail.js';
+import {installAdventureGroundDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const maps=['forest','snow','ash','sand','coast','confluence'];
@@ -18,17 +18,31 @@ test('all six maps use at most two bounded batches without moving gameplay data 
   const world=buildWorld(map,7),before=state(world),ground=world.ground.geometry.attributes.position.array.slice(),group=installAdventureGroundDetail(world,map);
   assert(group,map);assert.equal(group.parent,world.group);assert.equal(installAdventureGroundDetail(world,map),group);
   assert(group.children.length>0&&group.children.length<=2);const records=group.userData.records;
-  assert(records.length>100&&records.length<=(map==='confluence'?900:500));assert.equal(group.children.reduce((n,b)=>n+b.count,0),records.length);
+  assert(records.length>100&&records.length<=(map==='confluence'?2200:1200));assert.equal(group.children.reduce((n,b)=>n+b.count,0),records.length);
   assert.equal(state(world),before);assert.deepEqual(world.ground.geometry.attributes.position.array,ground);
   if(map==='confluence')assert.deepEqual([...new Set(records.map(p=>p.biome))].sort(),maps.filter(id=>id!=='confluence').sort());
   for(const batch of group.children){
    assert(batch.isInstancedMesh);assert(batch.userData.ownedGeometry);assert(!batch.castShadow&&batch.receiveShadow);assert.equal(batch.material.roughness,1);assert(!batch.material.map&&!batch.material.transparent);
    assert(batch.geometry.groups.length===0);assert([...batch.instanceMatrix.array].every(Number.isFinite));assert([...batch.instanceColor.array].every(Number.isFinite));
    const matrix=new T.Matrix4(),box=new T.Box3();batch.geometry.computeBoundingBox();
-   for(let i=0;i<batch.count;i++){batch.getMatrixAt(i,matrix);box.copy(batch.geometry.boundingBox).applyMatrix4(matrix);assert(box.max.y<.24&&box.min.y<-.03,'detail floats or becomes an uncollidable obstacle');}
+   for(let i=0;i<batch.count;i++){batch.getMatrixAt(i,matrix);box.copy(batch.geometry.boundingBox).applyMatrix4(matrix);assert(box.max.y<.30&&box.min.y<-.03,'detail floats or becomes an uncollidable obstacle');}
   }
+  const triangles=group.children.reduce((n,b)=>n+b.count*(b.geometry.index?.count??b.geometry.attributes.position.count)/3,0);
+  assert(triangles<=(map==='confluence'?95000:55000),'low cover exceeded the fixed geometry budget');
+  if(map==='forest'||map==='coast')assert(records.filter(p=>Math.hypot(p.x-world.spawn.x,p.z-world.spawn.z)<20).length>=80,'near view is missing low ground cover');
   cleanup(world);
  }
+});
+
+test('wind moves only flexible blade tips, with one shared game-time uniform and no new textures',()=>{
+ const w=buildWorld('forest',7),group=installAdventureGroundDetail(w,'forest'),shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};
+ group.children[0].material.onBeforeCompile(shader);animateAdventureGroundDetail(12);
+ assert.equal(shader.uniforms.groundWindTime.value,12);animateAdventureGroundDetail(NaN);assert.equal(shader.uniforms.groundWindTime.value,12);
+ for(const batch of group.children){
+  const flex=batch.geometry.attributes.groundFlex,p=batch.geometry.attributes.position;assert.equal(flex.count,p.count);
+  for(let i=0;i<p.count;i++){assert(Number.isFinite(flex.getX(i))&&flex.getX(i)>=0&&flex.getX(i)<=1);if(batch.name.endsWith('litter')||p.getY(i)<-.034)assert.equal(flex.getX(i),0);}
+ }
+ cleanup(w);
 });
 
 test('footprints avoid maximum tide, irregular shores, trails, main roads and all hidden interaction clearings',()=>{
@@ -37,7 +51,7 @@ test('footprints avoid maximum tide, irregular shores, trails, main roads and al
   if(world.road)routes.push({points:world.road,width:5.8});
   for(const site of world.sites){const p=site.trail.geometry.attributes.position,points=[];for(let i=0;i<p.count;i+=4)points.push({x:(p.getX(i+1)+p.getX(i+2))*.5,z:(p.getZ(i+1)+p.getZ(i+2))*.5});routes.push({points,width:3.6});}
   for(const p of group.userData.records){
-   far(p,world.spawn,7.55);assert(Math.abs(p.x)<world.half-2.55&&Math.abs(p.z)<world.half-2.55);
+   far(p,world.spawn,4.55);assert(Math.abs(p.x)<world.half-2.55&&Math.abs(p.z)<world.half-2.55);
    for(const o of world.obstacles)far(p,o,o.r+.75);
    for(const s of world.sites){far(p,s,(s.event?7:5.5)+.55);for(const n of s.nodes||[])far(p,n,2.55);}
    for(const d of world.discoveries)far(p,d,3.55);for(const r of world.roaming)far(p,r,(r.kind==='camp'?6:3)+.55);

@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {CLIMATE_LIGHT} from './environment-lighting.js';
+import {CLIMATE_LIGHT} from './environment-lighting.js?v=116';
 
 const cloudStrength={forest:.12,snow:.15,ash:.10,sand:.065,coast:.14};
 const vertexShader=`
@@ -26,16 +26,21 @@ float cloudNoise(vec2 p){
 }
 void main(){
  vec3 direction=normalize(skyDirection);
- float height=smoothstep(-.025,.65,direction.y);
- vec3 color=mix(fogColor,skyColor,height);
- color*=1.0-.12*smoothstep(.45,1.0,direction.y);
+ float height=smoothstep(.015,.46,direction.y);
+ float zenith=smoothstep(.18,1.0,direction.y);
+ vec3 color=skyColor*mix(vec3(1.04),vec3(.64,.76,.91),zenith);
+ float facingSun=dot(direction.xz,sunDirection.xz)/max(.001,length(direction.xz)*length(sunDirection.xz));
+ float warmHaze=pow(max(0.,facingSun),3.)*(1.-smoothstep(.16,.65,direction.y));
+ color=mix(color,mix(skyColor,sunColor,.36),warmHaze*.28);
  // Two smooth noise scales form distant wisps. They fade before the horizon,
  // leaving the existing terrain fog and combat silhouettes uninterrupted.
- vec2 p=direction.xz/max(.20,direction.y+.30)*3.2;
+ vec2 p=direction.xz/max(.20,direction.y+.30)*vec2(4.3,2.7);
  p+=vec2(skyTime*.006,skyTime*.002);
- float cloud=cloudNoise(p)*.7+cloudNoise(p*2.17+vec2(8.3,2.7))*.3;
- cloud=smoothstep(.48,.76,cloud)*smoothstep(.06,.25,direction.y)*(1.-smoothstep(.75,.98,direction.y));
- vec3 cloudColor=mix(skyColor,sunColor,.68);
+ float body=cloudNoise(p)*.7+cloudNoise(p*2.17+vec2(8.3,2.7))*.3;
+ float cloud=smoothstep(.51,.76,body)*smoothstep(.06,.23,direction.y)*(1.-smoothstep(.75,.98,direction.y));
+ float sunward=cloudNoise(p+sunDirection.xz*.32);
+ float litEdge=clamp(.5+(body-sunward)*3.5,0.,1.);
+ vec3 cloudColor=mix(skyColor*.60,mix(skyColor*1.18,sunColor,.58),litEdge);
  color=mix(color,cloudColor,cloud*cloudAmount);
  float sun=max(0.,dot(direction,sunDirection));
  float halo=pow(sun,32.)*.10+pow(sun,256.)*.035;
@@ -44,6 +49,10 @@ void main(){
  gl_FragColor=vec4(color,1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
+ // Match Three's post-output fog blend in both HDR and direct rendering.
+ // Tone-mapping fog here would produce a seam on the low-cost direct path.
+ vec3 horizon=linearToOutputTexel(vec4(fogColor,1.)).rgb;
+ gl_FragColor.rgb=mix(horizon,gl_FragColor.rgb,height);
 }`;
 
 /** One camera-centered background draw. Pass current lighting colors to preserve

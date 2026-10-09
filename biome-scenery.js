@@ -49,16 +49,21 @@ export function installGroundSurface(ground,id='confluence'){
    // Mipmaps filter the texture; this also fades its tiny normal slopes before they become subpixel.
    float soilPixel=max(length(dFdx(soilPoint)),length(dFdy(soilPoint)));
    float soilGrainDetail=1.0-smoothstep(.025,.12,soilPixel);
-   float soilGrain=mix(.5,texture2D(groundDetail,soilPoint*.18).b,soilGrainDetail);
+   vec3 soilFine=texture2D(groundDetail,soilPoint*.32+vec2(soilClump*.07,soilField*.09)).rgb;
+   float soilGrain=mix(.5,soilFine.b,soilGrainDetail);
+   float soilPebble=smoothstep(.58,.80,soilFine.g)*soilGrainDetail;
    float soilPatch=smoothstep(.43,.73,soilField+soilClump*.13);
-   diffuseColor.rgb*=.91+soilClump*.14+soilGrain*.045;
+   diffuseColor.rgb*=.88+soilClump*.17+soilGrain*.095;
    ${id==='forest'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.083,.070,.037),soilPatch*.53);float moss=smoothstep(.58,.81,soilClump)*(1.0-soilPatch);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.064,.103,.037),moss*.30);`
     :id==='snow'?`diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.77,.88,.99),soilPatch*.38);diffuseColor.rgb+=vec3(.035,.039,.038)*smoothstep(.59,.83,soilClump);`
     :id==='ash'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.075,.071,.075),soilPatch*.40);diffuseColor.rgb*=1.0-smoothstep(.68,.86,soilClump)*.16;`
     :id==='sand'?`float sandRidge=.5+sin((soilPoint.x*.765+soilPoint.y*.644)*3.2+soilField*8.0)*.5*(1.0-smoothstep(.16,.65,soilPixel));diffuseColor.rgb*=.94+sandRidge*.085;diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.91,.84,.72),soilPatch*.23);`
     :id==='coast'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.110,.117,.082),soilPatch*.36);diffuseColor.rgb*=.96+soilClump*.08;`
     :`float soilSnow=smoothstep(.25,.48,max(diffuseColor.r,max(diffuseColor.g,diffuseColor.b)));diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*mix(vec3(1.17,.95,.77),vec3(.91,.97,1.04),soilSnow),soilPatch*.30);`}
-   float soilRelief=soilClump*.055+soilGrain*.006;
+   // Fine mineral flecks are texture-filtered and fade at grazing / distant views.
+   // No displaced terrain: feet, swimming, collision and hazards keep their baseline.
+   diffuseColor.rgb*=1.0+(soilPebble-.15*soilGrainDetail)*${id==='snow'?'.035':id==='sand'?'.06':'.13'};
+   float soilRelief=soilClump*.055+soilGrain*.012+soilPebble*${id==='snow'?'.002':id==='sand'?'.004':'.012'};
   `);
   shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
    vec3 soilDx=dFdx(-vViewPosition),soilDy=dFdy(-vViewPosition);
@@ -67,7 +72,7 @@ export function installGroundSurface(ground,id='confluence'){
    normal=normalize(abs(soilDet)*normal-sign(soilDet)*(dFdx(soilRelief)*soilRx+dFdy(soilRelief)*soilRy));
   `);
  };
- material.customProgramCacheKey=()=> 'ground-filtered-'+id;material.needsUpdate=true;
+ material.customProgramCacheKey=()=> 'ground-close-detail-'+id;material.needsUpdate=true;
 }
 // Shared geometry and instanced details: decoration stays low, leaving combat and collision legible.
 const geometries={stone:naturalRockGeometry,snow:null,chip:new T.OctahedronGeometry(1,0),wood:new T.CylinderGeometry(.10,.15,1,7),leaf:null,ice:new T.ConeGeometry(1,1,5),frond:null},materials=new Map();

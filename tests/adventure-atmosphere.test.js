@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
 import {AdventureAtmosphere} from '../adventure-atmosphere.js';
-import {CLIMATE_LIGHT} from '../environment-lighting.js';
+import {CLIMATE_LIGHT,EnvironmentLighting} from '../environment-lighting.js';
 
 test('atmosphere is one background draw without altering the scene background, fog, or lighting',()=>{
  const scene=new T.Scene();scene.background=new T.Color(0x36545a);scene.fog=new T.FogExp2(0x36545a,.01);
@@ -53,4 +53,20 @@ test('dispose is idempotent and leaves another atmosphere and scene resources in
  one.dispose();one.dispose();one.update(10,camera,{visible:true});
  assert.equal(geometries,1);assert.equal(materials,1);assert.equal(one.mesh.parent,null);assert.equal(one.mesh.visible,false);
  two.update(10,camera);assert.equal(two.mesh.visible,true);assert.equal(two.mesh.parent,scene);two.dispose();assert.equal(scene.children.length,0);
+});
+
+test('the sky tracks gradual mixed-biome lighting without resetting its geometry, sun or time',()=>{
+ const scene=new T.Scene(),camera=new T.PerspectiveCamera(),hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();
+ scene.fog=new T.FogExp2();scene.background=new T.Color();scene.add(hemi,sun,rim);
+ const sky=new AdventureAtmosphere(scene),lighting=new EnvironmentLighting(scene,{toneMappingExposure:1},hemi,sun,rim);
+ const geometry=sky.mesh.geometry,material=sky.mesh.material,u=material.uniforms,direction=u.sunDirection.value.clone();
+ lighting.update('forest');
+ for(const neighbor of ['snow','ash','sand','coast'])for(let frame=0;frame<30;frame++){
+  lighting.update('confluence',{forest:1-frame/29,[neighbor]:frame/29},1/30);
+  sky.update(12,camera,{mapId:'confluence',skyColor:hemi.color,fogColor:scene.fog.color,sunColor:sun.color});
+  assert(u.skyColor.value.equals(hemi.color));assert(u.fogColor.value.equals(scene.fog.color));assert(u.sunColor.value.equals(sun.color));
+  assert.equal(sky.mesh.geometry,geometry);assert.equal(sky.mesh.material,material);assert(u.sunDirection.value.equals(direction));assert.equal(u.skyTime.value,12);
+  for(const key of ['skyColor','fogColor','sunColor'])assert(u[key].value.toArray().every(value=>Number.isFinite(value)&&value>=0&&value<=1));
+ }
+ assert.equal(scene.children.filter(o=>o.isLight).length,3);sky.dispose();
 });

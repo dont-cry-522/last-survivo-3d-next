@@ -1,6 +1,7 @@
 import{test}from'node:test';import assert from'node:assert/strict';
 import{waterDepth,terrainAt,buildPonds,animateWater}from'../water.js';
 import{buildWorld,actor,animateActor}from'../world.js';
+import{CLIMATE_LIGHT}from'../environment-lighting.js';
 import * as T from'../vendor/three.module.js';import{seeded}from'../rules.js';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 test('water depth follows the rotated shoreline and slows gradually without stacking mud',()=>{
@@ -34,6 +35,28 @@ test('flow and wet banks share filtered detail and a simulation clock without mo
   if(id==='coast')assert(surface.fragmentShader.indexOf('dFdx(waveHeight)')<surface.fragmentShader.indexOf('if(ownRadial>radial+.0001)discard'),'overlap clipping invalidates normal derivatives');
   group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
  }
+});
+test('low-angle water uses biome sky colors within the existing surface pass and texture budget',()=>{
+ const palettes=[];
+ for(const id of['forest','snow','coast']){
+  const group=new T.Group(),ponds=buildPonds(group,id,seeded(31),{x:-30,z:-30},[],[{x:2,z:4,rx:6,rz:5,angle:.3}]),p=ponds[0];
+  const compile=()=>{const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};p.mesh.material.onBeforeCompile(shader);return shader;};
+  const shader=compile(),again=compile(),source=shader.fragmentShader;
+  assert(shader.uniforms.waterSky.value.equals(new T.Color(CLIMATE_LIGHT[id].sky)));
+  assert(shader.uniforms.waterHorizon.value.equals(new T.Color(CLIMATE_LIGHT[id].fog)));
+  assert.strictEqual(shader.uniforms.waterSky,again.uniforms.waterSky,'recompilation must reuse cached reflection uniforms');
+  assert.strictEqual(shader.uniforms.waterDetail,again.uniforms.waterDetail);
+  palettes.push(shader.uniforms.waterSky.value.getHex());
+  assert.equal((source.match(/texture2D\(waterDetail,/g)||[]).length,2,'shallow detail must reuse the two existing texture reads');
+  assert(source.indexOf('dFdx(waveHeight)')<source.indexOf('vec3 waterReflection='),'reflection must see the final animated normal');
+  assert(source.indexOf('outgoingLight=mix(outgoingLight,reflectedSky')<source.indexOf('#include <opaque_fragment>'),'reflection must precede alpha output');
+  assert(source.includes('#include <tonemapping_fragment>')&&source.includes('#include <fog_fragment>'),'water reflection must retain scene tone mapping and distance fog');
+  assert(source.includes('bedDetail=mix(.5,shoreGrain.b,rippleDetail)'),'close-up riverbed grain must fade before becoming subpixel');
+  assert(!source.includes('totalEmissiveRadiance+='),'the water plane must not emit its own glow');
+  assert.equal(group.children.length,4,'one pond still uses two surface meshes and two shared shore batches');
+  group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
+ }
+ assert.equal(new Set(palettes).size,3,'forest, snow and coast keep their own reflection palettes');
 });
 test('water pose does not accumulate and returns to land for heroes and ground creatures',()=>{
  for(const kind of ['silver','scout','wraith','wolf','golem','mushroom']){const g=actor(kind),d=g.userData;d.waterDepth=1;

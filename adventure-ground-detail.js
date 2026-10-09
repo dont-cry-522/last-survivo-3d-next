@@ -4,28 +4,49 @@ import {seeded,segmentDistance} from './rules.js?v=114';
 import {bridgeContains} from './coast.js?v=114';
 
 const profiles={
- forest:{count:420,grass:.76,height:1,tuft:[0x536348,0x738057],litter:[0x827561,0x66685c]},
- snow:{count:300,grass:.24,height:.62,tuft:[0x7b8275,0x9aa9a5],litter:[0x9cafb5,0x72858b]},
- ash:{count:260,grass:.16,height:.55,tuft:[0x51494a,0x675a50],litter:[0x595455,0x7d7067]},
- sand:{count:300,grass:.32,height:.76,tuft:[0x92815d,0xb19c73],litter:[0x9d886b,0xb9a786]},
- coast:{count:360,grass:.58,height:.90,tuft:[0x63765c,0x849270],litter:[0x8b9588,0xb3ab93]}
+ forest:{count:1200,grass:.83,height:1,tuft:[0x566d48,0x829360],litter:[0x827561,0x66685c]},
+ snow:{count:420,grass:.24,height:.62,tuft:[0x7b8275,0x9aa9a5],litter:[0x9cafb5,0x72858b]},
+ ash:{count:380,grass:.16,height:.55,tuft:[0x51494a,0x675a50],litter:[0x595455,0x7d7067]},
+ sand:{count:520,grass:.32,height:.76,tuft:[0x92815d,0xb19c73],litter:[0x9d886b,0xb9a786]},
+ coast:{count:920,grass:.70,height:.90,tuft:[0x63765c,0x849270],litter:[0x8b9588,0xb3ab93]}
 };
 const FOOTPRINT=.55;
 // One bounded shared material survives world rebuilds. Each batch owns its geometry.
 const material=new T.MeshStandardMaterial({vertexColors:true,roughness:1,side:T.DoubleSide});
+const windTime={value:0};
+material.onBeforeCompile=shader=>{
+ shader.uniforms.groundWindTime=windTime;
+ shader.vertexShader='uniform float groundWindTime; attribute float groundFlex;\n'+shader.vertexShader;
+ shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+  vec4 grassPoint=vec4(position,1.0);
+  #ifdef USE_INSTANCING
+   grassPoint=instanceMatrix*grassPoint;
+  #endif
+  float grassWave=sin(groundWindTime*1.35+grassPoint.x*.7+grassPoint.z*.45)*.7+sin(groundWindTime*2.1+grassPoint.z*1.2)*.3;
+  // Only blade tips move. Stones/twigs carry zero flexibility, and roots stay buried.
+  vec3 grassBend=vec3(-.644,0.,.765)*grassWave*groundFlex*.035;
+  #ifdef USE_INSTANCING
+   mat3 grassBasis=mat3(modelMatrix*instanceMatrix);
+   grassBend=vec3(dot(grassBend,grassBasis[0])/dot(grassBasis[0],grassBasis[0]),dot(grassBend,grassBasis[1])/dot(grassBasis[1],grassBasis[1]),dot(grassBend,grassBasis[2])/dot(grassBasis[2],grassBasis[2]));
+  #endif
+  transformed+=grassBend;
+ `);
+};
+material.customProgramCacheKey=()=> 'adventure-ground-wind';
+export function animateAdventureGroundDetail(time){if(Number.isFinite(time))windTime.value=time;}
 const near=(x,z,p,r)=>(x-p.x)**2+(z-p.z)**2<r*r;
 
 function tuftGeometry(){
  const positions=[],colors=[],indices=[];
  for(let blade=0;blade<5;blade++){
-  const angle=blade*2.399,s=Math.sin(angle),c=Math.cos(angle),height=.17+blade%3*.03,start=positions.length/3;
+  const angle=blade*2.399,s=Math.sin(angle),c=Math.cos(angle),height=.21+blade%3*.04,start=positions.length/3;
   for(let row=0;row<=3;row++){
    const t=row/3,bend=.14*t*t,wide=.024*(1-t),shade=.65+t*.35;
    for(const side of[-1,1]){positions.push(s*(.035+bend)+c*wide*side,-.035+t*height,c*(.035+bend)-s*wide*side);colors.push(shade*.97,shade,shade*.92);}
    if(row<3){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}
   }
  }
- const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
+ const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(positions.filter((v,i)=>i%3===1).map(y=>Math.max(0,(y+.035)/.29)**2),1));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
 }
 
 function litterGeometry(){
@@ -39,7 +60,7 @@ function litterGeometry(){
  for(const [i,[x,z]]of[[-.19,.04],[.16,-.14],[.02,.19]].entries())add(new T.OctahedronGeometry(1,0),[x,.006,z],[.13-i*.015,.044+i*.009,.105+i*.012],[0,i*1.2,.06],i===1?0xdbdedb:0xf0efeb);
  add(new T.CylinderGeometry(.009,.016,.48,3),[-.04,-.025,-.025],[1,1,1],[Math.PI/2,.65,0],0x76654e);
  add(new T.CylinderGeometry(.006,.011,.21,3),[.065,-.025,.025],[1,1,1],[Math.PI/2,-.55,0],0x8c795c);
- const geometry=mergeGeometries(pieces);for(const piece of pieces)piece.dispose();return geometry;
+ const geometry=mergeGeometries(pieces);for(const piece of pieces)piece.dispose();geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count),1));return geometry;
 }
 
 function layoutSeed(world,mapId){
@@ -64,7 +85,7 @@ function routesFor(world){
 
 function placementFilter(world){
  const regions=world.regions||[],routes=routesFor(world),districts=[...(world.districts||[]),...regions.flatMap(r=>r.districts||[])];
- const clearings=[{...world.spawn,r:7},...regions.map(r=>({x:r.x,z:r.z,r:6})),
+ const clearings=[{...world.spawn,r:4},...regions.map(r=>({x:r.x,z:r.z,r:6})),
   ...(world.sites||[]).flatMap(s=>[{x:s.x,z:s.z,r:s.event?7:5.5},...(s.nodes||[]).map(n=>({...n,r:2}))]),
   ...(world.discoveries||[]).map(p=>({...p,r:3})),...(world.roaming||[]).map(p=>({...p,r:p.kind==='camp'?6:3})),
   ...districts.map(d=>({...d,r:['gate','court'].includes(d.kind)?10:7}))];
@@ -89,11 +110,12 @@ function placementFilter(world){
 export function installAdventureGroundDetail(world,mapId){
  if(!profiles[mapId]&&mapId!=='confluence')return null;
  if(world.adventureGroundDetail&&!world.adventureGroundDetail.userData.disposed)return world.adventureGroundDetail;
- const limit=mapId==='confluence'?840:profiles[mapId].count,random=seeded(layoutSeed(world,mapId)),allowed=placementFilter(world),records=[];
+ const limit=mapId==='confluence'?2200:profiles[mapId].count,random=seeded(layoutSeed(world,mapId)),allowed=placementFilter(world),records=[];
  const anchors=(world.obstacles||[]).filter(o=>!o.tactic),half=(world.half||96)-4;
  for(let attempt=0;attempt<limit*20&&records.length<limit;attempt++){
   let x,z;
-  if(anchors.length&&attempt%4!==0){const anchor=anchors[Math.floor(random()*anchors.length)],angle=random()*Math.PI*2,r=(anchor.r||.7)+1+Math.sqrt(random())*2.8;x=anchor.x+Math.sin(angle)*r;z=anchor.z+Math.cos(angle)*r;}
+  if(attempt%5===0){const angle=random()*Math.PI*2,r=4.8+Math.sqrt(random())*15;x=world.spawn.x+Math.sin(angle)*r;z=world.spawn.z+Math.cos(angle)*r;}
+  else if(anchors.length&&attempt%4!==0){const anchor=anchors[Math.floor(random()*anchors.length)],angle=random()*Math.PI*2,r=(anchor.r||.7)+1+Math.sqrt(random())*3.6;x=anchor.x+Math.sin(angle)*r;z=anchor.z+Math.cos(angle)*r;}
   else{x=(random()-.5)*half*2;z=(random()-.5)*half*2;}
   if(!allowed(x,z)||records.some(p=>near(x,z,p,.9)))continue;
   const biome=mapId==='confluence'?(world.regions||[]).find(r=>r.contains(x,z))?.id:mapId,profile=profiles[biome];if(!profile)continue;
@@ -115,6 +137,6 @@ export function installAdventureGroundDetail(world,mapId){
   batch.addEventListener('dispose',()=>{batch.visible=false;group.userData.disposed=true;});group.add(batch);
  }
  // Existing world cleanup calls InstancedMesh.dispose and disposes ownedGeometry.
- // Moving drops can land anywhere; all detail stays below ~.22m, below their glow.
+ // Moving drops can land anywhere; all detail stays below .30m, below their glow.
  world.group.add(group);world.adventureGroundDetail=group;return group;
 }

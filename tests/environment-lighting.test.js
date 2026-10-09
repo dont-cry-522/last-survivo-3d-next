@@ -41,3 +41,31 @@ test('distant scenery stays beyond map bounds and scenery finish preserves playa
   w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
  }
 });
+test('distant layers have different ridgelines, softer far colors and a closed lighting seam',()=>{
+ let sharedMaterial;
+ for(const id of Object.keys(CLIMATE_LIGHT)){
+  const world={half:96,group:new T.Group()},mesh=installDistantLandscape(world,id);
+  const {position,color,normal}=mesh.geometry.attributes,segments=144,ringSize=(segments+1)*3;
+  assert.equal(mesh.geometry.index.count/3,1152);assert.equal(position.count,ringSize*2);
+  if(sharedMaterial)assert.equal(mesh.material,sharedMaterial);else sharedMaterial=mesh.material;
+  const ratios=[],fog=new T.Color(CLIMATE_LIGHT[id].fog),near=new T.Color(),far=new T.Color();
+  const distance=c=>Math.hypot(c.r-fog.r,c.g-fog.g,c.b-fog.b);
+  for(let i=0;i<segments;i++){
+   const top=i*3+2;ratios.push(position.getY(top+ringSize)/position.getY(top));
+   assert(position.getY(top)>0&&position.getY(top+ringSize)>0);
+   near.fromBufferAttribute(color,top);far.fromBufferAttribute(color,top+ringSize);
+   assert(distance(far)<distance(near),id+' far ridge lost its haze separation');
+  }
+  assert(Math.max(...ratios)-Math.min(...ratios)>.5,id+' far ridge repeats a scaled near silhouette');
+  for(let ring=0;ring<2;ring++)for(let row=0;row<3;row++){
+   const first=ring*ringSize+row,last=first+segments*3;
+   for(const attribute of [position,color,normal]){
+    const a=new T.Vector3().fromBufferAttribute(attribute,first),b=new T.Vector3().fromBufferAttribute(attribute,last);
+    assert(a.distanceTo(b)<1e-6,id+' has an open geometry/color/normal seam');
+   }
+   const n=new T.Vector3().fromBufferAttribute(normal,first);assert(Math.abs(n.length()-1)<1e-6);
+  }
+  for(const index of mesh.geometry.index.array)assert(index>=0&&index<position.count);
+  mesh.geometry.dispose();
+ }
+});

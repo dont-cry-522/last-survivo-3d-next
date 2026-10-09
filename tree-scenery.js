@@ -71,20 +71,21 @@ function limb(points,radii,sides=7){
  return surface(vertices,indices);
 }
 function broadFan(x,y,z,width,depth,height,phase){
- // A thin, sloping spray with a broken leaf edge, rather than a solid round cushion.
- const sides=16,vertices=[],indices=[],cos=Math.cos(phase),sin=Math.sin(phase);
+ // Rounded, overlapping sprays retain open branch gaps at a human-height camera.
+ const sides=12,vertices=[],indices=[],cos=Math.cos(phase),sin=Math.sin(phase);
  const point=(u,h,v)=>vertices.push(x+u*cos-v*sin,y+h*height,z+u*sin+v*cos);
- for(let ring=0;ring<2;ring++)for(let j=0;j<sides;j++){
-  const a=j/sides*Math.PI*2,edge=.88+.09*Math.sin(a*5+phase)+.055*Math.sin(a*7-phase*.7)+.055*Math.sin(a*2+phase),r=(ring?.52:1)*edge;
-  const h=(ring?.63:.04)+.11*Math.sin(a+phase)*Math.cos(a*2-phase)+(ring?.035:.07)*Math.sin(a*5+phase);
+ for(let ring=0;ring<3;ring++)for(let j=0;j<sides;j++){
+  const a=j/sides*Math.PI*2,edge=.88+.09*Math.sin(a*5+phase)+.055*Math.sin(a*7-phase*.7)+.055*Math.sin(a*2+phase),r=[1,.72,.29][ring]*edge;
+  const h=[.02,.71,.97][ring]+.08*Math.sin(a+phase)*Math.cos(a*2-phase)+(ring?.035:.07)*Math.sin(a*5+phase);
   point(Math.cos(a)*width*r+ring*.07*width,h,Math.sin(a)*depth*r);
  }
- const top=vertices.length/3;point(.14*width,.82,-.05*depth);const bottom=vertices.length/3;point(.04*width,-.12,0);
- // Crease the underside: a shared rim normal makes a shallow leaf spray look balloon-inflated.
+ const top=vertices.length/3;point(.14*width,1.02,-.05*depth);const bottom=vertices.length/3;point(.04*width,-.32,0);
+ // Separate the lower normals so side-lit crowns retain leafy, irregular edges.
  const rim=vertices.length/3;vertices.push(...vertices.slice(0,sides*3));
  for(let j=0;j<sides;j++){
   const next=(j+1)%sides;
-  indices.push(j,j+sides,next,next,j+sides,next+sides,top,next+sides,j+sides,bottom,rim+j,rim+next);
+  for(let ring=0;ring<2;ring++){const a=ring*sides+j,b=ring*sides+next;indices.push(a,a+sides,b,b,a+sides,b+sides);}
+  indices.push(top,next+sides*2,j+sides*2,bottom,rim+j,rim+next);
  }
  const warm=T.MathUtils.smoothstep(.5+.5*Math.sin(phase*2.7+y*.85),.58,.93);
  const g=surface(vertices,indices),p=g.attributes.position,n=g.attributes.normal,colors=[],shade=new T.Color(),low=new T.Color(0x203e37),middle=new T.Color(0x37674f).lerp(new T.Color(0x667845),warm*.64),topColor=new T.Color(0x79945b).lerp(new T.Color(0xa1a864),warm*.60);
@@ -135,12 +136,12 @@ function treeTemplate(id,variant){
    const a=branch*2.15+variant*.71,y=.08+branch*.32,r=.80+(branch%2)*.06;
    for(let twig=0;twig<3;twig++){
     const side=twig-1,angle=a+side*.53,reach=r+(twig===1?.18:-.06),rise=y+(twig===1?.17:side*.11);
-    crowns.push(broadFan(Math.cos(angle)*reach,rise,Math.sin(angle)*reach,twig===1?.66:.57,twig===1?.45:.39,.29+(branch%2)*.05,angle+.16*side));
+    crowns.push(broadFan(Math.cos(angle)*reach,rise,Math.sin(angle)*reach,twig===1?.66:.57,twig===1?.45:.39,.51+(branch%2)*.06,angle+.16*side));
    }
   }
   for(let j=0;j<3;j++){
    const a=j*2.3+variant*.8,r=j===2?.14:.36;
-   crowns.push(broadFan(Math.cos(a)*r,1.36+j*.22,Math.sin(a)*r,.59-j*.07,.42-j*.025,.32,a));
+   crowns.push(broadFan(Math.cos(a)*r,1.36+j*.22,Math.sin(a)*r,.59-j*.07,.42-j*.025,.49,a));
   }
  }
  const canopy=merge(crowns),bottom=canopy.boundingBox.min.y;canopy.translate(0,-bottom,0);canopy.computeBoundingBox();
@@ -149,7 +150,7 @@ function treeTemplate(id,variant){
  const template={trunk,trunkHeight,canopy,canopyHeight:canopy.boundingBox.max.y};templates.set(key,template);return template;
 }
 export function addTree(parent,id,tall,{angle=0,variation=1,bend=0}={}){
- const variant=Math.abs(Math.floor(angle*1.7))%3,template=treeTemplate(id,variant),height=id==='snow'?5.2+tall*.52:5.6+tall*.26,canopyHeight=height*(id==='snow'?.46:.43),width=(.88+variation*.12)*(id==='snow'?1:1.32);
+ const variant=Math.abs(Math.floor(angle*1.7))%3,template=treeTemplate(id,variant),height=id==='snow'?5.2+tall*.52:5.6+tall*.26,canopyHeight=height*(id==='snow'?.46:.43),width=(.88+variation*.12)*(id==='snow'?1:1.34);
  parent.userData.treeBiome=id;parent.rotation.y=angle;
  const trunk=new T.Mesh(template.trunk,material);trunk.name='tree-trunk';trunk.scale.set(.94+variation*.06,(height-canopyHeight*.32)/template.trunkHeight,.94+variation*.06);trunk.rotation.z=bend*.10;
  const canopy=new T.Mesh(template.canopy,material);canopy.name='tree-canopy';canopy.userData.treeCanopy=true;canopy.position.set(bend*.5,height-canopyHeight,0);canopy.scale.set(width,canopyHeight/template.canopyHeight,width*(.94+variant*.035));

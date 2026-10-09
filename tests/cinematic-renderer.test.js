@@ -21,6 +21,19 @@ test('cinematic targets stay within the drawing budget and are reused across fra
  }finally{cinema.dispose();}
 });
 
+test('color-only postprocess preserves MSAA and scene depth testing without resolving unused depth',()=>{
+ const r=renderer(),cinema=new CinematicRenderer(r),target=cinema.sceneTarget;
+ try{
+  const color=target.texture,draw=()=>{assert.equal(r.target,target);assert.equal(target.depthBuffer,true);assert.equal(target.samples,2);assert.equal(target.resolveDepthBuffer,false);};
+  cinema.render(draw);assert.equal(target.depthTexture,null);assert.equal(cinema.finish.uniforms.sceneColor.value,color);
+  r.width=2560;r.height=1440;cinema.render(draw);
+  assert.equal(target.texture,color);assert.equal(target.width,2560);assert.equal(target.height,1440);
+  assert.equal(cinema.blur.uniforms.source.value,cinema.glowA.texture);assert.equal(cinema.finish.uniforms.glowColor.value,cinema.glowB.texture);
+  cinema.render(()=>{assert.equal(r.target,null);},.7);cinema.render(draw);
+  assert.equal(target.texture,color);assert.equal(r.target,null);
+ }finally{cinema.dispose();}
+});
+
 test('fallback and exceptions preserve the destination and every owned GPU resource is released once',()=>{
  const plain=renderer(false),fallback=new CinematicRenderer(plain);let normal=0;fallback.render(()=>normal++);assert.equal(normal,1);assert.equal(fallback.sceneTarget,undefined);fallback.dispose();assert.equal(plain.info.autoReset,true);
  const r=renderer(),cinema=new CinematicRenderer(r),previous={name:'caller target'};r.target=previous;

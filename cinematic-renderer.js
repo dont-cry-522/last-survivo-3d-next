@@ -41,7 +41,8 @@ export class CinematicRenderer{
   this.originalAutoReset=renderer.info.autoReset;renderer.info.autoReset=false;
   if(!this.enabled)return;
   const options={type:T.HalfFloatType,format:T.RGBAFormat,minFilter:T.LinearFilter,magFilter:T.LinearFilter};
-  this.sceneTarget=new T.WebGLRenderTarget(1,1,{...options,depthBuffer:true});
+  // Scene drawing needs depth; the color-only postprocess does not need it resolved from MSAA.
+  this.sceneTarget=new T.WebGLRenderTarget(1,1,{...options,depthBuffer:true,resolveDepthBuffer:false});
   this.sceneTarget.samples=mobile?0:Math.min(2,renderer.capabilities.maxSamples||0);
   this.glowA=new T.WebGLRenderTarget(1,1,{...options,depthBuffer:false});
   this.glowB=new T.WebGLRenderTarget(1,1,{...options,depthBuffer:false});

@@ -2,17 +2,17 @@ import * as T from './vendor/three.module.js';
 
 const tones={forest:[0xf4d3a0,1],snow:[0xd9e9ff,.76],coast:[0xdceaf1,.72],sand:[0xe7c294,.50],ash:[0xe8b8a2,.32]};
 const direction=new T.Vector3(-18,30,14).normalize(),rotation=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),direction);
-// Two crossed sheets share one draw and fade out before reaching the ground.
+// Broad crossed sheets share one draw; grazing views fade instead of forming bright lines.
 const geometry=(()=>{
  const positions=[],uv=[],indices=[];
- for(let plane=0;plane<2;plane++){
-  const start=positions.length/3;
+ for(let plane=0;plane<3;plane++){
+  const start=positions.length/3,angle=plane*Math.PI/3;
   for(const [v,side]of [[0,-1],[0,1],[1,-1],[1,1]]){
-   const x=side*(v?.22:.5);positions.push(plane?0:x,v,plane?x:0);uv.push(side<0?0:1,v);
+   const x=side*(v?.34:.5);positions.push(Math.cos(angle)*x,v,Math.sin(angle)*x);uv.push(side<0?0:1,v);
   }
   indices.push(start,start+1,start+2,start+1,start+3,start+2);
  }
- const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeBoundingSphere();return g;
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();g.computeBoundingSphere();return g;
 })();
 
 const vertexShader=`
@@ -20,11 +20,15 @@ const vertexShader=`
 varying vec2 shaftUV;
 varying vec3 shaftColor;
 varying float shaftPhase;
+varying vec3 shaftNormal;
+varying vec3 shaftView;
 void main(){
  shaftUV=uv;
  shaftColor=instanceColor;
  shaftPhase=dot(instanceMatrix[3].xz,vec2(.17,.11));
  vec4 mvPosition=modelViewMatrix*instanceMatrix*vec4(position,1.0);
+ shaftNormal=normalize(normalMatrix*mat3(instanceMatrix)*normal);
+ shaftView=-mvPosition.xyz;
  gl_Position=projectionMatrix*mvPosition;
  #include <fog_vertex>
 }`;
@@ -34,16 +38,27 @@ uniform float shaftTime;
 varying vec2 shaftUV;
 varying vec3 shaftColor;
 varying float shaftPhase;
+varying vec3 shaftNormal;
+varying vec3 shaftView;
 void main(){
  float edge=1.0-abs(shaftUV.x*2.0-1.0);
  edge=edge*edge*(3.0-2.0*edge);
- float ends=smoothstep(.02,.18,shaftUV.y)*(1.0-smoothstep(.65,1.0,shaftUV.y));
+ float ends=smoothstep(.03,.23,shaftUV.y)*(1.0-smoothstep(.58,1.0,shaftUV.y));
  float air=.90+.10*sin(shaftTime*.17+shaftPhase);
- float bands=.88+.12*sin(shaftUV.y*23.0+shaftPhase+shaftTime*.12);
- gl_FragColor=vec4(shaftColor,.052*edge*ends*air*bands);
+ float bands=.93+.07*sin(shaftUV.y*8.0+shaftPhase+shaftTime*.12);
+ float facing=abs(dot(normalize(shaftNormal),normalize(shaftView)));
+ float viewFade=smoothstep(.16,.55,facing)*smoothstep(.8,3.0,length(shaftView));
+ gl_FragColor=vec4(shaftColor,.025*edge*ends*air*bands*viewFade);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
- #include <fog_fragment>
+ // Additive light fades into the fog rather than adding an opaque fog tint.
+ #ifdef USE_FOG
+  #ifdef FOG_EXP2
+   gl_FragColor.a*=exp(-fogDensity*fogDensity*vFogDepth*vFogDepth);
+  #else
+   gl_FragColor.a*=1.0-smoothstep(fogNear,fogFar,vFogDepth);
+  #endif
+ #endif
 }`;
 
 function openGround(world,x,z,region){
@@ -81,7 +96,7 @@ export function installWorldLightShafts(world,mapId){
  const clock={value:0},material=new T.ShaderMaterial({vertexShader,fragmentShader,uniforms:T.UniformsUtils.merge([T.UniformsLib.fog,{shaftTime:clock}]),transparent:true,depthWrite:false,depthTest:true,blending:T.AdditiveBlending,side:T.DoubleSide,forceSinglePass:true,fog:true});
  const shafts=new T.InstancedMesh(geometry,material,anchors.length),matrix=new T.Matrix4();shafts.name='World_soft_light_shafts';shafts.renderOrder=-1;
  for(const [i,p]of anchors.entries()){
-  const width=1.5+(i%2)*.30,height=(p.biome==='forest'?10:8.5)+(i%3)*.5;
+  const width=2.7+(i%2)*.35,height=(p.biome==='forest'?10:8.5)+(i%3)*.5;
   matrix.compose(new T.Vector3(p.x,.40,p.z),rotation,new T.Vector3(width,height,width));shafts.setMatrixAt(i,matrix);
   const [color,strength]=tones[p.biome];shafts.setColorAt(i,new T.Color(color).multiplyScalar(strength));
  }

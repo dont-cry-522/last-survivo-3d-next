@@ -1,4 +1,4 @@
-import{waterDepth}from'./water.js?v=116';
+import{waterDepth}from'./water.js?v=117';
 
 // Menu-only composition of the existing world. Never moves its spawn, rewards or colliders.
 export function lobbyLandscape(world,id){

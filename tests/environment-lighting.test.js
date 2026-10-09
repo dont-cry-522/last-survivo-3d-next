@@ -13,6 +13,19 @@ test('climate transitions reuse lights and interpolate physical colors without f
  lighting.update('forest');const before=scene.fog.color.clone();lighting.update('snow',null,1/60);assert(!before.equals(scene.fog.color));assert.notEqual(scene.fog.color.getHex(),CLIMATE_LIGHT.snow.fog);
  lighting.update('confluence',{forest:.5,snow:.5});assert(Math.abs(scene.fog.density-(CLIMATE_LIGHT.forest.density+CLIMATE_LIGHT.snow.density)/2)<1e-9);assert.equal(scene.children.length,3);
 });
+test('shadow fill keeps sunlight directional and retains the existing fog and exposure ranges',()=>{
+ const scene=new T.Scene(),renderer={toneMappingExposure:1},hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();
+ scene.fog=new T.FogExp2();scene.background=new T.Color();scene.add(hemi,sun,rim);
+ const shadow=sun.shadow,camera=shadow.camera,size=shadow.mapSize.clone(),lighting=new EnvironmentLighting(scene,renderer,hemi,sun,rim);
+ const atmosphere={forest:[.0105,1.08],snow:[.012,1.02],ash:[.014,1.08],sand:[.009,1.04],coast:[.011,1.06]};
+ for(const [id,[density,exposure]]of Object.entries(atmosphere)){
+  lighting.update(id);assert.equal(scene.fog.density,density);assert.equal(renderer.toneMappingExposure,exposure);
+  assert(sun.shadow.intensity>=.85&&sun.shadow.intensity<1,'cast shadows still erase all direct detail');
+  assert(sun.intensity>hemi.intensity*2,'sunlit forms lost their directional contrast');
+  assert(sun.color.r>sun.color.b&&hemi.color.b>hemi.color.r,'warm sunlight/cool ambient relation lost');
+  assert.equal(sun.shadow,shadow);assert.equal(shadow.camera,camera);assert(shadow.mapSize.equals(size));assert.equal(scene.children.length,3);
+ }
+});
 test('forest-to-border light changes stay bounded and take the same time at 30 and 60 Hz',()=>{
  const rig=()=>{
   const scene=new T.Scene(),renderer={toneMappingExposure:1},hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();

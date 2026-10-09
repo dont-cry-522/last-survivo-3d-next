@@ -15,7 +15,7 @@ test('all maps keep deterministic clear light shafts without changing world rule
   assert(mesh&&mesh.count>0&&mesh.count<=6,map+' has no valid shafts or exceeds the budget');
   assert.deepEqual(second.userData.anchors,mesh.userData.anchors);assert.deepEqual(Array.from(second.instanceMatrix.array),Array.from(mesh.instanceMatrix.array));second.dispose();
   assert.equal(installWorldLightShafts(world,map),mesh,'install duplicated the draw');assert.equal(mesh.parent,world.group);
-  assert.equal(mesh.geometry.index.count/3,4);assert.equal(mesh.material.depthWrite,false);assert.equal(mesh.material.forceSinglePass,true);assert(!mesh.castShadow&&!mesh.receiveShadow);
+  assert.equal(mesh.geometry.index.count/3,6);assert.equal(mesh.material.depthWrite,false);assert.equal(mesh.material.forceSinglePass,true);assert(!mesh.castShadow&&!mesh.receiveShadow);
   const matrix=new T.Matrix4(),up=new T.Vector3(),expected=new T.Vector3(-18,30,14).normalize();
   for(let i=0;i<mesh.count;i++){
    mesh.getMatrixAt(i,matrix);assert(matrix.elements.every(Number.isFinite));up.setFromMatrixColumn(matrix,1).normalize();assert(up.distanceTo(expected)<1e-7,'shaft points away from the sun');
@@ -42,4 +42,25 @@ test('world cleanup releases its clock material while shared geometry and anothe
 test('fully blocked and unsupported maps stay empty',()=>{
  const world={half:96,group:new T.Group(),spawn:{x:0,z:0},sites:[],obstacles:[{x:0,z:0,r:20}],patches:[],ponds:[]};
  assert.equal(installWorldLightShafts(world,'forest'),null);assert.equal(installWorldLightShafts(world,'unknown'),null);assert.equal(world.group.children.length,0);updateWorldLightShafts(world,1);
+});
+
+test('broad tapered sheets cover side views without additional draws, lights or textures',()=>{
+ const world={half:96,group:new T.Group(),spawn:{x:0,z:0},sites:[],obstacles:[],patches:[],ponds:[]};
+ const mesh=installWorldLightShafts(world,'forest'),position=mesh.geometry.attributes.position,normal=mesh.geometry.attributes.normal;
+ assert.equal(world.group.children.length,1);assert.equal(mesh.geometry.index.count,18);assert.equal(position.count,12);
+ assert(Object.values(mesh.material.uniforms).every(u=>!u.value?.isTexture));assert.equal(mesh.material.blending,T.AdditiveBlending);
+ const normals=[],a=new T.Vector3(),b=new T.Vector3(),matrix=new T.Matrix4();mesh.getMatrixAt(0,matrix);
+ for(let sheet=0;sheet<3;sheet++){
+  const index=sheet*4;
+  a.fromBufferAttribute(position,index).applyMatrix4(matrix);b.fromBufferAttribute(position,index+1).applyMatrix4(matrix);
+  const baseWidth=a.distanceTo(b);assert(baseWidth>2.5&&baseWidth<3.5,'light shaft still has a narrow pencil footprint');
+  a.fromBufferAttribute(position,index+2).applyMatrix4(matrix);b.fromBufferAttribute(position,index+3).applyMatrix4(matrix);
+  assert(a.distanceTo(b)>baseWidth*.6&&a.distanceTo(b)<baseWidth,'shaft pinches to a sharp ray');
+  normals.push(new T.Vector3().fromBufferAttribute(normal,index));
+ }
+ for(let degree=0;degree<360;degree+=5){
+  const angle=degree*Math.PI/180,view=new T.Vector3(Math.cos(angle),0,Math.sin(angle));
+  assert(Math.max(...normals.map(n=>Math.abs(n.dot(view))))>.85,'all sheets become too oblique at a side view');
+ }
+ mesh.dispose();
 });

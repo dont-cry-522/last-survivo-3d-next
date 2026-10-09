@@ -1,6 +1,7 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
 import{sceneryAllowed}from'./biome-scenery.js?v=116';
+import{createDiscoveryScenery}from'./discovery-scenery.js?v=117';
 export const SMALL_FINDS={
  forest:{name:'蜜露花丛',tip:'靠近花心采集；附近有怪物时先脱离战斗。',xp:6,heal:.12,color:0xb8dc8f},
  snow:{name:'双霜晶',tip:'分别碰触两侧霜晶，点亮后领取。',xp:18,heal:.08,color:0xa5dbea},
@@ -8,6 +9,44 @@ export const SMALL_FINDS={
  sand:{name:'风埋行囊',tip:'靠近清理积沙 2.5 秒；敌人或沙暴会暂停，进度保留。',xp:24,heal:0,color:0xdcc187},
  coast:{name:'潮赠贝簇',tip:'退潮时靠近拾贝；涨潮预告和涨潮期间等待。',xp:12,heal:.12,color:0x9bcfc5}
 };
+const findNames={forest:['采药人的遗篮','林间萤石踪迹'],snow:['远征队的雪橇','风雪引路残片'],ash:['矿工的遗留箱','余烬矿脉碎片'],sand:['旅人的覆沙行李','古道刻石残片'],coast:['沉船漂流物','潮岸贝光踪迹']};
+const extraFinds=Object.fromEntries(Object.entries(findNames).map(([id,names])=>[id,{
+ cache:{name:names[0],tip:'安全时靠近整理 1.8 秒；离开或遇敌暂停，进度保留。',xp:20,heal:.08,color:SMALL_FINDS[id].color},
+ trail:{name:names[1],tip:'依次走近三处微光残片；收齐后获得经验，离开保留进度。',xp:24,heal:0,color:SMALL_FINDS[id].color}
+}]));
+export function discoveryInfo(n){return extraFinds[n.id]?.[n.variant]||SMALL_FINDS[n.id];}
+export function discoveryVariants(id){return[SMALL_FINDS[id],...Object.values(extraFinds[id]||{})];}
+export function discoveryThreatened(n,x,z,radius){return Math.hypot(x-n.x,z-n.z)<radius||n.variant==='trail'&&n.nodes.some(p=>Math.hypot(x-p.x,z-p.z)<radius);}
+const footprints=new Map();
+function dryScenery(w,id,variant,x,z,angle){
+ // Shore wreckage may touch the sea. Inland objects must fit wholly on dry land.
+ if(id==='coast'||!w.ponds.length)return true;
+ const key=id+':'+variant;
+ if(!footprints.has(key))footprints.set(key,new T.Box3().setFromObject(createDiscoveryScenery(id,variant)));
+ const box=footprints.get(key),c=Math.cos(angle),s=Math.sin(angle),corners=[[box.min.x,box.min.z],[box.max.x,box.min.z],[box.max.x,box.max.z],[box.min.x,box.max.z]].map(([dx,dz])=>({x:x+c*dx+s*dz,z:z-s*dx+c*dz}));
+ for(const p of w.ponds){
+  // The analytic 1.12 envelope contains the irregular shoreline at maximum tide.
+  // Checking the full rectangle catches water cutting through its edges/interior.
+  const turn=p.angle||0,pc=Math.cos(turn),ps=Math.sin(turn),tide=p.baseRx===undefined?1:1.19,rx=(p.baseRx??p.rx)*tide*1.12,rz=(p.baseRz??p.rz)*tide*1.12;
+  const q=corners.map(v=>({x:(pc*(v.x-p.x)-ps*(v.z-p.z))/rx,z:(ps*(v.x-p.x)+pc*(v.z-p.z))/rz})),crosses=[];
+  for(let i=0;i<4;i++){
+   const a=q[i],b=q[(i+1)%4],dx=b.x-a.x,dz=b.z-a.z,t=T.MathUtils.clamp(-(a.x*dx+a.z*dz)/(dx*dx+dz*dz||1),0,1);
+   if((a.x+t*dx)**2+(a.z+t*dz)**2<=1)return false;
+   crosses.push(a.x*b.z-a.z*b.x);
+  }
+  if(crosses.every(v=>v>=0)||crosses.every(v=>v<=0))return false;
+ }
+ return true;
+}
+// Fit the visual/interaction footprint after placement, without consuming map RNG.
+// If no full-size trail fits, try a cache; if that cannot stay dry, keep the native find.
+function trailLayout(w,id,x,z){
+ const scale=1;for(let i=0;i<16;i++){
+  const angle=i*Math.PI/8,c=Math.cos(angle),s=Math.sin(angle),nodes=[[-2.4,0],[0,1.4],[2.4,0]].map(([dx,dz])=>({x:x+(dx*c+dz*s)*scale,z:z+(-dx*s+dz*c)*scale,lit:false}));
+  if(nodes.every(p=>sceneryAllowed(w,p.x,p.z)&&w.obstacles.every(o=>Math.hypot(p.x-o.x,p.z-o.z)>o.r+.85))&&dryScenery(w,id,'trail',x,z,angle))return{angle,scale,nodes};
+ }
+ return null;
+}
 const cache=new Map(),baseMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:.95}),lights=new Map();
 function light(color){if(!lights.has(color))lights.set(color,new T.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.22,roughness:.6}));return lights.get(color);}
 const crystalGeometry=new T.OctahedronGeometry(.18),pearlGeometry=new T.SphereGeometry(.10,8,5);
@@ -40,9 +79,18 @@ export function installDiscoveries(w,id,rnd){
   if(id==='coast'&&!w.regional){const distance=Math.hypot(x-w.spawn.x,z-w.spawn.z);if(i===0&&distance>45||i>=3&&distance<(i===3?55:70))continue;}
   if(w.coastLayout?.fords.some(f=>{const c=Math.cos(f.angle),s=Math.sin(f.angle),dx=x-f.x,dz=z-f.z;return Math.abs(c*dx-s*dz)<f.half+2&&Math.abs(s*dx+c*dz)<f.width/2+2;}))continue;
   if(!sceneryAllowed(w,x,z)||w.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+3.2)||w.sites.some(s=>Math.hypot(x-s.x,z-s.z)<11)||w.discoveries.some(n=>Math.hypot(x-n.x,z-n.z)<15))continue;
-  const mesh=new T.Group();mesh.position.set(x,0,z);const base=new T.Mesh(terrainPiece(id),baseMaterial);base.rotation.y=id==='snow'?0:a;base.receiveShadow=true;mesh.add(base);const nodes=id==='snow'?[-1.25,1.25].map(dx=>({x:x+dx,z,lit:false})):[];
-  const markers=(nodes.length?nodes:[{x,z}]).map(n=>{const m=new T.Mesh(id==='coast'?pearlGeometry:crystalGeometry,light(SMALL_FINDS[id].color));m.position.set(n.x-x,id==='snow'?.98:id==='forest'?.55:.25,n.z-z);mesh.add(m);return m;});
-  mesh.visible=false;w.group.add(mesh);w.discoveries.push({id,x,z,mesh,markers,nodes,availableAt:10+i*35,discovered:false,claimed:false,progress:0,phase:rnd()*8});break;
+  const layout=i===1?trailLayout(w,id,x,z):null;let variant=i===1?(layout?'trail':'cache'):i===2?'cache':'native',angle=layout?.angle??(id==='snow'?0:a);
+  if(variant==='cache'){
+   const startAngle=angle;let dry=false;
+   for(let turn=0;turn<16;turn++){angle=startAngle+turn*Math.PI/8;if(dryScenery(w,id,variant,x,z,angle)){dry=true;break;}}
+   if(!dry){variant='native';angle=id==='snow'?0:a;}
+  }
+  const mesh=new T.Group();mesh.position.set(x,0,z);
+  const base=variant==='native'?new T.Mesh(terrainPiece(id),baseMaterial):createDiscoveryScenery(id,variant);
+  base.rotation.y=angle;if(layout)base.scale.setScalar(layout.scale);base.receiveShadow=true;mesh.add(base);
+  const nodes=layout?.nodes??(variant==='native'&&id==='snow'?[-1.25,1.25].map(dx=>({x:x+dx,z,lit:false})):[]);
+  const markers=(nodes.length?nodes:[{x,z}]).map(n=>{const m=new T.Mesh(id==='coast'?pearlGeometry:crystalGeometry,light(SMALL_FINDS[id].color));m.position.set(n.x-x,variant==='trail'?.20:variant==='cache'?.36:id==='snow'?.98:id==='forest'?.55:.25,n.z-z);m.visible=false;mesh.add(m);return m;});
+  mesh.visible=variant!=='native';w.group.add(mesh);w.discoveries.push({id,variant,x,z,mesh,markers,nodes,availableAt:10+i*35,discovered:false,claimed:false,progress:0,phase:rnd()*8});break;
  }
 }
 export function advanceDiscovery(n,dt,{time,player,contested=false,tide,sandstorm}){
@@ -50,9 +98,11 @@ export function advanceDiscovery(n,dt,{time,player,contested=false,tide,sandstor
  const distance=Math.hypot(player.x-n.x,player.z-n.z);if(!n.discovered&&distance<9){n.discovered=true;result.found=true;}if(!n.discovered)return result;
  n.blocked=n.id==='ash'&&(time+n.phase)%8>=4||n.id==='coast'&&!!(tide?.high||tide?.warning)||n.id==='sand'&&!!(sandstorm?.active||sandstorm?.warning);
  if(contested||n.blocked)return result;
- if(n.id==='snow'){for(const p of n.nodes)if(Math.hypot(player.x-p.x,player.z-p.z)<.85)p.lit=true;n.progress=n.nodes.filter(p=>p.lit).length;if(n.progress===2)n.claimed=true;}
+ if(n.variant==='trail'){const p=n.nodes[n.progress];if(p&&Math.hypot(player.x-p.x,player.z-p.z)<.85){p.lit=true;n.progress++;result.node=true;}n.claimed=n.progress===n.nodes.length;}
+ else if(n.variant==='cache'){if(distance<1.7){n.progress=Math.min(1.8,n.progress+dt);n.claimed=n.progress>=1.8;}}
+ else if(n.id==='snow'){for(const p of n.nodes)if(Math.hypot(player.x-p.x,player.z-p.z)<.85)p.lit=true;n.progress=n.nodes.filter(p=>p.lit).length;if(n.progress===2)n.claimed=true;}
  else if(distance<1.7){if(n.id==='sand'){n.progress=Math.min(2.5,n.progress+dt);n.claimed=n.progress>=2.5;}else n.claimed=true;}
  result.complete=n.claimed;return result;
 }
-export function discoveryHint(n){const info=SMALL_FINDS[n.id];if(n.contested)return info.name+' · 先击退附近怪物';if(n.blocked)return info.name+' · '+({ash:'余烬灼热，暗下再拾取',sand:'等待风息，清理进度保留',coast:'等待退潮'}[n.id]);return info.name+' · '+(n.id==='snow'?'点亮霜晶 '+n.progress+'/2':n.id==='sand'?'清理积沙 '+Math.floor(n.progress/2.5*100)+'%':info.tip);}
-export function animateDiscoveries(w,t){for(const n of w.discoveries||[]){n.mesh.visible=n.discovered;if(!n.discovered)continue;for(const [i,m]of n.markers.entries()){m.visible=!n.claimed;const hot=n.id==='ash'&&(t+n.phase)%8>=4;m.material=light(hot?0xe76637:n.nodes[i]?.lit?0xe7f6ec:SMALL_FINDS[n.id].color);const pulse=n.claimed?0:1+Math.sin(t*2+n.phase+i)*.08;m.scale.setScalar(pulse);m.rotation.y=t*.3+n.phase;}}}
+export function discoveryHint(n){const info=discoveryInfo(n);if(n.contested)return info.name+' · 先击退附近怪物';if(n.blocked)return info.name+' · '+({ash:'余烬灼热，暗下再拾取',sand:'等待风息，进度保留',coast:'等待退潮'}[n.id]);return info.name+' · '+(n.variant==='trail'?'循亮点寻找残片 '+n.progress+'/3':n.variant==='cache'?'整理补给 '+Math.floor(n.progress/1.8*100)+'%':n.id==='snow'?'点亮霜晶 '+n.progress+'/2':n.id==='sand'?'清理积沙 '+Math.floor(n.progress/2.5*100)+'%':info.tip);}
+export function animateDiscoveries(w,t){for(const n of w.discoveries||[]){n.mesh.visible=n.discovered||n.variant==='cache'||n.variant==='trail';for(const [i,m]of n.markers.entries()){m.visible=n.discovered&&!n.claimed;if(!m.visible)continue;const hot=n.id==='ash'&&(t+n.phase)%8>=4,lit=n.nodes[i]?.lit,waiting=n.variant==='trail'&&i>n.progress;m.material=light(hot?0xe76637:lit?0xe7f6ec:discoveryInfo(n).color);const pulse=(waiting?.48:lit?.68:1)+Math.sin(t*2+n.phase+i)*.08;m.scale.setScalar(pulse);m.rotation.y=t*.3+n.phase;}}}

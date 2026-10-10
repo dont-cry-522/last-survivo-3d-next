@@ -313,6 +313,15 @@ export class FirstPersonView {
    this.weapon.rotation.x-=kick*(id==='fire'?.27:.20);this.weapon.rotation.z=sweep*(id==='dark'?-.16:.10);this.weapon.position.z=-kick*.065;
    if(profile.type==='staff')this.weapon.position.y=motion.gather*.018;
   }
+  if(id==='harpoon'&&data.harpoonTarget&&age<Math.min(.48,period*.9)){
+   // Match the visible fork to the committed hit's screen position. The held rig
+   // has its own depth layer; copying full world distance would stretch the arms.
+   const u=age/Math.min(.48,Math.max(.12,period*.9)),ease=(a,b)=>{const q=T.MathUtils.clamp((u-a)/(b-a),0,1);return q*q*(3-2*q);},drive=ease(.08,.34)*(1-ease(.46,.96));
+   this.weapon.position.z-=drive*(data.harpoonCombo===1?.32:.58);
+   this.weapon.updateMatrix();this.scratch.set(0,0,1.75).sub(this.center).applyMatrix4(this.weapon.matrix).applyQuaternion(this.root.quaternion).add(this.root.position);
+   this.camera.updateWorldMatrix(true,false);this.wrist.set(data.harpoonTarget.x,data.harpoonTarget.y,data.harpoonTarget.z);this.camera.worldToLocal(this.wrist);
+   if(this.wrist.z<-.3&&Math.abs(this.wrist.x/this.wrist.z)<halfW/depth*1.1&&Math.abs(this.wrist.y/this.wrist.z)<halfH/depth*1.1){const ratio=this.scratch.z/this.wrist.z,dx=this.wrist.x*ratio-this.scratch.x,dy=this.wrist.y*ratio-this.scratch.y,c=Math.cos(this.root.rotation.z),s=Math.sin(this.root.rotation.z);this.weapon.position.x+=(dx*c+dy*s)*drive;this.weapon.position.y+=(dy*c-dx*s)*drive;}
+  }
   this.weapon.updateMatrix();
   const handScale=T.MathUtils.clamp(halfW/.29,.66,1.10),support=!!profile.support;
   for(let i=0;i<2;i++){

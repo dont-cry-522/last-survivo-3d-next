@@ -241,3 +241,17 @@ body.auto-attack #crosshair{opacity:.35;width:8px;height:8px}body.auto-attack #c
 #dodge-view{position:fixed;inset:0;pointer-events:none;z-index:2;opacity:0;background:radial-gradient(ellipse at center,transparent 42%,#253036 100%)}
 #dodge-view[data-kind="dive"]{background:linear-gradient(0deg,#315a69,transparent 65%),radial-gradient(ellipse at center,transparent 25%,#173e52)}
 #dodge-view[data-kind="blink"],#dodge-view[data-kind="mist"]{background:radial-gradient(ellipse at center,transparent 35%,#333044)}
+
+/* Mouse capture has a CSS fallback when an embedded browser denies pointer lock.
+   Only active first-person combat is protected; modal choices keep a normal cursor. */
+body.first-mouse-hidden:not(:has(dialog[open])) #world{cursor:none}
+body.first-mouse-hidden:not(:has(dialog[open])) header,
+body.first-mouse-hidden:not(:has(dialog[open])) header *,
+body.first-mouse-hidden:not(:has(dialog[open])) #hud *,
+body.first-mouse-hidden:not(:has(dialog[open])) #encounter{pointer-events:none!important}
+
+#crosshair b{position:absolute;inset:-5px;opacity:0}
+#crosshair.confirmed b{opacity:.9}
+#crosshair b::before,#crosshair b::after{content:'';position:absolute;top:50%;left:0;width:100%;height:2px;background:linear-gradient(90deg,var(--hit-color,#f4eee0) 0 25%,transparent 25% 75%,var(--hit-color,#f4eee0) 75%);transform:rotate(45deg)}
+#crosshair b::after{transform:rotate(-45deg)}
+.dialog-actions{flex-wrap:wrap}.dialog-actions button{flex:1 1 140px}

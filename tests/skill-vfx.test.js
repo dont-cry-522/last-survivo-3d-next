@@ -198,13 +198,13 @@ test('pitched impacts lie over a horizontal contact surface and compact feedback
  for(const cast of casts){
   v.clear();cast(contact);const large=new T.Box3().setFromObject(v.scene).getSize(new T.Vector3()).length(),count=v.active.length;
   v.clear();cast({...contact,compact:true});const small=new T.Box3().setFromObject(v.scene).getSize(new T.Vector3()).length();
-  assert(small<large*.75);assert(v.active.length<=count);assert(v.active.every(p=>p.max<=.26));
+  assert(small<large*.75);assert(v.active.length<=count);assert(v.active.every(p=>p.max<=.28));
  }
 });
 
 test('harpoon thrust and sweep have distinct compact contact traces and recycle without leaking orientation',()=>{
  const v=new SkillVFX(new T.Scene(),{mobile:true}),contact={x:1,y:2,z:3,normal:{x:.6,y:.8,z:0},compact:true};
- v.weaponContact('harpoon',0,0,0,0,contact);assert.equal(v.active.filter(p=>p.shape==='ray').length,3);assert(!v.active.some(p=>p.shape==='sweep'));
+ v.weaponContact('harpoon',0,0,0,0,contact);assert.equal(v.active.filter(p=>p.shape==='ribbon').length,1);assert.equal(v.active.filter(p=>p.shape==='sweep').length,2);assert(v.active.some(p=>p.shape==='droplet'));assert(!v.active.some(p=>p.shape==='ray'));
  v.clear();v.weaponContact('harpoon',0,0,0,1,contact);assert.equal(v.active.filter(p=>p.shape==='sweep').length,1);assert(!v.active.some(p=>p.shape==='ray'));
  for(let frame=0;frame<180;frame++){for(let combo=0;combo<3;combo++)v.weaponContact('harpoon',0,0,frame*.05,combo,contact);v.enemyContact('stone',0xaabbcc,0,0,0,true,contact);v.update(1/60);assert(v.active.length+v.pool.length<=110);}
  v.update(1);assert.equal(v.active.length,0);const reused=v.particle('ember',0xffffff,0,0,0);assert.deepEqual(reused.rotation.toArray().slice(0,3),[0,0,0]);
@@ -216,7 +216,7 @@ test('shadow point marks follow elevated or low surfaces while omitted contacts 
   v.clear();v.shadowMark(1,2,strong);const legacy=pose();v.clear();v.shadowMark(1,2,strong,undefined);assert.deepEqual(pose(),legacy);
   for(const y of[.1,3.6]){
    v.clear();const contact=Object.freeze({x:5,y,z:-4,normal:Object.freeze({x:1,y:0,z:0}),compact:true});v.shadowMark(1,2,strong,contact);
-   assert(v.active.length<=(strong?6:3));assert.equal(v.active.filter(p=>p.shape==='ray').length,2);
+   assert(v.active.length<=(strong?6:3));assert.equal(v.active.filter(p=>p.shape==='ribbon').length,2);
    assert(v.active.every(p=>Math.abs(p.mesh.position.y-y)<.15&&Math.abs(p.mesh.position.z+4)<.15&&Math.abs(p.mesh.position.x-5)<.05));
    const core=v.active.find(p=>p.shape==='claw'),normal=new T.Vector3(0,0,1).applyQuaternion(core.mesh.quaternion);assert(normal.distanceTo(new T.Vector3(1,0,0))<1e-7);assert(core.mesh.material.color.r<.02);assert.equal(core.mesh.material.blending,T.NormalBlending);
    assert(v.active.every(p=>p.max<=.23&&!['veil','ember','smoke','ring'].includes(p.shape)));v.update(1);assert.equal(v.active.length,0);

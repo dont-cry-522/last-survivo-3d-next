@@ -46,7 +46,7 @@ export class SkillVFX{
  constructor(scene,{mobile=false}={}){
   this.scene=scene;this.limit=mobile?110:190;this.active=[];this.pool=[];this.materials=new Map();
   this.crestTexture=crestTexture();
-  this.flameTexture=flameTexture();this.shadowTexture=shadowTexture();this.vaporTexture=vaporTexture();this.streakTexture=streakTexture();this.geometry={...spellShapes(),stone:new T.DodecahedronGeometry(1,0),waterArc:new T.RingGeometry(.89,1,24,1,Math.PI*.12,Math.PI*.76),ember:new T.IcosahedronGeometry(1,0),crystal:new T.ConeGeometry(1,2,5),flame:new T.PlaneGeometry(2,2),veil:new T.PlaneGeometry(2,2),vapor:new T.PlaneGeometry(2,2),smoke:new T.SphereGeometry(1,7,5),ray:new T.BoxGeometry(1,1,1)};
+  this.flameTexture=flameTexture();this.shadowTexture=shadowTexture();this.vaporTexture=vaporTexture();this.streakTexture=streakTexture();this.geometry={...spellShapes(),ribbon:new T.PlaneGeometry(1,1),droplet:new T.SphereGeometry(1,10,6),stone:new T.DodecahedronGeometry(1,0),waterArc:new T.RingGeometry(.89,1,24,1,Math.PI*.12,Math.PI*.76),ember:new T.IcosahedronGeometry(1,0),crystal:new T.ConeGeometry(1,2,5),flame:new T.PlaneGeometry(2,2),veil:new T.PlaneGeometry(2,2),vapor:new T.PlaneGeometry(2,2),smoke:new T.SphereGeometry(1,7,5),ray:new T.BoxGeometry(1,1,1)};
  }
  particle(shape,color,x,y,z,{life=.4,size=[.1,.1,.1],velocity=[0,0,0],opacity=.9,additive=true,grow=false,gravity=0,spin=0,orbit=null,priority=0,motion='',roll=0,delay=0,endColor=null}={}){
   if(this.active.length>=this.limit){let victim=-1,lowest=priority;for(let i=0;i<this.active.length;i++)if(this.active[i].priority<lowest){victim=i;lowest=this.active[i].priority;if(lowest===0)break;}if(victim<0)return null;const old=this.active.splice(victim,1)[0];this.scene.remove(old.mesh);this.pool.push(old.mesh);}
@@ -54,8 +54,8 @@ export class SkillVFX{
   mesh.geometry=this.geometry[shape];mesh.material.color.set(color);mesh.material.opacity=opacity;mesh.material.blending=additive?T.AdditiveBlending:T.NormalBlending;
   // These are open sheets: a second transparent back-face pass cannot add volume.
   // Reset on every checkout, because the same mesh may next become a closed shard.
-  mesh.material.forceSinglePass=['flame','veil','vapor','crest','sweep','claw','waterArc'].includes(shape);
-  const map=shape==='flame'?this.flameTexture:shape==='veil'?this.shadowTexture:shape==='vapor'?this.vaporTexture:shape==='crest'?this.crestTexture:['sweep','claw'].includes(shape)?this.streakTexture:null;if(mesh.material.map!==map){mesh.material.map=map;mesh.material.needsUpdate=true;}const vertexColors=shape==='shard';if(mesh.material.vertexColors!==vertexColors){mesh.material.vertexColors=vertexColors;mesh.material.needsUpdate=true;}
+  mesh.material.forceSinglePass=['flame','veil','vapor','crest','sweep','claw','waterArc','ribbon'].includes(shape);
+  const map=shape==='flame'?this.flameTexture:shape==='veil'?this.shadowTexture:shape==='vapor'?this.vaporTexture:shape==='crest'?this.crestTexture:['sweep','claw','ribbon'].includes(shape)?this.streakTexture:null;if(mesh.material.map!==map){mesh.material.map=map;mesh.material.needsUpdate=true;}const vertexColors=shape==='shard';if(mesh.material.vertexColors!==vertexColors){mesh.material.vertexColors=vertexColors;mesh.material.needsUpdate=true;}
   mesh.position.set(x,y,z);mesh.rotation.set(['veil','vapor','waterArc'].includes(shape)?-Math.PI/2:0,shape==='flame'?Math.PI/4:0,0);mesh.scale.set(...size);mesh.visible=delay<=0;mesh.frustumCulled=false;this.scene.add(mesh);
   const p={mesh,shape,life,max:life,size,velocity,opacity,grow,gravity,spin,orbit,priority,motion,roll,delay,fromColor:endColor===null?null:mesh.material.color.clone(),endColor:endColor===null?null:new T.Color(endColor)};this.active.push(p);this.animate(p,0);return mesh;
  }
@@ -79,9 +79,13 @@ export class SkillVFX{
   }this.active.length=n;
  }
  clear(){for(const p of this.active){this.scene.remove(p.mesh);this.pool.push(p.mesh);}this.active.length=0;}
+ contactStroke(frame,ax,ay,bx,by,color,width=.03,life=.14,opacity=.8){
+  const p=frame.at((ax+bx)/2,(ay+by)/2,.015),m=this.particle('ribbon',color,p.x,p.y,p.z,{life,size:[Math.hypot(bx-ax,by-ay)*frame.scale,width*frame.scale,1],opacity,additive:false,priority:1,endColor:0x60777b});
+  if(m){m.quaternion.copy(frame.rotation);m.rotateZ(Math.atan2(by-ay,bx-ax));}return m;
+ }
  enemyContact(texture,color,x,z,angle,strong=false,contact){
   const f=contactFrame(x,z,angle,contact,.84),hard=['stone','wood','ice'].includes(texture),shape=texture==='stone'?'stone':hard?'crystal':'smoke',count=strong?(f.compact?3:4):2,p=f.at();
-  this.segment(f.at(-.085,-.025),f.at(.10,.045,.015),hard?0xe9cba0:0xd8c6a8,(strong?.024:.016)*f.scale,.075,false,1,.76);
+  this.contactStroke(f,-.12,-.035,.14,.045,hard?0xe9cba0:0xd8c6a8,strong?.060:.040,.10,.82);
   for(let i=0;i<count;i++){const s=(strong?.048:.036)*f.scale,chip=this.particle(shape,color,p.x,p.y,p.z,{life:hard?.20:.16,size:[s,s*(hard?1.6:1.1),s*.7],velocity:f.velocity((i-(count-1)/2)*.65,hard?.30+i*.12:.18,hard?.85:.35),gravity:hard?4:0,spin:hard?5:0,opacity:hard?.72:.38,additive:false});if(chip&&hard){chip.quaternion.copy(f.rotation);chip.rotateZ(.4+i*.5);}}
  }
  dive(x,z,angle){
@@ -175,10 +179,10 @@ export class SkillVFX{
   }
  }
  bladeImpact(x,z,angle,shadow=false,contact){
-  const f=contactFrame(x,z,angle,contact,1),p=f.at();let last=null;
-  for(let i=0;i<=4;i++){
-   const u=i/4,point=f.at((u-.5)*.54,(u-.5)*.32,Math.sin(u*Math.PI)*.025);
-   if(last)this.segment(last,point,shadow?0xc5d0df:0xb9dfd5,(.011+Math.sin(u*Math.PI)*.008)*f.scale,f.compact?.10:.14,false,1,.80);last=point;
+  const f=contactFrame(x,z,angle,contact,1),p=f.at();
+  for(let i=1;i<=4;i++){
+   const u=i/4;
+   this.contactStroke(f,((i-1)/4-.5)*.54,((i-1)/4-.5)*.32,(u-.5)*.54,(u-.5)*.32,shadow?0xc5d0df:0xb9dfd5,.030+Math.sin(u*Math.PI)*.025,f.compact?.13:.18,.76);
   }
   const count=f.compact?2:3;for(let i=0;i<count;i++)this.particle('crystal',shadow?0x718299:0x85bbae,p.x,p.y,p.z,{life:.19,size:[.016*f.scale,.064*f.scale,.016*f.scale],velocity:f.velocity((i-(count-1)/2)*.8,.25+i*.15,.8),gravity:3,spin:6,opacity:.65,additive:false});
  }
@@ -186,7 +190,7 @@ export class SkillVFX{
   if(contact){
    const f=contactFrame(x,z,0,contact,.95),base=f.at(0,strong?-.17:-.10),core=this.particle('claw',0x111822,base.x,base.y,base.z,{life:strong?(f.compact?.20:.28):.15,size:[(strong?.30:.17)*f.scale,(strong?.27:.16)*f.scale,1],motion:'implode',opacity:.74,additive:false,priority:1});
    if(core)core.quaternion.copy(f.rotation);
-   for(const side of[-1,1])this.segment(f.at(side*(strong?.12:.07),-.10,.008),f.at(-side*.025,strong?.17:.12,.012),0xcad7e3,(strong?.018:.012)*f.scale,strong?.14:.10,false,1,.78,{endColor:0x71829a});
+   for(const side of[-1,1])this.contactStroke(f,side*(strong?.12:.07),-.10,-side*.025,strong?.17:.12,0xcad7e3,strong?.055:.035,strong?.19:.14,.78);
    if(strong){const p=f.at(),count=f.compact?3:4;for(let i=0;i<count;i++)this.particle('crystal',i%2?0x67778c:0xc8d4df,p.x,p.y,p.z,{life:.23,size:[.020*f.scale,.074*f.scale,.020*f.scale],velocity:f.velocity((i-(count-1)/2)*.6,.3,.7),gravity:3,spin:4,opacity:.7,additive:false,endColor:0x39485d});}
    return;
   }
@@ -218,10 +222,10 @@ export class SkillVFX{
   if(kind==='harpoon'||kind==='boomerang'){
    const harpoon=kind==='harpoon',sweep=combo===1,color=harpoon?0x9bc7c2:0xd4be90;
    if(harpoon&&!sweep){
-    for(const side of[-1,0,1])this.segment(f.at(side*.065,-.05,.025),f.at(side*.04,.095,0),side?0x799f9d:0xd0e6df,(side?.010:.017)*f.scale,.105,false,side?0:1,.78);
+    this.contactStroke(f,-.035,-.065,.025,.12,0xd0e6df,.058,.13,.84);for(const side of[-1,1]){const q=f.at(side*.075,-.05,.035);pose(this.particle('sweep',side<0?0x739f9c:0xb7d8d0,q.x,q.y,q.z,{life:.22,size:size(.15,.13),motion:'lash',velocity:f.velocity(side*.35,.18,.3),opacity:.56,additive:false,endColor:0x4a7578}),side*.9);}
     if(combo===2)pose(this.particle('sweep',color,p.x,p.y,p.z,{life:.13,size:size(.16,.075),motion:'lash',opacity:.48,roll:-2,priority:1,additive:false}),.65);
    }else pose(this.particle('sweep',color,p.x,p.y,p.z,{life:f.compact?.12:.16,size:size(harpoon?.30:.24,harpoon?.12:.11),motion:'lash',opacity:.62,roll:sweep?2:-2,priority:1,additive:false}),harpoon?.16:.75);
-   const count=f.compact?2:3;for(let i=0;i<count;i++)this.particle('crystal',color,p.x,p.y,p.z,{life:.19,size:size(.016,.059,.016*f.scale),velocity:f.velocity((i-(count-1)/2)*(sweep?.85:.38),.35,.85),gravity:4,spin:6,opacity:.70,additive:false});
+   const count=f.compact?2:3;for(let i=0;i<count;i++)this.particle(harpoon?'droplet':'crystal',color,p.x,p.y,p.z,{life:harpoon?.28:.19,size:size(harpoon?.024:.016,harpoon?.050:.059,.016*f.scale),velocity:f.velocity((i-(count-1)/2)*(sweep?.85:.38),.35,.85),gravity:4,spin:6,opacity:.70,additive:false});
   }else{
    const shield=kind==='shield';pose(this.particle(shield?'sweep':'claw',shield?0xd6dcc3:0xd7ba87,p.x,p.y,p.z,{life:shield?.13:.18,size:size(.24,shield?.16:.24),motion:'lash',opacity:.68,priority:1,additive:false}),shield?.4:-.8);
    for(let i=0;i<(f.compact?3:4);i++)this.particle(shield?'crystal':'stone',shield?0xbfcab2:0xb9996a,p.x,p.y,p.z,{life:shield?.18:.24,size:size(shield?.02:.048,shield?.07:.07,shield?.02*f.scale:.035*f.scale),velocity:f.velocity((i-1.5)*.5,shield?.3:.8+i*.12,.8),gravity:shield?1:6,spin:7,opacity:.7,additive:false});
@@ -230,8 +234,8 @@ export class SkillVFX{
  }
  boltImpact(x,z,strong=false,angle=0,contact){
   const f=contactFrame(x,z,angle,contact,1.05),count=strong?(f.compact?4:6):3,p=f.at();
-  this.segment(f.at(-.045,-.035,.015),f.at(.05,.065,.045),0xd9e8eb,(strong?.024:.017)*f.scale,.09,false,1,.85);
-  if(strong)this.segment(f.at(-.085,.07),f.at(.075,-.045,.015),0x91becd,.014*f.scale,.12,false,1,.67);
+  this.contactStroke(f,-.065,-.045,.06,.09,0xd9e8eb,strong?.075:.050,.12,.85);
+  if(strong)this.contactStroke(f,-.13,.09,.1,-.065,0x91becd,.045,.17,.67);
   for(let i=0;i<count;i++){const a=i/count*Math.PI*2,chip=this.particle('crystal',i%3?0xa7c9d8:0xdce8e7,p.x,p.y,p.z,{life:strong?.26:.20,size:[.018*f.scale,(strong?.10:.066)*f.scale,.018*f.scale],velocity:f.velocity(Math.sin(a)*(strong?1.3:.8),Math.cos(a)*.65,.75+i%2*.2),gravity:3,spin:7,opacity:.75,additive:false});if(chip){chip.quaternion.copy(f.rotation);chip.rotateZ(a);}}
  }
  skill(e){

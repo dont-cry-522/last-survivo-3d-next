@@ -14,6 +14,28 @@ import {HERO_LOADOUTS} from '../rules.js';
 function weapon(id){return ['shade','shadowblade','grimoire'].includes(id)?shadowFocus(id):id==='miasmalantern'?miasmaLantern():id==='sporelantern'?sporeLantern():id==='boomerang'?boneBoomerang():id==='harpoon'?makeHarpoon():makeHero(id==='crossbow'?'silver':'scout',id).userData.weapon;}
 const hero=gun=>({visible:false,userData:{gun}});
 
+test('harpoon fork meets the committed contact on screen, including moving and portrait views',()=>{
+ const camera=new T.PerspectiveCamera(70,16/9,.1,200),view=new FirstPersonView(camera),actor=hero(weapon('harpoon'));
+ camera.position.set(12,1.8,-9);camera.rotation.y=.8;camera.updateMatrixWorld(true);
+ try{
+  view.setHero(actor,'harpoon');
+  for(const aspect of[16/9,390/844])for(const combo of[0,1,2])for(const moving of[0,1]){
+   camera.aspect=aspect;camera.updateProjectionMatrix();
+   const target=camera.localToWorld(new T.Vector3(.15,-.45,-3.3));
+   Object.assign(actor.userData,{attackAge:.192,reloadDuration:1,reloadPhase:.192,harpoonCombo:combo,harpoonTarget:target});
+   view.update(3,.016,{visible:true,moving});camera.updateMatrixWorld(true);
+   const fork=view.weapon.localToWorld(new T.Vector3(0,0,1.75).sub(view.center)).project(camera),contact=target.clone().project(camera);
+   assert(Math.hypot(fork.x-contact.x,fork.y-contact.y)<1e-6,'fork misses its screen contact');
+   assert(view.hands.every(h=>h.position.toArray().every(Number.isFinite)));
+   const frozen=view.weapon.position.clone();view.update(3,0,{visible:true,moving});assert(view.weapon.position.equals(frozen),'pause advances thrust');
+  }
+  actor.userData.harpoonTarget=camera.localToWorld(new T.Vector3(200,0,-.4));view.update(4,.016,{visible:true});
+  assert(view.weapon.position.length()<1,'off-screen target throws hands out of view');
+  actor.userData.attackAge=1;view.update(5,.016,{visible:true});const recovered=view.weapon.position.clone();
+  actor.userData.harpoonTarget=null;view.update(5,.016,{visible:true});assert(view.weapon.position.equals(recovered),'old target affects recovery');
+ }finally{view.dispose();}
+});
+
 test('all 13 actual weapon graphs fit ahead of the camera, without mutating source poses or materials',()=>{
  const camera=new T.PerspectiveCamera(60,16/9,.1,200);camera.position.set(14,2,-8);camera.rotation.y=1.2;
  const view=new FirstPersonView(camera);assert.equal(view.root.parent,camera);

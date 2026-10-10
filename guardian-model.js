@@ -1,4 +1,4 @@
-import {primaryGripFrame,fitWeaponToPalm,GRIP_POINTS} from './weapon-grips.js?v=125';
+import {primaryGripFrame,fitWeaponToPalm,GRIP_POINTS} from './weapon-grips.js?v=128';
 import{heroDodgePose}from'./hero-dodge.js?v=114';
 import * as T from './vendor/three.module.js';
 import {guardianPose} from './guardian-motion.js?v=114';

@@ -124,3 +124,24 @@ test('weapon forms have distinct cloth silhouettes without changing another acto
   for(const h of forms){animateActor(h,1,5,.1,0);finite(h);}
  }finally{forms.forEach(disposeHero);}
 });
+
+
+test('two-handed scythe palms remain on their shaft grips through all three cuts, running and pitch',()=>{
+ for(const fps of[30,60,120])for(const speed of[0,6]){
+  const hero=actor('wraith','shadowblade'),d=hero.userData;let time=0,maxGap=0;
+  try{
+   d.aimActive=true;d.reloadDuration=.69;
+   for(let i=0;i<fps;i++){time+=1/fps;animateActor(hero,time,speed,0,0);}
+   for(let combo=0;combo<3;combo++)for(const pitch of[-.65,0,.65]){
+    d.scytheCombo=combo;d.aimAngle=d.attackAngle=.2;d.aimPitch=d.attackPitch=pitch;d.shotSerial=(d.shotSerial||0)+1;
+    for(let i=0;i<fps*.7;i++){
+     time+=1/fps;d.reloadPhase=Math.min(1,i/fps/.69);animateActor(hero,time,speed,.7-i/fps,0);hero.updateMatrixWorld(true);
+     for(const [hand,palm,point]of[[d.support.rightHand,[-.036,.097,0],[0,-.035,.02]],[d.support.hand,[.036,.097,0],[.008,.345,.02]]]){
+      const gap=hand.localToWorld(new T.Vector3(...palm)).distanceTo(d.gun.localToWorld(new T.Vector3(...point)));maxGap=Math.max(maxGap,gap);
+      assert(gap<.018,`hand leaves scythe shaft: ${gap} fps=${fps} speed=${speed} combo=${combo} pitch=${pitch} frame=${i}`);
+     }
+    }
+   }
+  }finally{disposeHero(hero);}
+ }
+});

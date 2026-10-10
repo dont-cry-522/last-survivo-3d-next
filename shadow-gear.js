@@ -23,7 +23,7 @@ export function shadowFocus(id){
  if(id==='shadowblade'){
   // A held war-scythe: wrapped shaft, offset socket, curved metal blade and a narrow silver edge.
   line(g,0x242733,[[0,-.48,.02],[0,.05,.02],[.025,.72,.02]],.030);
-  for(let i=0;i<5;i++)part(g,'scythe-wrap',()=>new T.TorusGeometry(.032,.007,4,10),0x747582,[0,-.10+i*.048,.02]).rotation.x=Math.PI/2;
+  for(const base of[-.10,.25])for(let i=0;i<5;i++)part(g,'scythe-wrap',()=>new T.TorusGeometry(.032,.007,4,10),0x747582,[base>0?.008:0,base+i*.048,.02]).rotation.x=Math.PI/2;
   part(g,'scythe-socket',()=>new T.SphereGeometry(1,8,6),0x738294,[.025,.70,.02],[.065,.09,.06]);
   const blade=part(g,'war-scythe',warScytheBlade,0x4c586b,[.015,.70,.02]);blade.material.roughness=.44;blade.material.metalness=.42;blade.material.emissive.setHex(0x18202a);blade.material.emissiveIntensity=.18;
   line(g,0xc2cbd5,[[.045,.66,.05],[.33,.71,.05],[.62,.67,.05],[.86,.51,.05],[1.075,.25,.05]],.009);

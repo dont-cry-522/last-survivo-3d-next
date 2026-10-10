@@ -2,11 +2,13 @@ import * as T from './vendor/three.module.js';
 
 // Weapon-space contact points: the wrapped handle, not the model's origin.
 export const GRIP_POINTS={shade:[0,0,0],shadowblade:[0,-.035,.02],grimoire:[0,0,0],miasmalantern:[0,.015,0],sporelantern:[0,.015,0],rifle:[0,-.065,.075],shotgun:[0,-.065,.075],crossbow:[0,-.08,.01],fire:[0,0,.045],dark:[0,0,.045],shuriken:[-.07,0,.06],boomerang:[0,0,-.09],harpoon:[0,0,-.08],hammer:[0,.015,0]};
+export const SCYTHE_SUPPORT=[.008,.345,.02];
 const palm=side=>new T.Vector3(side==='r'?-.036:.036,.097,0);
 const frame=(x,y,z)=>new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(new T.Vector3(...x),new T.Vector3(...y),new T.Vector3(...z)));
 const upright=frame([-1,0,0],[0,0,1],[0,1,0]);
 const underhand=frame([0,-1,0],[1,0,0],[0,0,1]);
 const sideways=frame([0,-1,0],[0,0,-1],[1,0,0]);
+const poleSupport=frame([1,0,0],[0,0,-1],[0,1,0]);
 const support=frame([0,1,0],[1,0,0],[0,0,-1]);
 const fingerBase={l:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/2),r:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),-Math.PI/2)};
 export function primaryGripFrame(id){return(id==='harpoon'?underhand:['boomerang','shuriken'].includes(id)?sideways:upright).clone();}
@@ -33,14 +35,14 @@ function orient(hand,world,blend,scratch){
 }
 export function aimGrip(d,world,blend,dt){
   const h=d.handGrips;h.supportWorld.copy(world).multiply(h.inverse.copy(d.gunRest).invert());orient(d.support.rightHand,h.supportWorld,blend,h.scratch);
-  d.support.rightHand.quaternion.copy(h.lastWrist.rotateTowards(d.support.rightHand.quaternion,dt*18));d.support.rightHand.updateWorldMatrix(false,true);
+  if(d.weaponId!=='shadowblade')d.support.rightHand.quaternion.copy(h.lastWrist.rotateTowards(d.support.rightHand.quaternion,dt*18));d.support.rightHand.updateWorldMatrix(false,true);
 }
 export function supportGripTarget(d,target){
-  const h=d.handGrips;d.gun.getWorldQuaternion(h.supportWorld).multiply(support);d.support.hand.getWorldScale(h.scale);
+  const h=d.handGrips;d.gun.getWorldQuaternion(h.supportWorld).multiply(d.weaponId==='shadowblade'?poleSupport:support);d.support.hand.getWorldScale(h.scale);
   h.contact.copy(target);h.offset.copy(palm('l')).multiply(h.scale).applyQuaternion(h.supportWorld);target.sub(h.offset);
   // Slide along the long foregrip when turning would otherwise overextend the arm.
   d.offArm.getWorldPosition(h.origin);const reach=(d.offForearm.position.length()+d.support.hand.position.length())*h.scale.y*.985;
-  if(d.weaponId!=='crossbow'){
+  if(d.weaponId!=='crossbow'&&d.weaponId!=='shadowblade'){
     d.gun.getWorldQuaternion(h.scratch);h.axis.set(0,0,1).applyQuaternion(h.scratch);
     const limit=d.weaponId==='harpoon'?.25:.10;
     for(let travel=0;target.distanceTo(h.origin)>reach&&travel<limit;travel+=.01){target.addScaledVector(h.axis,-.01);h.contact.addScaledVector(h.axis,-.01);}
@@ -49,7 +51,7 @@ export function supportGripTarget(d,target){
 export function aimSupportGrip(d,blend){orient(d.support.hand,d.handGrips.supportWorld,blend,d.handGrips.scratch);}
 
 export function poseGripFingers(d,motion={}){
-  const id=d.weaponId,h=d.handGrips,hasSupport=['rifle','shotgun','crossbow','harpoon','hammer'].includes(id);
+  const id=d.weaponId,h=d.handGrips,hasSupport=['rifle','shotgun','crossbow','harpoon','hammer','shadowblade'].includes(id);
   const released=id==='boomerang'&&d.boomerangAway?1-(d.catchReady||0):id==='shuriken'?(motion.kick||0):0;
   for(const {bone,side,name,i}of h.fingers){
     if(side==='l'&&!hasSupport&&id!=='sporelantern')continue;

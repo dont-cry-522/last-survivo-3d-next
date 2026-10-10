@@ -315,3 +315,15 @@ test('scythe cutting edge meets committed contact during all three swings withou
   const pose=view.weapon.matrix.clone();view.update(1,0,{visible:true});assert.deepEqual(view.weapon.matrix.elements,pose.elements);
  }}finally{view.dispose();}
 });
+
+
+test('both first-person scythe hands close on fixed shaft grips through windup, cut and recovery',()=>{
+ const camera=new T.PerspectiveCamera(70,16/9,.1,100),view=new FirstPersonView(camera),actor=hero(weapon('shadowblade'));
+ try{view.setHero(actor,'shadowblade');for(const aspect of[16/9,390/844])for(const combo of[0,1,2])for(let frame=0;frame<=42;frame++){
+  camera.aspect=aspect;camera.updateProjectionMatrix();Object.assign(actor.userData,{attackAge:frame/60,reloadDuration:1,reloadPhase:frame/60,scytheCombo:combo});view.update(frame/60,1/60,{visible:true,moving:1});camera.updateMatrixWorld(true);
+  for(const[i,point]of [[0,[0,-.035,.02]],[1,[.008,.345,.02]]]){
+   const palm=view.hands[i].localToWorld(new T.Vector3(0,.045,-.023)),shaft=view.model.localToWorld(new T.Vector3(...point));
+   assert(palm.distanceTo(shaft)<1e-8,`hand ${i} detaches in combo ${combo}`);assert.equal(view.hands[i].morphTargetInfluences[0],0);
+  }
+ }}finally{view.dispose();}
+});

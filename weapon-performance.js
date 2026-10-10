@@ -38,3 +38,17 @@ export function shotStarted(d,attack,previous){
 }
 
 export function weaponCuePhases(id,period){const scale=['crossbow','shotgun','rifle'].includes(id)?1:Math.min(WEAPON_RECOVERY[id],Math.max(.12,period*.9))/period;return (WEAPON_CUES[id]||[]).map(t=>t*scale);}
+
+// A two-handed pole cut: one trajectory drives the rear grip, shaft and torso.
+// The forward hand is constrained to the shaft, never animated independently.
+export function scythePose(age,period=1,combo=0){
+ const m=meleeSwing('shadowblade',age,period),side=combo===1?-1:1,heavy=combo===2;
+ return{
+  x:-.16+side*.12*m.cut,y:-.24+(heavy?.15:.07)*m.gather-(heavy?.09:.035)*m.sweep,
+  z:.22-.07*m.gather+.10*m.kick-.025*m.recover,
+  yaw:-Math.PI/2+side*(heavy?.50:1.12)*m.cut,
+  pitch:heavy?-.42*m.gather+.55*m.sweep:.10*m.sweep,
+  roll:-.40+(heavy?.28*m.gather-.60*m.kick:side*.12*m.cut),
+  torso:side*(heavy?.22:.36)*m.cut
+ };
+}

@@ -2,7 +2,7 @@ import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
 import {bridgeContains} from './coast.js?v=114';
-import {naturalRockGeometry} from './biome-scenery.js?v=125';
+import {naturalRockGeometry} from './biome-scenery.js?v=131';
 
 const profiles={
  forest:{count:1200,grass:.83,height:1,tuft:[0x566d48,0x829360],litter:[0x827561,0x66685c]},
@@ -17,7 +17,7 @@ const material=new T.MeshStandardMaterial({vertexColors:true,roughness:1,side:T.
 const windTime={value:0};
 material.onBeforeCompile=shader=>{
  shader.uniforms.groundWindTime=windTime;
- shader.vertexShader='uniform float groundWindTime; attribute float groundFlex;\n'+shader.vertexShader;
+ shader.vertexShader='uniform float groundWindTime; attribute float groundFlex; varying float groundLeaf;\n'+shader.vertexShader;
  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
   vec4 grassPoint=vec4(position,1.0);
   #ifdef USE_INSTANCING
@@ -31,6 +31,15 @@ material.onBeforeCompile=shader=>{
    grassBend=vec3(dot(grassBend,grassBasis[0])/dot(grassBasis[0],grassBasis[0]),dot(grassBend,grassBasis[1])/dot(grassBasis[1],grassBasis[1]),dot(grassBend,grassBasis[2])/dot(grassBasis[2],grassBasis[2]));
   #endif
   transformed+=grassBend;
+  groundLeaf=clamp(groundFlex,0.0,1.0);
+ `);
+ shader.fragmentShader='varying float groundLeaf;\n'+shader.fragmentShader;
+ shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
+  #if NUM_DIR_LIGHTS > 0
+   // Thin leaves transmit sunlight; rocks and litter (zero flex) stay opaque.
+   float leafBacklight=pow(max(0.0,dot(-normal,directionalLights[0].direction)),2.0);
+   reflectedLight.indirectDiffuse+=diffuseColor.rgb*directionalLights[0].color*vec3(.10,.14,.055)*leafBacklight*groundLeaf;
+  #endif
  `);
 };
 material.customProgramCacheKey=()=> 'adventure-ground-wind';
@@ -98,7 +107,7 @@ function routesFor(world){
  return routes;
 }
 
-function placementFilter(world,footprint=FOOTPRINT){
+function placementFilter(world,footprint=FOOTPRINT,shoulder=false){
  const FOOTPRINT=footprint;
  const regions=world.regions||[],routes=routesFor(world),districts=[...(world.districts||[]),...regions.flatMap(r=>r.districts||[])];
  const clearings=[{...world.spawn,r:4},...regions.map(r=>({x:r.x,z:r.z,r:6})),
@@ -117,7 +126,7 @@ function placementFilter(world,footprint=FOOTPRINT){
   if(crossings.some(b=>bridgeContains(b,x,z,FOOTPRINT+.8)))return false;
   if(shores.some(p=>{const a=p.angle||0,c=Math.cos(a),s=Math.sin(a),dx=x-p.x,dz=z-p.z;return Math.hypot((c*dx-s*dz)/p.rx,(s*dx+c*dz)/p.rz)<1;}))return false;
   for(const route of routes)for(let i=1;i<route.points.length;i++){
-   const a=route.points[i-1],b=route.points[i];if(segmentDistance(x,z,a.x,a.z,b.x,b.z)<route.width+FOOTPRINT)return false;
+   const a=route.points[i-1],b=route.points[i],width=shoulder?(route.width===5.8?4.2:1.65):route.width;if(segmentDistance(x,z,a.x,a.z,b.x,b.z)<width+FOOTPRINT)return false;
   }
   return true;
  };
@@ -128,6 +137,18 @@ export function installAdventureGroundDetail(world,mapId){
  if(world.adventureGroundDetail&&!world.adventureGroundDetail.userData.disposed)return world.adventureGroundDetail;
  const limit=mapId==='confluence'?2200:profiles[mapId].count,random=seeded(layoutSeed(world,mapId)),allowed=placementFilter(world),records=[];
  const anchors=(world.obstacles||[]).filter(o=>!o.tactic),half=(world.half||96)-4;
+ // Reassign part of the existing budget to irregular road shoulders. The worn
+ // center stays open; ankle-high plants soften the former eight-metre bare strip.
+ const shoulderAllowed=placementFilter(world,FOOTPRINT,true),routes=routesFor(world);
+ for(let attempt=0;routes.length&&attempt<limit*3&&records.length<limit*.22;attempt++){
+  const route=routes[Math.floor(random()*routes.length)];if(route.points.length<2)continue;
+  const i=1+Math.floor(random()*(route.points.length-1)),a=route.points[i-1],b=route.points[i],t=random(),dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz)||1;
+  const side=(random()<.5?-1:1)*((route.width===5.8?4.85:2.3)+random()*1.3),x=a.x+dx*t-dz/length*side,z=a.z+dz*t+dx/length*side;
+  if(!shoulderAllowed(x,z)||records.some(p=>near(x,z,p,.9)))continue;
+  const biome=mapId==='confluence'?(world.regions||[]).find(r=>r.contains(x,z))?.id:mapId,profile=profiles[biome];if(!profile)continue;
+  const kind=random()<profile.grass?'tuft':'litter';
+  records.push({x,z,biome,kind,shoulder:true,size:.78+random()*.3,height:kind==='tuft'?profile.height*(.55+random()*.3):.8,angle:random()*Math.PI*2,color:profile[kind][Math.floor(random()*2)],shade:.94+random()*.12});
+ }
  for(let attempt=0;attempt<limit*20&&records.length<limit;attempt++){
   let x,z;
   if(attempt%5===0){const angle=random()*Math.PI*2,r=4.8+Math.sqrt(random())*15;x=world.spawn.x+Math.sin(angle)*r;z=world.spawn.z+Math.cos(angle)*r;}
@@ -160,7 +181,7 @@ export function installAdventureGroundDetail(world,mapId){
 // A separate mid-height layer: clustered growth follows shelter and banks, not a grid.
 // All solid scree stays ankle-high. Soft foliage bends and remains below the sight line.
 const habitatProfiles={
- forest:{kind:'fern',color:[0x435b37,0x667849,0x7f8753],height:1,width:1},
+ forest:{kind:'fern',color:[0x5e7945,0x78904e,0x939a60],height:1,width:1},
  snow:{kind:'stone',color:[0xb3c4c6,0x7a929a,0xd3dedd],height:.15,width:.65},
  ash:{kind:'stone',color:[0x484247,0x65534b,0x817066],height:.17,width:.74},
  sand:{kind:'reed',color:[0xa19063,0x88784f,0xb3a175],height:.65,width:.75},
@@ -207,11 +228,12 @@ export function installHabitatDetail(world,mapId){
   const biome=mapId==='confluence'?(world.regions||[]).find(r=>r.contains(x,z))?.id:mapId,profile=habitatProfiles[biome];if(!profile)continue;
   centers.push({x,z,biome});const angle=biome==='sand'?-.7:random()*Math.PI*2;
   // Uneven crescent patches have dense centers, tapered ends, and bare intervals.
-  for(let j=0;j<(profile.kind==='reed'?7:3);j++){
-   const along=(j-3)*.63,across=Math.sin(j*.9)*.65+(random()-.5)*.7,px=x+Math.sin(angle)*along+Math.cos(angle)*across,pz=z+Math.cos(angle)*along-Math.sin(angle)*across;
+  const count=profile.kind==='reed'?7:profile.kind==='fern'?4:3,mid=(count-1)/2;
+  for(let j=0;j<count;j++){
+   const along=(j-mid)*.63,across=Math.sin(j*.9)*.65+(random()-.5)*.7,px=x+Math.sin(angle)*along+Math.cos(angle)*across,pz=z+Math.cos(angle)*along-Math.sin(angle)*across;
    if(!allowed(px,pz))continue;
    if(mapId==='confluence'&&!(world.regions||[]).find(r=>r.id===biome)?.contains(px,pz))continue;
-   const size=(.70+random()*.30)*(1-Math.abs(j-3)*.10);
+   const size=(.70+random()*.30)*(1-Math.abs(j-mid)*.10);
    records.push({x:px,z:pz,biome,kind:profile.kind,angle:angle+(random()-.5)*1.2,width:profile.width*size,height:profile.height*size,color:profile.color[j%3]});
   }
  }

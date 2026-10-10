@@ -14,6 +14,25 @@ import {HERO_LOADOUTS} from '../rules.js';
 function weapon(id){return ['shade','shadowblade','grimoire'].includes(id)?shadowFocus(id):id==='miasmalantern'?miasmaLantern():id==='sporelantern'?sporeLantern():id==='boomerang'?boneBoomerang():id==='harpoon'?makeHarpoon():makeHero(id==='crossbow'?'silver':'scout',id).userData.weapon;}
 const hero=gun=>({visible:false,userData:{gun}});
 
+test('held movement settles, turns wrap safely, pause freezes and re-entry clears turn inertia',()=>{
+ const camera=new T.PerspectiveCamera(70,16/9,.1,200),v=new FirstPersonView(camera);
+ try{
+  v.setHero(hero(weapon('crossbow')),'crossbow');
+  for(let i=0;i<60;i++)v.update(i/60,1/60,{visible:true,moving:1,strafe:1,yaw:i*.02});
+  assert(v.sway>.99);assert(v.sideSway>.99);assert(v.lookSwayX<-.005);const aim=camera.quaternion.clone();
+  const pose=[...v.root.position.toArray(),...v.root.quaternion.toArray(),v.gait,v.lookSwayX];
+  v.update(50,0,{visible:true,moving:0,strafe:-1,yaw:-2});
+  assert.deepEqual([...v.root.position.toArray(),...v.root.quaternion.toArray(),v.gait,v.lookSwayX],pose);
+  for(let i=0;i<90;i++)v.update(1+i/60,1/60,{visible:true,moving:0,yaw:1.18});
+  assert(v.sway<.001&&Math.abs(v.sideSway)<.001&&Math.abs(v.lookSwayX)<.0001);
+  assert(camera.quaternion.equals(aim),'weapon inertia changes camera aim');
+  v.update(3,1/60,{visible:false});v.update(3.1,1/60,{visible:true,yaw:Math.PI-.001});
+  assert.equal(v.lookSwayX,0);v.update(3.2,1/60,{visible:true,yaw:-Math.PI+.001});assert(Math.abs(v.lookSwayX)<.001,'wrapped yaw causes a large kick');
+  for(let i=0;i<80;i++)v.update(4+i/60,1/60,{visible:true,yaw:i%2?2:-2,pitch:i%2?1:-1,strafe:i%2?-1:1});
+  assert(Math.abs(v.lookSwayX)<=.026&&Math.abs(v.lookSwayY)<=.018);assert(v.hands.every(h=>h.position.toArray().every(Number.isFinite)));
+ }finally{v.dispose();}
+});
+
 test('harpoon fork meets the committed contact on screen, including moving and portrait views',()=>{
  const camera=new T.PerspectiveCamera(70,16/9,.1,200),view=new FirstPersonView(camera),actor=hero(weapon('harpoon'));
  camera.position.set(12,1.8,-9);camera.rotation.y=.8;camera.updateMatrixWorld(true);

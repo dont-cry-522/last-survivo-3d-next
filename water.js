@@ -4,7 +4,7 @@ import{MAP_SCALE}from'./map-layout.js?v=114';
 import{coastLayout}from'./coast-layout.js?v=114';
 import{swimStroke,swimLimb,HERO_SWIM,heroSwimPose,swimTravel}from'./swim-motion.js?v=114';
 import{newHeroAttack}from'./new-hero-motion.js?v=114';
-import{naturalRockGeometry,environmentDetailTexture}from'./biome-scenery.js?v=125';
+import{naturalRockGeometry,environmentDetailTexture}from'./biome-scenery.js?v=131';
 import{CLIMATE_LIGHT}from'./environment-lighting.js?v=124';
 import * as T from './vendor/three.module.js';
 const clamp=T.MathUtils.clamp;

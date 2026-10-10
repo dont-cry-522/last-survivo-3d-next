@@ -2,8 +2,22 @@ import{meleeSwing}from'./weapon-performance.js?v=130';
 import{boneBoomerang}from'./beast-model.js?v=114';
 import * as T from './vendor/three.module.js';
 import{shadowCrescentGeometry}from'./shadow-weapons.js?v=114';
-import{spellShapes,streakTexture,crestTexture}from'./spell-shapes.js?v=114';
+import{spellShapes,streakTexture,crestTexture}from'./spell-shapes.js?v=131';
 
+// Three bowed tongues share one draw and one texture. A ground-level viewer
+// never sees the whole flame disappear edge-on, as with a single flat card.
+function flameGeometry(){
+ const positions=[],uv=[],indices=[];
+ for(let fin=0;fin<3;fin++){
+  const angle=fin*Math.PI/3,c=Math.cos(angle),s=Math.sin(angle),start=positions.length/3;
+  for(let row=0;row<4;row++)for(const side of[-1,1]){
+   const t=row/3,x=side*(1-t*.24),z=Math.sin(t*Math.PI)*.19;
+   positions.push(x*c-z*s,t*2-1,x*s+z*c);uv.push((side+1)/2,t);
+  }
+  for(let row=0;row<3;row++){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}
+ }
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();return g;
+}
 function flameTexture(){
  if(typeof document==='undefined')return null;
  const canvas=document.createElement('canvas');canvas.width=128;canvas.height=256;const c=canvas.getContext('2d');
@@ -47,7 +61,7 @@ export class SkillVFX{
  constructor(scene,{mobile=false}={}){
   this.scene=scene;this.limit=mobile?110:190;this.active=[];this.pool=[];this.materials=new Map();
   this.crestTexture=crestTexture();
-  this.flameTexture=flameTexture();this.shadowTexture=shadowTexture();this.vaporTexture=vaporTexture();this.streakTexture=streakTexture();this.geometry={...spellShapes(),ribbon:new T.PlaneGeometry(1,1),droplet:new T.SphereGeometry(1,10,6),stone:new T.DodecahedronGeometry(1,0),waterArc:new T.RingGeometry(.89,1,24,1,Math.PI*.12,Math.PI*.76),ember:new T.IcosahedronGeometry(1,0),crystal:new T.ConeGeometry(1,2,5),flame:new T.PlaneGeometry(2,2),veil:new T.PlaneGeometry(2,2),vapor:new T.PlaneGeometry(2,2),smoke:new T.SphereGeometry(1,7,5),ray:new T.BoxGeometry(1,1,1)};
+  this.flameTexture=flameTexture();this.shadowTexture=shadowTexture();this.vaporTexture=vaporTexture();this.streakTexture=streakTexture();this.geometry={...spellShapes(),ribbon:new T.PlaneGeometry(1,1),droplet:new T.SphereGeometry(1,10,6),stone:new T.DodecahedronGeometry(1,0),waterArc:new T.RingGeometry(.89,1,24,1,Math.PI*.12,Math.PI*.76),ember:new T.IcosahedronGeometry(1,0),crystal:new T.ConeGeometry(1,2,5),flame:flameGeometry(),veil:new T.PlaneGeometry(2,2),vapor:new T.PlaneGeometry(2,2),smoke:new T.SphereGeometry(1,7,5),ray:new T.BoxGeometry(1,1,1)};
  }
  particle(shape,color,x,y,z,{life=.4,size=[.1,.1,.1],velocity=[0,0,0],opacity=.9,additive=true,grow=false,gravity=0,spin=0,orbit=null,priority=0,motion='',roll=0,delay=0,endColor=null}={}){
   if(this.active.length>=this.limit){let victim=-1,lowest=priority;for(let i=0;i<this.active.length;i++)if(this.active[i].priority<lowest){victim=i;lowest=this.active[i].priority;if(lowest===0)break;}if(victim<0)return null;const old=this.active.splice(victim,1)[0];this.scene.remove(old.mesh);this.pool.push(old.mesh);}
@@ -58,7 +72,7 @@ export class SkillVFX{
   mesh.material.forceSinglePass=['flame','veil','vapor','crest','sweep','claw','waterArc','ribbon'].includes(shape);
   const map=shape==='flame'?this.flameTexture:shape==='veil'?this.shadowTexture:shape==='vapor'?this.vaporTexture:shape==='crest'?this.crestTexture:['sweep','claw','ribbon'].includes(shape)?this.streakTexture:null;if(mesh.material.map!==map){mesh.material.map=map;mesh.material.needsUpdate=true;}const vertexColors=shape==='shard';if(mesh.material.vertexColors!==vertexColors){mesh.material.vertexColors=vertexColors;mesh.material.needsUpdate=true;}
   mesh.position.set(x,y,z);mesh.rotation.set(['veil','vapor','waterArc'].includes(shape)?-Math.PI/2:0,shape==='flame'?Math.PI/4:0,0);mesh.scale.set(...size);mesh.visible=delay<=0;mesh.frustumCulled=false;this.scene.add(mesh);
-  const p={mesh,shape,life,max:life,size,velocity,opacity,grow,gravity,spin,orbit,priority,motion,roll,delay,fromColor:endColor===null?null:mesh.material.color.clone(),endColor:endColor===null?null:new T.Color(endColor)};this.active.push(p);this.animate(p,0);return mesh;
+  const p={mesh,shape,life,max:life,size,velocity,opacity:shape==='flame'?opacity*.76:opacity,grow,gravity,spin,orbit,priority,motion,roll,delay,fromColor:endColor===null?null:mesh.material.color.clone(),endColor:endColor===null?null:new T.Color(endColor)};this.active.push(p);this.animate(p,0);return mesh;
  }
  animate(p,progress){
   const fade=Math.min(1,(1-progress)*3),scale=p.grow?Math.sin(Math.PI*Math.min(.99,progress+.05)):.9+progress*.25;
@@ -66,9 +80,10 @@ export class SkillVFX{
   if(p.endColor)p.mesh.material.color.copy(p.fromColor).lerp(p.endColor,progress*progress);
   if(p.motion==='erupt'){const rise=1-(1-Math.min(1,progress/.22))**3,sink=1-Math.max(0,(progress-.62)/.38);p.mesh.scale.set(p.size[0],p.size[1]*(.04+.96*rise)*sink,p.size[2]);}
   else if(p.motion==='lash'){p.mesh.scale.set(p.size[0]*(.72+progress*.3),p.size[1]*(.65+.35*Math.min(1,progress*7)),p.size[2]);p.mesh.material.opacity=p.opacity*(1-progress)**.6;}
-  else if(p.motion==='combust'){const ignite=Math.min(1,.25+progress*8);p.mesh.scale.set(p.size[0]*(.65+.55*Math.sin(Math.PI*progress)),p.size[1]*(.42+progress*.8),p.size[2]);p.mesh.material.opacity=p.opacity*ignite*(1-progress)**.8;}
+  else if(p.motion==='combust'){const ignite=Math.min(1,.25+progress*8);p.mesh.scale.set(p.size[0]*(.65+.55*Math.sin(Math.PI*progress)),p.size[1]*(.42+progress*.8),p.size[0]*(.48+.35*Math.sin(Math.PI*progress)));p.mesh.material.opacity=p.opacity*ignite*(1-progress)**.8;}
   else if(p.motion==='discharge'){p.mesh.material.opacity=p.opacity*Math.exp(-progress*3.5)*(.7+.3*Math.cos(progress*18)**2);p.mesh.scale.set(p.size[0]*(1-progress*.45),p.size[1],p.size[2]*(1-progress*.45));}
   else if(p.motion==='implode'){const stretch=Math.sin(Math.PI*Math.min(1,progress*1.25));p.mesh.scale.set(p.size[0]*(1-progress*.7),p.size[1]*(.55+stretch*.6),p.size[2]);p.mesh.material.opacity=p.opacity*Math.sin(Math.PI*Math.min(1,.12+progress*.88));}
+  if(p.shape==='flame')p.mesh.scale.z=Math.min(p.mesh.scale.z,p.mesh.scale.x);
  }
  update(dt){
   let n=0;for(const p of this.active){let step=dt;if(p.delay>0){p.delay-=dt;if(p.delay>0){this.active[n++]=p;continue;}step=-p.delay;p.delay=0;p.mesh.visible=true;}p.life-=step;if(p.life<=0){this.scene.remove(p.mesh);this.pool.push(p.mesh);continue;}
@@ -94,7 +109,7 @@ export class SkillVFX{
   const dx=Math.sin(angle),dz=Math.cos(angle);for(const side of[-1,1]){this.segment(new T.Vector3(x+Math.cos(angle)*side*.28,.12,z-Math.sin(angle)*side*.28),new T.Vector3(x-dx*.65+Math.cos(angle)*side*.5,.10,z-dz*.65-Math.sin(angle)*side*.5),0xa1dbd4,.022,.2,false,1,.65);}
  }
  water(x,z,angle=0,strength=1){
-  for(const side of [-1,1]){const m=this.particle('waterArc',0xc8f4e5,x,.10,z,{life:.65,size:[.65*strength,.65*strength,1],opacity:.2,additive:false,grow:true,velocity:[Math.sin(angle+side)*.25,0,Math.cos(angle+side)*.25]});if(m)m.rotation.z=-angle+side*1.1;}
+  for(const side of [-1,1]){const direction=angle+side*.72,m=this.particle('crest',side<0?0x78bdbd:0xd2ece2,x,.06,z,{life:.55,size:[.62*strength,.30*Math.min(2,strength),.48*strength],opacity:side<0?.36:.48,additive:false,motion:'erupt',velocity:[Math.sin(direction)*strength*.65,0,Math.cos(direction)*strength*.65],endColor:0x659694});if(m)m.rotation.y=direction;}
   for(let i=0;i<3;i++){const a=angle+i*2.1;this.particle('ember',0xa1e3e0,x,.14,z,{life:.25,size:[.035,.055,.035],velocity:[Math.sin(a)*strength,.9*strength,Math.cos(a)*strength],gravity:5,opacity:.65,additive:false});}
  }
  fire(x,z,r=2,large=false){

@@ -71,7 +71,7 @@ export function installGroundSurface(ground,id='confluence'){
    float soilSand=${id==='sand'?'1.0':id==='confluence'?'smoothstep(.025,.10,diffuseColor.r-diffuseColor.b)*smoothstep(.14,.30,diffuseColor.r)*(1.0-soilSnow)':'0.0'};
    float soilOrganic=${id==='forest'?'1.0':id==='coast'?'.55':id==='confluence'?'smoothstep(.01,.06,diffuseColor.g-diffuseColor.r)*(1.0-soilSnow)':'0.0'};
    diffuseColor.rgb*=.94+soilClump*.10+(soilGrain-.5)*.14;
-   ${id==='forest'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.073,.057,.031),soilPatch*.62);`
+   ${id==='forest'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.073,.057,.031),soilPatch*.36);`
     :id==='ash'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.075,.071,.075),soilPatch*.40);diffuseColor.rgb*=1.0-smoothstep(.62,.85,soilFine.g)*.12*soilGrainDetail;`
     :id==='coast'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.094,.102,.068),soilPatch*.40);`
     :id==='confluence'?`diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.10,.86,.67),soilPatch*soilOrganic*.30);`:''}
@@ -95,7 +95,7 @@ export function installGroundSurface(ground,id='confluence'){
     // Retain the biome's moss/soil palette while exposing real leaf edges and fine gravel.
     photographedSoil=mix(vec3(soilLuma),photographedSoil,.52)*.46;
     photographedSoil=mix(photographedSoil,soilLuma*vec3(.25,.37,.19),moss*.82);
-    float realSoilMix=soilReady*soilOrganic*(.56+soilPatch*.22)*(1.0-moss*.32);
+    float realSoilMix=soilReady*soilOrganic*(.40+soilPatch*.22)*(1.0-moss*.32);
     diffuseColor.rgb=mix(diffuseColor.rgb,photographedSoil,realSoilMix);
     soilRelief+=(photographedHeight-.5)*.018*realSoilMix*soilGrainDetail;`:''}
   `);

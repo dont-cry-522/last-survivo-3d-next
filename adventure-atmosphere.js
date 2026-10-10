@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
 import {CLIMATE_LIGHT} from './environment-lighting.js?v=124';
 
-const cloudStrength={forest:.12,snow:.15,ash:.10,sand:.065,coast:.14};
+const cloudStrength={forest:.46,snow:.54,ash:.32,sand:.24,coast:.52};
 const vertexShader=`
 varying vec3 skyDirection;
 void main(){
@@ -32,12 +32,12 @@ void main(){
  float facingSun=dot(direction.xz,sunDirection.xz)/max(.001,length(direction.xz)*length(sunDirection.xz));
  float warmHaze=pow(max(0.,facingSun),3.)*(1.-smoothstep(.16,.65,direction.y));
  color=mix(color,mix(skyColor,sunColor,.36),warmHaze*.28);
- // Two smooth noise scales form distant wisps. They fade before the horizon,
+ // Three smooth scales give clouds broad bodies and softly eroded edges. They fade before the horizon,
  // leaving the existing terrain fog and combat silhouettes uninterrupted.
  vec2 p=direction.xz/max(.20,direction.y+.30)*vec2(4.3,2.7);
  p+=vec2(skyTime*.006,skyTime*.002);
- float body=cloudNoise(p)*.7+cloudNoise(p*2.17+vec2(8.3,2.7))*.3;
- float cloud=smoothstep(.51,.76,body)*smoothstep(.06,.23,direction.y)*(1.-smoothstep(.75,.98,direction.y));
+ float body=cloudNoise(p)*.60+cloudNoise(p*2.17+vec2(8.3,2.7))*.28+cloudNoise(p*4.31-vec2(skyTime*.004,2.1))*.12;
+ float cloud=smoothstep(.47,.73,body)*smoothstep(.06,.23,direction.y)*(1.-smoothstep(.75,.98,direction.y));
  float sunward=cloudNoise(p+sunDirection.xz*.32);
  float litEdge=clamp(.5+(body-sunward)*3.5,0.,1.);
  vec3 cloudColor=mix(skyColor*.60,mix(skyColor*1.18,sunColor,.58),litEdge);

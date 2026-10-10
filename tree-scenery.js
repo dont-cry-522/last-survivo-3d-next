@@ -80,7 +80,7 @@ function leafAtlas(){
    const outline=half*Math.pow(Math.sin(t*Math.PI),.80)*(1+.055*Math.sin(t*31+leaf)),distance=(outline-Math.abs(across))*size,alpha=Math.round(T.MathUtils.clamp(distance+.5,0,1)*255);
    if(!alpha)continue;
    const fold=across>0?.95:1.04,vein=Math.abs(across)<.0015?1.03:1,light=(.84+t*.21)*fold*vein,index=(y*size+x)*4;
-   data[index]=Math.round((63+warm*23)*light);data[index+1]=Math.round((91+warm*24)*light);data[index+2]=Math.round((42+warm*13)*light);data[index+3]=Math.max(data[index+3],alpha);
+   data[index]=Math.round((82+warm*27)*light);data[index+1]=Math.round((113+warm*26)*light);data[index+2]=Math.round((51+warm*16)*light);data[index+3]=Math.max(data[index+3],alpha);
   }
  }
  const texture=new T.DataTexture(data,size,size,T.RGBAFormat);texture.name='shared-tree-leaf-atlas';texture.colorSpace=T.SRGBColorSpace;texture.generateMipmaps=true;texture.minFilter=T.LinearMipmapLinearFilter;texture.magFilter=T.LinearFilter;texture.needsUpdate=true;return texture;
@@ -170,7 +170,7 @@ function treeTemplate(id,variant){
  // Thus tall trees keep supported leaf groups without changing their overall height or collision radius.
  if(!snow)for(const tip of tips){
   const b=tip.branch,a=b*2.15+variant*.71,reach=1.18-b%2*.12,base=b===4?[lean*.6,4.5,0]:[Math.cos(a)*reach*.58,3.64+b*.31-.24,Math.sin(a)*reach*.58];
-  const end=[tip.x*1.85,((tip.y-bottom)/canopy.boundingBox.max.y*.43+.57)*5/.8624,tip.z*1.85*(.94+variant*.035)],middle=base.map((v,i)=>T.MathUtils.lerp(v,end[i],.55)+(i===1?.10:0));
+  const end=[tip.x*2.04,((tip.y-bottom)/canopy.boundingBox.max.y*.47+.53)*5/.8496,tip.z*2.04*(.94+variant*.035)],middle=base.map((v,i)=>T.MathUtils.lerp(v,end[i],.55)+(i===1?.10:0));
   branches.push(tint(limb([base,middle,end],[.044,.024,.006],3),wood));
  }
  const trunk=merge(branches);
@@ -178,7 +178,7 @@ function treeTemplate(id,variant){
  const template={trunk,trunkHeight,canopy,canopyHeight:canopy.boundingBox.max.y};templates.set(key,template);return template;
 }
 export function addTree(parent,id,tall,{angle=0,variation=1,bend=0}={}){
- const variant=Math.abs(Math.floor(angle*1.7))%3,template=treeTemplate(id,variant),height=id==='snow'?5.2+tall*.52:5.6+tall*.26,canopyHeight=height*(id==='snow'?.46:.43),width=(.88+variation*.12)*(id==='snow'?1:1.85);
+ const variant=Math.abs(Math.floor(angle*1.7))%3,template=treeTemplate(id,variant),height=id==='snow'?5.2+tall*.52:5.6+tall*.26,canopyHeight=height*(id==='snow'?.46:.47),width=(.88+variation*.12)*(id==='snow'?1:2.04);
  parent.userData.treeBiome=id;parent.rotation.y=angle;
  const trunk=new T.Mesh(template.trunk,material);trunk.name='tree-trunk';trunk.scale.set(.94+variation*.06,(height-canopyHeight*.32)/template.trunkHeight,.94+variation*.06);trunk.rotation.z=bend*.10;
  const canopy=new T.Mesh(template.canopy,id==='snow'?firMaterial:leafMaterial);canopy.name='tree-canopy';canopy.userData.treeCanopy=true;canopy.position.set(bend*.5,height-canopyHeight,0);canopy.scale.set(width,canopyHeight/template.canopyHeight,width*(.94+variant*.035));

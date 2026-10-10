@@ -262,7 +262,7 @@ export class FirstPersonView {
   this.scratch.copy(this.grip).multiplyScalar(scale);object.position.add(this.wrist.copy(this.scratch).applyQuaternion(this.restRotation)).sub(this.scratch.applyQuaternion(object.quaternion));
   object.updateMatrix();
  }
- update(time,dt,{moving=0,attack=0,attackDuration=.18,visible=false,dodgePose=null}={}){
+ update(time,dt,{moving=0,strafe=0,yaw=0,pitch=0,attack=0,attackDuration=.18,visible=false,dodgePose=null}={}){
   if(this.disposed||!this.weapon)return;this.root.visible=!!visible;
   if(!visible){if(dodgePose===null){this.poseReady=false;this.dodgeWeight=0;}return;}
   const step=Math.max(0,Math.min(.05,Number.isFinite(dt)?dt:0)),speed=T.MathUtils.clamp(Number(moving)||0,0,1);
@@ -272,7 +272,15 @@ export class FirstPersonView {
    if(dodgePose===null&&this.dodgeWeight>0){this.root.position.copy(this.dodgeBasePosition);this.root.rotation.copy(this.dodgeBaseRotation);this.dodgeWeight=0;}
    return;
   }
-  this.sway+=(speed-this.sway)*(1-Math.exp(-step*10));this.gait+=step*speed*8;
+  const blend=1-Math.exp(-step*12),safeYaw=Number.isFinite(yaw)?yaw:0,safePitch=Number.isFinite(pitch)?pitch:0;
+  if(!this.poseReady){this.lastYaw=safeYaw;this.lastPitch=safePitch;this.lookSwayX=this.lookSwayY=this.sideSway=0;}
+  // Only the held rig lags a few millimetres. Camera aim and hit direction stay immediate.
+  const turn=Math.atan2(Math.sin(safeYaw-this.lastYaw),Math.cos(safeYaw-this.lastYaw));
+  this.lookSwayX+=(T.MathUtils.clamp(-turn/Math.max(step,.001)*.006,-.026,.026)-this.lookSwayX)*blend;
+  this.lookSwayY+=(T.MathUtils.clamp(-(safePitch-this.lastPitch)/Math.max(step,.001)*.006,-.018,.018)-this.lookSwayY)*blend;
+  this.sideSway+=((Number.isFinite(strafe)?T.MathUtils.clamp(strafe,-1,1):0)-this.sideSway)*blend;
+  this.lastYaw=safeYaw;this.lastPitch=safePitch;
+  this.sway+=(speed-this.sway)*(1-Math.exp(-step*10));this.gait+=step*this.sway*8;
   for(const [source,node]of this.parts){node.position.copy(source.position);node.quaternion.copy(source.quaternion);node.scale.copy(source.scale);node.visible=source.visible;}
   this.weapon.visible=this.source.visible;
   for(const [source,m]of this.materials){
@@ -295,8 +303,9 @@ export class FirstPersonView {
    this.wrist.set(i?.44:-.44,.11,.36);this.scratch.set(0,.12,.29-.34*draw).sub(this.wrist);
    clone.position.copy(this.wrist).addScaledVector(this.scratch,.5);clone.scale.y=this.scratch.length();clone.quaternion.setFromUnitVectors(UP,this.scratch.normalize());
   }
-  this.root.position.set(halfW*profile.x*(this.camera.aspect<.8?.88:1)+Math.sin(this.gait)*.009*this.sway,halfH*profile.y+Math.cos(this.gait*2)*.005*this.sway,-depth);
-  this.root.rotation.set(0,0,Math.sin(this.gait)*.010*this.sway);
+  const breath=Math.sin((Number(time)||0)*1.65)*.0018*(1-this.sway),settle=1-Math.min(1,motion.kick+motion.gather);
+  this.root.position.set(halfW*profile.x*(this.camera.aspect<.8?.88:1)+Math.sin(this.gait)*.009*this.sway+this.lookSwayX-this.sideSway*.012,halfH*profile.y+Math.cos(this.gait*2)*.005*this.sway+this.lookSwayY+breath*settle,-depth);
+  this.root.rotation.set(0,0,Math.sin(this.gait)*.010*this.sway-this.sideSway*.018);
   this.weapon.scale.setScalar(scale);this.weapon.position.set(0,0,0);this.weapon.rotation.set(profile.pitch,Math.PI-.045,0);
   if(profile.type==='gun'||profile.type==='bow'){
    this.weapon.position.z=kick*(id==='shotgun'?.075:.035);this.weapon.rotation.x+=kick*(id==='shotgun'?.17:.075);this.weapon.rotation.z-=draw*.045;

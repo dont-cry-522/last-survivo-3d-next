@@ -11,7 +11,7 @@ previewHero.value='silver';$('#preview-map').before(previewHero,previewWeapon);
 function previewWeapons(){previewWeapon.replaceChildren();for(const[index,id]of HERO_LOADOUTS[previewHero.value].entries()){const option=document.createElement('option');option.value=index;option.textContent=WEAPONS[id].name;previewWeapon.append(option);}}
 previewHero.onchange=previewWeapons;previewWeapons();
 const previewEnemy=document.createElement('select');previewEnemy.id='preview-enemy';previewEnemy.setAttribute('aria-label','预览怪物');for(const[id,name]of[['','无怪物'],['mushroom','蘑菇'],['wolf','狼'],['golem','岩怪'],['spitter','吐息者'],['shaman','萨满'],['flyer','本图飞行怪']])previewEnemy.add(new Option(name,id));$('#preview-place').after(previewEnemy);
-for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴'],['habitat-run','六地图环境检查'],['weapon-run','枪口与近战镰刀检查'],['melee-poses','近战动作与尾迹检查'],['melee-sequence','近战完整动作检查']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
+for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴'],['polish-run','持械与特效检查'],['habitat-run','六地图环境检查'],['weapon-run','枪口与近战镰刀检查'],['melee-poses','近战动作与尾迹检查'],['melee-sequence','近战完整动作检查']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
 async function load(mobile=false,width=1180,height=720){
@@ -216,6 +216,28 @@ $('#dodge-preview').onclick=async()=>{const button=$('#dodge-preview');button.di
  if(g.state==='paused')g.resume();win.document.querySelector('[data-attack-mode="manual"]').click();previewShot=null;g.player.dash=0;g.player.dashTime=0;g.dash();assert(g.player.dashTime>0,'当前位置无法开始闪避');step(4);previewDodge={frames:4};reportDodgePreview();
  }catch(e){$('#status').textContent='闪避预览失败：'+e.message;}finally{button.disabled=false;}};
 $('#recover-preview').onclick=()=>{if(!previewShot&&!previewDodge){$('#status').textContent='请先点击「单次出手预览」或「闪避预览」。';return;}if(g.state==='paused')g.resume();step(8);if(previewDodge){previewDodge.frames+=8;reportDodgePreview();}else{previewShot.frames+=8;reportAttackPreview();}};
+$('#polish-run').onclick=async()=>{
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
+ const sheet=document.createElement('canvas');sheet.width=1180*2;sheet.height=756*2;const paint=sheet.getContext('2d');paint.fillStyle='#17272b';paint.fillRect(0,0,sheet.width,sheet.height);
+ try{for(const mobile of[false,true]){
+  await load(mobile,mobile?844:1180,mobile?390:720);
+  await check('实际移动与持械衔接 '+(mobile?'手机尺寸':'桌面'),()=>{
+   select('silver');arena();g.world.ponds=[];g.setView('first');key('keydown','w');step(45);key('keyup','w');assert(g.firstPerson.sway>.8,'行走未带动持械');step(90);assert(g.firstPerson.sway<.01,'停步后晃动未收敛');
+   const x=g.player.x,z=g.player.z;g.world.obstacles=[{x,z:z+.92,r:.5,height:4}];key('keydown','w');step(120);key('keyup','w');assert(Math.hypot(g.player.vx,g.player.vz)<.01,'测试未抵住障碍');assert(g.firstPerson.sway<.01,'顶墙仍播放行走摆动');
+   g.adventureCamera.yaw+=.1;step();assert(Math.abs(g.firstPerson.lookSwayX)>.001,'转向无持械衔接');const pose=g.firstPerson.root.position.clone();g.pause();step(20);assert(g.firstPerson.root.position.equals(pose),'暂停仍移动持械');return reportFrame();
+  });
+  for(const[i,kind]of['fire','ice','water','dark'].entries())await check(kind+' 立体特效 '+(mobile?'手机尺寸':'桌面'),()=>{
+   select('silver');g.setView('first');g.adventureCamera.yaw=-.75;g.adventureCamera.pitch=-.16;step(2);g.vfx.clear();
+   const x=g.player.x+Math.sin(-.75)*5,z=g.player.z+Math.cos(-.75)*5;
+   if(kind==='fire')g.vfx.fire(x,z,2,true);else if(kind==='ice')g.vfx.ice(x,z,2.5);else if(kind==='water')g.vfx.water(x,z,.5,2);else g.vfx.dark(x,z,2,true);
+   step(10);const snapshot=reportFrame();assert(g.vfx.active.length>0,'特效未出现');assert(g.vfx.active.length+g.vfx.pool.length<=g.vfx.limit,'粒子超限');
+   if(!mobile){paint.drawImage(g.renderer.domElement,(i%2)*1180,Math.floor(i/2)*756,1180,720);paint.fillStyle='#e4eddf';paint.font='22px sans-serif';paint.fillText(kind,(i%2)*1180+16,Math.floor(i/2)*756+746);}
+   const life=g.vfx.active.map(p=>p.life);g.pause();step(12);assert(JSON.stringify(life)===JSON.stringify(g.vfx.active.map(p=>p.life)),'暂停推进特效');g.resume();step(90);assert(!g.vfx.active.length,'特效未回收');return snapshot;
+  });
+ }
+ const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v131-spells.png';a.click();publish();$('#status').textContent='持械与特效：'+results.filter(r=>r.pass).length+'/'+results.length;
+ }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
+};
 $('#habitat-run').onclick=async()=>{
  const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
  const sheet=document.createElement('canvas');sheet.width=1180*2;sheet.height=756*3;const paint=sheet.getContext('2d');paint.fillStyle='#17272b';paint.fillRect(0,0,sheet.width,sheet.height);
@@ -229,7 +251,7 @@ $('#habitat-run').onclick=async()=>{
    return{instances:layer.userData.records.length,extraDraws:after.calls-before.calls,extraTriangles:after.triangles-before.triangles,...after};
   });
  }
- const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v124-six-environments.png';a.click();$('#status').textContent='环境检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;publish();
+ const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v131-six-environments.png';a.click();$('#status').textContent='环境检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;publish();
  }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
 };
 $('#third').onclick=()=>preview('third');$('#first').onclick=()=>preview('first');$('#air-portrait').onclick=()=>{const kind=AIR_ROSTERS[$('#preview-map').value]||'duskbat',scene=new T.Scene(),camera=new T.PerspectiveCamera(36,1.5,.1,30),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(360,240);renderer.setClearColor(0x213235);const model=makeAirborne(kind);scene.add(model);animateAirborne({kind,mesh:model,id:1,flight:{stage:'orbit'}},.2);scene.add(new T.HemisphereLight(0xe3efff,0x38462e,2.8));const sun=new T.DirectionalLight(0xffedce,3);sun.position.set(-3,5,4);scene.add(sun);camera.position.set(2,2.8,4);camera.lookAt(0,.25,0);renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='next-bestiary-'+kind+'.png';a.click();renderer.dispose();renderer.forceContextLoss();};$('#capture').onclick=()=>{step(1,0);const a=document.createElement('a');a.href=g.renderer.domElement.toDataURL('image/png');a.download='forest-next-'+g.player.weaponId+'-'+g.adventureCamera.mode+'-f'+(previewShot?.frames||previewDodge?.frames||0)+'.png';a.click();};

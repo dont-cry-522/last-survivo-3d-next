@@ -9,7 +9,19 @@ function strip(sample,steps=24){
 export function spellShapes(){
  const sweep=strip(t=>{const a=-.95+t*1.9,w=Math.sin(Math.PI*t)**.7*.27;return [[Math.sin(a)*(1-w),Math.cos(a)*(1-w),0],[Math.sin(a)*(1+w),Math.cos(a)*(1+w),0]];});
  const crest=strip(t=>{const x=t*2-1,h=Math.sin(Math.PI*t)**.7;return [[x,0,.3*(1-x*x)],[x,h*.8,.3*(1-x*x)-.22*h]];});
- const shard=new T.ConeGeometry(1,2,4).toNonIndexed();shard.translate(0,1,0);const normal=shard.getAttribute('normal'),colors=[];for(let i=0;i<normal.count;i++){const light=.68+.32*Math.max(0,normal.getX(i)*.5+normal.getY(i)*.7+normal.getZ(i)*.5);colors.push(light,light,light);}shard.setAttribute('color',new T.Float32BufferAttribute(colors,3));
+ // Uneven hexagonal crystal with a long faceted shaft and a chipped shoulder.
+ // Root and height stay identical to the old cone so the eruption footprint is unchanged.
+ const points=[.15,2,-.08],faces=[];
+ for(let ring=0;ring<2;ring++)for(let i=0;i<6;i++){
+  const a=i*Math.PI/3,r=ring?.72+(i%2)*.12:1;
+  points.push(Math.cos(a)*r,ring?1.30+(i%3)*.14:0,Math.sin(a)*r);
+ }
+ for(let i=0;i<6;i++){const a=1+i,b=1+(i+1)%6;faces.push(a,b,a+6,b,b+6,a+6,a+6,b+6,0);}
+ faces.push(1,3,2,1,4,3,1,5,4,1,6,5);
+ for(let i=0;i<faces.length;i+=3)[faces[i+1],faces[i+2]]=[faces[i+2],faces[i+1]];
+ const indexed=new T.BufferGeometry();indexed.setAttribute('position',new T.Float32BufferAttribute(points,3));indexed.setIndex(faces);
+ const shard=indexed.toNonIndexed();indexed.dispose();shard.computeVertexNormals();const normal=shard.getAttribute('normal'),colors=[];
+ for(let i=0;i<normal.count;i++){const light=.54+.46*Math.max(0,normal.getX(i)*.5+normal.getY(i)*.7+normal.getZ(i)*.5);colors.push(light*.90,light*.98,light);}shard.setAttribute('color',new T.Float32BufferAttribute(colors,3));
  // Curved claw with a broad heel and a pointed tip.
  const claw=strip(t=>{const x=(t-.5)*.6,y=t*1.6,w=Math.sin(Math.PI*t)**.6*.12;return [[x-w,y,Math.sin(t*Math.PI)*.18],[x+w,y,Math.sin(t*Math.PI)*.18]];},16);
  return {sweep,crest,shard,claw};

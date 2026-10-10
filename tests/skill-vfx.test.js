@@ -4,6 +4,16 @@ import*as T from'../vendor/three.module.js';
 import{SkillVFX}from'../skill-vfx.js';
 import{WEAPONS,WEAPON_PATHS,weaponStats}from'../rules.js';
 
+test('flames retain volume from every horizontal viewing direction without extra draws or lingering particles',()=>{
+ const v=new SkillVFX(new T.Scene(),{mobile:true}),g=v.geometry.flame,p=g.attributes.position;
+ assert(g.index.count/3<=18);assert.equal(g.groups.length,0);assert.equal(g.attributes.uv.count,p.count);
+ for(let a=0;a<Math.PI*2;a+=Math.PI/12){let lo=Infinity,hi=-Infinity;for(let i=0;i<p.count;i++){const x=p.getX(i)*Math.cos(a)+p.getZ(i)*Math.sin(a);lo=Math.min(lo,x);hi=Math.max(hi,x);}assert(hi-lo>1.6,'flame collapses into an edge');}
+ v.fire(0,0,2,true);const count=v.active.length;v.update(.18);
+ const flame=v.active.find(p=>p.shape==='flame');assert(flame);assert(flame.mesh.scale.z<=flame.mesh.scale.x);assert(v.active.length<=count);
+ const pose=flame.mesh.matrix.clone(),position=flame.mesh.position.clone(),life=flame.life;v.update(0);assert.equal(flame.life,life);assert(flame.mesh.position.equals(position));assert(flame.mesh.matrix.equals(pose));
+ v.clear();assert.equal(v.scene.children.length,0);assert(v.active.length+v.pool.length<=110);
+});
+
 test('elemental impacts have a readable core and distinct secondary shapes',()=>{
  const vfx=new SkillVFX(new T.Scene(),{mobile:true});
  for(const [name,cast,shapes]of [

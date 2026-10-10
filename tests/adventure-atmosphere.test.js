@@ -23,7 +23,7 @@ test('each climate supplies the existing palette and blended lighting colors are
  for(const [mapId,climate]of Object.entries(CLIMATE_LIGHT)){
   sky.update(5,camera,{mapId});
   for(const field of ['sky','fog','sun'])assert(u[field+'Color'].value.equals(new T.Color(climate[field])),mapId+' '+field);
-  assert(u.cloudAmount.value>0&&u.cloudAmount.value<=.15);
+  assert(u.cloudAmount.value>0&&u.cloudAmount.value<=.6);
  }
  const skyColor=new T.Color(.22,.35,.43),fogColor=new T.Color(.13,.18,.21),sunColor=new T.Color(.9,.72,.5);
  const originals=[skyColor.clone(),fogColor.clone(),sunColor.clone()];

@@ -19,6 +19,7 @@ test('all six maps use at most two bounded batches without moving gameplay data 
   assert(group,map);assert.equal(group.parent,world.group);assert.equal(installAdventureGroundDetail(world,map),group);
   assert(group.children.length>0&&group.children.length<=2);const records=group.userData.records;
   assert(records.length>100&&records.length<=(map==='confluence'?2200:1200));assert.equal(group.children.reduce((n,b)=>n+b.count,0),records.length);
+  const shoulderCount=records.filter(p=>p.shoulder).length;assert(shoulderCount>0&&shoulderCount<=Math.ceil(records.length*.22),'roadside detail exceeds the reallocated budget');
   assert.equal(state(world),before);assert.deepEqual(world.ground.geometry.attributes.position.array,ground);
   if(map==='confluence')assert.deepEqual([...new Set(records.map(p=>p.biome))].sort(),maps.filter(id=>id!=='confluence').sort());
   for(const batch of group.children){
@@ -84,7 +85,7 @@ test('footprints avoid maximum tide, irregular shores, trails, main roads and al
     // Probe the entire conservative footprint, not just the instance center.
     for(let i=0;i<12;i++){const a=i*Math.PI/6;assert.equal(waterDepth(tide,p.x+Math.sin(a)*.55,p.z+Math.cos(a)*.55),0,map+' detail is flooded');}
    }
-   for(const route of routes)for(let i=1;i<route.points.length;i++){const a=route.points[i-1],b=route.points[i];assert(segmentDistance(p.x,p.z,a.x,a.z,b.x,b.z)>=route.width+.55-1e-7);}
+   for(const route of routes)for(let i=1;i<route.points.length;i++){const a=route.points[i-1],b=route.points[i];assert(segmentDistance(p.x,p.z,a.x,a.z,b.x,b.z)>=(p.shoulder?(route.width===5.8?4.2:1.65):route.width)+.55-1e-7);}
   }
   cleanup(world);
  }

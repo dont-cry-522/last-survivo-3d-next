@@ -35,6 +35,7 @@ void main(){
 const fragmentShader=`
 #include <fog_pars_fragment>
 uniform float shaftTime;
+uniform float shaftStrength;
 varying vec2 shaftUV;
 varying vec3 shaftColor;
 varying float shaftPhase;
@@ -48,7 +49,7 @@ void main(){
  float bands=.93+.07*sin(shaftUV.y*8.0+shaftPhase+shaftTime*.12);
  float facing=abs(dot(normalize(shaftNormal),normalize(shaftView)));
  float viewFade=smoothstep(.16,.55,facing)*smoothstep(.8,3.0,length(shaftView));
- gl_FragColor=vec4(shaftColor,.025*edge*ends*air*bands*viewFade);
+ gl_FragColor=vec4(shaftColor,.025*shaftStrength*edge*ends*air*bands*viewFade);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
  // Additive light fades into the fog rather than adding an opaque fog tint.
@@ -93,7 +94,7 @@ export function installWorldLightShafts(world,mapId){
   }
  }
  if(!anchors.length)return null;
- const clock={value:0},material=new T.ShaderMaterial({vertexShader,fragmentShader,uniforms:T.UniformsUtils.merge([T.UniformsLib.fog,{shaftTime:clock}]),transparent:true,depthWrite:false,depthTest:true,blending:T.AdditiveBlending,side:T.DoubleSide,forceSinglePass:true,fog:true});
+ const clock={value:0},material=new T.ShaderMaterial({vertexShader,fragmentShader,uniforms:T.UniformsUtils.merge([T.UniformsLib.fog,{shaftTime:clock,shaftStrength:{value:1}}]),transparent:true,depthWrite:false,depthTest:true,blending:T.AdditiveBlending,side:T.DoubleSide,forceSinglePass:true,fog:true});
  const shafts=new T.InstancedMesh(geometry,material,anchors.length),matrix=new T.Matrix4();shafts.name='World_soft_light_shafts';shafts.renderOrder=-1;
  for(const [i,p]of anchors.entries()){
   const width=2.7+(i%2)*.35,height=(p.biome==='forest'?10:8.5)+(i%3)*.5;
@@ -101,13 +102,70 @@ export function installWorldLightShafts(world,mapId){
   const [color,strength]=tones[p.biome];shafts.setColorAt(i,new T.Color(color).multiplyScalar(strength));
  }
  shafts.instanceMatrix.needsUpdate=true;shafts.instanceColor.needsUpdate=true;shafts.computeBoundingSphere();
- shafts.userData.anchors=anchors;shafts.userData.disposed=false;
+ shafts.userData.anchors=anchors;shafts.userData.disposed=false;shafts.userData.direction=direction.clone();
  // Existing world cleanup already disposes InstancedMesh objects. Keep only the static geometry cached.
  shafts.addEventListener('dispose',()=>{if(shafts.userData.disposed)return;shafts.userData.disposed=true;shafts.visible=false;material.dispose();});
  world.group.add(shafts);world.lightShafts=shafts;return shafts;
 }
 
-export function updateWorldLightShafts(world,gameTime){
+const shaftMatrix=new T.Matrix4(),shaftRotation=new T.Quaternion(),shaftUp=new T.Vector3(0,1,0),shaftPosition=new T.Vector3(),shaftScale=new T.Vector3(),shaftColor=new T.Color();
+export function updateWorldLightShafts(world,gameTime,lighting=null){
  const shafts=world.lightShafts;
- if(shafts&&!shafts.userData.disposed&&Number.isFinite(gameTime))shafts.material.uniforms.shaftTime.value=gameTime;
+ if(shafts&&!shafts.userData.disposed&&Number.isFinite(gameTime)){
+  shafts.material.uniforms.shaftTime.value=gameTime;
+  if(lighting){
+   shafts.material.uniforms.shaftStrength.value=lighting.shaftStrength;
+   if(shafts.userData.direction.distanceToSquared(lighting.direction)>1e-8){
+    shaftRotation.setFromUnitVectors(shaftUp,lighting.direction);
+    for(let i=0;i<shafts.count;i++){
+     shafts.getMatrixAt(i,shaftMatrix);shaftPosition.setFromMatrixPosition(shaftMatrix);shaftScale.setFromMatrixScale(shaftMatrix);
+     shaftMatrix.compose(shaftPosition,shaftRotation,shaftScale);shafts.setMatrixAt(i,shaftMatrix);
+    }
+    shafts.userData.direction.copy(lighting.direction);shafts.instanceMatrix.needsUpdate=true;shafts.computeBoundingSphere();
+   }
+   for(const[i,p]of shafts.userData.anchors.entries()){
+    const[color,strength]=tones[p.biome];shaftColor.set(color);
+    if(p.biome==='forest')shaftColor.copy(lighting.sun.color);
+    shafts.setColorAt(i,shaftColor.multiplyScalar(strength));
+   }
+   shafts.instanceColor.needsUpdate=true;
+  }
+ }
+ const mist=world.forestMist;
+ if(mist&&!mist.userData.disposed&&Number.isFinite(gameTime)){
+  mist.material.uniforms.mistTime.value=gameTime;
+  if(lighting){mist.material.uniforms.mistColor.value.copy(lighting.scene.fog.color);mist.material.uniforms.mistOpacity.value=.055+.025*(1-lighting.day);}
+ }
+}
+
+// ponytail: crossed instanced mist volumes, not ray-marched fog. Keep a low opacity
+// ceiling; replace with depth-aware volumetrics only when a measured GPU budget permits it.
+export function installForestMist(world,mapId,{mobile=false}={}){
+ if(world.forestMist&&!world.forestMist.userData.disposed)return world.forestMist;
+ if(mapId!=='forest'&&mapId!=='confluence')return null;
+ const region=world.regions?.find(r=>r.id==='forest'),focus=region||world.spawn;
+ if(!focus)return null;
+ const anchors=[];
+ for(let i=0;i<24&&anchors.length<(mobile?3:6);i++){
+  const angle=i*2.399963,r=11+(i%4)*9,x=focus.x+Math.cos(angle)*r,z=focus.z+Math.sin(angle)*r;
+  if(!openGround(world,x,z,region)||anchors.some(p=>Math.hypot(x-p.x,z-p.z)<12))continue;
+  // The shader fades close to the camera, preserving nearby combat silhouettes.
+  anchors.push({x,z});
+ }
+ if(!anchors.length)return null;
+ const material=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,side:T.DoubleSide,forceSinglePass:true,
+  uniforms:{mistTime:{value:0},mistColor:{value:new T.Color(0x829b91)},mistOpacity:{value:.055}},
+  vertexShader:`varying vec2 mistUV;varying float mistPhase;varying float mistDistance;
+   void main(){mistUV=uv;mistPhase=dot(instanceMatrix[3].xz,vec2(.19,.13));vec4 p=modelViewMatrix*instanceMatrix*vec4(position,1.);mistDistance=length(p.xyz);gl_Position=projectionMatrix*p;}`,
+  fragmentShader:`uniform float mistTime;uniform vec3 mistColor;uniform float mistOpacity;varying vec2 mistUV;varying float mistPhase;varying float mistDistance;
+   void main(){vec2 p=mistUV;float edge=pow(max(0.,1.-abs(p.x*2.-1.)),2.);float height=smoothstep(0.,.15,p.y)*(1.-smoothstep(.18,1.,p.y));float drift=.68+.16*sin(p.x*11.+p.y*6.+mistPhase+mistTime*.10)+.12*sin(p.x*23.-p.y*8.-mistTime*.07);float nearFade=smoothstep(2.,7.,mistDistance);float farFade=1.-smoothstep(45.,72.,mistDistance);gl_FragColor=vec4(mistColor,mistOpacity*edge*height*drift*nearFade*farFade);
+   #include <colorspace_fragment>
+  }`});
+ const mist=new T.InstancedMesh(geometry,material,anchors.length);mist.name='FX_Forest_GroundMist_A';mist.renderOrder=-2;
+ for(const[i,p]of anchors.entries()){
+  shaftRotation.setFromAxisAngle(shaftUp,i*2.4);shaftMatrix.compose(shaftPosition.set(p.x,.08,p.z),shaftRotation,shaftScale.set(14+(i%3)*2,1.8+(i%2)*.4,14+(i%3)*2));mist.setMatrixAt(i,shaftMatrix);
+ }
+ mist.instanceMatrix.needsUpdate=true;mist.computeBoundingSphere();mist.userData.anchors=anchors;mist.userData.disposed=false;
+ mist.addEventListener('dispose',()=>{if(mist.userData.disposed)return;mist.userData.disposed=true;mist.visible=false;material.dispose();});
+ world.group.add(mist);world.forestMist=mist;return mist;
 }

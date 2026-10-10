@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {CLIMATE_LIGHT} from './environment-lighting.js?v=124';
+import {CLIMATE_LIGHT} from './environment-lighting.js?v=133';
 
 const cloudStrength={forest:.46,snow:.54,ash:.32,sand:.24,coast:.52};
 const vertexShader=`
@@ -13,6 +13,7 @@ uniform vec3 skyColor;
 uniform vec3 fogColor;
 uniform vec3 sunColor;
 uniform vec3 sunDirection;
+uniform float sunStrength;
 uniform float skyTime;
 uniform float cloudAmount;
 varying vec3 skyDirection;
@@ -45,7 +46,7 @@ void main(){
  float sun=max(0.,dot(direction,sunDirection));
  float halo=pow(sun,32.)*.10+pow(sun,256.)*.035;
  float disc=smoothstep(.9994,.9999,sun)*.26;
- color+=sunColor*(halo+disc)*smoothstep(.02,.20,direction.y);
+ color+=sunColor*(halo+disc)*sunStrength*smoothstep(.02,.20,direction.y);
  gl_FragColor=vec4(color,1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
@@ -64,18 +65,20 @@ export class AdventureAtmosphere{
   const climate=CLIMATE_LIGHT.forest;
   const material=new T.ShaderMaterial({vertexShader,fragmentShader,side:T.BackSide,depthWrite:false,depthTest:false,fog:false,uniforms:{
    skyColor:{value:new T.Color(climate.sky)},fogColor:{value:new T.Color(climate.fog)},sunColor:{value:new T.Color(climate.sun)},
-   sunDirection:{value:new T.Vector3(-18,30,14).normalize()},skyTime:{value:0},cloudAmount:{value:cloudStrength.forest}
+   sunDirection:{value:new T.Vector3(-18,30,14).normalize()},sunStrength:{value:1},skyTime:{value:0},cloudAmount:{value:cloudStrength.forest}
   }});
   this.mesh=new T.Mesh(new T.SphereGeometry(160,24,12),material);
   this.mesh.name='adventure-atmosphere';this.mesh.renderOrder=-1000;this.mesh.frustumCulled=false;this.mesh.visible=false;
   scene.add(this.mesh);
  }
- update(time,camera,{mapId='forest',visible=true,skyColor,fogColor,sunColor}={}){
+ update(time,camera,{mapId='forest',visible=true,skyColor,fogColor,sunColor,sunDirection,sunStrength=1,skyStrength=1}={}){
   if(this.disposed)return;
   this.mesh.visible=!!visible;if(!visible)return;
   camera.getWorldPosition(this.mesh.position);this.scene.worldToLocal(this.mesh.position);
   const climate=CLIMATE_LIGHT[mapId]||CLIMATE_LIGHT.forest,u=this.mesh.material.uniforms;
-  u.skyColor.value.set(skyColor??climate.sky);u.fogColor.value.set(fogColor??climate.fog);u.sunColor.value.set(sunColor??climate.sun);
+  u.skyColor.value.set(skyColor??climate.sky).multiplyScalar(skyStrength);u.fogColor.value.set(fogColor??climate.fog);u.sunColor.value.set(sunColor??climate.sun);
+  if(sunDirection)u.sunDirection.value.copy(sunDirection).normalize();
+  u.sunStrength.value=Math.max(0,Math.min(1,sunStrength));
   u.cloudAmount.value=cloudStrength[mapId]??cloudStrength.forest;
   if(Number.isFinite(time))u.skyTime.value=time;
  }

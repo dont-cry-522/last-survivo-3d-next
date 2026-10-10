@@ -17,7 +17,7 @@ test('shadow fill keeps sunlight directional and retains the existing fog and ex
  const scene=new T.Scene(),renderer={toneMappingExposure:1},hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();
  scene.fog=new T.FogExp2();scene.background=new T.Color();scene.add(hemi,sun,rim);
  const shadow=sun.shadow,camera=shadow.camera,size=shadow.mapSize.clone(),lighting=new EnvironmentLighting(scene,renderer,hemi,sun,rim);
- const atmosphere={forest:[.0105,1.08],snow:[.012,1.02],ash:[.014,1.08],sand:[.009,1.04],coast:[.011,1.06]};
+ const atmosphere={forest:[.0085,1.02],snow:[.012,1.02],ash:[.014,1.08],sand:[.009,1.04],coast:[.011,1.06]};
  for(const [id,[density,exposure]]of Object.entries(atmosphere)){
   lighting.update(id);assert.equal(scene.fog.density,density);assert.equal(renderer.toneMappingExposure,exposure);
   assert(sun.shadow.intensity>=.85&&sun.shadow.intensity<1,'cast shadows still erase all direct detail');

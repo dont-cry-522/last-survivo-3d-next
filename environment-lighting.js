@@ -2,7 +2,7 @@ import * as T from './vendor/three.module.js';
 
 // The same three lights serve every climate; transitions do not allocate lights or shadow maps.
 export const CLIMATE_LIGHT={
- forest:{sky:0x829cad,bounce:0x5b7382,sun:0xffdfb2,rim:0x9dbacf,fog:0x36545a,ambient:1.19,key:3.70,edge:1.45,density:.0105,exposure:1.08,ridge:0x253c3e,height:14},
+ forest:{sky:0x9bbbd2,bounce:0x71816a,sun:0xffe1ad,rim:0xaac8c6,fog:0x829b91,ambient:1.22,key:3.25,edge:.70,density:.0085,exposure:1.02,ridge:0x39554e,height:14},
  snow:{sky:0xbcd5e8,bounce:0x647c8b,sun:0xffe5c5,rim:0x97c5ed,fog:0x99b8c7,ambient:1.30,key:3.10,edge:1.0,density:.012,exposure:1.02,ridge:0x6e919f,height:23},
  ash:{sky:0xada7bc,bounce:0x36333e,sun:0xffc18b,rim:0xb599c1,fog:0x6f5964,ambient:1.04,key:3.4,edge:1.2,density:.014,exposure:1.08,ridge:0x4a3d49,height:17},
  sand:{sky:0xb8cddc,bounce:0x86735d,sun:0xffdfaf,rim:0xb0c5d5,fog:0xbba789,ambient:1.15,key:3.9,edge:.8,density:.009,exposure:1.04,ridge:0x9c8361,height:12},
@@ -10,14 +10,28 @@ export const CLIMATE_LIGHT={
 };
 const colorKeys=['sky','bounce','sun','rim','fog'],scalarKeys=['ambient','key','edge','density','exposure'];
 const tones=Object.fromEntries(Object.entries(CLIMATE_LIGHT).map(([id,p])=>[id,Object.fromEntries(colorKeys.map(k=>[k,new T.Color(p[k])]))]));
+export const FOREST_CYCLE={seconds:720,startAngle:.90,night:{sky:0x8eafc2,bounce:0x4b665d,sun:0xc3d9ef,rim:0x92afc6,fog:0x3e5962,ambient:1.10,key:.95,edge:.55,density:.0105,exposure:1.08}};
+const nightTones=Object.fromEntries(colorKeys.map(k=>[k,new T.Color(FOREST_CYCLE.night[k])])),evening=new T.Color(0xffbe82);
+export const DEFAULT_SUN_DIRECTION=new T.Vector3(-18,30,14).normalize();
+// Game-time only: a paused frame and a resumed tab cannot advance the sun.
+export function sampleForestDay(time,out={direction:new T.Vector3()}){
+ const angle=((Number.isFinite(time)?time:0)%FOREST_CYCLE.seconds)/FOREST_CYCLE.seconds*Math.PI*2+FOREST_CYCLE.startAngle;
+ const height=Math.sin(angle),moon=height<0,sign=moon?-1:1;
+ out.day=T.MathUtils.smoothstep(height,-.16,.22);
+ out.horizon=T.MathUtils.smoothstep(Math.abs(height),.025,.23);
+ out.dusk=(1-T.MathUtils.smoothstep(Math.abs(height),.10,.55))*out.day;
+ out.direction.set(-Math.cos(angle)*sign,Math.max(.08,Math.abs(height)),.46*sign).normalize();
+ return out;
+}
 export class EnvironmentLighting{
  constructor(scene,renderer,hemi,sun,rim){
   Object.assign(this,{scene,renderer,hemi,sun,rim});
   // A little transmitted light retains foliage and ground detail inside cast shadows.
   this.sun.shadow.intensity=.90;
   this.colors=Object.fromEntries(colorKeys.map(k=>[k,new T.Color()]));this.values={};
+  this.direction=DEFAULT_SUN_DIRECTION.clone();this.cycle=sampleForestDay(0);this.cycleColor=new T.Color();this.timeOffset=0;this.shaftStrength=1;this.day=1;
  }
- update(id,weights=null,dt=0){
+ update(id,weights=null,dt=0,gameTime=null){
   const a=dt>0?1-Math.exp(-dt*1.4):1;
   for(const k of colorKeys)this.colors[k].setRGB(0,0,0);
   for(const k of scalarKeys)this.values[k]=0;
@@ -25,6 +39,22 @@ export class EnvironmentLighting{
    const weight=weights?.[biome]??(biome===(id==='confluence'?'forest':id)?1:0);if(!weight)continue;
    for(const k of colorKeys){const c=this.colors[k],s=tones[biome][k];c.r+=s.r*weight;c.g+=s.g*weight;c.b+=s.b*weight;}
    for(const k of scalarKeys)this.values[k]+=p[k]*weight;
+  }
+  const forest=weights?.forest??(id==='forest'||id==='confluence'?1:0),cycling=Number.isFinite(gameTime)&&forest>0;
+  this.direction.copy(DEFAULT_SUN_DIRECTION);this.shaftStrength=1;this.day=1;
+  if(cycling){
+   const cycle=sampleForestDay(gameTime+this.timeOffset,this.cycle),night=FOREST_CYCLE.night;
+   // Replace only the forest contribution; neighboring biomes keep their own palette.
+   for(const k of colorKeys){
+    this.cycleColor.copy(nightTones[k]).lerp(tones.forest[k],cycle.day);
+    if(k==='sun')this.cycleColor.lerp(evening,cycle.dusk*.55);
+    this.colors[k].r+=(this.cycleColor.r-tones.forest[k].r)*forest;
+    this.colors[k].g+=(this.cycleColor.g-tones.forest[k].g)*forest;
+    this.colors[k].b+=(this.cycleColor.b-tones.forest[k].b)*forest;
+   }
+   for(const k of scalarKeys){let value=T.MathUtils.lerp(night[k],CLIMATE_LIGHT.forest[k],cycle.day);if(k==='key')value*=cycle.horizon;this.values[k]+=(value-CLIMATE_LIGHT.forest[k])*forest;}
+   this.direction.lerp(cycle.direction,forest).normalize();this.day=1-forest+forest*cycle.day;
+   this.shaftStrength=1-forest+forest*cycle.horizon*T.MathUtils.lerp(.10,1,cycle.day);
   }
   this.hemi.color.lerp(this.colors.sky,a);this.hemi.groundColor.lerp(this.colors.bounce,a);
   this.sun.color.lerp(this.colors.sun,a);this.rim.color.lerp(this.colors.rim,a);

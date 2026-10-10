@@ -11,12 +11,12 @@ previewHero.value='silver';$('#preview-map').before(previewHero,previewWeapon);
 function previewWeapons(){previewWeapon.replaceChildren();for(const[index,id]of HERO_LOADOUTS[previewHero.value].entries()){const option=document.createElement('option');option.value=index;option.textContent=WEAPONS[id].name;previewWeapon.append(option);}}
 previewHero.onchange=previewWeapons;previewWeapons();
 const previewEnemy=document.createElement('select');previewEnemy.id='preview-enemy';previewEnemy.setAttribute('aria-label','预览怪物');for(const[id,name]of[['','无怪物'],['mushroom','蘑菇'],['wolf','狼'],['golem','岩怪'],['spitter','吐息者'],['shaman','萨满'],['flyer','本图飞行怪']])previewEnemy.add(new Option(name,id));$('#preview-place').after(previewEnemy);
-for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴'],['polish-run','持械与特效检查'],['habitat-run','六地图环境检查'],['weapon-run','枪口与近战镰刀检查'],['melee-poses','近战动作与尾迹检查'],['melee-sequence','近战完整动作检查']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
+for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴'],['polish-run','持械与特效检查'],['habitat-run','六地图环境检查'],['weapon-run','枪口与近战镰刀检查'],['melee-poses','近战动作与尾迹检查'],['melee-sequence','近战完整动作检查'],['lighting-whitebox','光照白模检查'],['lighting-run','森林昼夜检查'],['lighting-day','晨光预览'],['lighting-night','月夜预览']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
 async function load(mobile=false,width=1180,height=720){
  previewShot=null;previewDodge=null;previewContext=null;
- if(g){errors.push(...win.qaErrors);g.audio.stopMusic();g.cinema?.dispose();g.renderer.dispose();g.renderer.forceContextLoss();}frame?.remove();
+ if(g){errors.push(...win.qaErrors);g.audio.stopMusic();g.cinema?.dispose();g.renderer.dispose();g.renderer.forceContextLoss();}frame?.remove();$('#view').replaceChildren();
  frame=document.createElement('iframe');frame.title='真实游戏环境预览';frame.style.width=width+'px';frame.style.height=height+'px';$('#view').append(frame);
  const boot=`<base href="../"><script>
  window.qaErrors=[];addEventListener('error',e=>qaErrors.push(e.message));addEventListener('unhandledrejection',e=>qaErrors.push(String(e.reason)));
@@ -319,4 +319,41 @@ $('#melee-sequence').onclick=async()=>{
 };
 
 try{await load();$('#status').textContent='已就绪';for(const b of document.querySelectorAll('button'))b.disabled=false;}catch(e){$('#status').textContent=e.message;}
+
+// A fixed-clock, isolated-save review of the production lighting; these controls are test-only.
+for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).onclick=()=>{
+ g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
+};
+$('#lighting-whitebox').onclick=async()=>{
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=133');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=133');
+ const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
+ const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
+ const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+ for(let i=0;i<7;i++){const stem=new T.Mesh(new T.CylinderGeometry(.2,.35,5,8),material),crown=new T.Mesh(new T.SphereGeometry(2.2,12,8),material);stem.position.set((i%2?1:-1)*(4+i*.3),2.5,-i*3);crown.position.copy(stem.position);crown.position.y=5;for(const m of[stem,crown]){m.castShadow=m.receiveShadow=true;scene.add(m);}}
+ const hero=new T.Mesh(new T.CapsuleGeometry(.3,1,5,10),material);hero.position.set(0,.8,0);hero.castShadow=hero.receiveShadow=true;scene.add(hero);
+ const lighting=new EnvironmentLighting(scene,renderer,hemi,sun,rim),sky=new AdventureAtmosphere(scene),camera=new T.PerspectiveCamera(58,720/440,.1,160),sheet=document.createElement('canvas');sheet.width=1440;sheet.height=880;const ctx=sheet.getContext('2d');
+ for(const[i,time]of[0,437].entries())for(const[j,mode]of['first','third'].entries()){
+  camera.position.set(mode==='first'?0:2,mode==='first'?1.6:3.2,mode==='first'?2.8:7);camera.lookAt(0,1,-5);hero.visible=mode==='third';lighting.update('forest',null,0,time);sun.position.copy(lighting.direction).multiplyScalar(38);sky.update(time,camera,{skyColor:hemi.color,fogColor:scene.fog.color,sunColor:sun.color,sunDirection:lighting.direction,sunStrength:lighting.shaftStrength,skyStrength:.55+.45*lighting.day});renderer.render(scene,camera);ctx.drawImage(renderer.domElement,j*720,i*440);ctx.fillStyle='#fff';ctx.font='20px sans-serif';ctx.fillText((i?'月夜':'晨光')+' / '+mode,j*720+16,i*440+30);
+ }
+ const img=document.createElement('img');img.src=sheet.toDataURL();img.style.maxWidth='100%';$('#view').append(img);const a=document.createElement('a');a.href=img.src;a.download='next-v133-lighting-whitebox.png';a.click();scene.traverse(o=>{if(o.isMesh)o.geometry.dispose();});material.dispose();sky.dispose();renderer.dispose();renderer.forceContextLoss();$('#status').textContent='白模：1.6m 视点、1.6m 人物、5m 树干；同一套晨光/月夜光照。';
+};
+$('#lighting-run').onclick=async()=>{
+ const buttons=[...document.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);results.length=0;errors.length=0;
+ try{
+  for(const[mobile,width,height]of[[false,1180,720],[true,844,390],[true,390,844]]){
+   await load(mobile,width,height);select('silver',0,'forest');
+   for(const mode of['first','third'])for(const offset of[0,250,437])await check((mobile?width+'×'+height:'电脑')+' '+mode+' 光照 '+offset,()=>{
+    g.setView(mode);const l=g.environmentLighting;l.timeOffset=offset;l.update('forest',null,0,g.time);step(2);g.renderer.shadowMap.needsUpdate=true;step();
+    const sun=l.sun.position.clone().sub(l.sun.target.position).normalize(),sky=g.atmosphere.mesh.material.uniforms.sunDirection.value;
+    assert(sun.distanceTo(sky)<1e-7,'天空和投影光方向不一致');assert(g.world.forestMist.count<=(mobile?3:6),'地雾超预算');assert(g.renderer.info.render.calls<2000,'绘制次数超预算');
+    const frozen=[...sun.toArray(),l.hemi.intensity,l.scene.fog.density,g.world.forestMist.material.uniforms.mistTime.value];g.pause();step(5);assert(JSON.stringify(frozen)===JSON.stringify([...l.sun.position.clone().sub(l.sun.target.position).normalize().toArray(),l.hemi.intensity,l.scene.fog.density,g.world.forestMist.material.uniforms.mistTime.value]),'暂停仍推进环境');g.resume();
+    return{...reportFrame(),sun:sun.toArray(),day:l.day};
+   });
+   await check((mobile?width+'×'+height:'电脑')+' 重开清理',()=>{const mist=g.world.forestMist;g.menu();assert(mist.userData.disposed,'旧地雾未回收');g.start();step();assert(g.environmentLighting.timeOffset===0,'重开残留测试时间');return reportFrame();});
+  }
+  errors.push(...win.qaErrors);publish();$('#status').textContent='森林昼夜检查完成';
+ }finally{buttons.forEach(b=>b.disabled=false);}
+};
+
 </script></html>

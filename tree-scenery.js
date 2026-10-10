@@ -88,14 +88,15 @@ function leafAtlas(){
 const leafMaterial=new T.MeshStandardMaterial({name:'shared-cutout-leaves',map:leafAtlas(),vertexColors:true,roughness:.96,side:T.DoubleSide,alphaTest:.30,transparent:false});
 const firMaterial=material.clone();firMaterial.side=T.DoubleSide;firMaterial.onBeforeCompile=material.onBeforeCompile;firMaterial.customProgramCacheKey=()=> 'tree-feathered-fir';
 leafMaterial.onBeforeCompile=shader=>{
+ shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n diffuseColor.rgb*=vec3(1.13,1.10,1.02);');
  shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
   #if NUM_DIR_LIGHTS > 0
    float leafTransmission=pow(max(0.0,dot(-normal,directionalLights[0].direction)),2.0);
-   reflectedLight.indirectDiffuse+=diffuseColor.rgb*directionalLights[0].color*vec3(.055,.085,.023)*leafTransmission;
+   reflectedLight.indirectDiffuse+=diffuseColor.rgb*directionalLights[0].color*vec3(.085,.12,.045)*leafTransmission;
   #endif
  `);
 };
-leafMaterial.customProgramCacheKey=()=> 'tree-layered-cutout-sprays';
+leafMaterial.customProgramCacheKey=()=> 'tree-soft-transmitted-sprays';
 function broadFan(x,y,z,width,depth,height,phase){
  // Five small curved sprays sit around a twig, rather than intersecting at one large card.
  // The six-triangle fans keep their alpha silhouette and use 25% fewer canopy triangles.

@@ -304,3 +304,14 @@ test('projectile outlets are attached to the visible weapon in landscape and por
   const p=view.launchPoint();assert(p&&p.toArray().every(Number.isFinite),id);const local=camera.worldToLocal(p.clone());assert(local.x>0,id+' outlet lost its right-hand position');assert(local.z<0,id+' outlet behind camera');assert(p.distanceTo(camera.position)<2,id+' outlet disconnected');
  }}finally{view.dispose();}
 });
+
+
+test('scythe cutting edge meets committed contact during all three swings without releasing its grip',()=>{
+ const camera=new T.PerspectiveCamera(70,16/9,.1,100),view=new FirstPersonView(camera),actor=hero(weapon('shadowblade'));
+ try{view.setHero(actor,'shadowblade');for(const aspect of[16/9,390/844])for(const combo of[0,1,2]){
+  camera.aspect=aspect;camera.updateProjectionMatrix();const target=camera.localToWorld(new T.Vector3(.12,-.25,-2.5));
+  Object.assign(actor.userData,{attackAge:.56*.44,reloadDuration:1,reloadPhase:.56*.44,scytheCombo:combo,scytheTarget:target});view.update(1,.016,{visible:true});camera.updateMatrixWorld(true);
+  const edge=view.model.localToWorld(new T.Vector3(.78,.54,.045)).project(camera),hit=target.clone().project(camera);assert(Math.hypot(edge.x-hit.x,edge.y-hit.y)<1e-6,'visible blade misses committed contact');assert.equal(view.hands[0].morphTargetInfluences[0],0,'scythe hand opens during cut');
+  const pose=view.weapon.matrix.clone();view.update(1,0,{visible:true});assert.deepEqual(view.weapon.matrix.elements,pose.elements);
+ }}finally{view.dispose();}
+});

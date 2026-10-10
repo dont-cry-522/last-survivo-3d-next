@@ -223,3 +223,9 @@ test('shadow point marks follow elevated or low surfaces while omitted contacts 
   }
  }
 });
+
+test('melee trails follow the actual elevated blade, reset across views and recycle on clear',()=>{
+ const scene=new T.Scene(),v=new SkillVFX(scene,{mobile:true}),model=new T.Group();scene.add(model);model.position.set(3,4,2);
+ v.trackMelee(model,'harpoon',1,.08,1);assert.equal(v.active.length,0);model.position.x+=.1;v.trackMelee(model,'harpoon',1,.1,1);assert.equal(v.active.length,2);assert(v.active.every(p=>Math.abs(p.mesh.position.y-4)<.01),'trail fell to a fixed ground height');
+ const count=v.active.length;v.trackMelee(new T.Group(),'harpoon',1,.12,1);assert.equal(v.active.length,count,'view switch bridged unrelated weapons');v.trackMelee(model,'shadowblade',2,1,1);assert.equal(v.meleeEdge,null);v.update(.2);assert.equal(v.active.length,0);v.clear();assert.equal(v.meleeEdge,null);
+});

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {WEAPONS} from '../rules.js';
 import {weaponSample} from '../weapon-audio.js';
-import {weaponGesture,shotStarted,WEAPON_RECOVERY} from '../weapon-performance.js';
+import {weaponGesture,shotStarted,WEAPON_RECOVERY,meleeSwing} from '../weapon-performance.js';
 
 test('all weapons have finite bounded distinct shot and impact textures with smooth ends',()=>{
   for(const event of ['shot','impact']){
@@ -32,4 +32,11 @@ test('weapon follow-throughs settle, remain continuous and compress with attack 
 test('explicit shot serial detects another fast shot even while the last pose timer is positive',()=>{
   const d={shotSerial:1};assert(shotStarted(d,.12,.12));assert(!shotStarted(d,.11,.12));
   d.shotSerial++;assert(shotStarted(d,.12,.11));assert(!shotStarted(d,.12,.12));
+});
+
+test('melee prepares before contact, follows through afterwards, and emits no recovery trail',()=>{
+ for(const[id,hit]of[['harpoon',.34],['shadowblade',.44]])for(const period of[.35,1]){
+  const duration=Math.min(WEAPON_RECOVERY[id],period*.9),pre=meleeSwing(id,duration*hit*.42,period),contact=meleeSwing(id,duration*hit,period),end=meleeSwing(id,duration*1.1,period);
+  assert(pre.gather>.99);assert.equal(contact.gather,0);assert(contact.kick>.99&&contact.trail);assert(end.kick===0&&end.gather===0&&end.cut===0&&!end.trail&&end.weight===0);
+ }
 });

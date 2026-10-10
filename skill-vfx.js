@@ -1,3 +1,4 @@
+import{meleeSwing}from'./weapon-performance.js?v=126';
 import{boneBoomerang}from'./beast-model.js?v=114';
 import * as T from './vendor/three.module.js';
 import{shadowCrescentGeometry}from'./shadow-weapons.js?v=114';
@@ -78,7 +79,7 @@ export class SkillVFX{
    p.mesh.rotation.y+=p.spin*step;p.mesh.rotation.z+=p.roll*step;this.active[n++]=p;
   }this.active.length=n;
  }
- clear(){for(const p of this.active){this.scene.remove(p.mesh);this.pool.push(p.mesh);}this.active.length=0;}
+ clear(){this.meleeEdge=null;for(const p of this.active){this.scene.remove(p.mesh);this.pool.push(p.mesh);}this.active.length=0;}
  contactStroke(frame,ax,ay,bx,by,color,width=.03,life=.14,opacity=.8){
   const p=frame.at((ax+bx)/2,(ay+by)/2,.015),m=this.particle('ribbon',color,p.x,p.y,p.z,{life,size:[Math.hypot(bx-ax,by-ay)*frame.scale,width*frame.scale,1],opacity,additive:false,priority:1,endColor:0x60777b});
   if(m){m.quaternion.copy(frame.rotation);m.rotateZ(Math.atan2(by-ay,bx-ax));}return m;
@@ -182,7 +183,8 @@ export class SkillVFX{
   const f=contactFrame(x,z,angle,contact,1),p=f.at();
   for(let i=1;i<=4;i++){
    const u=i/4;
-   this.contactStroke(f,((i-1)/4-.5)*.54,((i-1)/4-.5)*.32,(u-.5)*.54,(u-.5)*.32,shadow?0xc5d0df:0xb9dfd5,.030+Math.sin(u*Math.PI)*.025,f.compact?.13:.18,.76);
+   const roll=contact?.slashRoll,dx=Number.isFinite(roll)?Math.cos(roll)*.60:.54,dy=Number.isFinite(roll)?Math.sin(roll)*.60:.32;
+   this.contactStroke(f,((i-1)/4-.5)*dx,((i-1)/4-.5)*dy,(u-.5)*dx,(u-.5)*dy,shadow?0xc5d0df:0xb9dfd5,.030+Math.sin(u*Math.PI)*.025,f.compact?.13:.18,.76);
   }
   const count=f.compact?2:3;for(let i=0;i<count;i++)this.particle('crystal',shadow?0x718299:0x85bbae,p.x,p.y,p.z,{life:.19,size:[.016*f.scale,.064*f.scale,.016*f.scale],velocity:f.velocity((i-(count-1)/2)*.8,.25+i*.15,.8),gravity:3,spin:6,opacity:.65,additive:false});
  }
@@ -306,14 +308,14 @@ export class SkillVFX{
   }else if(kind==='spikeAim')this.riftCast(x,z,1.2,e.angle,false);
   else if(kind==='spikes'){this.riftCast(x,z,1.2,e.angle,true);for(let i=-1;i<=1;i++){const m=this.particle('crystal',0x344252,x+i*.3,.35,z,{life:.4,size:[.15,.75-Math.abs(i)*.2,.13],grow:true,additive:false,priority:1});if(m)m.rotation.z=i*.17;}}
  }
- scytheSlash(origin,strike){
-  const {angle,pitch,w,combo}=strike,reach=w.range*.86,side=combo===1?-1:1;
-  // A brief open ribbon follows the blade plane; it is not a ground ring.
-  for(let i=0;i<8;i++){
-   const a=angle+side*(-w.arc+i*w.arc/4),b=angle+side*(-w.arc+(i+1)*w.arc/4),y=origin.y+Math.sin(pitch)*reach;
-   const start=new T.Vector3(origin.x+Math.sin(a)*reach*Math.cos(pitch),y+(i-4)*.018,origin.z+Math.cos(a)*reach*Math.cos(pitch)),end=new T.Vector3(origin.x+Math.sin(b)*reach*Math.cos(pitch),y+(i-3)*.018,origin.z+Math.cos(b)*reach*Math.cos(pitch));
-   this.segment(start,end,i<2?0x334052:0xb9c9d9,combo===2?.055:.033,.16,false,i==4?1:0,.65);
+ trackMelee(model,id,serial,age,period){
+  if(!model||!['harpoon','shadowblade'].includes(id)||!meleeSwing(id,age,period).trail){this.meleeEdge=null;return;}
+  model.updateWorldMatrix(true,false);
+  const edge=(id==='harpoon'?[[0,0,1.75],[.13,0,1.57]]:[[1.075,.25,.045],[.50,.71,.045]]).map(p=>model.localToWorld(new T.Vector3(...p))),last=this.meleeEdge;
+  if(last?.model===model&&last.serial===serial)for(let i=0;i<2;i++){
+   const distance=edge[i].distanceTo(last.edge[i]);if(distance>.004&&distance<2)this.segment(last.edge[i],edge[i],id==='harpoon'?0xa1ccc9:0xc0cddd,i?.008:.017,.075,false,i?0:1,i?.22:.48);
   }
+  this.meleeEdge={model,serial,edge};
  }
  muzzle(w,x,z,angle,height=1.15,exact=false){
   const dx=Math.sin(angle),dz=Math.cos(angle),px=x+dx*(exact?0:.65),pz=z+dz*(exact?0:.65),path=w.pathId,rank=w.pathRank||0;

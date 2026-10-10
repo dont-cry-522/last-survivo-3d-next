@@ -40,3 +40,12 @@ test('melee prepares before contact, follows through afterwards, and emits no re
   assert(pre.gather>.99);assert.equal(contact.gather,0);assert(contact.kick>.99&&contact.trail);assert(end.kick===0&&end.gather===0&&end.cut===0&&!end.trail&&end.weight===0);
  }
 });
+
+test('melee weight transfer and curved recovery use the contact clock and settle after haste',()=>{
+ for(const id of ['harpoon','shadowblade'])for(const period of [.16,.35,1]){
+  const duration=Math.min(WEAPON_RECOVERY[id],Math.max(.12,period*.9)),hit=id==='harpoon'?.34:.44;
+  const start=meleeSwing(id,0,period),contact=meleeSwing(id,duration*hit,period),recover=meleeSwing(id,duration*.82,period),end=meleeSwing(id,duration,period);
+  assert.equal(start.body,0);assert(contact.body>.99);assert(Math.abs(contact.clipPhase-.42)<1e-9);assert.equal(contact.recover,0);
+  assert(recover.recover>.99&&!recover.trail);assert.equal(end.body,0);assert.equal(end.recover,0);assert.equal(end.clipPhase,1);
+ }
+});

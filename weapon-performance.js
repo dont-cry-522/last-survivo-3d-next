@@ -12,7 +12,11 @@ export function mirageShotDelay(rate){return Math.min(MIRAGE.releaseDelay,.3/Mat
 export function meleeSwing(id,age,period=1){
  const hit=id==='shadowblade'?SCYTHE.hitFraction:.34,duration=Math.min(WEAPON_RECOVERY[id],Math.max(.12,period*.9)),t=age/duration;
  const gather=pulse(t,0,hit*.42,hit),follow=smooth(hit*.48,hit+.19,t)*(1-smooth(.72,1,t));
- return{kick:pulse(t,hit*.20,hit,.95),gather,sweep:follow,cut:-.70*gather+follow,draw:0,weight:1-smooth(.78,1,t),trail:t>hit*.46&&t<hit+.22};
+ return{kick:pulse(t,hit*.20,hit,.95),gather,sweep:follow,cut:-.70*gather+follow,draw:0,
+  // Weight transfer begins before the hands and fades into the original gait.
+  body:smooth(0,.10,t)*(1-smooth(.65,1,t)),
+  clipPhase:t<hit?clamp(t/hit)*.42:.42+clamp((t-hit)/(1-hit))*.58,
+  recover:pulse(t,.60,.82,1),weight:1-smooth(.78,1,t),trail:t>hit*.46&&t<hit+.22};
 }
 export function weaponGesture(id,age,cycle=1,period=1){
   const duration=WEAPON_RECOVERY[id]||.3;

@@ -11,7 +11,7 @@ previewHero.value='silver';$('#preview-map').before(previewHero,previewWeapon);
 function previewWeapons(){previewWeapon.replaceChildren();for(const[index,id]of HERO_LOADOUTS[previewHero.value].entries()){const option=document.createElement('option');option.value=index;option.textContent=WEAPONS[id].name;previewWeapon.append(option);}}
 previewHero.onchange=previewWeapons;previewWeapons();
 const previewEnemy=document.createElement('select');previewEnemy.id='preview-enemy';previewEnemy.setAttribute('aria-label','预览怪物');for(const[id,name]of[['','无怪物'],['mushroom','蘑菇'],['wolf','狼'],['golem','岩怪'],['spitter','吐息者'],['shaman','萨满'],['flyer','本图飞行怪']])previewEnemy.add(new Option(name,id));$('#preview-place').after(previewEnemy);
-for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴'],['habitat-run','六地图环境检查'],['weapon-run','枪口与近战镰刀检查'],['melee-poses','近战动作与尾迹检查']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
+for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴'],['habitat-run','六地图环境检查'],['weapon-run','枪口与近战镰刀检查'],['melee-poses','近战动作与尾迹检查'],['melee-sequence','近战完整动作检查']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
 async function load(mobile=false,width=1180,height=720){
@@ -269,8 +269,29 @@ $('#melee-poses').onclick=async()=>{
   assert(e.hp<10000,'命中窗口没有伤害');assert(g.vfx.meleeEdge,'出手没有采样武器刃口');assert(g.vfx.meleeEdge.model===(mode==='first'?g.firstPerson.model:g.hero.userData.gun),'尾迹没有跟随当前视角武器');
   const x=cell%3*400,y=Math.floor(cell/3)*225;ctx.drawImage(g.renderer.domElement,x,y,400,225);ctx.fillStyle='#142026';ctx.fillRect(x,y,400,25);ctx.fillStyle='#d6e0e8';ctx.font='14px sans-serif';ctx.fillText((mode==='first'?'第一人称':'第三人称')+' · '+WEAPONS[g.player.weaponId].name+' · '+(combo+1),x+8,y+17);cell++;
   const p=g.hero.userData.gun.position.clone();g.pause();step(10);assert(g.hero.userData.gun.position.distanceTo(p)<1e-8,'暂停仍然挥动');g.resume();g.player.dash=0;g.dash();step(2);assert(!g.vfx.meleeEdge,'闪避后还生成攻击拖尾');return reportFrame();
- });const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v126-melee-poses.png';a.click();
+ });const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v127-melee-poses.png';a.click();
  }catch(e){errors.push(e.message);}finally{$('#status').textContent='近战姿势检查完成 '+results.filter(r=>r.pass).length+'/'+results.length;publish();buttons.forEach(b=>b.disabled=false);}
+};
+
+$('#melee-sequence').onclick=async()=>{
+ const buttons=[...document.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);results.length=0;errors.length=0;
+ const sheet=document.createElement('canvas');sheet.width=2000;sheet.height=1120;const ctx=sheet.getContext('2d');let row=0;
+ try{await load(false,1000,700);for(const[hero,index]of[['wraith',1],['tide',0]])for(const moving of[false,true])for(let combo=0;combo<3;combo++)await check(hero+' '+(moving?'移动':'站立')+' 完整连段 '+combo,()=>{
+  select(hero,index);arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};g.setView('third');win.document.querySelector('[data-attack-mode="manual"]').click();
+  const e=g.spawn('golem',0,2.4);e.speed=0;e.cool=999;e.hp=e.maxHp=10000;aimAt(e);step(20);
+  if(moving){key('keydown','a');step(6);}g.player.scytheCount=g.player.harpoonCount=combo;g.player.scytheLast=g.time;fire(1);
+  const d=g.hero.userData,bones=[d.aimArm,d.firingForearm,d.offArm,d.offForearm],previous=bones.map(b=>b.quaternion.clone());let maxStep=0,col=0;
+  for(let n=1;n<=45;n++){
+   step();for(let i=0;i<bones.length;i++){assert(bones[i].quaternion.toArray().every(Number.isFinite),'关节出现无效角度');maxStep=Math.max(maxStep,previous[i].angleTo(bones[i].quaternion));previous[i].copy(bones[i].quaternion);}
+   if(combo===1&&[3,8,15,25,40].includes(n)){
+    const camera=new T.PerspectiveCamera(44,10/7,.1,100),center=g.hero.position.clone().add(new T.Vector3(0,1,0));camera.position.copy(center).add(new T.Vector3(3.4,1.4,3.6));camera.lookAt(center);g.renderer.render(g.hero.parent,camera);
+    const x=col++*400,y=row*280;ctx.drawImage(g.renderer.domElement,x,y,400,280);ctx.fillStyle='#142026';ctx.fillRect(x,y,400,25);ctx.fillStyle='#d6e0e8';ctx.font='14px sans-serif';ctx.fillText(WEAPONS[g.player.weaponId].name+' / '+(moving?'移动':'站立')+' / '+n+' 帧',x+8,y+18);
+   }
+  }
+  if(moving)key('keyup','a');if(combo===1)row++;
+  assert(maxStep<.55,'手臂单帧突跳 '+maxStep);assert(Object.values(d.kineticActions).every(a=>a.getEffectiveWeight()===0),'收招后步伐仍被攻击占用');assert(!g.vfx.meleeEdge,'收招后仍有刃口尾迹');return{maxJointStep:maxStep,...reportFrame()};
+ });const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v127-melee-sequence.png';a.click();
+ }catch(e){errors.push(e.message);}finally{$('#status').textContent='完整动作检查完成 '+results.filter(r=>r.pass).length+'/'+results.length;publish();buttons.forEach(b=>b.disabled=false);}
 };
 
 try{await load();$('#status').textContent='已就绪';for(const b of document.querySelectorAll('button'))b.disabled=false;}catch(e){$('#status').textContent=e.message;}

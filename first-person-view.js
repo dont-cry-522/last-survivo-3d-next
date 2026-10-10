@@ -3,7 +3,7 @@ import * as T from './vendor/three.module.js';
 import {GRIP_POINTS} from './weapon-grips.js?v=125';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,WEAPON_RECOVERY} from './weapon-performance.js?v=126';
+import {weaponGesture,WEAPON_RECOVERY} from './weapon-performance.js?v=127';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
@@ -302,11 +302,13 @@ export class FirstPersonView {
    }else if(combo===2){
     this.weapon.position.set(-.035*sweep,.035*kick-.035*sweep,-.16*kick+.095*sweep);this.weapon.rotation.x-=.09*sweep;
    }else{this.weapon.position.set(-.025*kick,.018*kick,-.27*kick+.04*gather);this.weapon.rotation.x-=.02*kick;}
+   this.weapon.position.x+=.035*motion.recover;this.weapon.position.y-=.025*motion.recover;
   }else if(profile.type==='scythe'){
    this.restRotation.copy(this.weapon.quaternion);
    const side=(data.scytheCombo||0)===1?-1:1;
    const heavy=data.scytheCombo===2;this.weapon.position.set(-side*.18*motion.cut,heavy?.16*motion.gather-.13*sweep:.045*kick,-.12*kick+.06*motion.gather);
-   this.weapon.rotation.y+=side*(heavy?.42:.88)*motion.cut;this.weapon.rotation.z=heavy?-.62*motion.cut:side*.32*motion.cut;this.weapon.rotation.x+=heavy?-.35*motion.gather+.38*sweep:-.08*kick;
+   this.weapon.position.y+=.065*motion.recover;this.weapon.position.z+=.07*motion.recover;
+   this.weapon.rotation.y+=side*(heavy?.42:.88)*motion.cut;this.weapon.rotation.z=.18*motion.gather-(heavy?.80:.52)*kick+side*.12*motion.cut;this.weapon.rotation.x+=heavy?-.35*motion.gather+.38*sweep:-.08*kick;
    this.scratch.copy(this.grip).multiplyScalar(scale);this.weapon.position.add(this.wrist.copy(this.scratch).applyQuaternion(this.restRotation)).sub(this.scratch.applyQuaternion(this.weapon.quaternion));
   }else if(profile.type==='throw'){
    const flick=id==='shuriken',bank=id==='boomerang';
@@ -338,6 +340,7 @@ export class FirstPersonView {
    if(i&&id==='crossbow')point.lerp(this.wrist.set(.085,.13,.30-.28*draw).sub(this.center),Math.min(1,draw*2.2));
    point.applyMatrix4(this.weapon.matrix);
    if(i&&!support)point.set(-halfW*.48-this.root.position.x,-halfH*.72-this.root.position.y+kick*.045,.11-kick*.06);
+   if(i&&id==='shadowblade'){const side=data.scytheCombo===1?-1:1;point.x+=side*.06*motion.cut;point.y+=.025*motion.gather;point.z+=.04*motion.sweep;}
    hand.rotation.set(i?(support?-.30:-.45):-.18,i?-.20:.12,i?(support?-.38:.18):-.38);
    if(profile.type==='book')hand.rotation.set(-.75,i?-.20:.20,i?.55:-.55);
    if(profile.type==='lamp'&&!i)hand.rotation.set(-.12,0,-.92);
@@ -351,6 +354,7 @@ export class FirstPersonView {
    hand.visible=arm.visible=true;
    this.wrist.set(0,-.038,0).multiply(hand.scale).applyQuaternion(hand.quaternion).add(hand.position);
    this.elbow.set(halfW*(i?-.30:.66)-this.root.position.x,-halfH*1.15-this.root.position.y,.35);
+   if(id==='harpoon'||id==='shadowblade'){this.elbow.x+=(i?-.035:.06)*motion.cut;this.elbow.y+=.025*motion.gather;this.elbow.z-=.055*kick;}
    arm.position.copy(this.elbow);this.scratch.copy(this.wrist).sub(this.elbow);const length=this.scratch.length();
    arm.quaternion.setFromUnitVectors(UP,this.scratch.normalize());arm.scale.set(handScale,length,handScale);
   }

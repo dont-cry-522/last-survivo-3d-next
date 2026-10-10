@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {WEAPONS} from '../rules.js';
 import {weaponSample} from '../weapon-audio.js';
-import {weaponGesture,shotStarted,WEAPON_RECOVERY,meleeSwing} from '../weapon-performance.js';
+import {weaponGesture,shotStarted,WEAPON_RECOVERY,meleeSwing,scythePose} from '../weapon-performance.js';
 
 test('all weapons have finite bounded distinct shot and impact textures with smooth ends',()=>{
   for(const event of ['shot','impact']){
@@ -47,5 +47,15 @@ test('melee weight transfer and curved recovery use the contact clock and settle
   const start=meleeSwing(id,0,period),contact=meleeSwing(id,duration*hit,period),recover=meleeSwing(id,duration*.82,period),end=meleeSwing(id,duration,period);
   assert.equal(start.body,0);assert(contact.body>.99);assert(Math.abs(contact.clipPhase-.42)<1e-9);assert.equal(contact.recover,0);
   assert(recover.recover>.99&&!recover.trail);assert.equal(end.body,0);assert.equal(end.recover,0);assert.equal(end.clipPhase,1);
+ }
+});
+
+test('scythe sweeps through contact without braking, then returns below the loaded cutting path',()=>{
+ for(const combo of[0,1,2])for(const period of[.16,.35,1]){
+  const duration=Math.min(.56,Math.max(.12,period*.9)),rest=scythePose(0,period,combo),hit=scythePose(duration*.44,period,combo),before=scythePose(duration*.43,period,combo),after=scythePose(duration*.45,period,combo),returning=scythePose(duration*.8,period,combo);
+  assert.deepEqual(scythePose(duration,period,combo),rest);assert.deepEqual(scythePose(10,period,combo),rest);
+  assert(Math.abs(after.yaw-before.yaw)>.04,'blade brakes at contact');assert(returning.y<hit.y-.1,'loaded and unloaded paths coincide');
+  let previous=rest;
+  for(let i=1;i<=1000;i++){const pose=scythePose(duration*i/1000,period,combo);for(const key of Object.keys(pose)){assert(Number.isFinite(pose[key]));assert(Math.abs(pose[key]-previous[key])<.03);}previous=pose;}
  }
 });

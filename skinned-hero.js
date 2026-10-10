@@ -13,12 +13,12 @@ import{lingyaHopPose}from'./lingya-motion.js?v=114';
 import{lingyaOutfit,lingyaAccessories,lingyaLegs}from'./lingya-appearance.js?v=114';
 import{boneBoomerang}from'./beast-model.js?v=114';
 import{makeHarpoon}from'./coast-models.js?v=114';
-import{weaponGesture,shotStarted,scythePose}from'./weapon-performance.js?v=128';
+import{weaponGesture,shotStarted,scythePose}from'./weapon-performance.js?v=129';
 import{rollProgress,rollWeight}from'./dodge-motion.js?v=114';
 import * as T from './vendor/three.module.js';
 import {clone} from './vendor/SkeletonUtils.js';
 import {loadCharacterData} from './character-loader.js?v=114';
-import {makeHero as makePrototype} from './hero-model.js?v=128';
+import {makeHero as makePrototype} from './hero-model.js?v=129';
 
 const templates=new Map(),clips=new Map();
 let lingyaFace;
@@ -352,7 +352,7 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
     const amount=(meleeWeapon?motion.body:action.weight)*(1-T.MathUtils.smoothstep(d.smoothedSpeed,.4,2.5))*(1-(dodge?.weight||0))*(1-(d.waterBlend||0));
     for(const a of Object.values(d.kineticActions))a.setEffectiveWeight(0);
     if(amount>0){for(const a of[d.idle,d.run,d.walk,d.backRun,d.backWalk])a.setEffectiveWeight(a.getEffectiveWeight()*(1-amount));
-      const a=d.kineticActions[d.kind==='lingya'||d.weaponId==='shadowblade'||d.kind==='tide'&&d.harpoonCombo===1?'Sword_Attack':'Punch_Cross'];a.time=(meleeWeapon?motion.clipPhase:action.clipPhase)*(a.getClip().duration-.001);const stance=d.weaponId==='shadowblade'?.55:.85;a.setEffectiveWeight(amount*stance);d.idle.setEffectiveWeight(d.idle.getEffectiveWeight()+amount*(1-stance));
+      const a=d.kineticActions[d.kind==='lingya'||d.weaponId==='shadowblade'||d.kind==='tide'&&d.harpoonCombo===1?'Sword_Attack':'Punch_Cross'];a.time=(meleeWeapon?motion.clipPhase:action.clipPhase)*(a.getClip().duration-.001);const stance=d.weaponId==='shadowblade'?.35:.85;a.setEffectiveWeight(amount*stance);d.idle.setEffectiveWeight(d.idle.getEffectiveWeight()+amount*(1-stance));
     }
   }
   d.presence=heroCarryPose(d.kind,t,d.gaitPhase,d.blend,d.readyBlend);d.carryTurn=(d.carryTurn||0)+((newHero?T.MathUtils.clamp((d.turnRate||0)*.045,-.18,.18):0)-(d.carryTurn||0))*(1-Math.exp(-dt*5));
@@ -463,7 +463,7 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
     const yaw=(newHero||melee?committedWeaponYaw(g.rotation.y,d.aimAngle,d.attackAngle,commit):bow?g.rotation.y:Number.isFinite(d.aimAngle)?d.aimAngle:g.rotation.y)+(id==='shadowblade'?scythe.yaw:id==='harpoon'&&d.harpoonCombo===1?-.62*gather+.48*kick+.27*sweep:0);
     s.world.setFromAxisAngle(s.to.set(0,1,0),yaw);
     const pitch=id==='grimoire'?.02:id==='shade'?-.12+.15*sweep:id==='shadowblade'?scythe.pitch:id==='harpoon'?-.04+(1-d.readyBlend)*.30+.08*gather-.06*kick-(d.harpoonCombo===2?.24*sweep:0)-dodge.weight*.30:mirage?-.04-.20*kick+.05*gather:lantern?-.035+.06*Math.sin(d.gaitPhase*Math.PI*2)*d.blend:staff?(id==='fire'?-.15-.4*kick:.08+.15*gather):throwing?-.2+.5*sweep+(id==='boomerang'?(1-d.readyBlend)*.48:0):-kick*(id==='shotgun'?.14:.055);
-    s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(1,0,0),pitch-T.MathUtils.clamp(melee?T.MathUtils.lerp(d.aimPitch||0,d.attackPitch??d.aimPitch??0,commit):d.aimPitch||0,-1.3,1.3)));if(id==='shadowblade')s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(0,0,1),scythe.roll));if(id==='boomerang')s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(0,0,1),-.40*gather+.48*kick+.24*sweep));if((newHero||meleeWeapon)&&!scythe){if(d.weaponWorld)d.weaponWorld.rotateTowards(s.world,dt*12);else d.weaponWorld=s.world.clone();s.world.copy(d.weaponWorld);}if(scythe){if(d.scytheGripRotation)d.scytheGripRotation.rotateTowards(s.world,dt*10);else d.scytheGripRotation=s.world.clone();s.world.copy(d.scytheGripRotation);}aimGrip(d,s.world,scythe?1:poseBlend*d.aimBlend,dt);
+    s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(1,0,0),pitch-T.MathUtils.clamp(melee?T.MathUtils.lerp(d.aimPitch||0,d.attackPitch??d.aimPitch??0,commit):d.aimPitch||0,-1.3,1.3)));if(id==='shadowblade')s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(0,0,1),scythe.roll));if(id==='boomerang')s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(0,0,1),-.40*gather+.48*kick+.24*sweep));if((newHero||meleeWeapon)&&!scythe){if(d.weaponWorld)d.weaponWorld.rotateTowards(s.world,dt*12);else d.weaponWorld=s.world.clone();s.world.copy(d.weaponWorld);}if(scythe){if(d.scytheGripRotation)d.scytheGripRotation.rotateTowards(s.world,dt*8);else d.scytheGripRotation=s.world.clone();s.world.copy(d.scytheGripRotation);}aimGrip(d,s.world,scythe?1:poseBlend*d.aimBlend,dt);
     if(scythe){
       // Keep both palms reachable as a coupled grip. Correct the rear hand rather
       // than letting the forward hand slide off the shaft or stretch its elbow.

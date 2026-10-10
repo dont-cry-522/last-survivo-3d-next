@@ -39,16 +39,25 @@ export function shotStarted(d,attack,previous){
 
 export function weaponCuePhases(id,period){const scale=['crossbow','shotgun','rifle'].includes(id)?1:Math.min(WEAPON_RECOVERY[id],Math.max(.12,period*.9))/period;return (WEAPON_CUES[id]||[]).map(t=>t*scale);}
 
-// A two-handed pole cut: one trajectory drives the rear grip, shaft and torso.
-// The forward hand is constrained to the shaft, never animated independently.
+// Rear grip / shaft poses: diagonal carry, shoulder preparation, cutting pass,
+// follow-through below the target, then an unloaded return. Both hands follow
+// this single rigid pole; the blade never swings independently of the shaft.
+const SCYTHE_REST=[-.20,-.28,.28,.12,.12,-1.16,0];
+const SCYTHE_POSES=[
+ [[-.28,-.21,.19,.60,.02,-.98,.22],[-.12,-.25,.39,-1.55,.12,-.18,-.12],[.02,-.34,.27,-2.18,.24,-1.45,-.36],[-.14,-.38,.21,-.70,.12,-1.72,-.18]],
+ [[.02,-.20,.24,-2.08,.20,-1.10,-.24],[-.17,-.26,.39,-1.28,.12,-.20,.10],[-.29,-.31,.22,.56,.03,-1.28,.33],[-.24,-.37,.19,.42,.10,-1.65,.16]],
+ [[-.15,-.05,.20,-.80,-.48,-.34,.16],[-.16,-.23,.41,-1.53,.25,-.08,-.10],[-.10,-.43,.32,-1.80,.76,-1.22,-.22],[-.19,-.40,.19,-.35,.24,-1.66,-.10]]
+];
+const SCYTHE_TIMES=[0,.24,SCYTHE.hitFraction,.62,.80,1];
 export function scythePose(age,period=1,combo=0){
- const m=meleeSwing('shadowblade',age,period),side=combo===1?-1:1,heavy=combo===2;
- return{
-  x:-.16+side*.12*m.cut,y:-.24+(heavy?.15:.07)*m.gather-(heavy?.09:.035)*m.sweep,
-  z:.22-.07*m.gather+.10*m.kick-.025*m.recover,
-  yaw:-Math.PI/2+side*(heavy?.50:1.12)*m.cut,
-  pitch:heavy?-.42*m.gather+.55*m.sweep:.10*m.sweep,
-  roll:-.40+(heavy?.28*m.gather-.60*m.kick:side*.12*m.cut),
-  torso:side*(heavy?.22:.36)*m.cut
- };
+ const duration=Math.min(SCYTHE.recovery,Math.max(.12,period*.9)),t=clamp(age/duration),frames=[SCYTHE_REST,...SCYTHE_POSES[combo===1?1:combo===2?2:0],SCYTHE_REST];
+ let i=0;while(i<4&&t>SCYTHE_TIMES[i+1])i++;
+ const span=SCYTHE_TIMES[i+1]-SCYTHE_TIMES[i],u=(t-SCYTHE_TIMES[i])/span,u2=u*u,u3=u2*u,pose={};
+ // Time-aware Hermite tangents keep velocity through contact; only idle endpoints
+ // stop. Independent smoothsteps would visibly brake at every authored pose.
+ for(const[k,name]of ['x','y','z','yaw','pitch','roll','torso'].entries()){
+  const a=frames[i][k],b=frames[i+1][k],ma=i?(b-frames[i-1][k])/(SCYTHE_TIMES[i+1]-SCYTHE_TIMES[i-1]):0,mb=i<4?(frames[i+2][k]-a)/(SCYTHE_TIMES[i+2]-SCYTHE_TIMES[i]):0;
+  pose[name]=(2*u3-3*u2+1)*a+(u3-2*u2+u)*span*ma+(-2*u3+3*u2)*b+(u3-u2)*span*mb;
+ }
+ return pose;
 }

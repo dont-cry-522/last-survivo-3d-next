@@ -3,7 +3,7 @@ import * as T from './vendor/three.module.js';
 import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=128';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,WEAPON_RECOVERY,scythePose} from './weapon-performance.js?v=128';
+import {weaponGesture,WEAPON_RECOVERY,scythePose} from './weapon-performance.js?v=129';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
@@ -135,7 +135,7 @@ function detailBatch(){
 export class FirstPersonView {
  constructor(camera){
   this.camera=camera;this.root=new T.Group();this.root.name='First_person_equipment';this.root.layers.set(1);this.root.visible=false;camera.add(this.root);
-  this.materials=new Map();this.parts=[];this.ownedGeometry=[];this.gait=0;this.sway=0;this.disposed=false;this.scratch=new T.Vector3();this.wrist=new T.Vector3();this.restRotation=new T.Quaternion();this.elbow=new T.Vector3();this.dodgeBasePosition=new T.Vector3();this.dodgeBaseRotation=new T.Euler();
+  this.materials=new Map();this.parts=[];this.ownedGeometry=[];this.gait=0;this.sway=0;this.disposed=false;this.scratch=new T.Vector3();this.wrist=new T.Vector3();this.restRotation=new T.Quaternion();this.elbow=new T.Vector3();this.dodgeBasePosition=new T.Vector3();this.dodgeBaseRotation=new T.Euler();this.scytheContact=new T.Object3D();this.handRotation=new T.Quaternion();
  }
  clear(){
   this.root.clear();for(const material of this.materials.values())material.dispose();for(const geometry of this.ownedGeometry)geometry.dispose();
@@ -253,6 +253,13 @@ export class FirstPersonView {
   }
   this.gait=0;this.sway=0;this.attackAge=10;this.previousAttack=0;this.update(0,0,{visible:false});
  }
+ poseScythe(object,pose,scale){
+  object.scale.setScalar(scale);object.rotation.set(this.profile.pitch,Math.PI-.045,0,'YXZ');this.restRotation.copy(object.quaternion);
+  object.position.set(-(pose.x+.20)*.9,(pose.y+.28)*.85,-(pose.z-.28)*.8);
+  object.rotation.set(this.profile.pitch+pose.pitch,Math.PI-.045+pose.yaw,pose.roll,'YXZ');
+  this.scratch.copy(this.grip).multiplyScalar(scale);object.position.add(this.wrist.copy(this.scratch).applyQuaternion(this.restRotation)).sub(this.scratch.applyQuaternion(object.quaternion));
+  object.updateMatrix();
+ }
  update(time,dt,{moving=0,attack=0,attackDuration=.18,visible=false,dodgePose=null}={}){
   if(this.disposed||!this.weapon)return;this.root.visible=!!visible;
   if(!visible){if(dodgePose===null){this.poseReady=false;this.dodgeWeight=0;}return;}
@@ -304,11 +311,7 @@ export class FirstPersonView {
    }else{this.weapon.position.set(-.025*kick,.018*kick,-.27*kick+.04*gather);this.weapon.rotation.x-=.02*kick;}
    this.weapon.position.x+=.035*motion.recover;this.weapon.position.y-=.025*motion.recover;
   }else if(profile.type==='scythe'){
-   this.restRotation.copy(this.weapon.quaternion);
-   const pose=scythePose(age,period,data.scytheCombo||0);
-   this.weapon.position.set(-(pose.x+.16)*.75,(pose.y+.24)*.65+.045*motion.recover,-(pose.z-.22)*.8);
-   this.weapon.rotation.y+=pose.yaw;this.weapon.rotation.x+=pose.pitch;this.weapon.rotation.z=pose.roll;
-   this.scratch.copy(this.grip).multiplyScalar(scale);this.weapon.position.add(this.wrist.copy(this.scratch).applyQuaternion(this.restRotation)).sub(this.scratch.applyQuaternion(this.weapon.quaternion));
+   this.poseScythe(this.weapon,scythePose(age,period,data.scytheCombo||0),scale);
   }else if(profile.type==='throw'){
    const flick=id==='shuriken',bank=id==='boomerang';
    this.weapon.position.set(-(bank?.14:.075)*sweep,(flick?.025:.055)*kick,-(flick?.14:.11)*kick);
@@ -327,7 +330,15 @@ export class FirstPersonView {
    // has its own depth layer; copying full world distance would stretch the arms.
    const hit=id==='harpoon'?.34:.44,u=age/Math.min(WEAPON_RECOVERY[id],Math.max(.12,period*.9)),ease=(a,b)=>{const q=T.MathUtils.clamp((u-a)/(b-a),0,1);return q*q*(3-2*q);},drive=ease(.08,hit)*(1-ease(hit+.12,.96));
    this.weapon.position.z-=drive*(id==='shadowblade'?.12:data.harpoonCombo===1?.22:.45);
-   this.weapon.updateMatrix();this.scratch.set(...(id==='harpoon'?[0,0,1.75]:[.78,.54,.045])).sub(this.center).applyMatrix4(this.weapon.matrix).applyQuaternion(this.root.quaternion).add(this.root.position);
+   this.weapon.updateMatrix();
+   // Calibrate the scythe once at its contact phase, not at every current pose.
+   // Chasing the target with the current blade cancelled the lateral cutting arc.
+   let contactMatrix=this.weapon.matrix;
+   if(id==='shadowblade'){
+    this.poseScythe(this.scytheContact,scythePose(Math.min(WEAPON_RECOVERY[id],Math.max(.12,period*.9))*hit,period,data.scytheCombo||0),scale);
+    this.scytheContact.position.z-=.12;this.scytheContact.updateMatrix();contactMatrix=this.scytheContact.matrix;
+   }
+   this.scratch.set(...(id==='harpoon'?[0,0,1.75]:[.78,.54,.045])).sub(this.center).applyMatrix4(contactMatrix).applyQuaternion(this.root.quaternion).add(this.root.position);
    this.camera.updateWorldMatrix(true,false);this.wrist.set(meleeTarget.x,meleeTarget.y,meleeTarget.z);this.camera.worldToLocal(this.wrist);
    if(this.wrist.z<-.3&&Math.abs(this.wrist.x/this.wrist.z)<halfW/depth*1.1&&Math.abs(this.wrist.y/this.wrist.z)<halfH/depth*1.1){const ratio=this.scratch.z/this.wrist.z,dx=this.wrist.x*ratio-this.scratch.x,dy=this.wrist.y*ratio-this.scratch.y,c=Math.cos(this.root.rotation.z),s=Math.sin(this.root.rotation.z);this.weapon.position.x+=(dx*c+dy*s)*drive;this.weapon.position.y+=(dy*c-dx*s)*drive;}
   }
@@ -343,7 +354,7 @@ export class FirstPersonView {
    if(profile.type==='book')hand.rotation.set(-.75,i?-.20:.20,i?.55:-.55);
    if(profile.type==='lamp'&&!i)hand.rotation.set(-.12,0,-.92);
    if(profile.type==='palm'&&!i)hand.rotation.set(-.52,.10,-.08);
-   if(id==='shadowblade')hand.rotation.set(this.weapon.rotation.x-.18,this.weapon.rotation.y-Math.PI,this.weapon.rotation.z+(i?.38:-.38));
+   if(id==='shadowblade'){this.handRotation.setFromEuler(new T.Euler(-.18,-Math.PI,i?.38:-.38));hand.quaternion.copy(this.weapon.quaternion).multiply(this.handRotation);}
    if(id==='harpoon')hand.rotation.set(-.10,(i?-1:1)*Math.PI/2+this.weapon.rotation.y-Math.PI,i?.35:-.35);
    hand.scale.set(i?-handScale:handScale,handScale,handScale);
    hand.position.copy(point).sub(this.wrist.copy(CONTACT).multiply(hand.scale).applyQuaternion(hand.quaternion));

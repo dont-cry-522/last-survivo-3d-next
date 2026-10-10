@@ -327,3 +327,16 @@ test('both first-person scythe hands close on fixed shaft grips through windup, 
   }
  }}finally{view.dispose();}
 });
+
+test('scythe contact calibration preserves the cutting arc instead of pinning the edge on target',()=>{
+ const camera=new T.PerspectiveCamera(70,16/9,.1,100),view=new FirstPersonView(camera),actor=hero(weapon('shadowblade'));
+ try{view.setHero(actor,'shadowblade');for(const combo of[0,1,2]){
+  const target=new T.Vector3(.12,-.25,-2.5),samples=[];
+  for(const phase of[.40,.44,.48]){
+   Object.assign(actor.userData,{attackAge:.56*phase,reloadDuration:1,reloadPhase:.56*phase,scytheCombo:combo,scytheTarget:target});view.update(1,1/60,{visible:true});camera.updateMatrixWorld(true);
+   samples.push(view.model.localToWorld(new T.Vector3(.78,.54,.045)).project(camera));
+  }
+  assert(samples[0].distanceTo(samples[1])>.015);assert(samples[1].distanceTo(samples[2])>.015,'blade pinned to contact after hit');
+  assert(samples[0].clone().sub(samples[1]).dot(samples[2].clone().sub(samples[1]))<0,'blade reverses on contact instead of following through');
+ }}finally{view.dispose();}
+});

@@ -9,12 +9,12 @@ function rig(hero='scout'){
  return{p,foes,events,api,skills,foe,advance:(n)=>{for(let t=0;t<n;t+=.02)skills.update(.02);},pause:()=>active=false};
 }
 test('each hero gains three exclusive, capped skills in a mixed random skill pool',()=>{
- assert.equal(EXTRA_SKILLS.length,21);assert.equal(new Set(EXTRA_SKILLS.map(s=>s.id)).size,21);
+ assert.equal(EXTRA_SKILLS.length,24);assert.equal(new Set(EXTRA_SKILLS.map(s=>s.id)).size,24);
  for(const hero of ['scout','silver','wraith','tide','lingya','wuling','mirage']){
-  const own=EXTRA_SKILLS.filter(s=>s.hero===hero);assert.equal(own.length,3);
+  const own=EXTRA_SKILLS.filter(s=>s.hero===hero&&!s.weapon);assert.equal(own.length,3);
   const p={heroId:hero,weaponId:weaponFor(hero,0).id,level:2,upgrades:{}};
   const seen=new Set(),random=seeded(621);for(let i=0;i<50;i++)for(const s of chooseUpgrades(p,random))seen.add(s.id);assert(own.every(s=>seen.has(s.id)));
-  for(const s of EXTRA_SKILLS){assert(UPGRADES.some(u=>u.id===s.id));if(s.hero!==hero)assert.equal(takeUpgrade(p,s.id),false);else{for(let i=0;i<3;i++)assert(takeUpgrade(p,s.id));assert.equal(takeUpgrade(p,s.id),false);}}
+  for(const s of EXTRA_SKILLS){assert(UPGRADES.some(u=>u.id===s.id));if(s.hero!==hero||s.weapon&&s.weapon!==p.weaponId)assert.equal(takeUpgrade(p,s.id),false);else{for(let i=0;i<3;i++)assert(takeUpgrade(p,s.id));assert.equal(takeUpgrade(p,s.id),false);}}
  }
 });
 test('mine arms before proximity damage and is consumed only once',()=>{const r=rig();r.p.upgrades.mine=1;const e=r.foe(0,0);r.advance(1.1);assert.equal(e.hp,1000);r.advance(.6);assert.equal(e.hp,968);r.advance(.6);assert.equal(e.hp,968);assert.equal(r.skills.mines.length,0);});

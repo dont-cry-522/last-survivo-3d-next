@@ -15,7 +15,7 @@ test('level two produces varied real combinations for all twelve loadouts',()=>{
    hands.add(cards.map(c=>c.id).sort().join(','));
   }
   assert(hands.size>20,hero+' lacks combinations: '+hands.size);
-  assert([...seen].filter(id=>EXTRA_BY_ID[id]).length===3);
+  assert.deepEqual([...seen].filter(id=>EXTRA_BY_ID[id]).sort(),Object.values(EXTRA_BY_ID).filter(s=>s.hero===hero&&(!s.weapon||s.weapon===weapon)).map(s=>s.id).sort());
   assert(slots.every(s=>s.size>=8),'a slot is fixed');
  }
 });

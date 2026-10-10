@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
 import{MAP_HALF}from'./map-layout.js?v=114';
 import{bridgeContains}from'./coast.js?v=114';
-import{seeded}from'./rules.js?v=114';
+import{seeded}from'./rules.js?v=125';
 import{surfaceUniforms}from'./surface-textures.js?v=120';
 // One worn silhouette is shared by boulders, bank stones and instanced scree.
 function rockGeometry(width=10,height=7){

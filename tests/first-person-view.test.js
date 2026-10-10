@@ -295,3 +295,12 @@ test('each category frees all exclusive detail resources once while retaining sh
   const projected=view.hands.map(hand=>hand.getWorldPosition(new T.Vector3()).project(camera));assert(projected.every(p=>p.y> -1.16),'hands hidden completely below the frame');
  }finally{view.dispose();}
  });
+
+
+test('projectile outlets are attached to the visible weapon in landscape and portrait',()=>{
+ const camera=new T.PerspectiveCamera(70,16/9,.1,200),view=new FirstPersonView(camera);
+ try{for(const aspect of[16/9,390/844])for(const id of['rifle','shotgun','crossbow','fire','dark','shade','shuriken','boomerang','miasmalantern']){
+  camera.aspect=aspect;camera.updateProjectionMatrix();camera.position.set(7,2,-5);camera.rotation.set(-.3,.8,0);const actor=hero(weapon(id));view.setHero(actor,id);view.update(0,.016,{visible:true,moving:0,attack:0});
+  const p=view.launchPoint();assert(p&&p.toArray().every(Number.isFinite),id);const local=camera.worldToLocal(p.clone());assert(local.x>0,id+' outlet lost its right-hand position');assert(local.z<0,id+' outlet behind camera');assert(p.distanceTo(camera.position)<2,id+' outlet disconnected');
+ }}finally{view.dispose();}
+});

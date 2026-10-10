@@ -39,7 +39,7 @@ test('all routes produce distinct sibling silhouettes through the declared real 
 test('conditional routes never claim a return, third strike or explosion that did not happen',()=>{
  const v=new SkillVFX(new T.Scene());
  for(const [id,phase,detail] of [
-  ['shuriken_return','hit',{}],['shadowblade_return','hit',{returning:false}],
+  ['shuriken_return','hit',{}],
   ['miasmalantern_lure','hit',{}],['miasmalantern_venom','hit',{}],['miasmalantern_venom','cast',{empowered:false}],
   ['harpoon_tow','hit',{combo:0}],['harpoon_tow','hit',{combo:1}]
  ]){assert.equal(cast(v,id,phase,detail),false);assert.equal(v.active.length,0);}

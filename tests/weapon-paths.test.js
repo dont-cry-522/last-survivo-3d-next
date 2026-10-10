@@ -9,8 +9,8 @@ test('all weapons randomly offer one matching route at level 3',()=>{
     assert(!chooseUpgrades({...p,level:2}).some(c=>c.category==='weapon'));
   }
 });
-test('shadow sickle returns by default and grimoire has delayed area upgrades',()=>{
- const sickle=weaponStats(player('shadowblade'));assert.equal(sickle.count,1);assert(sickle.returning);
+test('shadow scythe is melee by default and grimoire has delayed area upgrades',()=>{
+ const sickle=weaponStats(player('shadowblade'));assert.equal(sickle.count,1);assert(sickle.melee);assert(!sickle.returning);assert.equal(sickle.range,3.2);
  const tome=player('grimoire',8),base=weaponStats(tome);assert.equal(base.id,'grimoire');assert(base.radius>0);
  takeUpgrade(tome,'path:grimoire_echo');assert(weaponStats(tome).echo>0);
 });

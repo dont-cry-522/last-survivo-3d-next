@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 双视角实测</title><style>body{margin:12px;background:#17272b;color:#e2ecea;font:14px system-ui}button{padding:10px;margin:4px;background:#254943;border:1px solid #709582;color:inherit;border-radius:5px}iframe{display:block;border:0;margin-top:8px}pre{white-space:pre-wrap}#view{overflow:auto}</style><button id="run" disabled>运行双视角回归</button><select id="preview-map" aria-label="预览地图"><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="confluence">五境</option></select><select id="preview-place" aria-label="预览位置"><option value="spawn">出生地</option><option value="water">水岸</option><option value="trees">树丛</option></select><button id="third" disabled>第三人称预览</button><button id="first" disabled>第一人称预览</button><button id="capture" disabled>保存画面</button><p id="status">正在加载真实游戏（隔离存档，固定帧测试）</p><div id="view"></div><pre id="report"></pre><script type="module">
 import * as T from '../vendor/three.module.js';
 import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=123';
-import {HERO_LOADOUTS,WEAPONS} from '../rules.js?v=114';
+import {HERO_LOADOUTS,WEAPONS} from '../rules.js?v=125';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
 const previewHero=document.createElement('select'),previewWeapon=document.createElement('select'),sourceDocument=new DOMParser().parseFromString(html,'text/html');
@@ -11,7 +11,7 @@ previewHero.value='silver';$('#preview-map').before(previewHero,previewWeapon);
 function previewWeapons(){previewWeapon.replaceChildren();for(const[index,id]of HERO_LOADOUTS[previewHero.value].entries()){const option=document.createElement('option');option.value=index;option.textContent=WEAPONS[id].name;previewWeapon.append(option);}}
 previewHero.onchange=previewWeapons;previewWeapons();
 const previewEnemy=document.createElement('select');previewEnemy.id='preview-enemy';previewEnemy.setAttribute('aria-label','预览怪物');for(const[id,name]of[['','无怪物'],['mushroom','蘑菇'],['wolf','狼'],['golem','岩怪'],['spitter','吐息者'],['shaman','萨满'],['flyer','本图飞行怪']])previewEnemy.add(new Option(name,id));$('#preview-place').after(previewEnemy);
-for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴'],['habitat-run','六地图环境检查']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
+for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴'],['habitat-run','六地图环境检查'],['weapon-run','枪口与近战镰刀检查']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
 async function load(mobile=false,width=1180,height=720){
@@ -182,7 +182,7 @@ $('#run').onclick=async()=>{
  });
  await check('相机相对移动、闪避和拖动视角',()=>{select('scout');arena();g.adventureCamera.yaw=Math.PI/2;key('keydown','w');step(20);key('keyup','w');assert(g.player.x>1&&Math.abs(g.player.z)<.3,'前进未跟随视角');g.player.dash=0;key('keydown','w');g.dash();key('keyup','w');assert(Math.abs(g.player.dashAngle-Math.PI/2)<.01,'闪避不跟随视角');const yaw=g.adventureCamera.yaw,c=win.document.querySelector('#world');c.setPointerCapture=()=>{};pointer(c,'pointerdown',{button:2,clientX:300});pointer(win,'pointermove',{button:2,clientX:430});pointer(win,'pointerup',{button:2});assert(g.adventureCamera.yaw<yaw-.2,'右键拖动未转视角');return reportFrame();});
  await check('鼠标双键同时转向与开火、单独松键',()=>{select('scout');arena();const c=win.document.querySelector('#world');pointer(c,'pointerdown',{button:2});pointer(c,'pointerdown',{button:0});assert(g.controls.held,'右键中不能左键开火');pointer(win,'pointerup',{button:0});assert(!g.controls.held,'松左键仍开火');const y=g.adventureCamera.yaw;pointer(win,'pointermove',{button:2,clientX:580});assert(g.adventureCamera.yaw!==y,'松左键影响右键转向');pointer(win,'pointerup',{button:2});return reportFrame();});
- for(const [hero,count]of [['scout',3],['silver',3],['wraith',3],['tide',1],['lingya',1],['wuling',1],['mirage',1]])for(let index=0;index<count;index++)await check(hero+' 武器 '+index+' 双视角攻击',()=>{select(hero,index);arena();win.document.querySelector('[data-attack-mode="manual"]').click();g.setView('first');step(2);assert(g.firstPerson.root.visible,'没有手持武器');const e=g.spawn('golem',0,4);assert(e,'靶子生成失败');e.hp=e.maxHp=10000;e.speed=0;e.cool=9999;g.adventureCamera.pitch=-Math.atan2(g.camera.position.y-e.height*.5,4);step(2);fire(65);const damage=10000-e.hp;assert(damage>0,'第一人称攻击未命中: '+g.player.weaponId);g.setView('third');step(2);assert(!g.firstPerson.root.visible,'第三人称仍有贴面武器');aimAt(e);const before=e.hp;fire(95);assert(e.hp<before,'第三人称攻击未命中: '+g.player.weaponId);g.dash();step(35);assert(Number.isFinite(g.player.x),'闪避位置无效');return{damage,...reportFrame()};});
+ for(const [hero,count]of [['scout',3],['silver',3],['wraith',3],['tide',1],['lingya',1],['wuling',1],['mirage',1]])for(let index=0;index<count;index++)await check(hero+' 武器 '+index+' 双视角攻击',()=>{select(hero,index);arena();win.document.querySelector('[data-attack-mode="manual"]').click();g.setView('first');step(2);assert(g.firstPerson.root.visible,'没有手持武器');const distance=g.player.weaponId==='shadowblade'?2.6:4,e=g.spawn('golem',0,distance);assert(e,'靶子生成失败');e.hp=e.maxHp=10000;e.speed=0;e.cool=9999;g.adventureCamera.pitch=-Math.atan2(g.camera.position.y-e.height*.5,distance);step(2);fire(65);const damage=10000-e.hp;assert(damage>0,'第一人称攻击未命中: '+g.player.weaponId);g.setView('third');step(2);assert(!g.firstPerson.root.visible,'第三人称仍有贴面武器');aimAt(e);const before=e.hp;fire(95);assert(e.hp<before,'第三人称攻击未命中: '+g.player.weaponId);g.dash();step(35);assert(Number.isFinite(g.player.x),'闪避位置无效');return{damage,...reportFrame()};});
  await check('枪弩、影印、镰刃与长叉在真实命中时传入实体表面接触点',()=>{
   const samples=[];
   for(const [hero,index,method]of [['scout',0,'enemyContact'],['silver',0,'boltImpact'],['wraith',0,'shadowMark'],['wraith',1,'bladeImpact'],['tide',0,'weaponContact']]){
@@ -206,7 +206,7 @@ async function preview(mode){const controls=[...document.querySelectorAll('butto
  const place=$('#preview-place').value;
  if(place==='water'){const p=g.world.ponds[0];if(p){g.player.x=p.x+p.rx+2;g.player.z=p.z;g.adventureCamera.yaw=-Math.PI/2;g.adventureCamera.pitch=mode==='first'?-.23:-.32;}}
  if(place==='trees'){const trees=g.world.obstacles.filter(o=>o.mesh.getObjectByName('tree-canopy')),p=trees.find(o=>g.world.obstacles.every(q=>Math.hypot(o.x-q.x,o.z+5-q.z)>q.r+1));if(p){g.player.x=p.x;g.player.z=p.z+5;g.adventureCamera.yaw=Math.PI;g.adventureCamera.pitch=mode==='first'?.15:.05;}}
- if(previewEnemy.value){const distance=previewHero.value==='tide'?3.3:4.8,e=g.spawn(previewEnemy.value,g.player.x+Math.sin(g.adventureCamera.yaw)*distance,g.player.z+Math.cos(g.adventureCamera.yaw)*distance);if(e){e.speed=0;e.cool=9999;e.hp=9999;}}
+ if(previewEnemy.value){const distance=previewHero.value==='tide'?3.3:g.player.weaponId==='shadowblade'?2.6:4.8,e=g.spawn(previewEnemy.value,g.player.x+Math.sin(g.adventureCamera.yaw)*distance,g.player.z+Math.cos(g.adventureCamera.yaw)*distance);if(e){e.speed=0;e.cool=9999;e.hp=9999;}}
  step(30);previewContext=[previewHero.value,previewWeapon.value,$('#preview-map').value,$('#preview-place').value,previewEnemy.value].join(':');$('#status').textContent=(mode==='first'?'第一人称':'第三人称')+' · '+previewHero.selectedOptions[0].text+' / '+previewWeapon.selectedOptions[0].text+' · '+$('#preview-map').selectedOptions[0].text+' · '+JSON.stringify(reportFrame())+' · 真实鼠标锁定需在游戏画面内点击验证；固定帧预览移动后点击保存即可刷新。';}finally{controls.forEach((c,i)=>c.disabled=disabled[i]);}}
 function reportAttackPreview(){assert(g.hero.userData.shotSerial===previewShot.serial,'回收预览意外触发第二次攻击');$('#status').textContent=WEAPONS[g.player.weaponId].name+' · 单次攻击第 '+previewShot.frames+' 帧（60 帧/秒；可反复推进回收） · '+JSON.stringify({attackAge:g.hero.userData.attackAge,reloadPhase:g.hero.userData.reloadPhase,weaponVisible:g.firstPerson.weapon.visible,...reportFrame()});}
 $('#attack-preview').onclick=async()=>{const button=$('#attack-preview');button.disabled=true;try{await preview('first');win.document.querySelector('[data-attack-mode="manual"]').click();const serial=g.hero.userData.shotSerial||0;fire(1);step(3);assert(g.hero.userData.shotSerial===serial+1,'未触发恰好一次攻击');previewShot={serial:serial+1,frames:4};reportAttackPreview();}catch(e){$('#status').textContent='出手预览失败：'+e.message;}finally{button.disabled=false;}};
@@ -233,5 +233,32 @@ $('#habitat-run').onclick=async()=>{
  }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
 };
 $('#third').onclick=()=>preview('third');$('#first').onclick=()=>preview('first');$('#air-portrait').onclick=()=>{const kind=AIR_ROSTERS[$('#preview-map').value]||'duskbat',scene=new T.Scene(),camera=new T.PerspectiveCamera(36,1.5,.1,30),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(360,240);renderer.setClearColor(0x213235);const model=makeAirborne(kind);scene.add(model);animateAirborne({kind,mesh:model,id:1,flight:{stage:'orbit'}},.2);scene.add(new T.HemisphereLight(0xe3efff,0x38462e,2.8));const sun=new T.DirectionalLight(0xffedce,3);sun.position.set(-3,5,4);scene.add(sun);camera.position.set(2,2.8,4);camera.lookAt(0,.25,0);renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='next-bestiary-'+kind+'.png';a.click();renderer.dispose();renderer.forceContextLoss();};$('#capture').onclick=()=>{step(1,0);const a=document.createElement('a');a.href=g.renderer.domElement.toDataURL('image/png');a.download='forest-next-'+g.player.weaponId+'-'+g.adventureCamera.mode+'-f'+(previewShot?.frames||previewDodge?.frames||0)+'.png';a.click();};
+
+$('#weapon-run').onclick=async()=>{
+ const controls=[...document.querySelectorAll('button')];controls.forEach(b=>b.disabled=true);results.length=0;errors.length=0;
+ try{await load();
+ for(const mode of['first','third']){
+  await check(mode+' 枪口、弩槽、杖头、掌心真实出弹与贴墙阻挡',()=>{
+   const out=[];for(const[hero,index]of[['scout',0],['silver',0],['scout',2],['wraith',0]]){
+    select(hero,index);arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};g.setView(mode);win.document.querySelector('[data-attack-mode="manual"]').click();step(4);
+    const e=g.spawn('golem',0,6);e.hp=e.maxHp=10000;e.speed=0;e.cool=999;aimAt(e);
+    let outlet=null;const muzzle=g.vfx.muzzle;g.vfx.muzzle=function(w,x,z,a,y,exact){outlet={x,y,z,exact};return muzzle.call(this,w,x,z,a,y,exact);};
+    try{fire(1);assert(outlet?.exact,'枪口没有使用真实释放点');assert(Math.hypot(outlet.x-g.player.x,outlet.z-g.player.z)>.08,'弹丸仍从人物中心产生');const b=g.bullets[0];assert(b,'没有发射弹丸');assert(Math.hypot(b.x-b.vx/60-outlet.x,b.z-b.vz/60-outlet.z)<.04,'弹丸与枪口分离');step(35);assert(e.hp<10000,'偏置后没有汇向瞄准点');out.push({id:g.player.weaponId,outlet,damage:10000-e.hp});
+     // Insert a tall cylinder exactly between the body and authored outlet.
+     const origin={x:g.player.x,z:g.player.z},dx=outlet.x-origin.x,dz=outlet.z-origin.z;g.world.obstacles=[{x:origin.x+dx*.55,z:origin.z+dz*.55,r:.16,height:6}];const before=e.hp;fire(1);step(35);assert(e.hp===before,'枪口越墙命中了墙后目标');
+    }finally{g.vfx.muzzle=muzzle;}
+   }return out;
+  });
+  await check(mode+' 断魂战镰：近战三连、墙体、暂停与闪避清理',()=>{
+   select('wraith',1);arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};g.setView(mode);win.document.querySelector('[data-attack-mode="manual"]').click();step(4);
+   const e=g.spawn('golem',0,2.5),far=g.spawn('golem',0,5),rear=g.spawn('golem',0,-2);for(const q of[e,far,rear]){q.hp=q.maxHp=10000;q.speed=0;q.cool=999;}aimAt(e);const hits=[];
+   for(let i=0;i<3;i++){const hp=e.hp;fire(1);assert(g.player.melee?.scythe,'没有近战蓄势');assert(!g.bullets.length,'影镰仍被投出');assert(g.hero.userData.scytheCombo===i,'三连顺序不正确');if(i===0){g.pause();step(20);assert(e.hp===hp&&g.player.melee,'暂停期间结算了伤害');g.resume();}step(24);hits.push(hp-e.hp);assert(e.hp<hp,'近战未命中');assert(far.hp===10000&&rear.hp===10000,'伤害越过射程或命中身后');}
+   assert(hits[2]>hits[1]&&hits[1]>hits[0],'三段伤害没有区别');g.world.obstacles=[{x:0,z:1.2,r:.3,height:5}];const hp=e.hp;fire(1);step(24);assert(e.hp===hp,'镰刀穿墙');g.world.obstacles=[];
+   fire(1);g.player.dash=0;g.dash();assert(g.player.melee===null,'闪避没有取消待结算攻击');step(40);g.player.inv=0;g.damage(99999,0,0);assert(g.state==='lost'&&!g.player.melee&&!g.player.scytheStepUntil,'结束残留蓄势');g.menu();g.start();assert(!g.player.scytheCount&&!g.player.melee,'重开残留连段');return{hits,...reportFrame()};
+  });
+ }
+ }catch(e){errors.push(e.message);}finally{$('#status').textContent='武器检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;publish();controls.forEach(b=>b.disabled=false);}
+};
+
 try{await load();$('#status').textContent='已就绪';for(const b of document.querySelectorAll('button'))b.disabled=false;}catch(e){$('#status').textContent=e.message;}
 </script></html>

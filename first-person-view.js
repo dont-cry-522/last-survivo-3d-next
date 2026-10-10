@@ -1,8 +1,9 @@
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=125';
 import * as T from './vendor/three.module.js';
-import {GRIP_POINTS} from './weapon-grips.js?v=114';
+import {GRIP_POINTS} from './weapon-grips.js?v=125';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,WEAPON_RECOVERY} from './weapon-performance.js?v=114';
+import {weaponGesture,WEAPON_RECOVERY} from './weapon-performance.js?v=125';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
@@ -19,7 +20,7 @@ const PROFILES={
  dark:{type:'staff',width:.64,height:1.36,depth:.40,x:.64,y:-.25,pitch:.04},
  shuriken:{type:'throw',width:.58,height:.85,depth:.44,x:.56,y:-.57,pitch:.60},
  boomerang:{type:'throw',width:.73,height:1,depth:.48,x:.46,y:-.48,pitch:.72},
- shadowblade:{type:'throw',width:.72,height:1,depth:.47,x:.48,y:-.47,pitch:.50},
+ shadowblade:{type:'scythe',width:.80,height:1.50,depth:.70,x:.42,y:-.42,pitch:.12},
  shade:{type:'palm',width:.42,height:.72,depth:.35,x:.42,y:-.48,pitch:.12},
  grimoire:{type:'book',width:.74,height:.66,depth:.44,x:.01,y:-.47,pitch:.42,grip:[-.15,.01,.065],support:[.16,.01,.065]},
  harpoon:{type:'thrust',width:.76,height:1,depth:1.66,x:.42,y:-.66,pitch:.13,support:[0,0,.36]},
@@ -301,6 +302,10 @@ export class FirstPersonView {
    }else if(combo===2){
     this.weapon.position.set(-.035*sweep,.035*kick-.035*sweep,-.16*kick+.095*sweep);this.weapon.rotation.x-=.09*sweep;
    }else{this.weapon.position.set(-.025*kick,.018*kick,-.27*kick+.04*gather);this.weapon.rotation.x-=.02*kick;}
+  }else if(profile.type==='scythe'){
+   const side=(data.scytheCombo||0)===1?-1:1;
+   this.weapon.position.set(-side*.32*sweep,.09*kick,-.17*kick);
+   this.weapon.rotation.y+=side*(-.48*motion.gather+1.2*sweep);this.weapon.rotation.z=side*.65*sweep;this.weapon.rotation.x-=.18*kick;
   }else if(profile.type==='throw'){
    const flick=id==='shuriken',bank=id==='boomerang';
    this.weapon.position.set(-(bank?.14:.075)*sweep,(flick?.025:.055)*kick,-(flick?.14:.11)*kick);
@@ -353,6 +358,10 @@ export class FirstPersonView {
   this.poseReady=true;
  }
 
+ launchPoint(target=new T.Vector3()){
+  const point=WEAPON_OUTLETS[this.weaponId];if(!point||!this.model||!this.poseReady)return null;
+  this.model.updateWorldMatrix(true,false);return this.model.localToWorld(target.set(...point));
+ }
  render(renderer,scene){
   if(this.disposed||!this.root.visible||!this.weapon)return;
   const mask=this.camera.layers.mask,background=scene.background,autoClear=renderer.autoClear;

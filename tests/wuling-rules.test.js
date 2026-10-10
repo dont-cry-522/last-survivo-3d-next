@@ -15,7 +15,7 @@ test('Wuling has one poison weapon and a bounded base area attack, leaving other
 test('poison skills belong only to Wuling while all six hero draft pools retain their legal spells',()=>{
  const elemental=['fire','ice','storm'],shadow=['veil','chain','rift'];
  for(const heroId of Object.keys(HERO_LOADOUTS)){
-  const p=player(heroId),own=EXTRA_SKILLS.filter(s=>s.hero===heroId).map(s=>s.id),seen=new Set(),rng=seeded(92);
+  const p=player(heroId),own=EXTRA_SKILLS.filter(s=>s.hero===heroId&&(!s.weapon||s.weapon===p.weaponId)).map(s=>s.id),seen=new Set(),rng=seeded(92);
   for(let i=0;i<120;i++)for(const card of chooseUpgrades(p,rng)){seen.add(card.id);if(EXTRA_BY_ID[card.id])assert.equal(EXTRA_BY_ID[card.id].hero,heroId);assert(!card.id.startsWith('path:'));}
   assert(own.every(id=>seen.has(id)));
   const legal=heroId==='wraith'?shadow:['tide','lingya'].includes(heroId)?[]:elemental;

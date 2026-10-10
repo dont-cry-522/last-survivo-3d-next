@@ -306,8 +306,17 @@ export class SkillVFX{
   }else if(kind==='spikeAim')this.riftCast(x,z,1.2,e.angle,false);
   else if(kind==='spikes'){this.riftCast(x,z,1.2,e.angle,true);for(let i=-1;i<=1;i++){const m=this.particle('crystal',0x344252,x+i*.3,.35,z,{life:.4,size:[.15,.75-Math.abs(i)*.2,.13],grow:true,additive:false,priority:1});if(m)m.rotation.z=i*.17;}}
  }
- muzzle(w,x,z,angle,height=1.15){
-  const dx=Math.sin(angle),dz=Math.cos(angle),px=x+dx*.65,pz=z+dz*.65,path=w.pathId,rank=w.pathRank||0;
+ scytheSlash(origin,strike){
+  const {angle,pitch,w,combo}=strike,reach=w.range*.86,side=combo===1?-1:1;
+  // A brief open ribbon follows the blade plane; it is not a ground ring.
+  for(let i=0;i<8;i++){
+   const a=angle+side*(-w.arc+i*w.arc/4),b=angle+side*(-w.arc+(i+1)*w.arc/4),y=origin.y+Math.sin(pitch)*reach;
+   const start=new T.Vector3(origin.x+Math.sin(a)*reach*Math.cos(pitch),y+(i-4)*.018,origin.z+Math.cos(a)*reach*Math.cos(pitch)),end=new T.Vector3(origin.x+Math.sin(b)*reach*Math.cos(pitch),y+(i-3)*.018,origin.z+Math.cos(b)*reach*Math.cos(pitch));
+   this.segment(start,end,i<2?0x334052:0xb9c9d9,combo===2?.055:.033,.16,false,i==4?1:0,.65);
+  }
+ }
+ muzzle(w,x,z,angle,height=1.15,exact=false){
+  const dx=Math.sin(angle),dz=Math.cos(angle),px=x+dx*(exact?0:.65),pz=z+dz*(exact?0:.65),path=w.pathId,rank=w.pathRank||0;
   if(w.id==='miasmalantern'){
    const p=this.particle('sweep',0x9676b5,px,height-.05,pz,{life:.25,size:[.31,.28,1],opacity:.43,additive:false,motion:'lash',roll:-1.2,velocity:[dx*.4,.05,dz*.4]});if(p)p.rotation.set(-.7,angle,.4);
   }else if(w.id==='rifle'||w.id==='shotgun'){

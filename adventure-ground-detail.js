@@ -1,8 +1,8 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {seeded,segmentDistance} from './rules.js?v=114';
+import {seeded,segmentDistance} from './rules.js?v=125';
 import {bridgeContains} from './coast.js?v=114';
-import {naturalRockGeometry} from './biome-scenery.js?v=120';
+import {naturalRockGeometry} from './biome-scenery.js?v=125';
 
 const profiles={
  forest:{count:1200,grass:.83,height:1,tuft:[0x566d48,0x829360],litter:[0x827561,0x66685c]},

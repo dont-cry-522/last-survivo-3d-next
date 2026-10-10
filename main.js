@@ -1,19 +1,21 @@
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=125';
+import{beginScythe,scytheHits,scytheDamage}from'./scythe-combat.js?v=125';
 import{AIR_ENEMIES,AIR_ROSTERS,airWaveEligible,makeAirborne,tickAirborne}from'./airborne-enemies.js?v=123';
 import{MOBILITY,resetMobility,bodyHeight,attackReachesPlayer,beginJump,tickMobility,restoreMobilityPose,applyMobilityPose}from'./adventure-mobility.js?v=123';
 import{installAdventureCampfire,updateAdventureCampfire}from'./adventure-campfire.js?v=115';
 import{loadSurfaceTextures}from'./surface-textures.js?v=120';
 import{createOverheadQuery}from'./adventure-overheads.js?v=115';
-import{installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail}from'./adventure-ground-detail.js?v=124';
+import{installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail}from'./adventure-ground-detail.js?v=125';
 import{AdventureCamera}from'./adventure-camera.js?v=123';
-import{FirstPersonView}from'./first-person-view.js?v=122';
+import{FirstPersonView}from'./first-person-view.js?v=125';
 import{AdventureAtmosphere}from'./adventure-atmosphere.js?v=124';
 import{aimPoint,groundAim,launchVelocity,segmentHitsBody,bodyContact,segmentBodyEntry}from'./adventure-combat.js?v=123';
 import{CinematicRenderer}from'./cinematic-renderer.js?v=117';
-import{lobbyLandscape}from'./lobby-landscape.js?v=124';
-import{installForestVista}from'./forest-vista.js?v=124';
+import{lobbyLandscape}from'./lobby-landscape.js?v=125';
+import{installForestVista}from'./forest-vista.js?v=125';
 import{installWorldLightShafts,updateWorldLightShafts}from'./world-light-shafts.js?v=117';
 import{mapBrief}from'./expedition-brief.js?v=123';
-import{polishEnvironmentModels}from'./environment-props.js?v=120';
+import{polishEnvironmentModels}from'./environment-props.js?v=125';
 import{EnvironmentLighting,installDistantLandscape}from'./environment-lighting.js?v=124';
 import{MirageCombat}from'./mirage-combat.js?v=123';
 import{MirageVFX}from'./mirage-vfx.js?v=123';
@@ -22,13 +24,13 @@ import{PoisonCombat}from'./poison-combat.js?v=123';
 import{PoisonVFX}from'./poison-vfx.js?v=122';
 import{poisonSound}from'./poison-audio.js?v=114';
 import {HeroPreview} from './hero-preview.js?v=114';
-import {knownMapPoints,mapWaypoint,waypointHint} from './map-navigation.js?v=120';
+import {knownMapPoints,mapWaypoint,waypointHint} from './map-navigation.js?v=125';
 import {createExploration,EXPLORATION_SIZE} from './map-exploration.js?v=114';
-import{REGIONS,biomeAt,biomeWeights,biomeColor,CONFLUENCE_TEXT}from'./confluence.js?v=124';
+import{REGIONS,biomeAt,biomeWeights,biomeColor,CONFLUENCE_TEXT}from'./confluence.js?v=125';
 import{observePlayer}from'./target-awareness.js?v=114';
 import{TERRAIN_TIPS,onIce,iceMotion,damageTerrain,updateTactics,terrainMesh}from'./map-tactics.js?v=114';
-import{advanceRoaming,roamingHint,courierDirection}from'./roaming-events.js?v=120';
-import{discoveryInfo,discoveryVariants,discoveryThreatened,advanceDiscovery,discoveryHint,animateDiscoveries}from'./map-discoveries.js?v=120';
+import{advanceRoaming,roamingHint,courierDirection}from'./roaming-events.js?v=125';
+import{discoveryInfo,discoveryVariants,discoveryThreatened,advanceDiscovery,discoveryHint,animateDiscoveries}from'./map-discoveries.js?v=125';
 import{recordEnemyHit,EnemyDeaths}from'./enemy-feedback.js?v=114';
 import{sandWeather}from'./sand-weather.js?v=114';
 import{HERO_DODGES,HERO_ABILITY_TEXT,dodgeTravel}from'./hero-dodge.js?v=114';
@@ -41,29 +43,29 @@ import{inMeleeArc,meleeDamageScale}from'./melee.js?v=114';
 import{discoverSite}from'./site-discovery.js?v=114';
 import{MAP_EVENTS,createMapEvent,advanceMapEvent,eventProgress}from'./map-events.js?v=114';
 import{MAP_HALF as DEFAULT_HALF}from'./map-layout.js?v=114';
-import{terrainAt}from'./water.js?v=124';
+import{terrainAt}from'./water.js?v=125';
 import{crossedSwimPhase}from'./swim-motion.js?v=114';
 import{RELICS,relicChoices,equipRelic,relicEvent,incomingRelicDamage,readJournal,writeJournal,recordDiscovery,recordVictory}from'./expedition.js?v=114';
 import{EXPEDITION_BOSS_TIME,encounterPhase,enemyGrowth,encounterRole,HUNT_SQUAD,huntFormation,HUNT_BOONS,takeHuntBoon,enemyApproach,separation,attackSlotAvailable}from'./encounters.js?v=114';
 import{setupMobileDisplay}from'./mobile-display.js?v=114';
-import{weaponCuePhases,mirageShotDelay}from'./weapon-performance.js?v=114';
+import{weaponCuePhases,mirageShotDelay}from'./weapon-performance.js?v=125';
 import{ENEMY_VOICES}from'./enemy-audio.js?v=114';
 import{ENEMY_MOTION,gaitPace,advanceEnemyLocomotion}from'./enemy-motion.js?v=120';
 import{MAP_ROSTERS,REGIONAL_ENEMIES,regionalEnemy}from'./map-enemies.js?v=114';
-import{HeroSkills}from'./hero-skills.js?v=114';
-import{EXTRA_BY_ID,skillPairState,skillPairHint}from'./skill-catalog.js?v=114';
+import{HeroSkills}from'./hero-skills.js?v=125';
+import{EXTRA_BY_ID,skillPairState,skillPairHint}from'./skill-catalog.js?v=125';
 import{SCOUT_ROLL_DURATION,rollTravel}from'./dodge-motion.js?v=114';
 import{adventureDodgePose}from'./adventure-dodge.js?v=121';
 import{renderPixelRatio,RenderBudget}from'./render-budget.js?v=114';
 import{groundCue,disposeCue}from'./ground-cues.js?v=114';
-import{weaponRouteEffect,WEAPON_ROUTE_LOOKS}from'./weapon-route-vfx.js?v=121';
-import{SkillVFX}from'./skill-vfx.js?v=123';
-import{loadHeroAssets,disposeHero}from'./skinned-hero.js?v=123';
+import{weaponRouteEffect,WEAPON_ROUTE_LOOKS}from'./weapon-route-vfx.js?v=125';
+import{SkillVFX}from'./skill-vfx.js?v=125';
+import{loadHeroAssets,disposeHero}from'./skinned-hero.js?v=125';
 import{GameAudio,SFX_STYLES}from'./audio.js?v=114';
 import{ENEMY_GUIDE,CIRCLE_GUIDE}from'./battle-guide.js?v=123';
 import * as T from './vendor/three.module.js';
-import{MAPS,WEAPONS,ENEMIES,HERO_LOADOUTS,heroHealth,weaponFor,experienceNeeded,grantExperience,chooseUpgrades,takeUpgrade,weaponStats,weaponReachText,WEAPON_PATHS,segmentDistance,registerCrossbowHit,registerShadowHit,UPGRADES}from'./rules.js?v=114';
-import{actor,animateActor,animateWorld,buildWorld,clearAt,moveActor,mesh,mat}from'./world.js?v=124';
+import{MAPS,WEAPONS,ENEMIES,HERO_LOADOUTS,heroHealth,weaponFor,experienceNeeded,grantExperience,chooseUpgrades,takeUpgrade,weaponStats,weaponReachText,WEAPON_PATHS,segmentDistance,registerCrossbowHit,registerShadowHit,UPGRADES}from'./rules.js?v=125';
+import{actor,animateActor,animateWorld,buildWorld,clearAt,moveActor,mesh,mat}from'./world.js?v=125';
 const $=s=>document.querySelector(s),touch=matchMedia('(pointer:coarse)').matches;
 document.body.classList.toggle('touch',touch);if(touch)$('#map>small').textContent='点击查看地图';
 const canvas=$('#world');let renderer;
@@ -170,7 +172,7 @@ function clearObjects(){hitConfirmUntil=0;mirage.reset();mirageVFX.clear();poiso
 function mapHalf(){return world?.half||DEFAULT_HALF;}
 function localBiome(x=player.x,z=player.z){return world?.regions?biomeAt(x,z):mapId;}
 function build(){renderer.shadowMap.needsUpdate=true;renderBudget.reset();clearObjects();if(world){scene.remove(world.group);world.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();disposeCue(o);if(o.userData.ownedGeometry)o.geometry.dispose();});}if(hero){disposeHero(hero);scene.remove(hero);}world=buildWorld(mapId,Math.floor(Math.random()*1e8));polishEnvironmentModels(world);installForestVista(world,mapId);world.group.updateMatrixWorld(true);for(const o of world.obstacles)o.height=Math.max(.15,new T.Box3().setFromObject(o.mesh).max.y);installWorldLightShafts(world,mapId);installDistantLandscape(world,mapId,biomeAt);installAdventureGroundDetail(world,mapId);installHabitatDetail(world,mapId);world.overhead=createOverheadQuery(world);installAdventureCampfire(world,vfx.flameTexture);world.exploration=createExploration(mapHalf(),mapVisibility);world.exploration.reveal(world.spawn.x,world.spawn.z);scene.add(world.group);scene.background=new T.Color(world.theme.fog);scene.fog=new T.FogExp2(world.theme.fog,.014);environmentLighting.update(mapId,world.regions?biomeWeights(world.spawn.x,world.spawn.z):null);hero=actor(heroId,weaponFor(heroId,weaponIndex).id);scene.add(hero);if(heroId==='mirage')animateActor(hero,0,0);player={...world.spawn,heroId,weaponId:weaponFor(heroId,weaponIndex).id,weaponPath:null,hp:heroHealth(heroId),maxHp:heroHealth(heroId),level:1,xp:0,pending:0,upgrades:{},attack:0,dash:0,dashTime:0,inv:0,hurt:0,hexSlow:0,angle:0,spell:{fire:3,ice:3,storm:3,veil:3,chain:3,rift:3},distance:0};if(state==='menu'){world.lobbyView=lobbyLandscape(world,mapId);player.x=world.lobbyView.x;player.z=world.lobbyView.z;heroPreview.landscapeYaw=world.lobbyView.yaw;}hero.position.set(player.x,0,player.z);hero.updateMatrixWorld(true);const head=hero.userData.swimHead;eyeHeight=head?Math.max(1,head.getWorldPosition(temp).y+.03):1.55;player.standHeight=eyeHeight+.13;resetMobility(player);firstPerson.setHero(hero,player.weaponId);adventureCamera._ready=false;createCompanion();updateCamera(1);syncViewUI();}
-function renderChoices(){renderJournalSummary();$('#selected-map-name').textContent=document.querySelector('[data-map='+mapId+']').textContent.replace(/^\d+\s*/, '').split(' · ')[0];$('#preview-map-name').textContent=$('#selected-map-name').textContent;$('#hero-preview').setAttribute('aria-label',document.querySelector('[data-hero='+heroId+']').childNodes[0].textContent+'的全身与武器');$('#hero-preview-description').textContent={scout:'灵活翻滚 · 枪械猎手',silver:'瞬移穿行 · 三连弩击',wraith:({shade:'无面旅人 · 掌中聚影',shadowblade:'幽魂刺客 · 挥镰回魂',grimoire:'亡魂法师 · 悬书裂隙'}[weaponFor(heroId,weaponIndex).id]),tide:'长叉破浪 · 潜潮伏击',lingya:'回旋骨镖 · 獾兽同行',wuling:'孢灯投毒 · 牵瘴转场',mirage:'幽紫毒团 · 蜕影诱敌'}[heroId];$('#map-description').textContent=MAPS[mapId].subtitle;const brief=mapBrief(mapId);$('#map-boss-name').textContent=brief.name;$('#map-boss-arrival').textContent=brief.arrival;$('#map-boss-threat').textContent=brief.threat;$('#map-win-condition').textContent=brief.goal;for(const b of document.querySelectorAll('[data-hero]'))b.classList.toggle('selected',b.dataset.hero===heroId);for(const b of document.querySelectorAll('[data-map]'))b.classList.toggle('selected',b.dataset.map===mapId);const box=$('#weapons');box.replaceChildren();for(let i=0;i<HERO_LOADOUTS[heroId].length;i++){const w=weaponFor(heroId,i),b=document.createElement('button');b.textContent=w.name;b.classList.toggle('selected',i===weaponIndex);b.onclick=()=>{weaponIndex=i;renderChoices();build();};box.append(b);}const selectedWeapon=weaponFor(heroId,weaponIndex),selected=selectedWeapon.id,identity={miasmalantern:'提灯蓄势放出大颗慢速毒团，击中、触碰障碍或到达射程尽头时破裂扩散，为周围敌人附毒；重复命中刷新而不叠层，障碍会挡住扩散。蜕影在原地留下当前生命的替身，自身遁形 0.85 秒，期间免伤且不能攻击；替身优先诱敌，撑满时间才绽放并留下小片毒雾，被击碎不会爆发。幻瘴强化诱敌布局，蚀影强化重新现身后的反击。',sporelantern:'投出毒囊，在落点留下固定毒雾，最多三片、重叠只取最强伤害；牵瘴步经过第一片主毒雾时将其搬到实际落点，保留剩余寿命。沉瘴在原地成熟，搬运会重置浓度；游瘴靠搬运留下毒带与宽毒幕。',boomerang:'骨镖去程与回程均能命中；獾兽会在附近游走、嗅探，优先扑击瞄准目标，超出活动范围再归队。普通移动和燕步不会打断伙伴作战，落后超过 18 米才优先归队；主动换位则会命令伙伴撤回。按住方向时优先向该方向燕步，途中可小幅转向；不按方向时向 4—9 米内的伙伴换位，伙伴侧向撤回起点。距离或通路不合适时使用普通燕步，冷却 3.6 秒。伙伴有独立生命，倒地 12 秒后复活。',harpoon:'基础生命 140，出手后 0.3 秒正面减伤 20%；直刺→近身横扫→回钩牵引，第三击牵引普通怪物并减速，保留安全身位；潜潮持续最多 2 秒，期间无敌、可移动但不能攻击，再按闪避或重新按攻击提前浮出；冷却 6.5 秒。',rifle:'细长高速枪弹，快速连续射击。',shotgun:'一枪多颗短弹，近距离扇面散射。',fire:'较大的火球，较慢飞行并留下火焰，命中爆燃。',crossbow:'细长箭杆与箭头，快速直射、三连命中击退。',shuriken:'旋转三刃飞镖，可穿过敌人。',dark:'较大的暗紫法球，缓慢飞行、命中散开暗雾。',shade:'无面旅人形态：薄围巾与掌间微影。掌心发射中型影脉，三次命中引爆刻印。',shadowblade:'幽魂刺客形态：短披肩与随刃尾影。投出宽弧影镰，飞回时可再次命中。',grimoire:'亡魂法师形态：开衩长袍与下摆浮影。在瞄准方向撕开延迟裂口，不发射子弹。'};$('#weapon-preview').textContent=identity[selected]+weaponReachText(weaponStats({weaponId:selected}))+(selected==='boomerang'?' · 回收后再投掷，攻速同时提高往返速度 · ':' · 基础频率 '+selectedWeapon.rate+' 次/秒 · ')+(selectedWeapon.count>1?'每次 '+selectedWeapon.count+' 发 · ':'')+'成长路线：'+Object.values(WEAPON_PATHS).filter(p=>p.weapon===selected).map(p=>p.name).join(' / ')+' · 3 级起二选一'+({mirage:' · 专属技能：残蛊 / 诱葬 / 蜃衣',wuling:' · 专属技能：余毒未尽 / 败叶传染 / 苔衣护身',tide:' · 专属技能：破浪锋 / 盐蚀印记 / 潜潮余流',lingya:' · 专属技能：同猎追击 / 燕返藤绊 / 归镖抚慰'}[heroId]||'');$('.menu-caption span').textContent=heroId==='mirage'?'雾苓·蜃影 / VIOLET MIRAGE':heroId==='wuling'?'雾苓 / FOREST HERBALIST':heroId==='lingya'?'铃芽 / BEAST KEEPER':heroId==='tide'?'潮行者 / TIDE HUNTER':heroId==='wraith'?'影裔 · '+({shade:'无面旅人',shadowblade:'幽魂刺客',grimoire:'亡魂法师'}[selected]):heroId==='silver'?'霜影 / SILVER VEIL':'游侠 / WOODLAND RANGER';}
+function renderChoices(){renderJournalSummary();$('#selected-map-name').textContent=document.querySelector('[data-map='+mapId+']').textContent.replace(/^\d+\s*/, '').split(' · ')[0];$('#preview-map-name').textContent=$('#selected-map-name').textContent;$('#hero-preview').setAttribute('aria-label',document.querySelector('[data-hero='+heroId+']').childNodes[0].textContent+'的全身与武器');$('#hero-preview-description').textContent={scout:'灵活翻滚 · 枪械猎手',silver:'瞬移穿行 · 三连弩击',wraith:({shade:'无面旅人 · 掌中聚影',shadowblade:'幽魂刺客 · 近战三连',grimoire:'亡魂法师 · 悬书裂隙'}[weaponFor(heroId,weaponIndex).id]),tide:'长叉破浪 · 潜潮伏击',lingya:'回旋骨镖 · 獾兽同行',wuling:'孢灯投毒 · 牵瘴转场',mirage:'幽紫毒团 · 蜕影诱敌'}[heroId];$('#map-description').textContent=MAPS[mapId].subtitle;const brief=mapBrief(mapId);$('#map-boss-name').textContent=brief.name;$('#map-boss-arrival').textContent=brief.arrival;$('#map-boss-threat').textContent=brief.threat;$('#map-win-condition').textContent=brief.goal;for(const b of document.querySelectorAll('[data-hero]'))b.classList.toggle('selected',b.dataset.hero===heroId);for(const b of document.querySelectorAll('[data-map]'))b.classList.toggle('selected',b.dataset.map===mapId);const box=$('#weapons');box.replaceChildren();for(let i=0;i<HERO_LOADOUTS[heroId].length;i++){const w=weaponFor(heroId,i),b=document.createElement('button');b.textContent=w.name;b.classList.toggle('selected',i===weaponIndex);b.onclick=()=>{weaponIndex=i;renderChoices();build();};box.append(b);}const selectedWeapon=weaponFor(heroId,weaponIndex),selected=selectedWeapon.id,identity={miasmalantern:'提灯蓄势放出大颗慢速毒团，击中、触碰障碍或到达射程尽头时破裂扩散，为周围敌人附毒；重复命中刷新而不叠层，障碍会挡住扩散。蜕影在原地留下当前生命的替身，自身遁形 0.85 秒，期间免伤且不能攻击；替身优先诱敌，撑满时间才绽放并留下小片毒雾，被击碎不会爆发。幻瘴强化诱敌布局，蚀影强化重新现身后的反击。',sporelantern:'投出毒囊，在落点留下固定毒雾，最多三片、重叠只取最强伤害；牵瘴步经过第一片主毒雾时将其搬到实际落点，保留剩余寿命。沉瘴在原地成熟，搬运会重置浓度；游瘴靠搬运留下毒带与宽毒幕。',boomerang:'骨镖去程与回程均能命中；獾兽会在附近游走、嗅探，优先扑击瞄准目标，超出活动范围再归队。普通移动和燕步不会打断伙伴作战，落后超过 18 米才优先归队；主动换位则会命令伙伴撤回。按住方向时优先向该方向燕步，途中可小幅转向；不按方向时向 4—9 米内的伙伴换位，伙伴侧向撤回起点。距离或通路不合适时使用普通燕步，冷却 3.6 秒。伙伴有独立生命，倒地 12 秒后复活。',harpoon:'基础生命 140，出手后 0.3 秒正面减伤 20%；直刺→近身横扫→回钩牵引，第三击牵引普通怪物并减速，保留安全身位；潜潮持续最多 2 秒，期间无敌、可移动但不能攻击，再按闪避或重新按攻击提前浮出；冷却 6.5 秒。',rifle:'细长高速枪弹，快速连续射击。',shotgun:'一枪多颗短弹，近距离扇面散射。',fire:'较大的火球，较慢飞行并留下火焰，命中爆燃。',crossbow:'细长箭杆与箭头，快速直射、三连命中击退。',shuriken:'旋转三刃飞镖，可穿过敌人。',dark:'较大的暗紫法球，缓慢飞行、命中散开暗雾。',shade:'无面旅人形态：薄围巾与掌间微影。掌心发射中型影脉，三次命中引爆刻印。',shadowblade:'幽魂刺客形态：短披肩与随刃尾影。挥动断魂战镰近战横斩、反斩，再接重镰；第三击减速，战镰始终握在手中。专属成长：冥镰刻痕、影步斩、残月收割。',grimoire:'亡魂法师形态：开衩长袍与下摆浮影。在瞄准方向撕开延迟裂口，不发射子弹。'};$('#weapon-preview').textContent=identity[selected]+weaponReachText(weaponStats({weaponId:selected}))+(selected==='boomerang'?' · 回收后再投掷，攻速同时提高往返速度 · ':' · 基础频率 '+selectedWeapon.rate+' 次/秒 · ')+(selectedWeapon.count>1?'每次 '+selectedWeapon.count+' 发 · ':'')+'成长路线：'+Object.values(WEAPON_PATHS).filter(p=>p.weapon===selected).map(p=>p.name).join(' / ')+' · 3 级起二选一'+({mirage:' · 专属技能：残蛊 / 诱葬 / 蜃衣',wuling:' · 专属技能：余毒未尽 / 败叶传染 / 苔衣护身',tide:' · 专属技能：破浪锋 / 盐蚀印记 / 潜潮余流',lingya:' · 专属技能：同猎追击 / 燕返藤绊 / 归镖抚慰'}[heroId]||'');$('.menu-caption span').textContent=heroId==='mirage'?'雾苓·蜃影 / VIOLET MIRAGE':heroId==='wuling'?'雾苓 / FOREST HERBALIST':heroId==='lingya'?'铃芽 / BEAST KEEPER':heroId==='tide'?'潮行者 / TIDE HUNTER':heroId==='wraith'?'影裔 · '+({shade:'无面旅人',shadowblade:'幽魂刺客',grimoire:'亡魂法师'}[selected]):heroId==='silver'?'霜影 / SILVER VEIL':'游侠 / WOODLAND RANGER';}
 function setMapVisibility(mode){
  if(!['explore','visible'].includes(mode)||state!=='menu')return;
  mapVisibility=mode;
@@ -275,7 +277,7 @@ function resolveRelic(event,x,z,angle=0,range=0){
  const previous=relicBurst;relicBurst=event.kind==='ember'||previous;
  try{for(const e of foes){if(event.kind==='storm')lightning(x,z,e.x,e.z);if(event.slow)e.slow=Math.max(e.slow||0,event.slow);hurtEnemy(e,event.damage);if(state!=='playing')break;}}finally{relicBurst=previous;}
 }
-function finish(win){if(state!=='playing')return;state=win?'won':'lost';resetMobility(player);restoreMobilityPose(hero);hero.position.y=0;adventureCamera._ready=false;sound.stopWeapons();sound.stopCreatures();mirage.reset();mirageVFX.clear();hero.userData.mirageConceal=0;if(heroId==='mirage'){hero.userData.mirageFade=0;for(const surface of hero.userData.mirageSurfaces||[]){surface.mesh.material.opacity=surface.opacity;surface.mesh.material.depthWrite=surface.depthWrite;surface.mesh.castShadow=surface.castShadow;}for(const b of bullets)scene.remove(b.mesh);bullets=[];}poison.reset();poisonVFX.clear();if(['wuling','mirage'].includes(heroId)){sound.stopWeapons();vfx.clear();}keys.clear();releaseStick();clearAttack();const first=win&&recordVictory(journal,mapId,player.weaponId);if(first)saveJournal();
+function finish(win){if(state!=='playing')return;state=win?'won':'lost';player.melee=null;player.scytheStepUntil=0;resetMobility(player);restoreMobilityPose(hero);hero.position.y=0;adventureCamera._ready=false;sound.stopWeapons();sound.stopCreatures();mirage.reset();mirageVFX.clear();hero.userData.mirageConceal=0;if(heroId==='mirage'){hero.userData.mirageFade=0;for(const surface of hero.userData.mirageSurfaces||[]){surface.mesh.material.opacity=surface.opacity;surface.mesh.material.depthWrite=surface.depthWrite;surface.mesh.castShadow=surface.castShadow;}for(const b of bullets)scene.remove(b.mesh);bullets=[];}poison.reset();poisonVFX.clear();if(['wuling','mirage'].includes(heroId)){sound.stopWeapons();vfx.clear();}keys.clear();releaseStick();clearAttack();const first=win&&recordVictory(journal,mapId,player.weaponId);if(first)saveJournal();
  showRunResult(win,first);
 }
 function showRunResult(win,first=false){
@@ -334,6 +336,17 @@ function weaponAim(w){
  const floorPoint=adventureCamera.getRay().intersectPlane(groundPlane,new T.Vector3());if(attackMode==='manual'&&floorPoint&&camera.position.distanceTo(floorPoint)<camera.position.distanceTo(new T.Vector3(focus.x,focus.y,focus.z)))Object.assign(focus,{x:floorPoint.x,y:0,z:floorPoint.z});
  return focus;
 }
+function weaponLaunchPoint(id){
+ const chest=new T.Vector3(player.x,(player.y||0)+Math.max(.4,eyeHeight*.76*(1-.45*(player.crouch||0))),player.z),gun=hero.userData.gun;
+ let outlet=adventureCamera.mode==='first'?firstPerson.launchPoint():null;
+ if(!outlet&&gun&&WEAPON_OUTLETS[id]){gun.updateWorldMatrix(true,false);outlet=gun.localToWorld(new T.Vector3(...WEAPON_OUTLETS[id]));}
+ if(!outlet||!outlet.toArray().every(Number.isFinite))return chest;
+ // The overlay gun can enter a wall visually. Never spawn a shot beyond that wall.
+ let stop=1;for(const o of world.obstacles){const t=segmentBodyEntry(chest,outlet,o,.08);if(t!==null)stop=Math.min(stop,t);}
+ const roof=world.overhead.firstHit(chest,outlet),length=chest.distanceTo(outlet);if(roof&&length>0)stop=Math.min(stop,chest.distanceTo(roof.point)/length);
+ if(stop<1)outlet.lerpVectors(chest,outlet,Math.max(0,stop-.04/(length||1)));
+ outlet.y=Math.max(.06,outlet.y);outlet.x=T.MathUtils.clamp(outlet.x,-mapHalf()+.1,mapHalf()-.1);outlet.z=T.MathUtils.clamp(outlet.z,-mapHalf()+.1,mapHalf()-.1);return outlet;
+}
 function shoot(dt){if(player.weaponId==='boomerang'&&bullets.some(b=>b.kind==='boomerang'&&b.life>0))return;companion?.order(aimInput.angle,false);const w=mirage.modifyShot(weaponStats(player)),angle=aimInput.angle,targets=enemies.filter(visibleEnemy);if(boss&&visibleEnemy(boss))targets.push(boss);let nearest=null,d=w.range;
  if(w.id==='dark'&&player.weaponPath?.id==='dark_seek')for(const e of targets){const n=Math.hypot(e.x-player.x,e.z-player.z),direction=Math.atan2(e.x-player.x,e.z-player.z),diff=Math.atan2(Math.sin(direction-angle),Math.cos(direction-angle));if(n<d&&Math.abs(diff)<.26){nearest=e;d=n;}}
  const relicShot=relicEvent(player,'shot',time);if(relicShot?.kind==='power'){w.damage*=relicShot.multiplier;impactChips(player.x,player.z,0xffe3a3,2);}
@@ -344,6 +357,11 @@ function shoot(dt){if(player.weaponId==='boomerang'&&bullets.some(b=>b.kind==='b
   let safe=0;for(let d=.12;d<=distance+.12;d+=.12){const reach=Math.min(d,distance),x=player.x+Math.sin(angle)*reach,z=player.z+Math.cos(angle)*reach;if(!clearAt(world,x,z,.12))break;safe=reach;}
   poison.cast(w,player,angle,{x:player.x+Math.sin(angle)*safe,z:player.z+Math.cos(angle)*safe});hero.userData.attackAngle=angle;heroSkills.onShot(angle,dt);resolveRelic(relicShot,player.x,player.z,angle,w.range);return;
  }
+ if(w.id==='shadowblade'){
+  const origin={x:player.x,y:(player.y||0)+eyeHeight*.65*(1-.45*(player.crouch||0)),z:player.z},v=launchVelocity(origin,weaponAim(w),1);
+  player.melee=beginScythe(player,w,time,v.angle,Math.atan2(v.vy,Math.hypot(v.vx,v.vz)));hero.userData.scytheCombo=player.melee.combo;hero.userData.attackAngle=v.angle;
+  heroSkills.onShot(v.angle,dt);resolveRelic(relicShot,player.x,player.z,v.angle,w.range);return;
+ }
  if(w.id==='harpoon'){const aim=weaponAim(w),origin={x:player.x,y:(player.y||0)+eyeHeight*.65*(1-.45*(player.crouch||0)),z:player.z},direction=launchVelocity(origin,aim,1);hero.userData.attackAngle=direction.angle;player.braceUntil=time+.30;const combo=(player.harpoonCount||0)%3,move=HARPOON_ATTACKS[combo];player.harpoonCount=(player.harpoonCount||0)+1;hero.userData.harpoonCombo=combo;player.melee={angle:direction.angle,hitAt:time+Math.min(.48,.9/w.rate)*.34,w:{...w,range:w.range*move.reach},harpoon:true,pitch:Math.atan2(direction.vy,Math.hypot(direction.vx,direction.vz)),combo,tow:combo===2};const focus=harpoonTargets(player.melee).sort((e,q)=>Math.hypot(e.x-player.x,e.z-player.z)-Math.hypot(q.x-player.x,q.z-player.z))[0];hero.userData.harpoonTarget=focus?harpoonContact(focus):harpoonSegment(player.melee).end;weaponRouteEffect(vfx,w,'cast',player.x,player.z,angle,{combo});resolveRelic(relicShot,player.x,player.z,angle,w.range);return;}
  if(w.id==='grimoire'){
   let distance=attackMode==='manual'?Math.hypot(groundAim(adventureCamera.getRay(),player,w.range,adventureCamera.yaw).x-player.x,groundAim(adventureCamera.getRay(),player,w.range,adventureCamera.yaw).z-player.z):w.range,nearestDistance=distance;
@@ -353,15 +371,28 @@ function shoot(dt){if(player.weaponId==='boomerang'&&bullets.some(b=>b.kind==='b
   riftStrikes.push({x,z,r:w.radius,damage:w.damage,echo:w.echo,delay:.28,angle,w,echoing:false});vfx.riftCast(x,z,w.radius,angle,false);weaponRouteEffect(vfx,w,'cast',x,z,angle,{radius:w.radius});sound.shot(w.id);heroSkills.onShot(angle,dt);resolveRelic(relicShot,player.x,player.z,angle,w.range);return;
  }
  const visualHits=new Set(),spatial=true;
- const shotOrigin={x:player.x,y:(player.y||0)+Math.max(.4,eyeHeight*.76*(1-.45*(player.crouch||0))),z:player.z};
+ const shotOrigin=weaponLaunchPoint(w.id);
  const focus=weaponAim(w);
  const velocity=launchVelocity(shotOrigin,focus,w.speed);
- for(let i=0;i<w.count;i++){const a=angle+(i-(w.count-1)/2)*w.spread,range=visibleWeaponRange(a,w.range),m=vfx.projectile(w);m.position.set(player.x,shotOrigin.y,player.z);m.rotation.order='YXZ';m.rotation.y=a;if(['boomerang','miasmalantern'].includes(w.id))m.visible=false;scene.add(m);const spread=a-angle,cs=Math.cos(spread),sn=Math.sin(spread),vx=spatial?velocity.vx*cs+velocity.vz*sn:Math.sin(a)*w.speed,vz=spatial?velocity.vz*cs-velocity.vx*sn:Math.cos(a)*w.speed;
- bullets.push({aimPoint:{...focus},spatial,height:shotOrigin.y,vy:spatial?velocity.vy:0,releaseDelay:w.id==='miasmalantern'?mirageShotDelay(w.rate):w.id==='boomerang'?Math.min(.55,.9/w.rate)*.24:0,w,mesh:m,x:player.x,z:player.z,vx,vz,speed:w.speed,life:range/w.speed,damage:w.damage,kind:w.id,id:w.id,pathId:w.pathId,pathRank:w.pathRank,visualHits,hitRadius:w.hitRadius,hits:new Set(),pierce:w.pierce,maxPierce:w.pierce,target:nearest,radius:w.radius,bounces:w.bounces,burn:w.burn,gravity:w.gravity,markDamage:w.markDamage,markRadius:w.markRadius,returnable:w.returning,returning:false,elapsed:0,turnAt:range/w.speed,trail:0});}
+ for(let i=0;i<w.count;i++){const a=angle+(i-(w.count-1)/2)*w.spread,range=visibleWeaponRange(a,w.range),m=vfx.projectile(w);m.position.copy(shotOrigin);m.rotation.order='YXZ';m.rotation.y=a;if(['boomerang','miasmalantern'].includes(w.id))m.visible=false;scene.add(m);const spread=a-angle,cs=Math.cos(spread),sn=Math.sin(spread),vx=spatial?velocity.vx*cs+velocity.vz*sn:Math.sin(a)*w.speed,vz=spatial?velocity.vz*cs-velocity.vx*sn:Math.cos(a)*w.speed;
+ bullets.push({aimPoint:{...focus},spatial,height:shotOrigin.y,vy:spatial?velocity.vy:0,releaseDelay:w.id==='miasmalantern'?mirageShotDelay(w.rate):w.id==='boomerang'?Math.min(.55,.9/w.rate)*.24:0,w,mesh:m,x:shotOrigin.x,z:shotOrigin.z,vx,vz,speed:w.speed,life:range/w.speed,damage:w.damage,kind:w.id,id:w.id,pathId:w.pathId,pathRank:w.pathRank,visualHits,hitRadius:w.hitRadius,hits:new Set(),pierce:w.pierce,maxPierce:w.pierce,target:nearest,radius:w.radius,bounces:w.bounces,burn:w.burn,gravity:w.gravity,markDamage:w.markDamage,markRadius:w.markRadius,returnable:w.returning,returning:false,elapsed:0,turnAt:range/w.speed,trail:0});}
  if(w.id==='miasmalantern')mirageSound(sound,'mirageCharge');
- if(!['boomerang','miasmalantern'].includes(w.id)){vfx.muzzle(w,player.x,player.z,angle,shotOrigin.y);weaponRouteEffect(vfx,w,'cast',player.x+Math.sin(angle)*.65,player.z+Math.cos(angle)*.65,angle);sound.shot(w.id);}heroSkills.onShot(angle,dt);resolveRelic(relicShot,player.x,player.z,angle,w.range);
+ if(!['boomerang','miasmalantern'].includes(w.id)){vfx.muzzle(w,shotOrigin.x,shotOrigin.z,velocity.angle,shotOrigin.y,true);weaponRouteEffect(vfx,w,'cast',shotOrigin.x,shotOrigin.z,velocity.angle);sound.shot(w.id);}heroSkills.onShot(angle,dt);resolveRelic(relicShot,player.x,player.z,angle,w.range);
 }
-function updateMelee(){const strike=player.melee;if(!strike||strike.hitAt>time)return;player.lastHarpoon=strike;player.melee=null;sound.shot('harpoon',strike.combo);meleeTerrain(strike.angle,strike.w.range,strike.w.damage,.65);resolveHarpoon(strike);}
+function updateMelee(){const strike=player.melee;if(!strike||strike.hitAt>time)return;player.melee=null;if(strike.scythe){resolveScythe(strike);return;}player.lastHarpoon=strike;sound.shot('harpoon',strike.combo);meleeTerrain(strike.angle,strike.w.range,strike.w.damage,.65);resolveHarpoon(strike);}
+function resolveScythe(strike){
+ const origin={x:player.x,y:(player.y||0)+eyeHeight*.65*(1-.45*(player.crouch||0)),z:player.z};
+ const blocked=(a,b)=>!!world.overhead.firstHit(a,b)||world.obstacles.some(o=>segmentHitsBody(a.x,a.y,a.z,b.x,b.y,b.z,o,.06));
+ sound.shot('shadowblade',strike.combo);vfx.scytheSlash(origin,strike);
+ meleeTerrain(strike.angle,strike.w.range,strike.w.damage,strike.w.arc);
+ for(const e of[...enemies,...(boss?.alive?[boss]:[])]){
+  if(!scytheHits(origin,e,strike,blocked))continue;
+  const hit=scytheDamage(player,e,strike,time),contact=closeContact(bodyContact(origin.x,origin.y,origin.z,e.x,Math.max(e.y||0,Math.min((e.y||0)+e.height,origin.y+Math.tan(strike.pitch)*Math.hypot(e.x-origin.x,e.z-origin.z))),e.z,e,.08));
+  hurtEnemy(e,hit.damage,true,{kind:'shadowblade',angle:strike.angle});if(state!=='playing')return;heroSkills.onHit(e);
+  vfx.bladeImpact(e.x,e.z,strike.angle,true,contact);weaponRouteEffect(vfx,strike.w,'hit',e.x,e.z,strike.angle,{contact,empowered:hit.mark||strike.empowered});sound.impact('shadowblade',strike.combo===2||hit.mark,strike.combo,e.x-player.x,e.z-player.z);
+  if(e.alive){e.slow=Math.max(e.slow||0,strike.combo===2?.5:0);if(e!==boss)e.stagger=Math.max(e.stagger||0,.13);}
+ }
+}
 // Only the slow lantern orb uses a terminal burst. The other projectiles keep their existing behavior.
 function stepMirageOrb(b,dt,foes){
  const travel=Math.min(dt,Math.max(0,b.life)),start={x:b.x,y:b.height,z:b.z},end={x:b.x+b.vx*travel,y:b.height+b.vy*travel,z:b.z+b.vz*travel};
@@ -424,6 +455,7 @@ function dash(){
  player.dashTime=HERO_DODGES[heroId]?.duration||(heroId==='scout'?SCOUT_ROLL_DURATION:.24);player.diveCancelArmed=!aimInput.held;player.diveWantsExit=false;
  if(heroId==='mirage'){mirage.startDodge(player.x,player.z,hero.rotation.y,weaponStats(player));mirageVFX.update(mirage,player,hero);hero.userData.cancelAttack=true;hero.userData.reloadDuration=0;}
  if(heroId==='wuling'){poison.beginDodge(player.x,player.z);hero.userData.cancelAttack=true;hero.userData.reloadDuration=0;}
+ if(player.weaponId==='shadowblade'){player.melee=null;player.scytheStepUntil=time+player.dashTime+2;hero.userData.cancelAttack=true;}
  if(heroId==='tide'){player.melee=null;player.lastMeleeAt=-100;player.attack=0;hero.userData.reloadDuration=0;hero.userData.cancelAttack=true;}
  if(player.huntBoon==='rush'){player.huntRush=4;vfx.rise(player.x,player.z,0xf1d58c,.6);}player.dashAngle=angle;heroSkills.onDodge(player.dashTime);applyRelicEvent('dodge',player.x,player.z);if(state!=='playing')return;
  if(heroId==='silver'||heroId==='wraith'){const ox=player.x,oz=player.z;for(let d=heroId==='wraith'?4.7:5.5;d>0;d-=.2){const x=ox+Math.sin(angle)*d,z=oz+Math.cos(angle)*d;if(clearAt(world,x,z,.45)){player.x=x;player.z=z;break;}}adventureCamera._ready=false;if(heroId==='wraith'){vfx.shadowStep(ox,oz,player.x,player.z);}else{burst('dark',ox,oz,1.3,true);burst('dark',player.x,player.z,1.5,true);}}
@@ -642,7 +674,7 @@ function update(dt){const rollStart=['scout','wuling','mirage'].includes(heroId)
  if((attackMode==='auto'?!!autoTarget&&aligned&&(!touch||aimInput.held):aimInput.held&&(!['crossbow','harpoon'].includes(player.weaponId)||aligned))&&player.attack<=0&&player.dashTime===0&&!mirage.hidden)shoot(dt);if(state!=='playing')return;updateMelee(dt);if(state!=='playing')return;updateBattleFlow(dt);if(state!=='playing')return;
  updateRiftStrikes(dt);if(state!=='playing')return;updateFields(dt);updateVents();if(state!=='playing')return;updateEnemies(dt);if(state!=='playing')return;updateBoss(dt);if(state!=='playing')return;
  const targets=()=>[...enemies,...(boss?.alive?[boss]:[])];
- for(const b of bullets){if(b.releaseDelay>0){if(player.dashTime>0||mirage.hidden){b.life=0;continue;}b.releaseDelay-=dt;b.x=player.x;b.z=player.z;if(b.releaseDelay>0)continue;hero.updateMatrixWorld(true);const origin=b.kind==='miasmalantern'?(hero.userData.gun.userData.heart||hero.userData.gun):hero.userData.gun,release=origin.getWorldPosition(new T.Vector3());if(clearAt(world,release.x,release.z,b.hitRadius)){b.x=release.x;b.z=release.z;}b.height=release.y;Object.assign(b,launchVelocity({x:b.x,y:b.height,z:b.z},b.aimPoint,b.speed));b.mesh.visible=true;companion?.order(Math.atan2(b.vx,b.vz));vfx.muzzle(b,b.x-Math.sin(Math.atan2(b.vx,b.vz))*.65,b.z-Math.cos(Math.atan2(b.vx,b.vz))*.65,Math.atan2(b.vx,b.vz),b.height);weaponRouteEffect(vfx,b,'cast',b.x,b.z,Math.atan2(b.vx,b.vz),{empowered:!!b.w?.miragePursuit});if(b.kind==='miasmalantern'){mirageVFX.event({kind:'mirageShot',x:b.x,z:b.z,angle:Math.atan2(b.vx,b.vz)});mirageSound(sound,'mirageShot');}else sound.shot('boomerang');}if(b.kind==='miasmalantern'){stepMirageOrb(b,dt,targets());if(state!=='playing')return;continue;}if(b.returnable&&!b.returning&&b.turnAt===0)beginReturn(b);const ox=b.x,oy=b.height??1.15,oz=b.z,travelDt=Math.min(dt,Math.max(0,b.life));let redirected=false;b.elapsed+=travelDt;
+ for(const b of bullets){if(b.releaseDelay>0){if(player.dashTime>0||mirage.hidden){b.life=0;continue;}b.releaseDelay-=dt;b.x=player.x;b.z=player.z;if(b.releaseDelay>0)continue;const release=weaponLaunchPoint(b.kind);b.x=release.x;b.z=release.z;b.height=release.y;Object.assign(b,launchVelocity({x:b.x,y:b.height,z:b.z},b.aimPoint,b.speed));b.mesh.visible=true;companion?.order(Math.atan2(b.vx,b.vz));vfx.muzzle(b,b.x,b.z,Math.atan2(b.vx,b.vz),b.height,true);weaponRouteEffect(vfx,b,'cast',b.x,b.z,Math.atan2(b.vx,b.vz),{empowered:!!b.w?.miragePursuit});if(b.kind==='miasmalantern'){mirageVFX.event({kind:'mirageShot',x:b.x,z:b.z,angle:Math.atan2(b.vx,b.vz)});mirageSound(sound,'mirageShot');}else sound.shot('boomerang');}if(b.kind==='miasmalantern'){stepMirageOrb(b,dt,targets());if(state!=='playing')return;continue;}if(b.returnable&&!b.returning&&b.turnAt===0)beginReturn(b);const ox=b.x,oy=b.height??1.15,oz=b.z,travelDt=Math.min(dt,Math.max(0,b.life));let redirected=false;b.elapsed+=travelDt;
  if(b.returning){const catchPoint={x:player.x,y:(player.y||0)+eyeHeight*.76*(1-.45*(player.crouch||0)),z:player.z},d=Math.hypot(catchPoint.x-b.x,catchPoint.y-b.height,catchPoint.z-b.z);if(d<Math.max(.65,b.speed*travelDt)){b.life=0;weaponRouteEffect(vfx,b,'catch',b.x,b.z,Math.atan2(b.vx,b.vz));if(b.kind==='boomerang'){hero.userData.catchTime=.2;sound.mechanism('boomerang',1);heroSkills.newHeroes.caught();}continue;}Object.assign(b,launchVelocity({x:b.x,y:b.height,z:b.z},catchPoint,b.speed));}
  else if(b.kind==='dark'&&b.target?.alive){const a=Math.atan2(b.target.x-b.x,b.target.z-b.z),blend=1-Math.exp(-dt*6);b.vx=T.MathUtils.lerp(b.vx,Math.sin(a)*b.speed,blend);b.vz=T.MathUtils.lerp(b.vz,Math.cos(a)*b.speed,blend);if(b.spatial){const v=launchVelocity({x:b.x,y:b.height,z:b.z},{x:b.target.x,y:(b.target.y||0)+(b.target.height||1.4)*.55,z:b.target.z},b.speed);b.vy=T.MathUtils.lerp(b.vy,v.vy,blend);}}
  b.x+=b.vx*travelDt;b.z+=b.vz*travelDt;if(b.spatial)b.height+=b.vy*travelDt;b.mesh.position.set(b.x,b.height??.82,b.z);if(b.spatial)b.mesh.rotation.x=-Math.atan2(b.vy,Math.hypot(b.vx,b.vz));if(['shuriken','shadowblade','boomerang'].includes(b.kind)){b.mesh.rotation.y+=dt*(b.kind==='boomerang'?(b.returning?-22:26):24);if(b.kind==='boomerang')b.mesh.rotation.z=Math.sin(b.elapsed*7)*.12;}else b.mesh.rotation.y=Math.atan2(b.vx,b.vz);const overheadHit=b.spatial&&!b.returning&&world.overhead.firstHit({x:ox,y:oy,z:oz},{x:b.x,y:b.height,z:b.z}),obstacle=!b.returning&&world.obstacles.find(o=>b.spatial?segmentHitsBody(ox,oy,oz,b.x,b.height,b.z,o,b.hitRadius):segmentDistance(o.x,o.z,ox,oz,b.x,b.z)<o.r+b.hitRadius),blocked=!b.returning&&(!!overheadHit||!!obstacle||b.spatial&&(b.height<.04||Math.abs(b.x)>mapHalf()-b.hitRadius||Math.abs(b.z)>mapHalf()-b.hitRadius)||!b.spatial&&!clearAt(world,b.x,b.z,b.hitRadius));if(blocked){if(obstacle?.tactic&&obstacle.state==='standing')terrainHit(obstacle,b.damage,{x:ox,z:oz});b.life=0;if(b.kind==='boomerang'){b.x=ox;b.z=oz;beginReturn(b);continue;}}

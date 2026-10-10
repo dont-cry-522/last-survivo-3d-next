@@ -1,11 +1,11 @@
-import{buildConfluence,biomeWeights}from'./confluence.js?v=124';
+import{buildConfluence,biomeWeights}from'./confluence.js?v=125';
 import{addTree}from'./tree-scenery.js?v=124';
 import{installTactics}from'./map-tactics.js?v=114';
-import{installRoaming}from'./roaming-events.js?v=120';
-import{installDiscoveries}from'./map-discoveries.js?v=120';
+import{installRoaming}from'./roaming-events.js?v=125';
+import{installDiscoveries}from'./map-discoveries.js?v=125';
 import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=114';
-import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=120';
-import{districtLayout,buildDistricts}from'./map-districts.js?v=120';
+import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=125';
+import{districtLayout,buildDistricts}from'./map-districts.js?v=125';
 import{makeCoastEnemy,animateCoastEnemy,coastProp}from'./coast-models.js?v=114';
 import{installCoast}from'./coast.js?v=114';
 import{coastLayout as buildCoastLayout}from'./coast-layout.js?v=114';
@@ -13,15 +13,15 @@ import{makeBoss,animateBoss,makeSandEnemy,animateSandEnemy}from'./expansion-mode
 import{siteSchedule}from'./site-discovery.js?v=114';
 import{MAP_EVENTS,biomeEvent,eventNodes}from'./map-events.js?v=114';
 import{MAP_HALF,MAP_SCALE}from'./map-layout.js?v=114';
-import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=124';
+import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=125';
 import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=120';
 import{polishEnemyAppearance}from'./enemy-appearance.js?v=120';
 import{REGIONAL_ENEMIES}from'./map-enemies.js?v=114';
 import{groundCue}from'./ground-cues.js?v=114';
-import{heroesReady,createSkinnedHero,animateSkinnedHero}from'./skinned-hero.js?v=123';
+import{heroesReady,createSkinnedHero,animateSkinnedHero}from'./skinned-hero.js?v=125';
 import * as T from './vendor/three.module.js';
-import{makeHero,animateHero}from'./hero-model.js?v=114';
-import{MAPS,seeded}from'./rules.js?v=114';
+import{makeHero,animateHero}from'./hero-model.js?v=125';
+import{MAPS,seeded}from'./rules.js?v=125';
 const geo=new Map(),materials=new Map(),terrainMaterials=new Map(),detailMaterials=new Map(),weatherMaterials=new Map();
 let fireflyTexture;
 function softFirefly(){

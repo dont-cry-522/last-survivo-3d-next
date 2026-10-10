@@ -1,7 +1,7 @@
 import{test}from'node:test';import assert from'node:assert/strict';import * as T from'../vendor/three.module.js';
 import{buildWorld,clearAt,animateWorld}from'../world.js';import{sceneryAllowed}from'../biome-scenery.js';
 import{bridgeContains,updateTide}from'../coast.js';import{waterDepth}from'../water.js';
-import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=120';
+import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=125';
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
 function dispose(w){w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});}
 test('worn rocks reuse a bounded smooth mesh and preserve placed obstacle transforms',()=>{

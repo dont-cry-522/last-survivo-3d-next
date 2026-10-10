@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import{finishRock,installGroundSurface}from'./biome-scenery.js?v=120';
+import{finishRock,installGroundSurface}from'./biome-scenery.js?v=125';
 import{surfaceUniforms}from'./surface-textures.js?v=120';
 
 // Shared rounded edges catch side light without adding meshes or changing collision footprints.

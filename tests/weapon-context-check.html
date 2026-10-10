@@ -10,7 +10,7 @@
 <div class="controls"><select id="weapon" aria-label="选择人物与武器"></select><select id="mix" aria-label="声音对比"><option value="A">A · 当前版</option><option value="B">B · 减轻出手与装填</option><option value="C">C · 减轻命中与受击</option></select><button id="listen" disabled>播放所选片段</button><button id="compare" disabled>依次听 A / B / C</button><button id="stop" disabled>停止</button></div>
 <p id="status" role="status">正在载入真实游戏…</p><div id="view"></div><details><summary>开发检查与对比记录</summary><button id="run" disabled>运行动作音效检查</button><pre id="report">等待开始。</pre><pre id="comparison">尚未比较。</pre></details>
 <script type="module">
-import{HERO_LOADOUTS,WEAPONS}from'../rules.js?v=114';
+import{HERO_LOADOUTS,WEAPONS}from'../rules.js?v=125';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),assert=(ok,message)=>{if(!ok)throw Error(message);};
 const heroNames={scout:'游侠',silver:'霜影',wraith:'影裔',tide:'潮行者',lingya:'铃芽',wuling:'雾苓',mirage:'蜃影'};
 for(const[hero,ids]of Object.entries(HERO_LOADOUTS))for(const[idIndex,id]of ids.entries()){const o=document.createElement('option');o.value=hero+':'+idIndex;o.textContent=heroNames[hero]+' · '+WEAPONS[id].name;$('#weapon').append(o);}

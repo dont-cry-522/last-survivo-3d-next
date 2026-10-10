@@ -23,8 +23,8 @@ export const WEAPON_ROUTE_LOOKS=Object.freeze({
  dark_seek:look('dark','追魂魔矢','紫黑彗尾包住淡紫核心，命中留下短尾迹',['cast','hit']),
  shade_echo:look('shade','残响弹射','转折碎影与已完成弹射路径的短暂连线',['bounce']),
  shade_blight:look('shade','蚀影刻印','逐击加深的刻痕，第三击向外撕开',['mark']),
- shadowblade_fan:look('shadowblade','双月分影','出手时分离的双层月白镰影',['cast','hit']),
- shadowblade_return:look('shadowblade','追魂弧刃','折返镰影拖出暗色回声，返程留下反向裂痕',['turn','hit','catch']),
+ shadowblade_fan:look('shadowblade','横月收割','近战横斩更宽，命中留下月白切痕',['cast','hit']),
+ shadowblade_return:look('shadowblade','断魂重镰','重击命中留下厚重暗影裂痕',['hit']),
  grimoire_wide:look('grimoire','裂界之页','裂口两翼向外展开的裂页和碎纸',['cast','hit']),
  grimoire_echo:look('grimoire','复诵禁咒','窄裂页留下余痕，二次爆发重新撕开双层裂缝',['cast','hit','echo']),
  harpoon_reef:look('harpoon','破礁长锋','三叉形窄穿刺与低位礁石碎片',['hit']),
@@ -191,7 +191,6 @@ export function weaponRouteEffect(vfx,w,phase,x,z,angle=0,detail={}){
   else curl(0xa4b3c6,.02,0,.95,.38,.27,{rotation:-.5,roll:2,life:.19,priority:1,opacity:.62});
   break;
  case'shadowblade_return':
-  if(phase==='hit'&&!detail.returning)return false;
   curl(0xb4c2d1,0,0,.95,.52*level,.42,{rotation:phase==='hit'?-.65:-Math.PI/2,roll:-2.4,priority:1,opacity:.76});
   curl(0x253346,-.14,.13,.9,.38,.3,{roll:-1.9,life:.32,opacity:.43});
   break;

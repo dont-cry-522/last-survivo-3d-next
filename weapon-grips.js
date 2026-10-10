@@ -50,7 +50,7 @@ export function aimSupportGrip(d,blend){orient(d.support.hand,d.handGrips.suppor
 
 export function poseGripFingers(d,motion={}){
   const id=d.weaponId,h=d.handGrips,hasSupport=['rifle','shotgun','crossbow','harpoon','hammer'].includes(id);
-  const released=id==='boomerang'&&d.boomerangAway?1-(d.catchReady||0):['shuriken','shadowblade'].includes(id)?(motion.kick||0):0;
+  const released=id==='boomerang'&&d.boomerangAway?1-(d.catchReady||0):id==='shuriken'?(motion.kick||0):0;
   for(const {bone,side,name,i}of h.fingers){
     if(side==='l'&&!hasSupport&&id!=='sporelantern')continue;
     const release=side==='r'?released:id==='sporelantern'?(motion.kick||0):0;

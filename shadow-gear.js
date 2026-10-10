@@ -1,5 +1,4 @@
 import * as T from './vendor/three.module.js';
-import {shadowCrescentGeometry,shadowCrescentEdge} from './shadow-weapons.js?v=114';
 
 const geometry=new Map(),materials=new Map();
 function part(parent,key,create,color,position=[0,0,0],scale=[1,1,1],glow=false){
@@ -10,14 +9,9 @@ function part(parent,key,create,color,position=[0,0,0],scale=[1,1,1],glow=false)
 function line(parent,color,points,radius=.006,glow=false){
  return part(parent,'line:'+radius+JSON.stringify(points),()=>new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),24,radius,6,false),color,undefined,undefined,glow);
 }
-function brokenEdge(){
- const positions=[],indices=[];
- for(const [start,end]of [[1,6],[9,14],[18,23]])for(let i=start;i<end;i++){
-  const a=shadowCrescentEdge[i],b=shadowCrescentEdge[i+1],dx=b.x-a.x,dz=b.y-a.y,length=Math.hypot(dx,dz),x=-dz/length*.0025,z=dx/length*.0025,n=positions.length/3;
-  positions.push(a.x-x,.010,.11+a.y-z,a.x+x,.010,.11+a.y+z,b.x-x,.010,.11+b.y-z,b.x+x,.010,.11+b.y+z);
-  indices.push(n,n+1,n+2,n+2,n+1,n+3);
- }
- const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setIndex(indices);g.computeVertexNormals();return g;
+function warScytheBlade(){
+ const shape=new T.Shape();shape.moveTo(-.045,.03);shape.bezierCurveTo(.32,.36,.94,.32,1.06,-.45);shape.bezierCurveTo(.80,.01,.45,.12,.03,-.04);shape.closePath();
+ return new T.ExtrudeGeometry(shape,{depth:.025,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:.008,bevelThickness:.008,curveSegments:18});
 }
 function riftShards(){
  const outlines=[[-.11,1.4,-.76,.57,-.52,-.45,-.17,-1.2,-.03,-.35,-.22,.18,.02,.70],[.20,1.18,.62,.51,.74,-.38,.23,-1.45,.11,-.40,.25,.20,.12,.63]];
@@ -27,9 +21,12 @@ function riftShards(){
 export function shadowFocus(id){
  const g=new T.Group();g.name='shadow-focus-'+id;
  if(id==='shadowblade'){
-  line(g,0x222128,[[-.10,-.035,.02],[.09,-.035,.02],[.14,-.015,.02]],.018);
-  part(g,'crescent',()=>shadowCrescentGeometry,0x101017,[0,-.01,.11]).rotation.x=Math.PI/2;
-  part(g,'broken-crescent-edge',brokenEdge,0xb9c4cb,undefined,undefined,true);
+  // A held war-scythe: wrapped shaft, offset socket, curved metal blade and a narrow silver edge.
+  line(g,0x242733,[[0,-.48,.02],[0,.05,.02],[.025,.72,.02]],.030);
+  for(let i=0;i<5;i++)part(g,'scythe-wrap',()=>new T.TorusGeometry(.032,.007,4,10),0x747582,[0,-.10+i*.048,.02]).rotation.x=Math.PI/2;
+  part(g,'scythe-socket',()=>new T.SphereGeometry(1,8,6),0x738294,[.025,.70,.02],[.065,.09,.06]);
+  const blade=part(g,'war-scythe',warScytheBlade,0x4c586b,[.015,.70,.02]);blade.material.roughness=.44;blade.material.metalness=.42;blade.material.emissive.setHex(0x18202a);blade.material.emissiveIntensity=.18;
+  line(g,0xc2cbd5,[[.045,.66,.05],[.33,.71,.05],[.62,.67,.05],[.86,.51,.05],[1.075,.25,.05]],.009);
  }else if(id==='grimoire'){
   for(const sign of [-1,1]){
    const leaf=new T.Group();leaf.rotation.z=sign*.18;leaf.position.set(0,.075,.06);g.add(leaf);

@@ -1,6 +1,9 @@
 import{POISON}from'./poison-config.js?v=114';
 import{MIRAGE}from'./mirage-config.js?v=114';
 export const EXTRA_SKILLS=[
+ {id:'scythe_mark',hero:'wraith',weapon:'shadowblade',name:'冥镰刻痕',icon:'⋀',max:3,describe:r=>`断魂战镰在同一目标身上连续命中三次（相邻间隔不超过 3 秒），第三次额外造成 ${18+10*r} 伤害，随后清空刻痕；不由其他技能叠层。`},
+ {id:'scythe_step',hero:'wraith',weapon:'shadowblade',name:'影步斩',icon:'↝',max:3,describe:r=>`影步结束后 2 秒内第一次战镰攻击，伤害提高 ${20*r}%；空挥也会消耗机会，不提供额外无敌。`},
+ {id:'scythe_reap',hero:'wraith',weapon:'shadowblade',name:'残月收割',icon:'☽',max:3,describe:r=>`断魂战镰命中生命不高于 30% 的敌人时，本次斩击伤害提高 ${15*r}%；对首领也有效，不直接处决。`},
  {id:'mirage_residue',hero:'mirage',name:'残蛊',icon:'♧',max:3,describe:r=>`毒团命中、扩散波及或接触己方蜃雾后，留下每秒 ${MIRAGE.residueDps[r]} 伤害、${MIRAGE.residueDuration[r]} 秒的残蛊。刷新不叠层；区域内只受最强蜃雾，区域外附毒、残蛊、诱葬只取最强一份，不触发技能或遗物连锁。`},
  {id:'mirage_burial',hero:'mirage',name:'诱葬',icon:'❧',max:3,describe:r=>`仅替身自然结束的绽爆，为范围内存活敌人附上每秒 ${MIRAGE.burialDps[r]} 伤害、${MIRAGE.burialDuration} 秒的毒蚀并减速 ${MIRAGE.burialSlow[r]} 秒。替身被杀或被新替身替换时不触发；区域内不叠加，离区与其他附着毒取高。`},
  {id:'mirage_mantle',hero:'mirage',name:'蜃衣',icon:'◇',max:3,describe:r=>`蜕影遁形结束并显形时，获得 ${MIRAGE.shield[r]} 点护盾，${MIRAGE.shieldDuration} 秒失效；独立间隔 ${MIRAGE.shieldCooldown} 秒。取高不相加，无回血或追加无敌；是否绽爆不影响显形护盾。`},

@@ -1,4 +1,4 @@
-import{installForestBackdrop}from'./tree-scenery.js?v=137';
+import{installForestBackdrop}from'./tree-scenery.js?v=139';
 import * as T from './vendor/three.module.js';
 
 // The same three lights serve every climate; transitions do not allocate lights or shadow maps.

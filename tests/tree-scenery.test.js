@@ -134,6 +134,17 @@ test('forest canopy LOD preserves the silhouette, shadow material and mesh ident
  const snow=addTree(new T.Group(),'snow',4),geometry=snow.geometry;updateTreeDetail(snow,0,0);assert.strictEqual(snow.geometry,geometry);
 });
 
+test('close-up leaves stay small and gently folded before canopy scaling',()=>{
+ for(const angle of[0,1,1.5]){
+  const leaf=addTree(new T.Group(),'forest',4,{angle}),baseCount=leaf.geometry.attributes.position.count;
+  updateTreeDetail(leaf,5,0);const p=leaf.geometry.attributes.position,a=new T.Vector3(),b=new T.Vector3();
+  for(let i=baseCount;i<p.count;i+=6){
+   a.fromBufferAttribute(p,i);b.fromBufferAttribute(p,i+3);assert(a.distanceTo(b)<.185,'one near leaf becomes a large pointed sheet');
+   const box=new T.Box3();for(let j=0;j<6;j++)box.expandByPoint(a.fromBufferAttribute(p,i+j));assert(box.getSize(b).length()<.22);
+  }
+ }
+});
+
 test('forest backdrop stays beyond play bounds, batches at most 240 trees and releases only instances',()=>{
  const geometries=new Set(),materials=new Set();
  for(let repeat=0;repeat<2;repeat++){

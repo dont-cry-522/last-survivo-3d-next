@@ -27,3 +27,21 @@ test('forest districts preserve seeded gameplay, shared assets and destructible 
   w.group.traverse(m=>{if(m.isInstancedMesh)m.dispose();if(m.userData.ownedGeometry)m.geometry.dispose();});assert(layer.userData.disposed);
  }
 });
+
+test('elder upper twigs follow the enlarged crown and floor tint never raises terrain',()=>{
+ for(const map of['forest','confluence']){
+  const w=buildWorld(map,43837033);installForestVista(w,map);
+  const ground=w.ground.geometry,positions=ground.attributes.position.array.slice(),colors=ground.attributes.color.array.slice();
+  const originals=new Map(w.obstacles.filter(o=>o.mesh.getObjectByName('tree-canopy')).map(o=>{const t=o.mesh.getObjectByName('tree-trunk'),c=o.mesh.getObjectByName('tree-canopy');return[o,{p:t.geometry.attributes.position,y:t.scale.y,base:c.position.y}];}));
+  const h=installForestHabitats(w,map),trunk=h.elder.mesh.getObjectByName('tree-trunk'),old=originals.get(h.elder),p=trunk.geometry.attributes.position;
+  let tips=0;for(let i=0;i<p.count;i++)if(old.p.getY(i)>4.1){
+   assert(Math.abs(p.getX(i)-old.p.getX(i)*1.70)<1e-5);assert(Math.abs(p.getZ(i)-old.p.getZ(i)*1.38)<1e-5);
+   const y=old.base*1.65+(old.p.getY(i)*old.y-old.base)*1.32;
+   assert(Math.abs(p.getY(i)*trunk.scale.y-y)<1e-5);tips++;
+  }assert(tips>10);
+  assert.deepEqual(ground.attributes.position.array,positions);assert.notDeepEqual(ground.attributes.color.array,colors);
+  for(let i=0;i<ground.attributes.position.count;i++)if(h.region&&!h.region.contains(positions[i*3],-positions[i*3+1]))assert.deepEqual(Array.from(ground.attributes.color.array.slice(i*3,i*3+3)),Array.from(colors.slice(i*3,i*3+3)));
+  let disposed=0;trunk.geometry.addEventListener('dispose',()=>disposed++);
+  w.group.traverse(m=>{if(m.isInstancedMesh)m.dispose();if(m.userData.ownedGeometry)m.geometry.dispose();});assert.equal(disposed,1);
+ }
+});

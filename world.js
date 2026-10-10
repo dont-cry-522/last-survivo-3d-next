@@ -1,6 +1,6 @@
 import{bodyTravel}from'./actor-collision.js?v=136';
-import{buildConfluence,biomeWeights}from'./confluence.js?v=137';
-import{addTree,updateTreeDetail}from'./tree-scenery.js?v=137';
+import{buildConfluence,biomeWeights}from'./confluence.js?v=139';
+import{addTree,updateTreeDetail}from'./tree-scenery.js?v=139';
 import{installTactics}from'./map-tactics.js?v=114';
 import{installRoaming}from'./roaming-events.js?v=134';
 import{installDiscoveries}from'./map-discoveries.js?v=135';
@@ -14,7 +14,7 @@ import{makeBoss,animateBoss,makeSandEnemy,animateSandEnemy}from'./expansion-mode
 import{siteSchedule}from'./site-discovery.js?v=114';
 import{MAP_EVENTS,biomeEvent,eventNodes}from'./map-events.js?v=114';
 import{MAP_HALF,MAP_SCALE}from'./map-layout.js?v=114';
-import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=137';
+import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=139';
 import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=120';
 import{polishEnemyAppearance}from'./enemy-appearance.js?v=120';
 import{REGIONAL_ENEMIES}from'./map-enemies.js?v=114';

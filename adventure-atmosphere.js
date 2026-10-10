@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {CLIMATE_LIGHT} from './environment-lighting.js?v=137';
+import {CLIMATE_LIGHT} from './environment-lighting.js?v=139';
 
 const cloudStrength={forest:.46,snow:.54,ash:.32,sand:.24,coast:.52};
 const vertexShader=`

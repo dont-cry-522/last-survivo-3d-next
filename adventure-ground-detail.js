@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
-import {forestHabitatAt} from './forest-habitats.js?v=138';
+import {forestHabitatAt} from './forest-habitats.js?v=139';
 import {bridgeContains} from './coast.js?v=114';
 import {naturalRockGeometry} from './biome-scenery.js?v=134';
 

@@ -163,8 +163,9 @@ function treeTemplate(id,variant){
    const a=branch*2.15+variant*.71,y=.08+branch*.32,r=.80+(branch%2)*.06;
    for(let twig=0;twig<3;twig++){
     const side=twig-1,angle=a+side*.53,reach=r+(twig===1?.18:-.06),rise=y+(twig===1?.17:side*.11);
-    const x=Math.cos(angle)*reach,z=Math.sin(angle)*reach,h=.51+(branch%2)*.06;
-    sprays.push([x,rise,z,twig===1?.66:.57,twig===1?.45:.39,h,angle+.16*side]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:rise+h*.24,z,branch});
+    const spread=variant===1?.86:1,depth=variant===2?.81:1;
+    const x=Math.cos(angle)*reach*spread,z=Math.sin(angle)*reach*depth,h=(.51+(branch%2)*.06)*(variant===1?1.12:1);
+    sprays.push([x,rise+(variant===2?Math.sin(a)*.19:0),z,(twig===1?.66:.57)*spread,(twig===1?.45:.39)*depth,h,angle+.16*side]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:rise+h*.24,z,branch});
    }
   }
   for(let j=0;j<3;j++){
@@ -207,9 +208,9 @@ function detailedCrown(template,level){
   const center=new T.Vector3(x+Math.cos(angle)*width*.34,y+height*(.24+.22*Math.sin(spray*1.9+phase)),z+Math.sin(angle)*depth*.40);
   for(let leaf=0;leaf<count;leaf++){
    const a=leaf*2.399+phase,r=Math.sqrt((leaf+.5)/count),cx=Math.cos(a)*r*width*.68,cy=Math.sin(a)*r*depth*.91;
-   const direction=a*.47+spray,co=Math.cos(direction),si=Math.sin(direction),length=.18+.07*(.5+.5*Math.sin(leaf*7+phase)),w=length*.28,first=p.length/3;
+   const direction=a*.47+spray,co=Math.cos(direction),si=Math.sin(direction),length=.11+.055*(.5+.5*Math.sin(leaf*7+phase)),w=length*.24,first=p.length/3;
    // Six vertices, six triangles: raised midrib and drooping tip retain a smooth folded profile.
-   const shape=[[0,-length*.5,.035],[0,0,.060],[-w,0,.016],[0,length*.55,-.016],[w,0,.016],[0,length*.25,.036]];
+   const shape=[[0,-length*.5,length*.07],[0,0,length*.12],[-w,0,length*.025],[0,length*.55,-length*.04],[w,0,length*.025],[0,length*.25,length*.065]];
    for(const [i,[lx,ly,bow]]of shape.entries()){
     point.copy(center).addScaledVector(across,cx+lx*co-ly*si).addScaledVector(along,cy+lx*si+ly*co).addScaledVector(normal,bow+height*.065);
     p.push(point.x,point.y-template.bottom,point.z);uv.push(u,v);

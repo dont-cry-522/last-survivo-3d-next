@@ -5,7 +5,7 @@ import{coastLayout}from'./coast-layout.js?v=114';
 import{swimStroke,swimLimb,HERO_SWIM,heroSwimPose,swimTravel}from'./swim-motion.js?v=114';
 import{newHeroAttack}from'./new-hero-motion.js?v=114';
 import{naturalRockGeometry,environmentDetailTexture}from'./biome-scenery.js?v=134';
-import{CLIMATE_LIGHT}from'./environment-lighting.js?v=137';
+import{CLIMATE_LIGHT}from'./environment-lighting.js?v=139';
 import * as T from './vendor/three.module.js';
 const clamp=T.MathUtils.clamp;
 const shore=a=>1+.07*Math.sin(a*3)+.045*Math.cos(a*5);
@@ -98,7 +98,7 @@ function waterSurface(id){
     diffuseColor.rgb+=vec3(.56,.73,.70)*light*(1.0-edge*.35)+vec3(.017,.023,.018)*shoreLap;
     // Lapping shifts only the inner fade: the visible shore never exceeds the gameplay boundary.
     // Forest shallows use the shaded bed above, not a broad window onto sunlit yellow ground.
-    diffuseColor.a*=(${id==='forest'?'.92+depth*.04':'.64+depth*.30'})*(1.0-smoothstep(${id==='forest'?'.92+shoreGrain.y*.04':'.80+shoreGrain.y*.12'}+shoreLap*.012,1.0,radial));
+    diffuseColor.a*=(${id==='forest'?'.92+depth*.04':'.64+depth*.30'})*(1.0-smoothstep(${id==='forest'?'.955+shoreGrain.y*.025':'.80+shoreGrain.y*.12'}+shoreLap*.012,1.0,radial));
 `);
    shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=.23+edge*.29+(.5-waterFlow.y)*.065;');
    shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
@@ -117,7 +117,7 @@ function waterSurface(id){
     vec3 reflectedSky=mix(waterHorizon,waterSky,smoothstep(.02,.72,waterReflection.y));
     reflectedSky*=.88+waterFlow.y*.12+shoreGrain.x*.05;
     float reflectionBreak=.78+waterFlow.x*.22;
-    ${id==='forest'?'outgoingLight-=totalSpecular*(1.0-smoothstep(.16,.70,depth))*.55;':''}
+    ${id==='forest'?'outgoingLight-=totalSpecular*(1.0-smoothstep(.08,.65,depth))*.94;':''}
     outgoingLight=mix(outgoingLight,reflectedSky,(.035+waterFresnel*.43)*${id==='forest'?'smoothstep(.30,.95,depth)':'(.48+depth*.52)'}*reflectionBreak);
     #include <opaque_fragment>
    `);
@@ -140,7 +140,7 @@ function waterSurface(id){
    ${coast?'if(ownRadial>r+.0001)discard;':''}
   `);};
   bank.customProgramCacheKey=()=> 'pond-broken-wet-bank-'+id+(coast?'-union':'');
-  const reeds=new T.MeshStandardMaterial({color:id==='snow'?0x94a599:id==='coast'?0x7b8657:0x7e8954,roughness:1,vertexColors:true,side:T.DoubleSide}),stones=new T.MeshStandardMaterial({color:id==='snow'?0x9aaeb0:0x6c7a68,roughness:.94,vertexColors:true});
+  const reeds=new T.MeshStandardMaterial({color:id==='snow'?0x94a599:id==='coast'?0x7b8657:id==='forest'?0x526b48:0x7e8954,roughness:1,vertexColors:true,side:T.DoubleSide}),stones=new T.MeshStandardMaterial({color:id==='snow'?0x9aaeb0:0x6c7a68,roughness:.94,vertexColors:true});
   reeds.forceSinglePass=true;
   surfaces.set(id,{material,bank,reeds,stones,clock,coast});
  }
@@ -166,8 +166,34 @@ export function buildPonds(group,id,rnd,spawn,sites,locations=null){
  reeds.name='pond-reeds';stones.name='pond-shore-stones';
  for(const pond of ponds){const c=Math.cos(pond.angle),s=Math.sin(pond.angle),at=(a,r)=>{const k=shore(a)*r,lx=Math.cos(a)*pond.rx*k,lz=Math.sin(a)*pond.rz*k;return{x:pond.x+c*lx+s*lz,z:pond.z-s*lx+c*lz};};
   const submerged=point=>id==='coast'&&ponds.some(p=>p!==pond&&waterDepth(p,point.x,point.z)>.03);
-  for(let i=0;i<8;i++){const a=rnd()*Math.PI*2,point=at(a,1.015+rnd()*.05);if(submerged(point))continue;for(let j=0;j<3;j++){const h=.3+rnd()*.6;dummy.position.set(point.x+(rnd()-.5)*.3,h*.5,point.z+(rnd()-.5)*.3);dummy.rotation.set((rnd()-.5)*.4,rnd()*6,(rnd()-.5)*.4);dummy.scale.set(.035+rnd()*.025,h,.035);dummy.updateMatrix();reeds.setMatrixAt(ri++,dummy.matrix);}}
-  for(let i=0;i<6;i++){const point=at(rnd()*Math.PI*2,1.06),r=.16+rnd()*.3;if(submerged(point))continue;dummy.position.set(point.x,r*.25,point.z);dummy.rotation.set(rnd()*.3,rnd()*6,rnd()*.3);dummy.scale.set(r,.15+rnd()*.12,r*.8);dummy.updateMatrix();stones.setMatrixAt(si++,dummy.matrix);}
+  // Keep the same random draws and instance counts: only forest shore dressing
+  // groups into four uneven reed patches and three stone clusters.
+  const forest=id==='forest';let reedAnchor=0,stoneAnchor=0;
+  for(let i=0;i<8;i++){
+   let a=rnd()*Math.PI*2;const radial=1.015+rnd()*.05;
+   if(forest){if(i%2===0)reedAnchor=a;else a=reedAnchor+Math.sin(a)*.14;}
+   const point=at(a,radial);if(submerged(point))continue;
+   for(let j=0;j<3;j++){
+    const h=(.3+rnd()*.6)*(forest?(i%2===0?1.1:.68):1),spread=forest?.5:.3;
+    dummy.position.set(point.x+(rnd()-.5)*spread,h*.5,point.z+(rnd()-.5)*spread);
+    dummy.rotation.set((rnd()-.5)*.4,rnd()*6,(rnd()-.5)*.4);
+    dummy.scale.set((.035+rnd()*.025)*(forest?1.55:1),h,forest?.047:.035);dummy.updateMatrix();reeds.setMatrixAt(ri++,dummy.matrix);
+   }
+  }
+  for(let i=0;i<6;i++){
+   let a=rnd()*Math.PI*2;const r=.16+rnd()*.3;
+   if(forest){if(i%2===0)stoneAnchor=a;else a=stoneAnchor+.075+Math.sin(a)*.025;}
+   const point=at(a,forest?(i%2===0?1.035:1.065):1.06);if(submerged(point))continue;
+   dummy.position.set(point.x,r*.25,point.z);dummy.rotation.set(rnd()*.3,rnd()*6,rnd()*.3);
+   const scale=forest&&i%2?.55:1;dummy.scale.set(r*scale,(.15+rnd()*.12)*scale,r*.8*scale);dummy.updateMatrix();
+   if(forest){
+    // Seat the rotated/scaled rock itself, not its unscaled center, into the bank.
+    const positions=stoneGeometry.attributes.position,e=dummy.matrix.elements;let bottom=Infinity;
+    for(let k=0;k<positions.count;k++)bottom=Math.min(bottom,e[1]*positions.getX(k)+e[5]*positions.getY(k)+e[9]*positions.getZ(k)+e[13]);
+    dummy.position.y-=bottom+.035;dummy.updateMatrix();
+   }
+   stones.setMatrixAt(si++,dummy.matrix);
+  }
  }
  reeds.count=ri;stones.count=si;
  reeds.instanceMatrix.needsUpdate=true;stones.instanceMatrix.needsUpdate=true;reeds.receiveShadow=stones.receiveShadow=true;group.add(reeds,stones);

@@ -81,6 +81,27 @@ test('shore leaves bend and taper within the existing instances and preserve the
   group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
  }
 });
+test('forest shore plants and stones form uneven small clusters without adding geometry or deep-water props',()=>{
+ const matrix=new T.Matrix4(),point=new T.Vector3(),scale=new T.Vector3();
+ for(let seed=0;seed<20;seed++){
+  const group=new T.Group(),[pond]=buildPonds(group,'forest',seeded(seed),{x:-30,z:-30},[],[{x:2,z:4,rx:6,rz:5,angle:.3}]);
+  for(const [name,stride]of [['pond-reeds',6],['pond-shore-stones',2]]){
+   const batch=group.getObjectByName(name),points=[];
+   for(let i=0;i<batch.count;i++){
+    batch.getMatrixAt(i,matrix);point.setFromMatrixPosition(matrix);scale.setFromMatrixScale(matrix);points.push(point.clone());
+    assert(waterDepth(pond,point.x,point.z)<.12,'shore dressing drifted into swimming water');
+    assert(scale.x>0&&scale.y>0&&scale.z>0);assert(point.y<.55,'shore plant conceals near-ground combat');
+    if(name==='pond-shore-stones'){
+     const vertices=batch.geometry.attributes.position,vertex=new T.Vector3();let bottom=Infinity,top=-Infinity;
+     for(let j=0;j<vertices.count;j++){vertex.fromBufferAttribute(vertices,j).applyMatrix4(matrix);bottom=Math.min(bottom,vertex.y);top=Math.max(top,vertex.y);}
+     assert(bottom>=-.05&&bottom<=-.02,'transformed shore stone floats or sinks too far');assert(top>.04,'small shore stone disappeared underground');
+    }
+   }
+   for(let i=0;i<points.length;i+=stride)for(let j=i+1;j<i+stride;j++)assert(points[i].distanceTo(points[j])<1.55,'one small shoreline cluster became a uniform ring');
+  }
+  group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
+ }
+});
 test('forest wet sediment stays dark and neutral while other shore palettes retain their identity',()=>{
  const banks={};
  for(const id of['forest','snow','coast','sand']){

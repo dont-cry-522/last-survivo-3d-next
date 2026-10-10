@@ -20,7 +20,7 @@ const PROFILES={
  dark:{type:'staff',width:.64,height:1.36,depth:.40,x:.64,y:-.25,pitch:.04},
  shuriken:{type:'throw',width:.58,height:.85,depth:.44,x:.56,y:-.57,pitch:.60},
  boomerang:{type:'throw',width:.73,height:1,depth:.48,x:.46,y:-.48,pitch:.72},
- shadowblade:{type:'scythe',width:.80,height:1.50,depth:.70,x:-.18,y:-.62,pitch:.12,support:SCYTHE_SUPPORT},
+ shadowblade:{type:'scythe',width:.60,height:1.16,depth:.70,x:.42,y:-.80,pitch:.12,support:SCYTHE_SUPPORT},
  shade:{type:'palm',width:.42,height:.72,depth:.35,x:.42,y:-.48,pitch:.12},
  grimoire:{type:'book',width:.74,height:.66,depth:.44,x:.01,y:-.47,pitch:.42,grip:[-.15,.01,.065],support:[.16,.01,.065]},
  harpoon:{type:'thrust',width:.76,height:1,depth:1.66,x:.42,y:-.66,pitch:.13,support:[0,0,.36]},
@@ -256,9 +256,10 @@ export class FirstPersonView {
  poseScythe(object,pose,scale){
   object.scale.setScalar(scale);object.rotation.set(this.profile.pitch,Math.PI-.045,0,'YXZ');this.restRotation.copy(object.quaternion);
   object.position.set(-(pose.x+.20)*.9,(pose.y+.28)*.85,-(pose.z-.28)*.8);
-  // Camera framing turns the crescent above the shaft; retain the same action
-  // phases without forcing this close-up grip orientation onto the body skeleton.
-  object.rotation.set(this.profile.pitch-pose.pitch,Math.PI-.045+Math.PI-pose.yaw,-pose.roll,'YXZ');
+  // Hold the socket above the hands, with the hooked tip pointing down-left.
+  // Turn around the shaft's own axis; both palms and contact calibration use this same frame.
+  object.rotation.set(this.profile.pitch-pose.pitch,Math.PI-.045+Math.PI-pose.yaw,-pose.roll-1.36,'YXZ');
+  object.rotateY(Math.PI);
   this.scratch.copy(this.grip).multiplyScalar(scale);object.position.add(this.wrist.copy(this.scratch).applyQuaternion(this.restRotation)).sub(this.scratch.applyQuaternion(object.quaternion));
   object.updateMatrix();
  }
@@ -339,7 +340,7 @@ export class FirstPersonView {
   if(meleeTarget&&age<Math.min(WEAPON_RECOVERY[id],period*.9)){
    // Match the visible fork to the committed hit's screen position. The held rig
    // has its own depth layer; copying full world distance would stretch the arms.
-   const hit=id==='harpoon'?.34:.44,u=age/Math.min(WEAPON_RECOVERY[id],Math.max(.12,period*.9)),ease=(a,b)=>{const q=T.MathUtils.clamp((u-a)/(b-a),0,1);return q*q*(3-2*q);},drive=ease(.08,hit)*(1-ease(hit+.12,.96));
+   const hit=id==='harpoon'?.34:.44,u=age/Math.min(WEAPON_RECOVERY[id],Math.max(.12,period*.9)),ease=(a,b)=>{const q=T.MathUtils.clamp((u-a)/(b-a),0,1);return q*q*(3-2*q);},drive=id==='shadowblade'?ease(0,.24)*(1-ease(.68,1)):ease(.08,hit)*(1-ease(hit+.12,.96));
    this.weapon.position.z-=drive*(id==='shadowblade'?.12:data.harpoonCombo===1?.22:.45);
    this.weapon.updateMatrix();
    // Calibrate the scythe once at its contact phase, not at every current pose.

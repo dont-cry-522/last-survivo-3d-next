@@ -14,6 +14,22 @@ import {HERO_LOADOUTS} from '../rules.js';
 function weapon(id){return ['shade','shadowblade','grimoire'].includes(id)?shadowFocus(id):id==='miasmalantern'?miasmaLantern():id==='sporelantern'?sporeLantern():id==='boomerang'?boneBoomerang():id==='harpoon'?makeHarpoon():makeHero(id==='crossbow'?'silver':'scout',id).userData.weapon;}
 const hero=gun=>({visible:false,userData:{gun}});
 
+test('idle scythe hooks down-left and leaves the central view clear on desktop and phone',()=>{
+ const camera=new T.PerspectiveCamera(70,16/9,.1,100),view=new FirstPersonView(camera),ray=new T.Raycaster();ray.layers.set(1);
+ try{
+  view.setHero(hero(weapon('shadowblade')),'shadowblade');
+  for(const aspect of[16/9,844/390,390/844]){
+   camera.aspect=aspect;camera.updateProjectionMatrix();view.update(1,.016,{visible:true});camera.updateMatrixWorld(true);
+   const tip=view.model.localToWorld(new T.Vector3(1.075,.25,.045)).project(camera),socket=view.model.localToWorld(new T.Vector3(.025,.70,.02)).project(camera);
+   assert(tip.x<socket.x&&tip.y<socket.y,'hook points away from down-left');
+   assert(tip.y<-.4&&socket.x>.5,'idle blade occupies the center');
+   for(const x of[-.2,0,.2])for(const y of[-.2,0,.2]){
+    ray.setFromCamera(new T.Vector2(x,y),camera);assert.equal(ray.intersectObject(view.root,true).length,0,'idle equipment blocks the central view');
+   }
+  }
+ }finally{view.dispose();}
+});
+
 test('held movement settles, turns wrap safely, pause freezes and re-entry clears turn inertia',()=>{
  const camera=new T.PerspectiveCamera(70,16/9,.1,200),v=new FirstPersonView(camera);
  try{

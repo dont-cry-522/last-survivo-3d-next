@@ -74,7 +74,7 @@ function tuftGeometry(){
  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(positions.filter((v,i)=>i%3===1).map(y=>Math.max(0,(y+.035)/.29)**2),1));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
 }
 
-function litterGeometry(){
+function litterGeometry(forest=false){
  const pieces=[],matrix=new T.Matrix4();
  const add=(geometry,position,scale,rotation,color)=>{
   if(geometry.index){const flat=geometry.toNonIndexed();geometry.dispose();geometry=flat;}
@@ -82,9 +82,20 @@ function litterGeometry(){
   const tint=new T.Color(color),colors=[];for(let i=0;i<geometry.attributes.position.count;i++)colors.push(tint.r,tint.g,tint.b);
   geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));pieces.push(geometry);
  };
- for(const [i,[x,z]]of[[-.19,.04],[.16,-.14],[.02,.19]].entries())add(new T.OctahedronGeometry(1,0),[x,.006,z],[.13-i*.015,.044+i*.009,.105+i*.012],[0,i*1.2,.06],i===1?0xdbdedb:0xf0efeb);
- add(new T.CylinderGeometry(.009,.016,.48,3),[-.04,-.025,-.025],[1,1,1],[Math.PI/2,.65,0],0x76654e);
- add(new T.CylinderGeometry(.006,.011,.21,3),[.065,-.025,.025],[1,1,1],[Math.PI/2,-.55,0],0x8c795c);
+ if(forest){
+  // Folded, curled leaves and one tiny fungus growing beside fallen wood share
+  // the existing sparse litter patches; no extra plants, textures or draws.
+  for(const [i,[x,z,angle]]of[[-.17,-.16,-.7],[.12,-.14,1.2],[-.13,.16,2.7]].entries()){
+   const leaf=new T.BufferGeometry();
+   leaf.setAttribute('position',new T.Float32BufferAttribute([0,.016,0,-.055,.022,.06,0,.050,.075,.044,.016,.08,-.050,.038,.15,0,.064,.15,.055,.029,.15,.02,.080,.24],3));
+   leaf.setIndex([0,1,2,0,2,3,1,4,2,2,4,5,2,5,3,3,5,6,4,7,5,5,7,6]);leaf.computeVertexNormals();
+   add(leaf,[x,-.026,z],[1-i*.10,1,1-i*.10],[0,angle,0],[0xe7d0aa,0xbba486,0xd4c198][i]);
+  }
+  add(new T.CylinderGeometry(.010,.014,.07,4,1,true),[.06,.016,.055],[1,1,1],[0,0,-.15],0xd2c8b5);
+  add(new T.SphereGeometry(1,6,2,0,Math.PI*2,0,Math.PI/2),[.064,.046,.055],[.060,.028,.050],[.09,.5,-.12],0xc7b28c);
+ }else for(const [i,[x,z]]of[[-.19,.04],[.16,-.14],[.02,.19]].entries())add(new T.OctahedronGeometry(1,0),[x,.006,z],[.13-i*.015,.044+i*.009,.105+i*.012],[0,i*1.2,.06],i===1?0xdbdedb:0xf0efeb);
+ add(new T.CylinderGeometry(.009,.016,.48,3,1,forest),[-.04,-.025,-.025],[1,1,1],[Math.PI/2,.65,0],0x76654e);
+ add(new T.CylinderGeometry(.006,.011,.21,3,1,forest),[.065,-.025,.025],[1,1,1],[Math.PI/2,-.55,0],0x8c795c);
  const geometry=mergeGeometries(pieces);for(const piece of pieces)piece.dispose();geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count),1));return geometry;
 }
 
@@ -168,9 +179,9 @@ export function installAdventureGroundDetail(world,mapId){
  if(!records.length)return null;
  const group=new T.Group();group.name='adventure-ground-detail';group.userData.records=records;group.userData.disposed=false;
  const matrix=new T.Matrix4(),position=new T.Vector3(),scale=new T.Vector3(),rotation=new T.Quaternion(),up=new T.Vector3(0,1,0),color=new T.Color();
- for(const kind of['tuft','litter']){
-  const instances=records.filter(p=>p.kind===kind);if(!instances.length)continue;
-  const geometry=kind==='tuft'?tuftGeometry():litterGeometry(),batch=new T.InstancedMesh(geometry,material,instances.length);batch.name='adventure-ground-'+kind;
+ for(const kind of['tuft','litter','forest-litter']){
+  const instances=records.filter(p=>p.kind==='tuft'?kind==='tuft':kind===(p.biome==='forest'?'forest-litter':'litter'));if(!instances.length)continue;
+  const geometry=kind==='tuft'?tuftGeometry():litterGeometry(kind==='forest-litter'),batch=new T.InstancedMesh(geometry,material,instances.length);batch.name='adventure-ground-'+kind;
   geometry.computeBoundingBox();
   batch.userData.ownedGeometry=true;batch.receiveShadow=true;batch.castShadow=false;
   for(const [i,p]of instances.entries()){

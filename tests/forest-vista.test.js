@@ -1,6 +1,7 @@
 import test from'node:test';
 import * as T from'../vendor/three.module.js';
 import{surfaceUniforms}from'../surface-textures.js?v=120';
+import{wornStoneBlock}from'../environment-props.js?v=135';
 import assert from'node:assert/strict';
 import{buildWorld,clearAt}from'../world.js';
 import{installForestVista}from'../forest-vista.js';
@@ -54,12 +55,35 @@ test('the actual browser seed finds a gateway pair before choosing a lone neares
  const fragment=installForestVista(solo,'forest');assert.equal(fragment.columns,1);assert.equal(fragment.arches,0);assert.equal(fragment.archFragments,1,'a sparse map has a plain pillar with no identifiable arch');
 });
 
+test('worn columns and arch halves retain continuous stone support rather than floating courses',()=>{
+ for(const seed of[7,43837033]){
+  const ruins=installForestVista(buildWorld('forest',seed),'forest'),stone=ruins.group.getObjectByName('forest-vista-stone'),ray=new T.Raycaster();stone.updateMatrixWorld(true);
+  for(const [i,a]of ruins.anchors.entries()){
+   const height=i===0?3.1:i===1?2.7:1.4+i*.37;
+   for(let y=.25;y<height;y+=.025){
+    ray.set(new T.Vector3(a.x-.7,y,a.z),new T.Vector3(1,0,0));ray.far=1.4;
+    assert(ray.intersectObject(stone).length,`column ${i} has a full-width gap at ${y}`);
+   }
+  }
+  if(!ruins.arches)continue;
+  const [a,b]=ruins.anchors,span=new T.Vector3(b.x-a.x,0,b.z-a.z).normalize(),cross=new T.Vector3(span.z,0,-span.x);
+  for(const [anchor,side,base]of[[a,1,3.22],[b,-1,2.84]])for(let f=0;f<=1;f+=.025){
+   const center=new T.Vector3(anchor.x,base+f*.44,anchor.z).addScaledVector(span,side*(.32+f*.96));
+   ray.set(center.addScaledVector(cross,.7),cross.clone().negate());ray.far=1.4;
+   assert(ray.intersectObject(stone).length,`arch half has an unsupported gap at ${f}`);
+  }
+ }
+});
 
-test('merged ruin stones retain shared rock texture uniforms and release temporary vine geometry',()=>{
- const world=buildWorld('forest',43837033),dispose=T.BufferGeometry.prototype.dispose;const vines=new Set();
- T.BufferGeometry.prototype.dispose=function(){if(this.type==='TubeGeometry'){assert(!vines.has(this));vines.add(this);}return dispose.call(this);};
- let ruins;try{ruins=installForestVista(world,'forest');}finally{T.BufferGeometry.prototype.dispose=dispose;}
+
+test('merged ruin stones retain shared rock texture uniforms and release temporary geometry without altering shared stone',()=>{
+ const world=buildWorld('forest',43837033),dispose=T.BufferGeometry.prototype.dispose,clone=wornStoneBlock.clone,original=wornStoneBlock.attributes.position.array.slice();const vines=new Set(),stoneCopies=new Set(),disposed=new Set();
+ wornStoneBlock.clone=function(){const copy=clone.call(this);stoneCopies.add(copy);return copy;};
+ T.BufferGeometry.prototype.dispose=function(){assert.notEqual(this,wornStoneBlock,'shared scenery stone was released');disposed.add(this);if(this.type==='TubeGeometry'){assert(!vines.has(this));vines.add(this);}return dispose.call(this);};
+ let ruins;try{ruins=installForestVista(world,'forest');}finally{T.BufferGeometry.prototype.dispose=dispose;delete wornStoneBlock.clone;}
  assert.equal(vines.size,ruins.columns*2,'source and baked vine buffers must both be released');
+ assert(stoneCopies.size>0);assert([...stoneCopies].every(g=>disposed.has(g)),'a temporary fractured stone geometry survived merging');
+ assert.deepEqual(wornStoneBlock.attributes.position.array,original,'local ruin wear altered all shared stone models');
  const stone=ruins.group.getObjectByName('forest-vista-stone'),shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};
  stone.material.onBeforeCompile(shader);
  assert.equal(stone.material.userData.propSurface,'stone');assert(stone.material.vertexColors);

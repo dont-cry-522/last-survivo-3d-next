@@ -4,6 +4,16 @@ import{buildWorld,actor,animateActor}from'../world.js';
 import{CLIMATE_LIGHT}from'../environment-lighting.js';
 import * as T from'../vendor/three.module.js';import{seeded}from'../rules.js';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
+test('forest reed tips use the water clock with pinned roots and a bounded wind envelope',()=>{
+ const group=new T.Group(),w={group,ponds:buildPonds(group,'forest',seeded(7),{x:-30,z:-30},[],[{x:2,z:4,rx:6,rz:5,angle:.3}])},reeds=w.group.getObjectByName('pond-reeds'),surface={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader},shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};
+ w.ponds[0].mesh.material.onBeforeCompile(surface);reeds.material.onBeforeCompile(shader);
+ assert.strictEqual(shader.uniforms.reedTime,surface.uniforms.waterTime);
+ assert(shader.vertexShader.includes('reedFlex*reedFlex*.055'));assert(shader.vertexShader.includes('clamp(position.y+.5,0.,1.)'));
+ for(const time of[0,5,5,0]){animateWater('forest',time);assert.equal(shader.uniforms.reedTime.value,time);}
+ const inflated=reeds.boundingSphere.radius;reeds.computeBoundingSphere();assert(Math.abs(inflated-reeds.boundingSphere.radius-.06)<1e-7);
+ for(const id of['snow','coast']){const other=buildWorld(id,7),m=other.group.getObjectByName('pond-reeds').material;assert.notEqual(m.customProgramCacheKey(),'forest-bank-reed-wind');other.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});}
+ w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
+});
 test('water depth follows the rotated shoreline and slows gradually without stacking mud',()=>{
  const pond={kind:'water',x:5,z:7,rx:6,rz:4,angle:Math.PI/2},world={patches:[pond,{kind:'slow',x:5,z:7,r:10}]};
  assert.equal(waterDepth(pond,5,7),1);assert.equal(waterDepth(pond,10,7),0);assert(waterDepth(pond,5,2)>0);

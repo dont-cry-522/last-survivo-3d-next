@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
-import{mesh,mat}from'./world.js?v=139';
+import{mesh,mat}from'./world.js?v=140';
 import{naturalRockGeometry}from'./biome-scenery.js?v=134';
 import{polishEnvironmentModels,stoneSurfaceMaterial,wornStoneBlock}from'./environment-props.js?v=135';
 import{seeded,segmentDistance}from'./rules.js?v=125';
@@ -84,25 +84,48 @@ export function installForestVista(world,mapId){
  const parts={stone:new T.Group(),leaf:new T.Group(),gold:new T.Group()},rnd=seeded(Math.round((relic.x+200)*173+(relic.z+200)*971));
  let stones=0,leaves=0,arches=0,archFragments=0;
  const block=(kind,color,x,y,z,sx,sy,sz,angle=0,tilt=0)=>{const o=mesh('BoxGeometry',[1,1,1],color,x,y,z,parts[kind]);if(kind==='stone'){o.geometry=wornStoneBlock;o.userData.environmentFinish=true;}o.scale.set(sx,sy,sz);o.rotation.set(0,angle,tilt);return o;};
- const leaf=(x,y,z,angle)=>{const o=new T.Mesh(vineLeafGeometry,mat(leaves%3===0?0x688050:0x435c42));o.position.set(x,y,z);o.rotation.set(1.05+Math.sin(x*2+y)*.18,angle,-.3);o.scale.set(.13,.055,.145);parts.leaf.add(o);leaves++;};
+ const leaf=(x,y,z,angle,size=1)=>{const o=new T.Mesh(vineLeafGeometry,mat(leaves%3===0?0x73865a:0x435c42)),phase=x*2.7+y*5+z;
+  o.position.set(x,y,z);o.rotation.set(.75+Math.sin(phase)*.38,angle,-.18+Math.sin(phase*1.7)*.3);o.scale.set(.115*size,.045*size,.15*size);parts.leaf.add(o);leaves++;
+ };
  for(const [i,o]of selected.entries()){
   const height=i===0?3.1:i===1?2.7:1.4+i*.37,angle=Math.atan2(relic.x-o.x,relic.z-o.z),s=Math.sin(angle),c=Math.cos(angle);
   block('stone',0x66725f,o.x,.10,o.z,.88,.25,.86,angle);
+  const courses=[0,.29+Math.sin(i)*.035,.48+Math.cos(i)*.03,.77-Math.sin(i)*.03,1];
   for(let row=0;row<4;row++){
-   const h=height/4,lean=Math.sin(row*1.8+i)*.026;
-   block('stone',row%2?0x949d8e:0x88917e,o.x+lean,h*(row+.5),o.z,.65,h+.065,.61,angle+lean);
+   const h=height*(courses[row+1]-courses[row]),lean=Math.sin(row*1.8+i)*.026;
+   const stone=block('stone',row%2?0x949d8e:0x88917e,o.x+lean,height*(courses[row]+courses[row+1])*.5,o.z,.65,h+.14,.61,angle+lean);
+   // Each course loses a different upper corner. The cut stays inside the
+   // old stone volume, catching real light without a painted crack/decal.
+   stone.geometry=wornStoneBlock.clone();stone.userData.ownedGeometry=true;
+   const p=stone.geometry.attributes.position,side=(row+i)%2?1:-1;
+   for(let v=0;v<p.count;v++){
+    const x=p.getX(v),y=p.getY(v),z=p.getZ(v),chip=Math.max(0,side*x+z*.45-.40);
+    // Preserve the main bearing surface; only the outer corner is fractured.
+    p.setY(v,Math.min(y,.52-chip*(.65+Math.sin(i+row)*.12)));
+   }
+   stone.geometry.computeVertexNormals();
   }
   block('stone',0x959b80,o.x,height+.025,o.z,.83,.15,.78,angle-.045);
   // An off-centre, eroded capital rather than a perfect square cap.
   const broken=new T.Mesh(ruinFragmentGeometry,mat(0x819076));broken.position.set(o.x-.07,height+.16,o.z+.025);broken.scale.set(.36,.21,.31);broken.rotation.y=angle;parts.stone.add(broken);
-  // Ivy hugs the existing pillar in a continuous thin curve; small drooping
-  // leaves alternate along it rather than resembling rigid branches.
+  // Ivy grows in uneven pockets, leaving bare stretches of stone readable.
+  // Sampling is positional: no new draws from the world's random stream.
   const vinePoints=[];
   for(let n=0;n<13;n++){
-   const y=.04+n/12*(height+.13),turn=n*.37+.09*Math.sin(n*.85),a=angle+turn,cap=T.MathUtils.smoothstep(y,height-.18,height+.10),radius=1/Math.max(Math.abs(Math.sin(turn))/(.334+cap*.08),Math.abs(Math.cos(turn))/(.309+cap*.08)),p=new T.Vector3(o.x+Math.sin(a)*radius,y,o.z+Math.cos(a)*radius);vinePoints.push(p);
-   if(n%2){leaf(p.x,p.y+.025,p.z,a);leaf(p.x+Math.cos(a)*.07,p.y+.09,p.z-Math.sin(a)*.07,a+1.1);}
+   const y=.04+(n/12)**1.25*(height+.13),turn=n*.31+.17*Math.sin(n*.85+i),a=angle+turn,cap=T.MathUtils.smoothstep(y,height-.18,height+.10),radius=1/Math.max(Math.abs(Math.sin(turn))/(.334+cap*.08),Math.abs(Math.cos(turn))/(.309+cap*.08)),p=new T.Vector3(o.x+Math.sin(a)*radius,y,o.z+Math.cos(a)*radius);vinePoints.push(p);
+   if([1,2,3,6,7,10,11].includes(n))for(let j=0;j<3+(n%3===1?1:0);j++){
+    const fan=(j-1.5)*.67+Math.sin(n+i)*.3,offset=(j-1.5)*.035;
+    leaf(p.x+Math.cos(a)*offset,p.y+.02+j*.018,p.z-Math.sin(a)*offset,a+fan,.70+.17*Math.sin(n*2+j+i)+(n<4?.30:0));
+   }
   }
   const vine=new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(vinePoints),24,.018,5,false),mat(0x3c5038));vine.userData.ownedGeometry=true;parts.leaf.add(vine);
+  // Low moss and a small fan of young leaves anchor only one sheltered side.
+  // They remain inside the original plinth; no new walk-through rubble.
+  for(let n=0;n<5;n++){
+   const a=angle-.7+n*.21,r=.25+Math.sin(n*2+i)*.055,x=o.x+Math.sin(a)*r,z=o.z+Math.cos(a)*r;
+   const moss=new T.Mesh(ruinFragmentGeometry,mat(n%2?0x51613d:0x647348));moss.position.set(x,.21,z);moss.scale.set(.13,.036,.11);moss.rotation.y=a;parts.leaf.add(moss);
+   leaf(x,.25+n*.012,z,a-1.1+n*.35,1.02);
+  }
   // Worn bronze inlay sits flush against the stone: warm focus, no neon runes.
   for(let n=0;n<3;n++)block('gold',0xa99b68,o.x+s*.322,1.05+n*.21,o.z+c*.322,.23-n*.035,.043,.022,angle,-.08+n*.05);
   for(let n=0;n<5;n++){
@@ -118,8 +141,10 @@ export function installForestVista(world,mapId){
   for(const [origin,side]of origins){
    archFragments++;
    for(let n=0;n<3;n++){
-    const offset=.38+n*.51,peak=(origin===a?3.22:2.84)+n*.27;
-    const voussoir=block('stone',n===2?0x929881:0x7e8974,origin.x+dx*offset*side,peak,origin.z+dz*offset*side,.48,.35,.69,angle,0);voussoir.rotation.x=-side*.42;
+    const offset=.32+n*.48,peak=(origin===a?3.22:2.84)+n*.22;
+    // Pitch along the arch's local span, after its world heading is applied.
+    // Adjacent eroded ends overlap so the broken halves remain supported.
+    const voussoir=block('stone',n===2?0x929881:0x7e8974,origin.x+dx*offset*side,peak,origin.z+dz*offset*side,.48,.42,.82,angle,0);voussoir.rotation.order='YXZ';voussoir.rotation.x=-side*.42;
     const x=origin.x+dx*offset*side,z=origin.z+dz*offset*side;
     if(n<2)for(let j=0;j<3;j++)leaf(x+(j-1)*.15,peak+.23,z,angle+j*.7);
    }

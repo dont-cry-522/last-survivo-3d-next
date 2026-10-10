@@ -142,6 +142,25 @@ function waterSurface(id){
   bank.customProgramCacheKey=()=> 'pond-broken-wet-bank-'+id+(coast?'-union':'');
   const reeds=new T.MeshStandardMaterial({color:id==='snow'?0x94a599:id==='coast'?0x7b8657:id==='forest'?0x526b48:0x7e8954,roughness:1,vertexColors:true,side:T.DoubleSide}),stones=new T.MeshStandardMaterial({color:id==='snow'?0x9aaeb0:0x6c7a68,roughness:.94,vertexColors:true});
   reeds.forceSinglePass=true;
+  if(id==='forest'){
+   // Existing water game-time clock: roots stay fixed, tips bend in world wind.
+   // All reeds still draw in one instanced pass, with no per-plant CPU update.
+   reeds.onBeforeCompile=shader=>{
+    shader.uniforms.reedTime=clock;shader.vertexShader='uniform float reedTime;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+     #ifdef USE_INSTANCING
+      vec3 reedAnchor=(modelMatrix*instanceMatrix*vec4(0.,0.,0.,1.)).xyz;
+      float reedPhase=dot(reedAnchor.xz,vec2(.51,.37));
+      float reedFlex=clamp(position.y+.5,0.,1.);
+      float reedWave=sin(reedTime*1.15+reedPhase)*.7+sin(reedTime*2.1+reedPhase*.6)*.3;
+      vec3 reedBend=vec3(.64,0.,.77)*reedWave*reedFlex*reedFlex*.055;
+      mat3 reedBasis=mat3(modelMatrix*instanceMatrix);
+      transformed+=vec3(dot(reedBend,reedBasis[0])/dot(reedBasis[0],reedBasis[0]),dot(reedBend,reedBasis[1])/dot(reedBasis[1],reedBasis[1]),dot(reedBend,reedBasis[2])/dot(reedBasis[2],reedBasis[2]));
+     #endif
+    `);
+   };
+   reeds.customProgramCacheKey=()=> 'forest-bank-reed-wind';
+  }
   surfaces.set(id,{material,bank,reeds,stones,clock,coast});
  }
  return surfaces.get(id);
@@ -197,6 +216,7 @@ export function buildPonds(group,id,rnd,spawn,sites,locations=null){
  }
  reeds.count=ri;stones.count=si;
  reeds.instanceMatrix.needsUpdate=true;stones.instanceMatrix.needsUpdate=true;reeds.receiveShadow=stones.receiveShadow=true;group.add(reeds,stones);
+ if(id==='forest'){reeds.computeBoundingSphere();reeds.boundingSphere.radius+=.06;}
  return ponds;
 }
 export function animateWater(id,t){if(surfaces.has(id))surfaces.get(id).clock.value=t;}

@@ -13,11 +13,11 @@ const cleanup=world=>world.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();i
 const state=world=>JSON.stringify({spawn:world.spawn,obstacles:world.obstacles.map(o=>[o.x,o.z,o.r,o.state]),patches:world.patches.map(p=>[p.x,p.z,p.rx,p.rz,p.kind]),sites:world.sites.map(s=>[s.x,s.z,s.claimed,s.discovered]),finds:world.discoveries.map(d=>[d.x,d.z,d.discovered,d.claimed]),roaming:world.roaming.map(r=>[r.x,r.z,r.state])});
 const far=(p,q,r)=>assert(Math.hypot(p.x-q.x,p.z-q.z)>=r-1e-7,`${p.biome} ${p.kind} encroaches on protected ground`);
 
-test('all six maps use at most two bounded batches without moving gameplay data or raising the floor',()=>{
+test('local maps use at most two bounded batches and the joined map three without moving gameplay data or raising the floor',()=>{
  for(const map of maps){
   const world=buildWorld(map,7),before=state(world),ground=world.ground.geometry.attributes.position.array.slice(),group=installAdventureGroundDetail(world,map);
   assert(group,map);assert.equal(group.parent,world.group);assert.equal(installAdventureGroundDetail(world,map),group);
-  assert(group.children.length>0&&group.children.length<=2);const records=group.userData.records;
+  assert(group.children.length>0&&group.children.length<=(map==='confluence'?3:2));const records=group.userData.records;
   assert(records.length>100&&records.length<=(map==='confluence'?2200:1200));assert.equal(group.children.reduce((n,b)=>n+b.count,0),records.length);
   const shoulderCount=records.filter(p=>p.shoulder).length;assert(shoulderCount>0&&shoulderCount<=Math.ceil(records.length*.22),'roadside detail exceeds the reallocated budget');
   assert.equal(state(world),before);assert.deepEqual(world.ground.geometry.attributes.position.array,ground);
@@ -31,6 +31,29 @@ test('all six maps use at most two bounded batches without moving gameplay data 
   const triangles=group.children.reduce((n,b)=>n+b.count*(b.geometry.index?.count??b.geometry.attributes.position.count)/3,0);
   assert(triangles<=(map==='confluence'?95000:55000),'low cover exceeded the fixed geometry budget');
   if(map==='forest'||map==='coast')assert(records.filter(p=>Math.hypot(p.x-world.spawn.x,p.z-world.spawn.z)<20).length>=80,'near view is missing low ground cover');
+  cleanup(world);
+ }
+});
+
+test('forest leaf litter replaces its old stones within the same placement and footprint budget',()=>{
+ const matrix=new T.Matrix4(),point=new T.Vector3(),center=new T.Vector3();let stonePositions;
+ for(const map of maps){
+  const world=buildWorld(map,43837033),group=installAdventureGroundDetail(world,map),forest=group.getObjectByName('adventure-ground-forest-litter'),stone=group.getObjectByName('adventure-ground-litter');
+  const leaves=group.userData.records.filter(p=>p.biome==='forest'&&p.kind==='litter');
+  assert.equal(forest?.count||0,leaves.length);
+  if(forest){
+   const geometry=forest.geometry,p=geometry.attributes.position;assert(p.count/3<=80,'forest litter exceeds its small shared geometry budget');
+   for(let i=0;i<p.count;i++){assert.equal(geometry.attributes.groundFlex.getX(i),0);assert(Math.hypot(p.getX(i),p.getZ(i))*1.14<.55);}
+   for(let i=0;i<forest.count;i++){
+    forest.getMatrixAt(i,matrix);center.setFromMatrixPosition(matrix);assert(Math.abs(center.x-leaves[i].x)<1e-5);assert(Math.abs(center.z-leaves[i].z)<1e-5);
+    for(let j=0;j<p.count;j++){point.fromBufferAttribute(p,j).applyMatrix4(matrix);assert(point.y<.11,'dry litter or fungus reaches above ankle height');}
+   }
+  }else assert(!['forest','confluence'].includes(map));
+  if(stone){
+   assert.equal(stone.count,group.userData.records.filter(p=>p.biome!=='forest'&&p.kind==='litter').length);
+   if(stonePositions)assert.deepEqual(stone.geometry.attributes.position.array,stonePositions);else stonePositions=stone.geometry.attributes.position.array.slice();
+   if(forest)assert.notDeepEqual(forest.geometry.attributes.position.array,stonePositions);
+  }else assert.equal(map,'forest');
   cleanup(world);
  }
 });

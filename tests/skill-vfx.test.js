@@ -174,3 +174,52 @@ test('shadow marks and rifts keep dark cores and narrow bright tears instead of 
  assert.equal(bodies.length,3);assert.equal(rims.length,3);assert(rims.every(p=>p.size[0]<bodies[0].size[0]/4));
  v.update(1);assert.equal(v.active.length,0);assert.equal(v.scene.children.length,0);
 });
+
+test('point impacts use the supplied surface and height without retaining or mutating contact objects',()=>{
+ const v=new SkillVFX(new T.Scene()),casts=[c=>v.enemyContact('stone',0x9ba488,-5,-6,.4,true,c),c=>v.bladeImpact(-5,-6,.4,true,c),c=>v.boltImpact(-5,-6,true,.4,c),c=>v.weaponContact('harpoon',-5,-6,.4,1,c)];
+ for(const y of[.08,1.7,4.6])for(const cast of casts){
+  const contact=Object.freeze({x:7,y,z:9,normal:Object.freeze({x:0,y:0,z:-1}),direction:Object.freeze({x:0,y:-.3,z:1}),compact:true});
+  v.clear();cast(contact);assert(v.active.length>0&&v.active.length<=6);
+  for(const p of v.active){assert(Math.abs(p.mesh.position.x-7)<.25);assert(Math.abs(p.mesh.position.y-y)<.25);assert(Math.abs(p.mesh.position.z-9)<.1);assert(!['ring','disc','veil','vapor','ember'].includes(p.shape));assert.equal(p.mesh.material.depthTest,true);assert.equal(p.mesh.material.depthWrite,false);assert.equal(p.mesh.material.blending,T.NormalBlending);}
+  const pose=v.active.map(p=>[p.life,...p.mesh.position.toArray()]),rotations=v.active.map(p=>p.mesh.quaternion.clone());v.update(0);assert.deepEqual(v.active.map(p=>[p.life,...p.mesh.position.toArray()]),pose);v.active.forEach((p,i)=>assert(p.mesh.quaternion.angleTo(rotations[i])<1e-7));
+ }
+ for(const cast of casts){v.clear();cast({y:2.3,normal:{x:NaN,y:0,z:0},direction:{x:0,y:0,z:0}});assert(v.active.every(p=>p.mesh.position.toArray().every(Number.isFinite)&&p.mesh.quaternion.toArray().every(Number.isFinite)));}
+});
+
+test('pitched impacts lie over a horizontal contact surface and compact feedback covers less screen space',()=>{
+ const v=new SkillVFX(new T.Scene()),contact={x:2,y:.1,z:3,normal:{x:0,y:1,z:0},direction:{x:0,y:-1,z:0}};
+ for(const compact of[false,true]){
+  v.clear();v.weaponContact('harpoon',0,0,0,1,{...contact,compact});
+  const sheet=v.active.find(p=>p.shape==='sweep'),normal=new T.Vector3(0,0,1).applyQuaternion(sheet.mesh.quaternion);
+  assert(normal.distanceTo(new T.Vector3(0,1,0))<1e-7,'sweep must lie against the hit surface, not the world ground convention');
+  for(const p of v.active.filter(p=>p.shape==='crystal'))assert(p.velocity[1]>0,'fragments must leave the surface');
+ }
+ const casts=[c=>v.enemyContact('stone',0xaabbcc,0,0,0,true,c),c=>v.bladeImpact(0,0,0,false,c),c=>v.boltImpact(0,0,true,0,c),c=>v.weaponContact('harpoon',0,0,0,1,c)];
+ for(const cast of casts){
+  v.clear();cast(contact);const large=new T.Box3().setFromObject(v.scene).getSize(new T.Vector3()).length(),count=v.active.length;
+  v.clear();cast({...contact,compact:true});const small=new T.Box3().setFromObject(v.scene).getSize(new T.Vector3()).length();
+  assert(small<large*.75);assert(v.active.length<=count);assert(v.active.every(p=>p.max<=.26));
+ }
+});
+
+test('harpoon thrust and sweep have distinct compact contact traces and recycle without leaking orientation',()=>{
+ const v=new SkillVFX(new T.Scene(),{mobile:true}),contact={x:1,y:2,z:3,normal:{x:.6,y:.8,z:0},compact:true};
+ v.weaponContact('harpoon',0,0,0,0,contact);assert.equal(v.active.filter(p=>p.shape==='ray').length,3);assert(!v.active.some(p=>p.shape==='sweep'));
+ v.clear();v.weaponContact('harpoon',0,0,0,1,contact);assert.equal(v.active.filter(p=>p.shape==='sweep').length,1);assert(!v.active.some(p=>p.shape==='ray'));
+ for(let frame=0;frame<180;frame++){for(let combo=0;combo<3;combo++)v.weaponContact('harpoon',0,0,frame*.05,combo,contact);v.enemyContact('stone',0xaabbcc,0,0,0,true,contact);v.update(1/60);assert(v.active.length+v.pool.length<=110);}
+ v.update(1);assert.equal(v.active.length,0);const reused=v.particle('ember',0xffffff,0,0,0);assert.deepEqual(reused.rotation.toArray().slice(0,3),[0,0,0]);
+});
+
+test('shadow point marks follow elevated or low surfaces while omitted contacts keep legacy spell marks',()=>{
+ const v=new SkillVFX(new T.Scene()),pose=()=>v.active.map(p=>[p.shape,...p.mesh.position.toArray(),...p.mesh.quaternion.toArray(),p.size,p.velocity,p.max]);
+ for(const strong of[false,true]){
+  v.clear();v.shadowMark(1,2,strong);const legacy=pose();v.clear();v.shadowMark(1,2,strong,undefined);assert.deepEqual(pose(),legacy);
+  for(const y of[.1,3.6]){
+   v.clear();const contact=Object.freeze({x:5,y,z:-4,normal:Object.freeze({x:1,y:0,z:0}),compact:true});v.shadowMark(1,2,strong,contact);
+   assert(v.active.length<=(strong?6:3));assert.equal(v.active.filter(p=>p.shape==='ray').length,2);
+   assert(v.active.every(p=>Math.abs(p.mesh.position.y-y)<.15&&Math.abs(p.mesh.position.z+4)<.15&&Math.abs(p.mesh.position.x-5)<.05));
+   const core=v.active.find(p=>p.shape==='claw'),normal=new T.Vector3(0,0,1).applyQuaternion(core.mesh.quaternion);assert(normal.distanceTo(new T.Vector3(1,0,0))<1e-7);assert(core.mesh.material.color.r<.02);assert.equal(core.mesh.material.blending,T.NormalBlending);
+   assert(v.active.every(p=>p.max<=.23&&!['veil','ember','smoke','ring'].includes(p.shape)));v.update(1);assert.equal(v.active.length,0);
+  }
+ }
+});

@@ -2,7 +2,7 @@
 import * as T from '../vendor/three.module.js';
 import {HERO_LOADOUTS,WEAPONS} from '../rules.js?v=114';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
-const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text();let frame,g,win,now=0,previewShot=null;const results=[],errors=[];
+const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
 const previewHero=document.createElement('select'),previewWeapon=document.createElement('select'),sourceDocument=new DOMParser().parseFromString(html,'text/html');
 previewHero.id='preview-hero';previewHero.setAttribute('aria-label','预览人物');previewWeapon.id='preview-weapon';previewWeapon.setAttribute('aria-label','预览武器');
 for(const hero of Object.keys(HERO_LOADOUTS)){const option=document.createElement('option');option.value=hero;option.textContent=sourceDocument.querySelector('[data-hero="'+hero+'"]').childNodes[0].textContent.trim();previewHero.append(option);}
@@ -10,11 +10,11 @@ previewHero.value='silver';$('#preview-map').before(previewHero,previewWeapon);
 function previewWeapons(){previewWeapon.replaceChildren();for(const[index,id]of HERO_LOADOUTS[previewHero.value].entries()){const option=document.createElement('option');option.value=index;option.textContent=WEAPONS[id].name;previewWeapon.append(option);}}
 previewHero.onchange=previewWeapons;previewWeapons();
 const previewEnemy=document.createElement('select');previewEnemy.id='preview-enemy';previewEnemy.setAttribute('aria-label','预览怪物');for(const[id,name]of[['','无怪物'],['mushroom','蘑菇'],['wolf','狼'],['golem','岩怪'],['spitter','吐息者'],['shaman','萨满']])previewEnemy.add(new Option(name,id));$('#preview-place').after(previewEnemy);
-for(const[id,text]of[['attack-preview','单次出手预览'],['recover-preview','推进回收 8 帧']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
+for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
 async function load(mobile=false,width=1180,height=720){
- previewShot=null;
+ previewShot=null;previewDodge=null;previewContext=null;
  if(g){errors.push(...win.qaErrors);g.audio.stopMusic();g.cinema?.dispose();g.renderer.dispose();g.renderer.forceContextLoss();}frame?.remove();
  frame=document.createElement('iframe');frame.title='真实游戏环境预览';frame.style.width=width+'px';frame.style.height=height+'px';$('#view').append(frame);
  const boot=`<base href="../"><script>
@@ -50,6 +50,36 @@ function simulatePointerLock(){
 function key(type,key,opts={}){win.dispatchEvent(new win.KeyboardEvent(type,{key,bubbles:true,...opts}));}
 function aimAt(e){for(let i=0;i<4;i++){step();g.adventureCamera.yaw=Math.atan2(e.x-g.camera.position.x,e.z-g.camera.position.z);g.adventureCamera.pitch=Math.atan2(e.height*.5-g.camera.position.y,Math.hypot(e.x-g.camera.position.x,e.z-g.camera.position.z));}step();}
 function fire(n=30){g.player.attack=0;pointer(win.document.querySelector('#world'),'pointerdown');step(n);pointer(win,'pointerup');}
+const dodgeCases={scout:{duration:.52,distance:4.8,cooldown:2.3},silver:{duration:.24,distance:5.5,cooldown:2.3},wraith:{duration:.24,distance:4.7,cooldown:2.3},tide:{duration:2,distance:0,cooldown:6.5},lingya:{duration:.58,distance:6.2,cooldown:3.6},wuling:{duration:.52,distance:4.8,cooldown:2.3},mirage:{duration:.52,distance:4.8,cooldown:3.8}};
+const edgeOpacity=()=>Number(win.document.querySelector('#dodge-view').style.opacity);
+function dodgeSnapshot(){return[g.time,g.player.x,g.player.z,g.player.dashTime,g.camera.fov,...g.camera.position.toArray(),...g.camera.quaternion.toArray(),...g.hero.userData.rig.position.toArray(),...g.hero.userData.rig.quaternion.toArray(),...g.firstPerson.root.position.toArray(),...g.firstPerson.root.quaternion.toArray(),g.firstPerson.dodgeWeight,edgeOpacity()];}
+function checkDodge(hero,mode){
+ const cfg=dodgeCases[hero];select(hero);arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};if(g.companion){g.companion.x=0;g.companion.z=0;}
+ win.document.querySelector('[data-attack-mode="manual"]').click();g.setView(mode);g.adventureCamera.yaw=1.2;g.adventureCamera.pitch=.65;g.adventureCamera._ready=false;step();g.hero.rotation.y=-1.4;
+ assert(g.hero.userData.skinned&&g.hero.userData.rig,'角色骨架尚未就绪');const origin={x:g.player.x,z:g.player.z},cameraBefore=g.camera.position.clone(),baseAnchorY=g.adventureCamera._anchor.y,yaw=g.adventureCamera.yaw,pitch=g.adventureCamera.pitch,blink=hero==='silver'||hero==='wraith';
+ g.dash();assert(Math.abs(g.player.dashTime-cfg.duration)<1e-9,'闪避时长改变');assert(Math.abs(g.player.dash-cfg.cooldown)<1e-9,'基础冷却改变');assert(Math.abs(g.player.inv-(hero==='tide'?2:.32))<1e-9,'既有免伤时长改变');
+ if(blink)assert(Math.abs(Math.atan2(Math.sin(g.player.dashAngle-yaw),Math.cos(g.player.dashAngle-yaw)))<1e-9,'无按键瞬移沿旧身体方向而非镜头方向');
+ let maxEdge=0,minHeight=Infinity,maxCameraDistance=0,samples=0;
+ const inspect=()=>{
+  const c=g.camera,p=g.player;assert(dodgeSnapshot().every(Number.isFinite),'闪避姿势出现非有限值');minHeight=Math.min(minHeight,c.position.y);assert(c.position.y>=.35-1e-6,'闪避镜头穿过地面');
+  assert(g.adventureCamera.yaw===yaw&&g.adventureCamera.pitch===pitch,'表现动作改写玩家镜头朝向');
+  const direction=c.getWorldDirection(new T.Vector3()),expected=new T.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));assert(direction.distanceTo(expected)<1e-6,'闪避偏转了准星中心射线');
+  const distance=Math.hypot(c.position.x-p.x,c.position.z-p.z);maxCameraDistance=Math.max(maxCameraDistance,distance);assert(distance<=(mode==='first'?.001:g.adventureCamera.distance+1.1),'镜头留在闪避起点');
+  if(blink)assert(g.hero.scale.toArray().every(n=>Math.abs(n-1)<1e-9),'瞬移把角色缩成小人');
+  maxEdge=Math.max(maxEdge,edgeOpacity());if(mode==='third')assert(edgeOpacity()===0&&!g.firstPerson.root.visible,'第三人称泄漏第一人称闪避层');samples++;
+ };
+ step();inspect();if(blink){const travel=new T.Vector3(g.player.x-origin.x,0,g.player.z-origin.z),cameraTravel=g.camera.position.clone().sub(cameraBefore);assert(Math.hypot(cameraTravel.x-travel.x,cameraTravel.z-travel.z)<.01,'瞬移首帧镜头没有跟到实际落点');}
+ for(let i=0;i<3;i++){step();inspect();}assert(g.player.dashTime>0,'未能截取动作中段');if(mode==='first'){assert(maxEdge>0,'第一人称没有闪避边缘反馈');assert(g.firstPerson.dodgeWeight>0,'手臂没有接入闪避姿势');}
+ g.pause();const frozen=dodgeSnapshot();step(18);const paused=dodgeSnapshot();assert(paused.every((n,i)=>Math.abs(n-frozen[i])<1e-9),'暂停后动作、镜头或闪避边缘继续变化');g.resume();step();inspect();assert(g.player.dashTime<frozen[3],'继续后闪避没有恢复');
+ let remainingFrames=0;while(g.player.dashTime>0&&remainingFrames++<140){step();inspect();}assert(g.player.dashTime===0,'闪避未自然结束');
+ const distance=Math.hypot(g.player.x-origin.x,g.player.z-origin.z);assert(Math.abs(distance-cfg.distance)<.02,'无障碍闪避距离改变：'+distance);assert(edgeOpacity()===0,'自然结束后残留闪避边缘');assert(g.firstPerson.dodgeWeight===0,'自然结束后残留手臂闪避权重');assert(g.camera.fov===(mode==='first'?70:58),'自然结束后视野角未恢复');
+ if(hero==='mirage')step(24);assert(g.hero.visible,'自然恢复后角色仍隐藏');
+ // Exercise death while an effect is live, then return to the menu. The fixture clears
+ // invulnerability only to trigger death; the earlier assertion retains the gameplay timing.
+ g.player.dash=0;g.dash();step(3);assert(g.player.dashTime>0,'结束清理前没有活动闪避');g.player.inv=0;if(hero==='mirage')g.mirage.reset();g.damage(1000000,g.player.x+2,g.player.z);assert(g.state==='lost','未触发闪避中的结束状态');step(2);
+ assert(edgeOpacity()===0&&g.firstPerson.dodgeWeight===0,'结束状态残留闪避边缘或手臂偏移');assert(Math.abs(g.adventureCamera._target.y-baseAnchorY)<1e-8,'结算镜头残留闪避降高');g.menu();step(2);assert(g.state==='menu'&&edgeOpacity()===0&&!g.firstPerson.root.visible&&g.firstPerson.dodgeWeight===0,'返大厅残留闪避画面');
+ return{duration:cfg.duration,distance,cooldown:cfg.cooldown,minCameraHeight:minHeight,maxCameraDistance,maxEdge,samples,...reportFrame()};
+}
 async function check(name,fn){$('#status').textContent=name;try{results.push({name,pass:true,detail:await fn()});}catch(e){results.push({name,pass:false,error:e.message});}publish();await sleep(0);}
 $('#run').onclick=async()=>{
  for(const b of document.querySelectorAll('button'))b.disabled=true;results.length=0;errors.length=0;
@@ -103,8 +133,19 @@ $('#run').onclick=async()=>{
  await check('相机相对移动、闪避和拖动视角',()=>{select('scout');arena();g.adventureCamera.yaw=Math.PI/2;key('keydown','w');step(20);key('keyup','w');assert(g.player.x>1&&Math.abs(g.player.z)<.3,'前进未跟随视角');g.player.dash=0;key('keydown','w');g.dash();key('keyup','w');assert(Math.abs(g.player.dashAngle-Math.PI/2)<.01,'闪避不跟随视角');const yaw=g.adventureCamera.yaw,c=win.document.querySelector('#world');c.setPointerCapture=()=>{};pointer(c,'pointerdown',{button:2,clientX:300});pointer(win,'pointermove',{button:2,clientX:430});pointer(win,'pointerup',{button:2});assert(g.adventureCamera.yaw<yaw-.2,'右键拖动未转视角');return reportFrame();});
  await check('鼠标双键同时转向与开火、单独松键',()=>{select('scout');arena();const c=win.document.querySelector('#world');pointer(c,'pointerdown',{button:2});pointer(c,'pointerdown',{button:0});assert(g.controls.held,'右键中不能左键开火');pointer(win,'pointerup',{button:0});assert(!g.controls.held,'松左键仍开火');const y=g.adventureCamera.yaw;pointer(win,'pointermove',{button:2,clientX:580});assert(g.adventureCamera.yaw!==y,'松左键影响右键转向');pointer(win,'pointerup',{button:2});return reportFrame();});
  for(const [hero,count]of [['scout',3],['silver',3],['wraith',3],['tide',1],['lingya',1],['wuling',1],['mirage',1]])for(let index=0;index<count;index++)await check(hero+' 武器 '+index+' 双视角攻击',()=>{select(hero,index);arena();win.document.querySelector('[data-attack-mode="manual"]').click();g.setView('first');step(2);assert(g.firstPerson.root.visible,'没有手持武器');const e=g.spawn('golem',0,4);assert(e,'靶子生成失败');e.hp=e.maxHp=10000;e.speed=0;e.cool=9999;g.adventureCamera.pitch=-Math.atan2(g.camera.position.y-e.height*.5,4);step(2);fire(65);const damage=10000-e.hp;assert(damage>0,'第一人称攻击未命中: '+g.player.weaponId);g.setView('third');step(2);assert(!g.firstPerson.root.visible,'第三人称仍有贴面武器');aimAt(e);const before=e.hp;fire(95);assert(e.hp<before,'第三人称攻击未命中: '+g.player.weaponId);g.dash();step(35);assert(Number.isFinite(g.player.x),'闪避位置无效');return{damage,...reportFrame()};});
+ await check('枪弩、影印、镰刃与长叉在真实命中时传入实体表面接触点',()=>{
+  const samples=[];
+  for(const [hero,index,method]of [['scout',0,'enemyContact'],['silver',0,'boltImpact'],['wraith',0,'shadowMark'],['wraith',1,'bladeImpact'],['tide',0,'weaponContact']]){
+   select(hero,index);arena();g.setView('first');win.document.querySelector('[data-attack-mode="manual"]').click();const e=g.spawn('golem',0,3.3);e.hp=e.maxHp=10000;e.speed=0;e.cool=999;aimAt(e);
+   const original=g.vfx[method],contacts=[];g.vfx[method]=function(...args){contacts.push({c:args.at(-1),x:e.x,z:e.z,y:e.y||0,height:e.height,size:e.size});return original.apply(this,args);};
+   try{fire(65);}finally{g.vfx[method]=original;}
+   assert(contacts.length>0,hero+' 没有实际命中');for(const hit of contacts){const {c}=hit;assert(c&&Number.isFinite(c.y)&&c.y>0,'特效未接触实体高度');assert(Math.abs(Math.hypot(c.normal.x,c.normal.y,c.normal.z)-1)<1e-6,'接触法线无效');assert(Math.abs(Math.hypot(c.x-hit.x,c.z-hit.z)-hit.size*.7)<1e-5||Math.abs(c.y-hit.y)<1e-5||Math.abs(c.y-(hit.y+hit.height))<1e-5,'特效仍位于身体中心');}
+   samples.push({hero,method,contacts:contacts.length});reportFrame();
+  }return {samples,...reportFrame()};
+ });
  await check('两种视角自动瞄准仍命中可见目标',()=>{for(const mode of ['third','first']){select('scout');arena();g.setView(mode);win.document.querySelector('[data-attack-mode="auto"]').click();const e=g.spawn('golem',0,6);e.hp=e.maxHp=10000;e.speed=0;e.cool=999;g.adventureCamera.pitch=-.1;g.player.attack=0;step(90);assert(e.hp<10000,mode+'自动瞄准不命中');}win.document.querySelector('[data-attack-mode="manual"]').click();return reportFrame();});
  await check('抬头射击越过地面敌人，转头不取消已发射攻击',()=>{select('scout');arena();g.setView('first');const e=g.spawn('golem',0,5);e.hp=e.maxHp=10000;e.speed=0;e.cool=999;g.adventureCamera.pitch=.8;step();fire(25);assert(e.hp===10000,'向天空射击仍命中地面');g.adventureCamera.pitch=-Math.atan2(g.camera.position.y-e.height*.5,5);step();g.player.attack=0;pointer(win.document.querySelector('#world'),'pointerdown');step(1);pointer(win,'pointerup');g.adventureCamera.yaw=Math.PI;step(30);assert(e.hp<10000,'转头取消弹丸伤害');return{hp:e.hp,...reportFrame()};});
+ for(const hero of Object.keys(dodgeCases))for(const mode of ['first','third'])await check(hero+' '+(mode==='first'?'第一':'第三')+'人称闪避、暂停恢复与结束清理',()=>checkDodge(hero,mode));
  for(const map of ['forest','snow','ash','sand','coast','confluence'])await check(map+' 天空和双视角渲染',()=>{select('silver',0,map);for(const mode of ['first','third']){g.setView(mode);step(12);reportFrame();}return reportFrame();});
  for(const [width,height]of [[844,390],[390,844],[320,568]])await check(width+'×'+height+' 手机视角、按住攻击与多指',async()=>{await load(true,width,height);select('silver');arena();g.setView('first');const doc=win.document,c=doc.querySelector('#world'),a=doc.querySelector('#aim-stick'),j=doc.querySelector('#joystick');for(const q of [c,a,j])q.setPointerCapture=()=>{};const rects=[j,a,doc.querySelector('#dash')].map(q=>q.getBoundingClientRect());for(let i=0;i<rects.length;i++)for(let k=i+1;k<rects.length;k++){const r=rects[i],q=rects[k];assert(!(Math.min(r.right,q.right)>Math.max(r.left,q.left)&&Math.min(r.bottom,q.bottom)>Math.max(r.top,q.top)),'手机操作键重叠');}const y=g.adventureCamera.yaw;pointer(c,'pointerdown',{pointerType:'touch',pointerId:7,clientX:500});pointer(win,'pointermove',{pointerType:'touch',pointerId:7,clientX:560});assert(g.adventureCamera.yaw<y,'空白区域不能转向');pointer(j,'pointerdown',{pointerType:'touch',pointerId:8,clientX:j.getBoundingClientRect().x+40,clientY:j.getBoundingClientRect().y});pointer(a,'pointerdown',{pointerType:'touch',pointerId:9});assert(g.controls.held,'手机按下不攻击');pointer(a,'pointermove',{pointerType:'touch',pointerId:9,clientX:540});step(15);pointer(a,'pointerup',{pointerType:'touch',pointerId:9});assert(!g.controls.held,'松手仍攻击');pointer(j,'pointercancel',{pointerType:'touch',pointerId:8});pointer(win,'pointerup',{pointerType:'touch',pointerId:7});doc.querySelector('#view-toggle').click();step();assert(g.adventureCamera.mode==='third','手机视角按钮失败');const r=doc.querySelector('#view-toggle').getBoundingClientRect();assert(r.x>=0&&r.right<=width,'切换按钮超出屏幕');const f=reportFrame();assert(f.pixels<=1800000,'手机像素预算超限');g.pause();step(5);assert(g.state==='paused'&&!g.controls.held,'手机暂停清理失败');return f;});
  await check('全部浏览器日志',()=>{errors.push(...win.qaErrors);assert(!errors.length,errors.join('\n'));return{errors};});
@@ -114,11 +155,16 @@ async function preview(mode){const controls=[...document.querySelectorAll('butto
  const place=$('#preview-place').value;
  if(place==='water'){const p=g.world.ponds[0];if(p){g.player.x=p.x+p.rx+2;g.player.z=p.z;g.adventureCamera.yaw=-Math.PI/2;g.adventureCamera.pitch=mode==='first'?-.23:-.32;}}
  if(place==='trees'){const trees=g.world.obstacles.filter(o=>o.mesh.getObjectByName('tree-canopy')),p=trees.find(o=>g.world.obstacles.every(q=>Math.hypot(o.x-q.x,o.z+5-q.z)>q.r+1));if(p){g.player.x=p.x;g.player.z=p.z+5;g.adventureCamera.yaw=Math.PI;g.adventureCamera.pitch=mode==='first'?.15:.05;}}
- if(previewEnemy.value){const e=g.spawn(previewEnemy.value,g.player.x+Math.sin(g.adventureCamera.yaw)*4.8,g.player.z+Math.cos(g.adventureCamera.yaw)*4.8);if(e){e.speed=0;e.cool=9999;e.hp=9999;}}
- step(30);$('#status').textContent=(mode==='first'?'第一人称':'第三人称')+' · '+previewHero.selectedOptions[0].text+' / '+previewWeapon.selectedOptions[0].text+' · '+$('#preview-map').selectedOptions[0].text+' · '+JSON.stringify(reportFrame())+' · 真实鼠标锁定需在游戏画面内点击验证；固定帧预览移动后点击保存即可刷新。';}finally{controls.forEach((c,i)=>c.disabled=disabled[i]);}}
+ if(previewEnemy.value){const distance=previewHero.value==='tide'?3.3:4.8,e=g.spawn(previewEnemy.value,g.player.x+Math.sin(g.adventureCamera.yaw)*distance,g.player.z+Math.cos(g.adventureCamera.yaw)*distance);if(e){e.speed=0;e.cool=9999;e.hp=9999;}}
+ step(30);previewContext=[previewHero.value,previewWeapon.value,$('#preview-map').value,$('#preview-place').value,previewEnemy.value].join(':');$('#status').textContent=(mode==='first'?'第一人称':'第三人称')+' · '+previewHero.selectedOptions[0].text+' / '+previewWeapon.selectedOptions[0].text+' · '+$('#preview-map').selectedOptions[0].text+' · '+JSON.stringify(reportFrame())+' · 真实鼠标锁定需在游戏画面内点击验证；固定帧预览移动后点击保存即可刷新。';}finally{controls.forEach((c,i)=>c.disabled=disabled[i]);}}
 function reportAttackPreview(){assert(g.hero.userData.shotSerial===previewShot.serial,'回收预览意外触发第二次攻击');$('#status').textContent=WEAPONS[g.player.weaponId].name+' · 单次攻击第 '+previewShot.frames+' 帧（60 帧/秒；可反复推进回收） · '+JSON.stringify({attackAge:g.hero.userData.attackAge,reloadPhase:g.hero.userData.reloadPhase,weaponVisible:g.firstPerson.weapon.visible,...reportFrame()});}
 $('#attack-preview').onclick=async()=>{const button=$('#attack-preview');button.disabled=true;try{await preview('first');win.document.querySelector('[data-attack-mode="manual"]').click();const serial=g.hero.userData.shotSerial||0;fire(1);step(3);assert(g.hero.userData.shotSerial===serial+1,'未触发恰好一次攻击');previewShot={serial:serial+1,frames:4};reportAttackPreview();}catch(e){$('#status').textContent='出手预览失败：'+e.message;}finally{button.disabled=false;}};
-$('#recover-preview').onclick=()=>{if(!previewShot){$('#status').textContent='请先选择人物与武器，再点击「单次出手预览」。';return;}if(g.state==='paused')g.resume();step(8);previewShot.frames+=8;reportAttackPreview();};
-$('#third').onclick=()=>preview('third');$('#first').onclick=()=>preview('first');$('#capture').onclick=()=>{step(1,0);const a=document.createElement('a');a.href=g.renderer.domElement.toDataURL('image/png');a.download='forest-next-'+g.player.weaponId+'-'+g.adventureCamera.mode+'-f'+(previewShot?.frames||0)+'.png';a.click();};
+function reportDodgePreview(){$('#status').textContent=previewHero.selectedOptions[0].text+' · '+(g.adventureCamera.mode==='first'?'第一':'第三')+'人称闪避第 '+previewDodge.frames+' 帧（60 帧/秒；可点击「推进 8 帧」） · '+JSON.stringify({remaining:g.player.dashTime,edge:edgeOpacity(),cameraY:g.camera.position.y,...reportFrame()});}
+$('#dodge-preview').onclick=async()=>{const button=$('#dodge-preview');button.disabled=true;try{
+ const context=[previewHero.value,previewWeapon.value,$('#preview-map').value,$('#preview-place').value,previewEnemy.value].join(':');if(previewContext!==context||!['playing','paused'].includes(g.state))await preview(g.adventureCamera.mode);
+ if(g.state==='paused')g.resume();win.document.querySelector('[data-attack-mode="manual"]').click();previewShot=null;g.player.dash=0;g.player.dashTime=0;g.dash();assert(g.player.dashTime>0,'当前位置无法开始闪避');step(4);previewDodge={frames:4};reportDodgePreview();
+ }catch(e){$('#status').textContent='闪避预览失败：'+e.message;}finally{button.disabled=false;}};
+$('#recover-preview').onclick=()=>{if(!previewShot&&!previewDodge){$('#status').textContent='请先点击「单次出手预览」或「闪避预览」。';return;}if(g.state==='paused')g.resume();step(8);if(previewDodge){previewDodge.frames+=8;reportDodgePreview();}else{previewShot.frames+=8;reportAttackPreview();}};
+$('#third').onclick=()=>preview('third');$('#first').onclick=()=>preview('first');$('#capture').onclick=()=>{step(1,0);const a=document.createElement('a');a.href=g.renderer.domElement.toDataURL('image/png');a.download='forest-next-'+g.player.weaponId+'-'+g.adventureCamera.mode+'-f'+(previewShot?.frames||previewDodge?.frames||0)+'.png';a.click();};
 try{await load();$('#status').textContent='已就绪';for(const b of document.querySelectorAll('button'))b.disabled=false;}catch(e){$('#status').textContent=e.message;}
 </script></html>

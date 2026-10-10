@@ -1,6 +1,9 @@
 // Route accents use the existing bounded pool. Call once at the real event;
 // these short silhouettes never schedule damage, alter hit tests, or draw range rings.
 const look=(weapon,name,summary,phases)=>Object.freeze({weapon,name,summary,phases:Object.freeze(phases)});
+// These effects describe an area on the floor, even when the triggering shot hit a head.
+const groundRoutes=new Set(['miasmalantern_lure','miasmalantern_venom','sporelantern_still','sporelantern_roam','fire_blast','dark_gravity','grimoire_wide','grimoire_echo','boomerang_snare']);
+const contactHeights={shotgun_fan:.65,shotgun_slug:.86,fire_burn:.48,shade_blight:.5,harpoon_reef:.84,harpoon_tow:.20,boomerang_pincer:.4};
 export const WEAPON_ROUTE_LOOKS=Object.freeze({
  miasmalantern_lure:look('miasmalantern','幻瘴','替身自然绽放时，低位紫瓣向外舒展，余雾留在原地',['bloom']),
  miasmalantern_venom:look('miasmalantern','蚀影','蜕影后的追击毒雾球带紫色卷气，破裂时散开短暂蚀雾',['cast','hit']),
@@ -37,19 +40,30 @@ export const WEAPON_ROUTE_LOOKS=Object.freeze({
  * returning: true only on the return leg. radius: actual field/rift radius.
  * bounce x2/z2 is a PREVIOUS contact, only after the next hit has happened.
  * trap stage: 'set', 'idle', 'snap'. No timers or live gameplay objects are retained.
+ * contact: optional {x,y,z,normal,direction,compact} for point hit/mark/pet/bounce.
+ * Ground-area routes ignore contact; y2 optionally supplies the previous bounce height.
  * Returns false for an inactive route/phase or a conditional event that did not occur.
  */
 export function weaponRouteEffect(vfx,w,phase,x,z,angle=0,detail={}){
  const id=w?.pathId,style=WEAPON_ROUTE_LOOKS[id],rank=Math.min(3,Math.max(0,Math.floor(w?.pathRank||0)));
  if(!rank||!style||style.weapon!==w.id||!style.phases.includes(phase))return false;
- const a=Number.isFinite(angle)?angle:0,dx=Math.sin(a),dz=Math.cos(a),sx=Math.cos(a),sz=-Math.sin(a),level=1+(rank-1)*.12;
- const target=Math.max(.2,Math.min(2,detail.targetSize||.55));
- const at=(forward=0,side=0,y=.85)=>({x:x+dx*forward+sx*side,y,z:z+dz*forward+sz*side});
- const particle=(shape,color,forward,side,y,options={})=>{const p=at(forward,side,y);return vfx.particle(shape,color,p.x,p.y,p.z,{additive:false,opacity:.68,...options});};
- const line=(from,to,color,width=.024,life=.19,priority=0,opacity=.65)=>vfx.segment(at(...from),at(...to),color,width,life,false,priority,opacity);
- const velocity=(forward,side=0,up=0)=>[dx*forward+sx*side,up,dz*forward+sz*side];
+ const a=Number.isFinite(angle)?angle:0,sx=Math.cos(a),sz=-Math.sin(a),level=1+(rank-1)*.12;
+ const contact=!groundRoutes.has(id)&&['hit','mark','pet','bounce'].includes(phase)?detail.contact:null,compact=!!contact?.compact,scale=contact?(compact?.50:.78):1,baseY=contactHeights[id]??1;
+ const valid=v=>v&&[v.x,v.y,v.z].every(Number.isFinite)&&Math.hypot(v.x,v.y,v.z)>1e-6;
+ const direction=valid(contact?.direction)?contact.direction:{x:Math.sin(a),y:0,z:Math.cos(a)},length=Math.hypot(direction.x,direction.y,direction.z),dx=direction.x/length,dy=direction.y/length,dz=direction.z/length;
+ const outward=valid(contact?.normal)?contact.normal:{x:-dx,y:-dy,z:-dz},normalLength=Math.hypot(outward.x,outward.y,outward.z),nx=outward.x/normalLength,ny=outward.y/normalLength,nz=outward.z/normalLength;
+ const cx=Number.isFinite(contact?.x)?contact.x:x,cy=Number.isFinite(contact?.y)?contact.y:baseY,cz=Number.isFinite(contact?.z)?contact.z:z;
+ const target=Math.max(.2,Math.min(contact?.4:2,detail.targetSize||.55));
+ const at=(forward=0,side=0,y=.85)=>({x:cx+(dx*forward+sx*side)*scale+(contact?nx*.018:0),y:contact?cy+(y-baseY+dy*forward)*scale+ny*.018:y,z:cz+(dz*forward+sz*side)*scale+(contact?nz*.018:0)});
+ const particle=(shape,color,forward,side,y,options={})=>{
+  const p=at(forward,side,y),o={additive:false,opacity:.68,...options};
+  if(contact){if(o.size)o.size=o.size.map(n=>n*scale);if(o.velocity)o.velocity=o.velocity.map(n=>n*scale);if(compact){if(o.life)o.life*=.8;if(o.delay)o.delay*=.8;o.opacity*=.9;}}
+  return vfx.particle(shape,color,p.x,p.y,p.z,o);
+ };
+ const line=(from,to,color,width=.024,life=.19,priority=0,opacity=.65)=>vfx.segment(at(...from),at(...to),color,width*scale,life*(compact?.8:1),false,priority,opacity*(compact?.9:1));
+ const velocity=(forward,side=0,up=0)=>[dx*forward+sx*side,dy*forward+up,dz*forward+sz*side];
  // Yaw in world space after tilting; preserve the pool's default Euler order.
- const orient=(m,tilt,yaw=a,roll=0)=>{if(m){m.rotation.set(tilt,0,roll);m.rotateOnWorldAxis({x:0,y:1,z:0},yaw);}return m;};
+ const orient=(m,tilt,yaw=a,roll=0)=>{if(m){if(contact){m.lookAt(m.position.x+nx,m.position.y+ny,m.position.z+nz);m.rotateZ(roll);}else{m.rotation.set(tilt,0,roll);m.rotateOnWorldAxis({x:0,y:1,z:0},yaw);}}return m;};
  const curl=(color,forward,side,y,width,height,{rotation=-Math.PI/2,roll=0,...options}={})=>{
   const m=particle('sweep',color,forward,side,y,{life:.24,size:[width,height,1],motion:'lash',roll,...options});
   return orient(m,rotation,a,side<0?-.4:.4);
@@ -156,8 +170,8 @@ export function weaponRouteEffect(vfx,w,phase,x,z,angle=0,detail={}){
  case'shade_echo':{
   // Endpoints describe a completed flight, never a predicted next target.
   if(Number.isFinite(detail.x2)&&Number.isFinite(detail.z2)){
-   const distance=Math.hypot(detail.x2-x,detail.z2-z);
-   if(distance>.05&&distance<=7.5)vfx.segment({x:detail.x2,y:.95,z:detail.z2},{x,y:.95,z},0x7a8aa1,.022,.14,false,0,.43);
+   const distance=Math.hypot(detail.x2-cx,detail.z2-cz);
+   if(distance>.05&&distance<=7.5)vfx.segment({x:detail.x2,y:Number.isFinite(detail.y2)?detail.y2:contact?cy:.95,z:detail.z2},{x:cx,y:contact?cy:.95,z:cz},0x7a8aa1,.022*scale,compact?.10:.14,false,0,compact?.28:.43);
   }
   line([-.19,-.13,.88],[0,0,1.03],0xc9d3df,.036,.22,1,.8);
   line([0,0,1.03],[.2,-.1,1.16],0x8c9eb5,.024,.26,0,.6);
@@ -169,7 +183,7 @@ export function weaponRouteEffect(vfx,w,phase,x,z,angle=0,detail={}){
    const side=(i-(count-1)/2)*.18,core=strong&&i===1,m=particle('claw',strong?(core?0x142030:0xd8e2eb):0x869ab0,0,side,.5,{life:strong?.34:.3,size:[strong?(core?.75:.20):.45,(strong?.65:.25)*level,1],velocity:strong?velocity(.15,side*2.4,.35):[0,0,0],motion:strong?'lash':'erupt',endColor:strong?(core?0x142030:0x566781):null,priority:i===0?1:0,opacity:strong?.76:.62});
    orient(m,-.2,a,side*2);
   }
-  if(strong){particle('veil',0x16202c,0,0,.07,{life:.28,size:[.58,.46,1],opacity:.24});for(const side of[-1,1])chip('crystal',0x9aaabd,.03,side*.15,.7,[.04,.13,.04],.6,1);}
+  if(strong){if(!contact)particle('veil',0x16202c,0,0,.07,{life:.28,size:[.58,.46,1],opacity:.24});for(const side of[-1,1])chip('crystal',0x9aaabd,.03,side*.15,.7,[.04,.13,.04],.6,1);}
   break;
  }
  case'shadowblade_fan':
@@ -213,7 +227,7 @@ export function weaponRouteEffect(vfx,w,phase,x,z,angle=0,detail={}){
   if(detail.combo!==2&&!detail.empowered)return false;
   for(const side of[-1,1]){
    const m=particle('crest',side<0?0x4c9593:0xa6c9bc,.16,side*(.28+target*.35),.12,{life:.3,size:[.4,.28*level,1],motion:'erupt',velocity:velocity(-1.35,side*.12),priority:side<0?1:0,opacity:.73});
-   if(m)m.rotation.y=a+Math.PI;
+   if(m){if(contact)orient(m,0,a+Math.PI);else m.rotation.y=a+Math.PI;}
    chip('ember',0x9cbfb9,.1,side*(.28+target*.35),.45,[.026,.05,.026],-1.6,.25);
   }
   break;

@@ -98,3 +98,23 @@ test('measured low rocks allow the camera overhead while tall trees still retrac
  rig.update(0,player,[{...rock,height:5}],{snap:true});assert(rig.camera.position.z>-1.1);
  const flat=camera({pitch:0,distance:6});flat.update(0,player,[{...rock,height:1.1}],{snap:true});assert(flat.camera.position.z>-1.1);
 });
+
+
+test('dodge bank does not change the center aim ray or accumulate across frames',()=>{
+ for(const mode of ['first','third']){
+  const rig=camera({mode,yaw:.7,pitch:.2});rig.update(0,player);const ray=rig.getRay().direction.clone(),plain=rig.camera.quaternion.clone();
+  for(let i=0;i<120;i++){rig.update(1/60,player,[],{eyeHeight:1.27,shoulderHeight:1.03,roll:.028});assert(ray.distanceTo(rig.getRay().direction)<1e-9);}
+  const bank=rig.camera.quaternion.clone();rig.update(0,player,[],{roll:.028});assert(bank.angleTo(rig.camera.quaternion)<1e-7);
+  rig.update(0,player,[],{roll:0});assert(plain.angleTo(rig.camera.quaternion)<1e-7);
+ }
+});
+test('lowered dodge views retain floor and obstacle clearance; stronger follow pauses and is frame-rate independent',()=>{
+ const tree={x:0,z:-2,r:.6,height:5},poses=[];
+ for(const hz of [30,60,144]){
+  const rig=camera({pitch:0});rig.update(0,player,[tree],{shoulderHeight:.87});outside(rig.camera.position,tree);
+  for(let i=0;i<hz;i++)rig.update(1/hz,{x:4,z:2},[],{followRate:24,shoulderHeight:.87});poses.push(rig.camera.position.clone());
+  const held=rig.camera.position.clone();rig.update(0,{x:9,z:5},[],{followRate:24,shoulderHeight:.87});assert(held.distanceTo(rig.camera.position)<1e-9);
+  rig.setMode('first').update(0,{x:4,y:-.55,z:2},[],{eyeHeight:.2});near(rig.camera.position.y,.35);
+ }
+ assert(poses[0].distanceTo(poses[1])<1e-9);assert(poses[0].distanceTo(poses[2])<1e-9);
+});

@@ -236,3 +236,8 @@ body.auto-attack #crosshair{opacity:.35;width:8px;height:8px}body.auto-attack #c
 @media(max-width:700px){body.playing header .brand{display:none}#view-toggle{padding:6px;font-size:10px}body.playing header .top-actions{gap:4px;flex-wrap:wrap}body.playing #audio-settings>summary{font-size:10px}}
 
 @media(max-width:480px){.dialog-actions{flex-wrap:wrap}.dialog-actions button{flex:1 1 calc(50% - 10px);min-width:0}}
+
+/* Brief ability edges leave the aiming area clear; opacity follows game time. */
+#dodge-view{position:fixed;inset:0;pointer-events:none;z-index:2;opacity:0;background:radial-gradient(ellipse at center,transparent 42%,#253036 100%)}
+#dodge-view[data-kind="dive"]{background:linear-gradient(0deg,#315a69,transparent 65%),radial-gradient(ellipse at center,transparent 25%,#173e52)}
+#dodge-view[data-kind="blink"],#dodge-view[data-kind="mist"]{background:radial-gradient(ellipse at center,transparent 35%,#333044)}

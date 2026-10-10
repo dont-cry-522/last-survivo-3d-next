@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {aimPoint,segmentHitsBody,launchVelocity,groundAim} from '../adventure-combat.js';
+import {aimPoint,segmentHitsBody,launchVelocity,groundAim,bodyContact} from '../adventure-combat.js';
 
 const ray=(x,y,z,dx,dy,dz)=>({origin:{x,y,z},direction:{x:dx,y:dy,z:dz}});
 const close=(a,b)=>assert(Math.abs(a-b)<1e-7,`${a} differs from ${b}`);
@@ -66,4 +66,25 @@ test('ground spells clamp to the player instead of the camera and sky aim falls 
  assert.deepEqual(groundAim(ray(20,3,-5,0,1,1),origin,8,.3),{x:2,y:0,z:11});
  const up=groundAim(ray(20,3,-5,0,1,0),origin,8,Math.PI/2);close(up.x,10);close(up.z,3);
  assert.deepEqual(groundAim(ray(0,2,0,0,-1,1),origin,0),origin);
+});
+
+
+test('visual contacts use the near body surface and impact height without moving hitboxes',()=>{
+ const e=Object.freeze(enemy(5,{height:2}));
+ const c=bodyContact(0,1.4,0,0,1.4,12,e,.08);close(c.z,4.3);close(c.y,1.4);assert.deepEqual(c.normal,{x:0,y:0,z:-1});assert.deepEqual(c.direction,{x:0,y:0,z:1});
+ const cap=bodyContact(0,5,5,0,-1,5,e,.08);close(cap.y,2);assert.deepEqual(cap.normal,{x:0,y:1,z:0});
+ const grazing=bodyContact(.77,1,0,.77,1,10,e,.08);close(Math.hypot(grazing.x-e.x,grazing.z-e.z),.7);close(grazing.y,1);close(Math.hypot(...Object.values(grazing.normal)),1);
+ const raised=bodyContact(0,3.8,0,0,3.8,12,{...e,y:3},.08);close(raised.y,3.8);close(raised.z,4.3);
+});
+test('visual contacts remain finite for inside starts and stationary return weapons',()=>{
+ const e=enemy(5);
+ for(const end of [[0,1,5],[0,2,5],[0,0,5],[1,1,6]]){
+  const c=bodyContact(0,1,5,...end,e,.1);assert(Object.values(c).filter(x=>typeof x==='number').every(Number.isFinite));close(Math.hypot(...Object.values(c.normal)),1);
+  assert(Math.abs(Math.hypot(c.x-e.x,c.z-e.z)-.7)<1e-7||c.y===0||c.y===2,'contact stayed inside the body');
+ }
+});
+
+
+test('legacy planar boomerang grazing contact uses the nearest side instead of the back face',()=>{
+ const c=bodyContact(.9,1,4,.9,1,6,enemy(5),.08);close(c.x,.7);close(c.z,5);close(c.y,1);assert.deepEqual(c.normal,{x:1,y:0,z:0});
 });

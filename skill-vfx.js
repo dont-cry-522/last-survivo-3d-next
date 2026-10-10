@@ -23,6 +23,24 @@ function vaporTexture(){
  return new T.CanvasTexture(canvas);
 }
 
+// Optional final contact argument: {x,y,z,normal,direction,compact}. Direction
+// points into the target; normal points out. Missing fields keep the legacy yaw/height.
+function contactFrame(x,z,angle,contact,y){
+ const valid=v=>v&&[v.x,v.y,v.z].every(Number.isFinite),a=Number.isFinite(angle)?angle:0;
+ const forward=new T.Vector3(Math.sin(a),0,Math.cos(a));
+ if(valid(contact?.direction)&&Math.hypot(contact.direction.x,contact.direction.y,contact.direction.z)>1e-6)forward.copy(contact.direction).normalize();
+ const normal=forward.clone().negate();
+ if(valid(contact?.normal)&&Math.hypot(contact.normal.x,contact.normal.y,contact.normal.z)>1e-6)normal.copy(contact.normal).normalize();
+ const side=new T.Vector3().crossVectors(new T.Vector3(0,1,0),normal);
+ if(side.lengthSq()<1e-6)side.set(Math.cos(a),0,-Math.sin(a));side.normalize();
+ const up=new T.Vector3().crossVectors(normal,side).normalize(),scale=contact?.compact?.62:1;
+ const center=new T.Vector3(Number.isFinite(contact?.x)?contact.x:x,Number.isFinite(contact?.y)?contact.y:y,Number.isFinite(contact?.z)?contact.z:z);
+ if(contact)center.addScaledVector(normal,.018);
+ return{scale,compact:!!contact?.compact,rotation:new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(side,up,normal)),
+  at:(s=0,u=0,out=0)=>center.clone().addScaledVector(side,s*scale).addScaledVector(up,u*scale).addScaledVector(normal,out*scale),
+  velocity:(s=0,u=0,out=0)=>side.clone().multiplyScalar(s*scale).addScaledVector(up,u*scale).addScaledVector(normal,out*scale).toArray()};
+}
+
 // A bounded mesh pool keeps spell bursts cheap and reuses both geometry and materials.
 export class SkillVFX{
  constructor(scene,{mobile=false}={}){
@@ -61,10 +79,10 @@ export class SkillVFX{
   }this.active.length=n;
  }
  clear(){for(const p of this.active){this.scene.remove(p.mesh);this.pool.push(p.mesh);}this.active.length=0;}
- enemyContact(texture,color,x,z,angle,strong=false){
-  const hard=['stone','wood','ice'].includes(texture),shape=texture==='stone'?'stone':hard?'crystal':'smoke',count=strong?4:2;
-  this.segment(new T.Vector3(x-Math.sin(angle)*.18,.84,z-Math.cos(angle)*.18),new T.Vector3(x+Math.sin(angle)*.08,.88,z+Math.cos(angle)*.08),hard?0xf4d4a2:0xe7d1ab,strong?.03:.018,.075,false,1,.8);
-  for(let i=0;i<count;i++){const a=angle+(i-(count-1)/2)*.55,s=strong?.065:.045;const chip=this.particle(shape,color,x,.80,z,{life:hard?.24:.20,size:[s,s*(hard?1.7:1.1),s*.7],velocity:[Math.sin(a)*(strong?2:1.3),hard?.6+i*.25:.35,Math.cos(a)*(strong?2:1.3)],gravity:hard?5:0,spin:hard?5:0,opacity:hard?.8:.5,additive:false});if(chip&&hard)chip.rotation.set(.45,a,.6);}
+ enemyContact(texture,color,x,z,angle,strong=false,contact){
+  const f=contactFrame(x,z,angle,contact,.84),hard=['stone','wood','ice'].includes(texture),shape=texture==='stone'?'stone':hard?'crystal':'smoke',count=strong?(f.compact?3:4):2,p=f.at();
+  this.segment(f.at(-.085,-.025),f.at(.10,.045,.015),hard?0xe9cba0:0xd8c6a8,(strong?.024:.016)*f.scale,.075,false,1,.76);
+  for(let i=0;i<count;i++){const s=(strong?.048:.036)*f.scale,chip=this.particle(shape,color,p.x,p.y,p.z,{life:hard?.20:.16,size:[s,s*(hard?1.6:1.1),s*.7],velocity:f.velocity((i-(count-1)/2)*.65,hard?.30+i*.12:.18,hard?.85:.35),gravity:hard?4:0,spin:hard?5:0,opacity:hard?.72:.38,additive:false});if(chip&&hard){chip.quaternion.copy(f.rotation);chip.rotateZ(.4+i*.5);}}
  }
  dive(x,z,angle){
   this.particle('veil',0x3e989c,x,.09,z,{life:.22,size:[.85,.66,1],opacity:.55,additive:false});
@@ -156,15 +174,22 @@ export class SkillVFX{
    this.particle('ember',0xd4dce5,px,.2,pz,{life:.4,size:[.035,.07,.035],velocity:[0,2,0]});
   }
  }
- bladeImpact(x,z,angle,shadow=false){
-  const forward=new T.Vector3(Math.sin(angle),0,Math.cos(angle)),side=new T.Vector3(Math.cos(angle),0,-Math.sin(angle));let last=null;
+ bladeImpact(x,z,angle,shadow=false,contact){
+  const f=contactFrame(x,z,angle,contact,1),p=f.at();let last=null;
   for(let i=0;i<=4;i++){
-   const u=i/4,point=new T.Vector3(x,.75+u*.65,z).addScaledVector(side,(u-.5)*1.1).addScaledVector(forward,Math.sin(u*Math.PI)*.24);
-   if(last)this.segment(last,point,shadow?0xd4dde8:0xbfffea,.02+Math.sin(u*Math.PI)*.024,.17,true,1);last=point;
+   const u=i/4,point=f.at((u-.5)*.54,(u-.5)*.32,Math.sin(u*Math.PI)*.025);
+   if(last)this.segment(last,point,shadow?0xc5d0df:0xb9dfd5,(.011+Math.sin(u*Math.PI)*.008)*f.scale,f.compact?.10:.14,false,1,.80);last=point;
   }
-  for(let i=0;i<3;i++)this.particle('crystal',shadow?0x718299:0x85d9cf,x,1,z,{life:.23,size:[.025,.09,.025],velocity:[forward.x*(1+i*.5)+side.x*(i-1),.5+i*.25,forward.z*(1+i*.5)+side.z*(i-1)],gravity:3,spin:8});
+  const count=f.compact?2:3;for(let i=0;i<count;i++)this.particle('crystal',shadow?0x718299:0x85bbae,p.x,p.y,p.z,{life:.19,size:[.016*f.scale,.064*f.scale,.016*f.scale],velocity:f.velocity((i-(count-1)/2)*.8,.25+i*.15,.8),gravity:3,spin:6,opacity:.65,additive:false});
  }
- shadowMark(x,z,strong=false){
+ shadowMark(x,z,strong=false,contact){
+  if(contact){
+   const f=contactFrame(x,z,0,contact,.95),base=f.at(0,strong?-.17:-.10),core=this.particle('claw',0x111822,base.x,base.y,base.z,{life:strong?(f.compact?.20:.28):.15,size:[(strong?.30:.17)*f.scale,(strong?.27:.16)*f.scale,1],motion:'implode',opacity:.74,additive:false,priority:1});
+   if(core)core.quaternion.copy(f.rotation);
+   for(const side of[-1,1])this.segment(f.at(side*(strong?.12:.07),-.10,.008),f.at(-side*.025,strong?.17:.12,.012),0xcad7e3,(strong?.018:.012)*f.scale,strong?.14:.10,false,1,.78,{endColor:0x71829a});
+   if(strong){const p=f.at(),count=f.compact?3:4;for(let i=0;i<count;i++)this.particle('crystal',i%2?0x67778c:0xc8d4df,p.x,p.y,p.z,{life:.23,size:[.020*f.scale,.074*f.scale,.020*f.scale],velocity:f.velocity((i-(count-1)/2)*.6,.3,.7),gravity:3,spin:4,opacity:.7,additive:false,endColor:0x39485d});}
+   return;
+  }
   const core=this.particle('claw',0x111822,x,.67,z,{life:strong?.34:.17,size:strong?[.85,.6,1]:[.32,.24,1],motion:'implode',opacity:.8,additive:false,priority:1});if(core)core.rotation.set(-.35,.6,-.2);
   for(const side of[-1,1])this.segment(new T.Vector3(x+side*(strong?.3:.1),strong?.65:.86,z+.025),new T.Vector3(x-side*.05,strong?1.35:1.10,z+.025),0xdde7ef,strong?.025:.015,strong?.18:.11,false,1,.85,{delay:strong?.025:0,endColor:0x71829a});
   if(strong)for(let i=0;i<6;i++){const a=i*Math.PI/3;this.particle('crystal',i%2?0x67778c:0xdde4ee,x,1,z,{life:.31,delay:.035,size:[.032,.18,.032],velocity:[Math.sin(a)*2.6,1.4,Math.cos(a)*2.6],gravity:4,spin:5,endColor:0x39485d});}
@@ -188,22 +213,26 @@ export class SkillVFX{
   else if(kind==='frost')this.particle('crystal',0xa5e8ff,x+(Math.random()-.5)*size,.18,z+(Math.random()-.5)*size,{life:.38,size:[.055,.22,.055],grow:true});
   else this.particle('ember',0xbb9eff,x+(Math.random()-.5)*size,.45,z+(Math.random()-.5)*size,{life:.4,size:[.065,.09,.065],velocity:[0,.6,0]});
  }
- weaponContact(kind,x,z,angle,combo=0){
-  const dx=Math.sin(angle),dz=Math.cos(angle);
+ weaponContact(kind,x,z,angle,combo=0,contact){
+  const f=contactFrame(x,z,angle,contact,kind==='hammer'?.16:.8),p=f.at(),size=(a,b,c=1)=>[a*f.scale,b*f.scale,c],pose=(m,roll=0)=>{if(m){m.quaternion.copy(f.rotation);m.rotateZ(roll);}return m;};
   if(kind==='harpoon'||kind==='boomerang'){
-   const color=kind==='harpoon'?0xa4ded5:0xe1cb97,m=this.particle('sweep',color,x,.8,z,{life:.17,size:kind==='harpoon'?[.52,.32,1]:[.34,.23,1],motion:'lash',opacity:.7,roll:combo===2?-3:3,priority:1});if(m)m.rotation.set(-.65,angle,kind==='boomerang'?.8:combo===1?.2:1.2);
-   for(let i=0;i<3;i++)this.particle('crystal',color,x,.8,z,{life:.23,size:[.025,.075,.025],velocity:[dx*(combo===2?-1:1)+dz*(i-1)*.5,.7,dz*(combo===2?-1:1)-dx*(i-1)*.5],gravity:4,spin:6,additive:false});
+   const harpoon=kind==='harpoon',sweep=combo===1,color=harpoon?0x9bc7c2:0xd4be90;
+   if(harpoon&&!sweep){
+    for(const side of[-1,0,1])this.segment(f.at(side*.065,-.05,.025),f.at(side*.04,.095,0),side?0x799f9d:0xd0e6df,(side?.010:.017)*f.scale,.105,false,side?0:1,.78);
+    if(combo===2)pose(this.particle('sweep',color,p.x,p.y,p.z,{life:.13,size:size(.16,.075),motion:'lash',opacity:.48,roll:-2,priority:1,additive:false}),.65);
+   }else pose(this.particle('sweep',color,p.x,p.y,p.z,{life:f.compact?.12:.16,size:size(harpoon?.30:.24,harpoon?.12:.11),motion:'lash',opacity:.62,roll:sweep?2:-2,priority:1,additive:false}),harpoon?.16:.75);
+   const count=f.compact?2:3;for(let i=0;i<count;i++)this.particle('crystal',color,p.x,p.y,p.z,{life:.19,size:size(.016,.059,.016*f.scale),velocity:f.velocity((i-(count-1)/2)*(sweep?.85:.38),.35,.85),gravity:4,spin:6,opacity:.70,additive:false});
   }else{
-   const shield=kind==='shield',contact=this.particle(shield?'sweep':'claw',shield?0xe3e8ca:0xe2c58d,x,shield?.8:.12,z,{life:shield?.13:.2,size:shield?[.3,.22,1]:[.32,.36,1],motion:'lash',opacity:.8,priority:1});if(contact)contact.rotation.set(shield?-.5:-.25,angle,shield?.4:-.8);
-   for(let i=0;i<4;i++){const a=angle+(i-1.5)*.45;this.particle(shield?'crystal':'stone',shield?0xc8d3b9:0xc4a16b,x,shield?.9:.22,z,{life:shield?.19:.32,size:shield?[.025,.09,.025]:[.065,.07+(i%2)*.025,.045],velocity:[Math.sin(a)*2,shield?.2:1.2+i*.2,Math.cos(a)*2],gravity:shield?1:7,spin:8,additive:shield});}
-   if(!shield&&combo===2)this.dust(x,z,.65);
+   const shield=kind==='shield';pose(this.particle(shield?'sweep':'claw',shield?0xd6dcc3:0xd7ba87,p.x,p.y,p.z,{life:shield?.13:.18,size:size(.24,shield?.16:.24),motion:'lash',opacity:.68,priority:1,additive:false}),shield?.4:-.8);
+   for(let i=0;i<(f.compact?3:4);i++)this.particle(shield?'crystal':'stone',shield?0xbfcab2:0xb9996a,p.x,p.y,p.z,{life:shield?.18:.24,size:size(shield?.02:.048,shield?.07:.07,shield?.02*f.scale:.035*f.scale),velocity:f.velocity((i-1.5)*.5,shield?.3:.8+i*.12,.8),gravity:shield?1:6,spin:7,opacity:.7,additive:false});
+   if(!shield&&combo===2&&!contact)this.dust(x,z,.65);
   }
  }
- boltImpact(x,z,strong=false,angle=0){
-  const count=strong?10:4,dx=Math.sin(angle),dz=Math.cos(angle);
-  this.segment(new T.Vector3(x-dx*.2,.96,z-dz*.2),new T.Vector3(x+dx*.25,1.08,z+dz*.25),0xecfaff,strong?.035:.022,.11,false,1);
-  for(let i=0;i<count;i++){const a=angle+(i/count-.5)*Math.PI*1.25,s=strong?2.8:1.5;const chip=this.particle('crystal',i%3?0xc3e9ff:0xffffff,x,1.05,z,{life:strong?.42:.25,size:[.03,strong?.23:.12,.03],velocity:[Math.sin(a)*s,(i%3)*.7+.2,Math.cos(a)*s],gravity:4,spin:9});if(chip)chip.rotation.set(.7,a,.4);}
-  if(strong)this.particle('ember',0x92cafa,x,1.05,z,{life:.26,size:[.32,.32,.32],grow:true,opacity:.7});
+ boltImpact(x,z,strong=false,angle=0,contact){
+  const f=contactFrame(x,z,angle,contact,1.05),count=strong?(f.compact?4:6):3,p=f.at();
+  this.segment(f.at(-.045,-.035,.015),f.at(.05,.065,.045),0xd9e8eb,(strong?.024:.017)*f.scale,.09,false,1,.85);
+  if(strong)this.segment(f.at(-.085,.07),f.at(.075,-.045,.015),0x91becd,.014*f.scale,.12,false,1,.67);
+  for(let i=0;i<count;i++){const a=i/count*Math.PI*2,chip=this.particle('crystal',i%3?0xa7c9d8:0xdce8e7,p.x,p.y,p.z,{life:strong?.26:.20,size:[.018*f.scale,(strong?.10:.066)*f.scale,.018*f.scale],velocity:f.velocity(Math.sin(a)*(strong?1.3:.8),Math.cos(a)*.65,.75+i%2*.2),gravity:3,spin:7,opacity:.75,additive:false});if(chip){chip.quaternion.copy(f.rotation);chip.rotateZ(a);}}
  }
  skill(e){
   const {kind,x,z}=e,point=(x,y,z)=>new T.Vector3(x,y,z);

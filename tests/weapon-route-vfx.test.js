@@ -138,3 +138,30 @@ test('grimoire release pairs dark folded pages with thin delayed bright edges un
  }
  v.update(1);assert.equal(v.active.length,0);
 });
+
+test('point route accents follow elevated contacts and compact views without changing floor effects',()=>{
+ const v=new SkillVFX(new T.Scene()),contact=Object.freeze({x:8,y:3.7,z:-6,normal:Object.freeze({x:0,y:0,z:-1}),direction:Object.freeze({x:0,y:.3,z:1}),compact:true});
+ const pointRoutes=[['rifle_pierce','hit'],['shotgun_fan','hit'],['shotgun_slug','hit'],['fire_burn','hit'],['crossbow_pierce','hit'],['crossbow_hunt','hit'],['shuriken_fan','hit'],['shuriken_return','hit'],['dark_seek','hit'],['shade_blight','mark'],['shadowblade_fan','hit'],['shadowblade_return','hit'],['harpoon_reef','hit'],['harpoon_tow','hit'],['boomerang_pincer','pet']];
+ for(const[id,phase]of pointRoutes){
+  v.clear();assert(cast(v,id,phase,{...event,contact}));
+  assert(v.active.length>0&&v.active.length<=6);
+  for(const p of v.active){assert(Math.abs(p.mesh.position.x-contact.x)<.7,id);assert(Math.abs(p.mesh.position.y-contact.y)<.45,id+' retained a fixed height');assert(Math.abs(p.mesh.position.z-contact.z)<.7,id);assert.equal(p.mesh.material.blending,T.NormalBlending);assert(p.max<=.4);assert(p.mesh.quaternion.toArray().every(Number.isFinite));}
+ }
+ const pose=()=>v.active.map(p=>[p.shape,...p.mesh.position.toArray(),...p.mesh.quaternion.toArray(),p.size,p.velocity,p.max,p.opacity]);
+ for(const[id,phase]of[['miasmalantern_venom','hit'],['sporelantern_still','hit'],['sporelantern_roam','hit'],['fire_blast','hit'],['dark_gravity','field'],['grimoire_wide','hit'],['grimoire_echo','echo'],['boomerang_snare','trap'],['rifle_rapid','cast']]){
+  v.clear();cast(v,id,phase,event);const original=pose();v.clear();cast(v,id,phase,{...event,contact});assert.deepEqual(pose(),original,id+' must keep its real ground/cast anchor');
+ }
+});
+
+test('compact point routes reduce their actual bounds and bounce connects the two supplied 3D contacts',()=>{
+ const v=new SkillVFX(new T.Scene()),contact={x:2,y:2.4,z:3,normal:{x:0,y:0,z:-1}};
+ for(const id of['rifle_pierce','crossbow_hunt','dark_seek','shadowblade_return','harpoon_tow']){
+  v.clear();cast(v,id,'hit',{...event,contact});const large=new T.Box3().setFromObject(v.scene).getSize(new T.Vector3()).length(),count=v.active.length;
+  v.clear();cast(v,id,'hit',{...event,contact:{...contact,compact:true}});const small=new T.Box3().setFromObject(v.scene).getSize(new T.Vector3()).length();
+  assert(small<large*.75,id);assert.equal(v.active.length,count);
+ }
+ v.clear();cast(v,'shade_echo','bounce',{contact,x2:0,y2:.6,z2:0});
+ const trace=v.active.find(p=>p.max===.14&&p.priority===0),center=new T.Vector3(1,1.5,1.5);
+ assert(trace);assert(trace.mesh.position.distanceTo(center)<1e-8);assert(Math.abs(trace.size[1]-Math.hypot(2,1.8,3))<1e-8);
+ v.update(1);assert.equal(v.active.length,0);
+});

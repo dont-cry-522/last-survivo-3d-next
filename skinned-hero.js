@@ -328,6 +328,13 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
   const cadence=T.MathUtils.lerp(d.smoothedSpeed/2.5/d.walk.getClip().duration,d.smoothedSpeed/5.8/d.run.getClip().duration,jogging)/strideScale;d.gaitPhase=(d.gaitPhase+dt*cadence*(d.kind==='lingya'?1-lingyaHopPose(d.dashTime||0).air:1))%1;
   for(const a of[d.run,d.backRun,d.upperRun,d.walk,d.backWalk,d.upperWalk]){a.paused=true;a.time=d.gaitPhase*a.getClip().duration;}d.aim.setEffectiveWeight(newHero?1-upperFree:d.aimBlend);
   const isRoll=d.kind==='scout'&&d.dashTime>0&&!(d.waterDepth>.42)&&!d.waterDash,roll=d.actions.Roll,weight=isRoll?rollWeight(d.dashTime):0,poseBlend=(1-weight)*(d.kind==='lingya'?1-lingyaHopPose(d.dashTime||0).weight:1);
+  if(d.kind==='scout'){
+    // The parent eases toward the dodge heading; the roll must already follow its travel axis.
+    // Remove our previous offset before applying this frame, including the last recovery frame.
+    d.rig.rotation.y-=d.rollYaw||0;
+    d.rollYaw=isRoll&&Number.isFinite(d.dashAngle)?angleDelta(d.dashAngle,g.rotation.y)*weight:0;
+    d.rig.rotation.y+=d.rollYaw;
+  }
   if(isRoll){roll.enabled=true;roll.setLoop(T.LoopOnce,1);roll.clampWhenFinished=true;roll.play();roll.setEffectiveWeight(weight);roll.paused=true;roll.time=rollProgress(d.dashTime)*roll.getClip().duration;for(const a of[d.idle,d.run,d.walk,d.backRun,d.backWalk,d.upperIdle,d.upperRun,d.upperWalk,d.aim])a.setEffectiveWeight(a.getEffectiveWeight()*poseBlend);}else roll.stop();
   if(d.dodgeActions){
     for(const action of Object.values(d.dodgeActions))action.setEffectiveWeight(0);

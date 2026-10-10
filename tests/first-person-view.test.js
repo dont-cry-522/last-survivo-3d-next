@@ -23,7 +23,7 @@ test('all 13 actual weapon graphs fit ahead of the camera, without mutating sour
   view.setHero(hero(gun),id);assert(view.weapon,id);assert(view.parts.length>0);
   for(const aspect of[16/9,390/844]){camera.aspect=aspect;camera.updateProjectionMatrix();view.update(1,.016,{visible:true,moving:1});camera.updateMatrixWorld(true);
    assert(view.root.visible);assert(view.root.position.z<-.6);assert(view.weapon.scale.x>0);
-   const box=new T.Box3().setFromObject(view.weapon),size=box.getSize(new T.Vector3());assert(Math.max(size.x,size.y,size.z)<1.15,id+' fills the view');
+   const box=new T.Box3().setFromObject(view.weapon),size=box.getSize(new T.Vector3());assert(Math.max(size.x,size.y,size.z)<(id==='harpoon'?1.9:1.15),id+' fills the view');
    for(const [source,clone]of view.parts){assert(clone.matrixWorld.elements.every(Number.isFinite));assert.deepEqual(clone.userData,{});if(clone.isMesh){assert(clone.geometry===source.geometry||view.ownedGeometry.includes(clone.geometry));assert.notEqual(clone.material,source.material);assert.equal(clone.material.depthTest,source.material.depthTest);assert.equal(clone.material.depthWrite,source.material.depthWrite);assert.equal(clone.material.transparent,source.material.transparent);assert.equal(clone.layers.mask,2);assert(clone.renderOrder>=10000);assert.equal(clone.castShadow,false);}}
   }
   assert.deepEqual(gun.position.toArray(),[9,3,4]);assert.equal(gun.scale.x,.65);assert(gun.matrix.equals(original));
@@ -136,6 +136,65 @@ test('hand and sleeve palettes differ by hero without changing shared weapon col
  const view=new FirstPersonView(new T.PerspectiveCamera(60,1.6,.1,100)),palettes=new Set(),gun=weapon('rifle');
  try{for(const kind of Object.keys(HERO_LOADOUTS)){view.setHero({userData:{gun,kind}},'rifle');palettes.add(Array.from(view.arms[0].geometry.attributes.color.array.slice(0,9)).join(','));}
  assert.equal(palettes.size,7);
+ }finally{view.dispose();}
+});
+
+test('harpoon is held behind the forward fork with two spaced contacts and three distinct recoveries',()=>{
+ const camera=new T.PerspectiveCamera(60,16/9,.1,100),view=new FirstPersonView(camera),gun=weapon('harpoon'),actor=hero(gun),contact=new T.Vector3(0,.045,-.023),point=new T.Vector3();
+ Object.assign(actor.userData,{attackAge:10,reloadDuration:.48,reloadPhase:1});view.setHero(actor,'harpoon');
+ try{for(const aspect of[16/9,844/390,390/844]){
+  camera.aspect=aspect;camera.updateProjectionMatrix();view.update(1,.016,{visible:true});camera.updateMatrixWorld(true);
+  assert.deepEqual(view.center.toArray(),[0,0,-.08]);assert(view.grip.length()<1e-8);
+  const rear=contact.clone().applyMatrix4(view.hands[0].matrixWorld),front=contact.clone().applyMatrix4(view.hands[1].matrixWorld),tip=new T.Vector3(0,0,1.75).sub(view.center).applyMatrix4(view.weapon.matrixWorld);
+  assert(front.distanceTo(rear)>.23&&front.distanceTo(rear)<.31,'hands pinch the same short section of the pole');assert(tip.z<rear.z-.95);assert(tip.z< -1.7,'fork has no forward perspective');
+  let min=Infinity,max=-Infinity;
+  for(const [source,node]of view.parts)if(source.geometry?.type==='ExtrudeGeometry')for(let i=0;i<node.geometry.attributes.position.count;i++){
+   node.getVertexPosition(i,point);point.applyMatrix4(node.matrixWorld).project(camera);min=Math.min(min,point.x);max=Math.max(max,point.x);
+  }
+  assert(max-min<.43,'distant fork is too wide on screen');
+  const gestures=new Set();
+  for(let combo=0;combo<3;combo++){
+   Object.assign(actor.userData,{harpoonCombo:combo,attackAge:.16,reloadPhase:.16/.48});view.update(1.16,.016,{visible:true});camera.updateMatrixWorld(true);
+   gestures.add([...view.weapon.position.toArray(),...view.weapon.rotation.toArray().slice(0,3)].map(n=>n.toFixed(3)).join(','));
+   for(let i=0;i<2;i++)assert(contact.clone().applyMatrix4(view.hands[i].matrixWorld).distanceTo(view.handPoints[i].clone().applyMatrix4(view.weapon.matrixWorld))<1e-6,'pole slips away from a hand during a combo');
+   Object.assign(actor.userData,{attackAge:10,reloadPhase:1});view.update(2,.016,{visible:true});assert(view.weapon.position.length()<1e-8,'combo failed to recover');
+  }
+  assert.equal(gestures.size,3);
+ }}finally{view.dispose();}
+});
+
+test('all equipment tucks for five dodge kinds without breaking contacts or clipping phone views',()=>{
+ const camera=new T.PerspectiveCamera(60,16/9,.1,100),view=new FirstPersonView(camera),point=new T.Vector3(),contact=new T.Vector3(0,.045,-.023);
+ try{for(const id of Object.values(HERO_LOADOUTS).flat()){
+  const actor=hero(weapon(id));Object.assign(actor.userData,{attackAge:10,reloadPhase:1,reloadDuration:1});view.setHero(actor,id);
+  for(const aspect of[16/9,844/390,390/844]){
+   camera.aspect=aspect;camera.updateProjectionMatrix();view.update(1,.016,{visible:true});const idle=view.root.position.clone(),rotation=view.root.quaternion.clone(),signatures=new Set();
+   for(const kind of['roll','blink','dive','hop','mist'])for(const side of[-1,1]){
+    const age=side<0?.12:10;Object.assign(actor.userData,{attackAge:age,reloadPhase:Math.min(1,age),harpoonCombo:side<0?1:0});
+    view.update(1,.016,{visible:true,dodgePose:{kind,weight:1,side,forward:side}});camera.updateMatrixWorld(true);
+    assert(view.root.position.y<idle.y-.10);assert.equal(actor.userData.attackAge,age);signatures.add([...view.root.position.toArray(),...view.root.rotation.toArray().slice(0,3)].join(','));
+    assert(contact.clone().applyMatrix4(view.hands[0].matrixWorld).distanceTo(view.grip.clone().applyMatrix4(view.weapon.matrixWorld))<1e-6,id+' hand detached during dodge');
+    view.root.traverse(mesh=>{if(!mesh.isMesh)return;for(let i=0;i<mesh.geometry.attributes.position.count;i++){
+     mesh.getVertexPosition(i,point);point.applyMatrix4(mesh.matrixWorld);assert(Number.isFinite(point.x+point.y+point.z));assert(point.z<-.16,id+' clips the camera during '+kind);
+    }});
+   }
+   assert(signatures.size>=5);view.update(1,.016,{visible:true,dodgePose:null});assert(view.root.position.equals(idle));assert(view.root.quaternion.equals(rotation));
+  }
+ }}finally{view.dispose();}
+});
+
+test('active dodge freezes at dt zero, explicit cancellation clears it, and rebinding cannot carry it over',()=>{
+ const camera=new T.PerspectiveCamera(60,1.7,.1,100),view=new FirstPersonView(camera),actor=hero(weapon('harpoon'));
+ Object.assign(actor.userData,{attackAge:.16,reloadDuration:.48,reloadPhase:.3});view.setHero(actor,'harpoon');
+ try{
+  view.update(1,.016,{visible:true,dodgePose:{kind:'dive',weight:.8,side:.4,forward:1}});camera.updateMatrixWorld(true);
+  const frozen=[];view.root.traverse(n=>frozen.push([n,n.position.clone(),n.quaternion.clone(),n.scale.clone()]));const age=view.attackAge;
+  view.update(300,0,{visible:true,attack:1,moving:1,dodgePose:{kind:'roll',weight:1,side:-1,forward:-1}});
+  for(const [node,p,q,s]of frozen){assert(node.position.equals(p));assert(node.quaternion.equals(q));assert(node.scale.equals(s));}assert.equal(view.attackAge,age);
+  view.update(300,0,{visible:true,dodgePose:null});assert.equal(view.dodgeWeight,0);assert(view.root.position.equals(view.dodgeBasePosition));assert(view.root.rotation.equals(view.dodgeBaseRotation));assert.equal(view.attackAge,age);
+  view.update(301,.016,{visible:true,dodgePose:{kind:'dive',weight:1}});view.update(301,0,{visible:false,dodgePose:null});assert.equal(view.dodgeWeight,0);assert.equal(view.root.visible,false);
+  view.setHero(hero(weapon('rifle')),'rifle');view.update(0,0,{visible:true});assert.equal(view.dodgeWeight,0);assert(Math.abs(view.root.rotation.x)<1e-8);
+  view.update(0,.016,{visible:true,dodgePose:{weight:NaN,kind:'other',side:Infinity,forward:NaN}});assert(view.root.position.toArray().every(Number.isFinite));assert.equal(view.dodgeWeight,0);
  }finally{view.dispose();}
 });
 

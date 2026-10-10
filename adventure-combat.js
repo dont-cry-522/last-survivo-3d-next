@@ -36,6 +36,25 @@ export function segmentHitsBody(ax,ay,az,bx,by,bz,target,radius=0){
  return distance2((lo+hi)/2)<=rr;
 }
 
+/** Visual contact only, called after the existing hit test has accepted a hit.
+ * Clamp the swept projectile to the struck body's near surface, not its center.
+ */
+export function bodyContact(ax,ay,az,bx,by,bz,target,radius=0){
+ const a={x:ax,y:ay,z:az},d={x:bx-ax,y:by-ay,z:bz-az},c=body(target),r=Math.max(0,radius);
+ const hit=cylinderEntry(a,d,c)||cylinderEntry(a,d,{...c,r:c.r+r,bottom:c.bottom-r,top:c.top+r});
+ const n=length(d),direction=n>EPS?{x:d.x/n,y:d.y/n,z:d.z/n}:{x:0,y:0,z:1};
+ // Legacy planar returning weapons have a wider hit footprint than the body.
+ // A grazing hit uses its closest approach, never the segment's far endpoint.
+ const horizontal=d.x*d.x+d.z*d.z,closest=horizontal>EPS?Math.max(0,Math.min(1,((c.x-a.x)*d.x+(c.z-a.z)*d.z)/horizontal)):1;
+ const p=pointAt(a,d,hit?.lo??closest),dx=p.x-c.x,dz=p.z-c.z,h=Math.hypot(dx,dz);
+ const verticalInside=h<EPS&&Math.hypot(direction.x,direction.z)<EPS,onCap=p.y<=c.bottom+EPS||p.y>=c.top-EPS||verticalInside;
+ const normal=onCap&&h<=c.r+EPS?{x:0,y:verticalInside?-Math.sign(direction.y):p.y>=(c.top+c.bottom)/2?1:-1,z:0}:h>EPS?{x:dx/h,y:0,z:dz/h}:{x:-direction.x,y:0,z:-direction.z};
+ if(!onCap||h>c.r){const horizontal=Math.hypot(normal.x,normal.z)||1;p.x=c.x+normal.x/horizontal*c.r;p.z=c.z+normal.z/horizontal*c.r;}
+ p.y=Math.max(c.bottom,Math.min(c.top,p.y));
+ if(verticalInside)p.y=normal.y>0?c.top:c.bottom;
+ return{...p,normal,direction};
+}
+
 /** Direction from the actual weapon origin to the camera aim point. */
 export function launchVelocity(origin,target,speed){
  const d=delta(origin,target),n=length(d),scale=n>EPS?Math.max(0,speed)/n:0;

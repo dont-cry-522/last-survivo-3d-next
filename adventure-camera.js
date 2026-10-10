@@ -59,7 +59,7 @@ export class AdventureCamera{
  getRay(out=new T.Ray()){
   this.camera.getWorldPosition(out.origin);this.camera.getWorldDirection(out.direction);return out;
  }
- update(dt,player,obstacles=[],{eyeHeight=1.65,shoulderHeight=1.15,shoulderOffset=this.shoulderOffset,groundY=0,snap=false}={}){
+ update(dt,player,obstacles=[],{eyeHeight=1.65,shoulderHeight=1.15,shoulderOffset=this.shoulderOffset,groundY=0,snap=false,followRate=12,roll=0}={}){
   const seconds=Math.max(0,finite(dt,0)),floor=finite(groundY,0)+GROUND_CLEARANCE;
   const height=this.mode==='first'?finite(eyeHeight,1.65):finite(shoulderHeight,1.15);
   this._anchor.set(player.x,Math.max(floor,finite(player.y,0)+height),player.z);
@@ -72,7 +72,7 @@ export class AdventureCamera{
   const reset=snap||!this._ready;
   if(reset||this.mode==='first')this._target.copy(this._raw);
   else{
-   this._target.lerp(this._raw,-Math.expm1(-12*seconds));
+   this._target.lerp(this._raw,-Math.expm1(-Math.max(0,finite(followRate,12))*seconds));
    // A lagging pivot must not remain on the opposite side of a tree/stone.
    if(clearFraction(this._anchor,this._target,obstacles)<1)this._target.copy(this._raw);
   }
@@ -92,6 +92,8 @@ export class AdventureCamera{
   }
   // Do not lookAt the pivot: a fully collapsed boom still needs a stable view.
   this._look.copy(this.camera.position).add(this._forward);this.camera.lookAt(this._look);
+  // A slight shoulder bank leaves the center ray unchanged; never tumble the view.
+  this.camera.rotateZ(clamp(finite(roll,0),-.04,.04));
   this.camera.updateMatrixWorld(true);this._ready=true;return this;
  }
 }

@@ -22,11 +22,13 @@ const PROFILES={
  shadowblade:{type:'throw',width:.72,height:1,depth:.47,x:.48,y:-.47,pitch:.50},
  shade:{type:'palm',width:.42,height:.72,depth:.35,x:.42,y:-.48,pitch:.12},
  grimoire:{type:'book',width:.74,height:.66,depth:.44,x:.01,y:-.47,pitch:.42,grip:[-.15,.01,.065],support:[.16,.01,.065]},
- harpoon:{type:'thrust',width:.74,height:1,depth:.70,x:.40,y:-.55,pitch:.10,support:[0,0,.37]},
+ harpoon:{type:'thrust',width:.76,height:1,depth:1.66,x:.42,y:-.66,pitch:.13,support:[0,0,.36]},
  sporelantern:{type:'lamp',width:.64,height:1.08,depth:.36,x:.58,y:-.40,pitch:.01},
  miasmalantern:{type:'lamp',width:.62,height:1.08,depth:.36,x:.58,y:-.40,pitch:.01}
 };
 const CONTACT=new T.Vector3(0,.045,-.023),UP=new T.Vector3(0,1,0);
+// Screen-relative lowering, pitch and bank. The game owns dodge timing; this is presentation only.
+const DODGE_POSES={roll:[.50,-.18,.18,-.04],blink:[.25,-.05,.07,-.08],dive:[.80,-.34,.07,-.10],hop:[.26,-.09,.12,-.025],mist:[.38,-.13,.07,-.05]};
 function colored(geometry,color){const c=new T.Color(color),p=geometry.attributes.position,values=[];for(let i=0;i<p.count;i++)values.push(c.r,c.g,c.b);geometry.setAttribute('color',new T.Float32BufferAttribute(values,3));geometry.deleteAttribute('uv');return geometry;}
 function handGeometry(palette,fingerless){
  const make=open=>{
@@ -132,11 +134,11 @@ function detailBatch(){
 export class FirstPersonView {
  constructor(camera){
   this.camera=camera;this.root=new T.Group();this.root.name='First_person_equipment';this.root.layers.set(1);this.root.visible=false;camera.add(this.root);
-  this.materials=new Map();this.parts=[];this.ownedGeometry=[];this.gait=0;this.sway=0;this.disposed=false;this.scratch=new T.Vector3();this.wrist=new T.Vector3();this.elbow=new T.Vector3();
+  this.materials=new Map();this.parts=[];this.ownedGeometry=[];this.gait=0;this.sway=0;this.disposed=false;this.scratch=new T.Vector3();this.wrist=new T.Vector3();this.elbow=new T.Vector3();this.dodgeBasePosition=new T.Vector3();this.dodgeBaseRotation=new T.Euler();
  }
  clear(){
   this.root.clear();for(const material of this.materials.values())material.dispose();for(const geometry of this.ownedGeometry)geometry.dispose();
-  this.materials.clear();this.ownedGeometry.length=0;this.parts.length=0;this.weapon=null;this.model=null;this.source=null;this.hero=null;this.hands=[];this.arms=[];this.handPoints=[];this.bowStrings=[];this.charged=[];this.details=[];this.root.visible=false;
+  this.materials.clear();this.ownedGeometry.length=0;this.parts.length=0;this.weapon=null;this.model=null;this.source=null;this.hero=null;this.hands=[];this.arms=[];this.handPoints=[];this.bowStrings=[];this.charged=[];this.details=[];this.poseReady=false;this.dodgeWeight=0;this.root.visible=false;
  }
  material(source){
   if(this.materials.has(source))return this.materials.get(source);
@@ -232,7 +234,11 @@ export class FirstPersonView {
   for(const [source,clone]of this.parts)if(clone.isMesh&&!this.source.userData.crossbowStrings?.includes(source)){if(!clone.geometry.boundingBox)clone.geometry.computeBoundingBox();box.union(partBox.copy(clone.geometry.boundingBox).applyMatrix4(clone.matrixWorld));}
   const size=box.getSize(new T.Vector3());
   if(box.isEmpty()){this.clear();return;}
-  this.center=box.getCenter(new T.Vector3());this.dimensions=size;this.model.position.copy(this.center).negate();
+  this.center=box.getCenter(new T.Vector3());this.dimensions=size;
+  // A pole is held at the rear hand, not balanced on its bounding-box centre.
+  // This leaves the shaft extending both behind the grip and far ahead into perspective.
+  if(weaponId==='harpoon')this.center.set(...GRIP_POINTS.harpoon);
+  this.model.position.copy(this.center).negate();
   this.grip=new T.Vector3(...(this.profile.grip||GRIP_POINTS[weaponId]||[0,0,0])).sub(this.center);this.root.add(this.weapon);
   const inferred=['shade','shadowblade','grimoire'].includes(weaponId)?'wraith':weaponId==='miasmalantern'?'mirage':weaponId==='sporelantern'?'wuling':weaponId==='boomerang'?'lingya':weaponId==='harpoon'?'tide':['crossbow','shuriken','dark'].includes(weaponId)?'silver':'scout';
   this.kind=hero.userData.kind||inferred;const palette=PALETTES[this.kind]||PALETTES.scout;
@@ -246,9 +252,16 @@ export class FirstPersonView {
   }
   this.gait=0;this.sway=0;this.attackAge=10;this.previousAttack=0;this.update(0,0,{visible:false});
  }
- update(time,dt,{moving=0,attack=0,attackDuration=.18,visible=false}={}){
-  if(this.disposed||!this.weapon)return;this.root.visible=!!visible;if(!visible)return;
+ update(time,dt,{moving=0,attack=0,attackDuration=.18,visible=false,dodgePose=null}={}){
+  if(this.disposed||!this.weapon)return;this.root.visible=!!visible;
+  if(!visible){if(dodgePose===null){this.poseReady=false;this.dodgeWeight=0;}return;}
   const step=Math.max(0,Math.min(.05,Number.isFinite(dt)?dt:0)),speed=T.MathUtils.clamp(Number(moving)||0,0,1);
+  // A paused render may receive a later wall clock or input; never advance the held pose.
+  if(step===0&&this.poseReady){
+   // Explicit null is cancellation (death/exit), while an active pose stays frozen.
+   if(dodgePose===null&&this.dodgeWeight>0){this.root.position.copy(this.dodgeBasePosition);this.root.rotation.copy(this.dodgeBaseRotation);this.dodgeWeight=0;}
+   return;
+  }
   this.sway+=(speed-this.sway)*(1-Math.exp(-step*10));this.gait+=step*speed*8;
   for(const [source,node]of this.parts){node.position.copy(source.position);node.quaternion.copy(source.quaternion);node.scale.copy(source.scale);node.visible=source.visible;}
   this.weapon.visible=this.source.visible;
@@ -258,7 +271,7 @@ export class FirstPersonView {
    if(source.uniforms)for(const [key,uniform]of Object.entries(source.uniforms))if(m.uniforms[key]){const from=uniform.value,to=m.uniforms[key].value;if(to?.copy&&from?.constructor===to.constructor)to.copy(from);else if(typeof from!=='object'||from?.isTexture)m.uniforms[key].value=from;}
   }
   const profile=this.profile,id=this.weaponId,data=this.hero.userData,depth=.82,halfH=Math.tan(T.MathUtils.degToRad(this.camera.fov||50)/2)*depth,halfW=halfH*(this.camera.aspect||1);
-  const scale=Math.min(halfW*profile.width/Math.max(.001,this.dimensions.x),halfH*profile.height/Math.max(.001,this.dimensions.y),profile.depth/Math.max(.001,this.dimensions.z),id==='shade'?1.8:2.4);
+  const scale=Math.min(halfW*profile.width/Math.max(.001,this.dimensions.x),halfH*profile.height/Math.max(.001,this.dimensions.y),profile.depth/Math.max(.001,this.dimensions.z),id==='harpoon'?.65:id==='shade'?1.8:2.4);
   const fired=attack>this.previousAttack+.025;this.previousAttack=attack;this.attackAge=fired?0:this.attackAge+step;
   const age=Number.isFinite(data.attackAge)?data.attackAge:this.attackAge,period=data.reloadDuration||WEAPON_RECOVERY[id]||attackDuration,cycle=Number.isFinite(data.reloadPhase)?data.reloadPhase:Math.min(1,age/period),motion=weaponGesture(id,age,cycle,period),kick=motion.kick,sweep=motion.sweep,draw=motion.draw;
   this.motion=motion;
@@ -278,7 +291,16 @@ export class FirstPersonView {
   if(profile.type==='gun'||profile.type==='bow'){
    this.weapon.position.z=kick*(id==='shotgun'?.075:.035);this.weapon.rotation.x+=kick*(id==='shotgun'?.17:.075);this.weapon.rotation.z-=draw*.045;
   }else if(profile.type==='thrust'){
-   this.weapon.position.z=-.17*kick;this.weapon.position.y=kick*.025;this.weapon.rotation.x-=sweep*.12;
+   // Aim the distant fork inward from the rear-hand position. Narrow screens retain
+   // that perspective instead of rotating the entire two-metre pole across the view.
+   this.weapon.rotation.y=Math.PI+Math.atan2(halfW*profile.x*.72,1.6*scale);
+   const combo=data.harpoonCombo||0,gather=motion.gather;
+   if(combo===1){
+    this.weapon.position.set(-.10*sweep+.025*gather,.018*kick,-.12*kick+.035*gather);
+    this.weapon.rotation.y+=.18*gather-.24*sweep;this.weapon.rotation.z=-.11*sweep;this.weapon.rotation.x+=.035*kick;
+   }else if(combo===2){
+    this.weapon.position.set(-.035*sweep,.035*kick-.035*sweep,-.16*kick+.095*sweep);this.weapon.rotation.x-=.09*sweep;
+   }else{this.weapon.position.set(-.025*kick,.018*kick,-.27*kick+.04*gather);this.weapon.rotation.x-=.02*kick;}
   }else if(profile.type==='throw'){
    const flick=id==='shuriken',bank=id==='boomerang';
    this.weapon.position.set(-(bank?.14:.075)*sweep,(flick?.025:.055)*kick,-(flick?.14:.11)*kick);
@@ -303,6 +325,7 @@ export class FirstPersonView {
    if(profile.type==='book')hand.rotation.set(-.75,i?-.20:.20,i?.55:-.55);
    if(profile.type==='lamp'&&!i)hand.rotation.set(-.12,0,-.92);
    if(profile.type==='palm'&&!i)hand.rotation.set(-.52,.10,-.08);
+   if(id==='harpoon')hand.rotation.set(-.10,(i?-1:1)*Math.PI/2+this.weapon.rotation.y-Math.PI,i?.35:-.35);
    hand.scale.set(i?-handScale:handScale,handScale,handScale);
    hand.position.copy(point).sub(this.wrist.copy(CONTACT).multiply(hand.scale).applyQuaternion(hand.quaternion));
    hand.morphTargetInfluences[0]=i&&!support?.72+.20*kick:profile.type==='palm'?.78+.18*kick:profile.type==='book'?.48:profile.type==='throw'?Math.max(kick*.90,this.source.visible?0:.88):i&&id==='crossbow'?draw*.40:0;
@@ -313,6 +336,12 @@ export class FirstPersonView {
    arm.position.copy(this.elbow);this.scratch.copy(this.wrist).sub(this.elbow);const length=this.scratch.length();
    arm.quaternion.setFromUnitVectors(UP,this.scratch.normalize());arm.scale.set(handScale,length,handScale);
   }
+  const finite=x=>Number.isFinite(x)?x:0,weight=T.MathUtils.clamp(finite(dodgePose?.weight),0,1),w=weight*weight*(3-2*weight),pose=DODGE_POSES[dodgePose?.kind]||DODGE_POSES.roll,side=T.MathUtils.clamp(finite(dodgePose?.side),-1,1),forward=T.MathUtils.clamp(finite(dodgePose?.forward),-1,1);
+  // Transform the completed equipment/hand rig together, so both contacts survive all dodges.
+  this.dodgeBasePosition.copy(this.root.position);this.dodgeBaseRotation.copy(this.root.rotation);this.dodgeWeight=weight;
+  this.root.position.x-=halfW*.055*side*w;this.root.position.y-=halfH*pose[0]*w;this.root.position.z+=pose[3]*w;
+  this.root.rotation.x=(pose[1]-.025*forward)*w;this.root.rotation.z+=pose[2]*side*w;
+  this.poseReady=true;
  }
 
  render(renderer,scene){

@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
 import{sceneryAllowed}from'./biome-scenery.js?v=134';
-import{createDiscoveryScenery}from'./discovery-scenery.js?v=134';
+import{createDiscoveryScenery}from'./discovery-scenery.js?v=135';
 export const SMALL_FINDS={
  forest:{name:'蜜露花丛',tip:'靠近花心采集；附近有怪物时先脱离战斗。',xp:6,heal:.12,color:0xb8dc8f},
  snow:{name:'双霜晶',tip:'分别碰触两侧霜晶，点亮后领取。',xp:18,heal:.08,color:0xa5dbea},

@@ -1,11 +1,11 @@
-import{buildConfluence,biomeWeights}from'./confluence.js?v=134';
+import{buildConfluence,biomeWeights}from'./confluence.js?v=135';
 import{addTree,updateTreeDetail}from'./tree-scenery.js?v=134';
 import{installTactics}from'./map-tactics.js?v=114';
 import{installRoaming}from'./roaming-events.js?v=134';
-import{installDiscoveries}from'./map-discoveries.js?v=134';
+import{installDiscoveries}from'./map-discoveries.js?v=135';
 import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=114';
 import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=134';
-import{districtLayout,buildDistricts}from'./map-districts.js?v=134';
+import{districtLayout,buildDistricts}from'./map-districts.js?v=135';
 import{makeCoastEnemy,animateCoastEnemy,coastProp}from'./coast-models.js?v=114';
 import{installCoast}from'./coast.js?v=114';
 import{coastLayout as buildCoastLayout}from'./coast-layout.js?v=114';

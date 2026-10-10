@@ -81,6 +81,8 @@ function surfaceMaterial(source,kind,axis='y',vertexColors=true){
  }
  cached.set(variant,m);return m;
 }
+// Merged ruin batches use the same cached PBR finish as individual stones.
+export function stoneSurfaceMaterial(source){return surfaceMaterial(source,'stone');}
 export function polishEnvironmentModels(world){
  if(world.regions)installGroundSurface(world.ground,'confluence');
  world.group.traverse(o=>{

@@ -1,4 +1,6 @@
 import test from'node:test';
+import * as T from'../vendor/three.module.js';
+import{surfaceUniforms}from'../surface-textures.js?v=120';
 import assert from'node:assert/strict';
 import{buildWorld,clearAt}from'../world.js';
 import{installForestVista}from'../forest-vista.js';
@@ -50,4 +52,19 @@ test('the actual browser seed finds a gateway pair before choosing a lone neares
  }
  const anchor=installForestVista(buildWorld('forest',7),'forest').anchors[0],solo=buildWorld('forest',7);solo.obstacles=solo.obstacles.filter(o=>o.x===anchor.x&&o.z===anchor.z);
  const fragment=installForestVista(solo,'forest');assert.equal(fragment.columns,1);assert.equal(fragment.arches,0);assert.equal(fragment.archFragments,1,'a sparse map has a plain pillar with no identifiable arch');
+});
+
+
+test('merged ruin stones retain shared rock texture uniforms and release temporary vine geometry',()=>{
+ const world=buildWorld('forest',43837033),dispose=T.BufferGeometry.prototype.dispose;const vines=new Set();
+ T.BufferGeometry.prototype.dispose=function(){if(this.type==='TubeGeometry'){assert(!vines.has(this));vines.add(this);}return dispose.call(this);};
+ let ruins;try{ruins=installForestVista(world,'forest');}finally{T.BufferGeometry.prototype.dispose=dispose;}
+ assert.equal(vines.size,ruins.columns*2,'source and baked vine buffers must both be released');
+ const stone=ruins.group.getObjectByName('forest-vista-stone'),shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};
+ stone.material.onBeforeCompile(shader);
+ assert.equal(stone.material.userData.propSurface,'stone');assert(stone.material.vertexColors);
+ for(const key of['rockColor','rockHeight','rockReady'])assert.strictEqual(shader.uniforms[key],surfaceUniforms[key]);
+ assert.equal((shader.fragmentShader.match(/texture2D\(rockColor/g)||[]).length,3);
+ assert(shader.fragmentShader.includes('dFdx(stoneRelief)'));
+ for(const a of ruins.anchors){const root=world.obstacles.find(o=>o.x===a.x&&o.z===a.z).mesh;assert.equal(root.getObjectByName('tree-trunk').visible,false,'bare branches protrude through stone');}
 });

@@ -78,6 +78,7 @@ export function installWorldLightShafts(world,mapId){
  if(world.lightShafts&&!world.lightShafts.userData.disposed)return world.lightShafts;
  if(!tones[mapId]&&mapId!=='confluence')return null;
  const focuses=[{point:world.spawn,biome:mapId==='confluence'?'forest':mapId}];
+ if(world.forestHabitats?.ponds[0]){const p=world.forestHabitats.ponds[0],a=p.angle||0;focuses.push({point:{x:p.x+Math.cos(a)*(p.rx+2),z:p.z-Math.sin(a)*(p.rx+2)},biome:'forest'});}
  if(world.forestVista?.gateCenter)focuses.push({point:world.forestVista.gateCenter,biome:'forest'});
  if(mapId==='confluence'){
   for(const region of world.regions||[])focuses.push({point:(world.sites||[]).find(s=>s.biome===region.id)||region,biome:region.id,region});

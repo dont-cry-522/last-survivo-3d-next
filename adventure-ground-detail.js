@@ -1,6 +1,7 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
+import {forestHabitatAt} from './forest-habitats.js?v=138';
 import {bridgeContains} from './coast.js?v=114';
 import {naturalRockGeometry} from './biome-scenery.js?v=134';
 
@@ -159,6 +160,11 @@ export function installAdventureGroundDetail(world,mapId){
   const kind=random()<profile.grass?'tuft':'litter',size=.78+random()*.36,height=(.82+random()*.30)*(kind==='tuft'?profile.height:1),palette=profile[kind];
   records.push({x,z,biome,kind,size,height,angle:random()*Math.PI*2,color:palette[Math.floor(random()*palette.length)],shade:.90+random()*.16});
  }
+ // Blend existing floor colors across districts without adding decal layers.
+ for(const p of records)if(p.biome==='forest'&&world.forestHabitats){
+  const h=forestHabitatAt(world,p.x,p.z),tint=new T.Color(p.color);
+  tint.lerp(new T.Color(p.kind==='tuft'?0x456b57:0x4b574b),h.shade*.65).lerp(new T.Color(p.kind==='tuft'?0x64866e:0x657a70),h.bank*.7).lerp(new T.Color(p.kind==='tuft'?0x8b9861:0x99866a),h.ruin*.6);p.color=tint.getHex();
+ }
  if(!records.length)return null;
  const group=new T.Group();group.name='adventure-ground-detail';group.userData.records=records;group.userData.disposed=false;
  const matrix=new T.Matrix4(),position=new T.Vector3(),scale=new T.Vector3(),rotation=new T.Quaternion(),up=new T.Vector3(0,1,0),color=new T.Color();
@@ -252,7 +258,10 @@ export function installHabitatDetail(world,mapId){
   const biome=mapId==='confluence'?(world.regions||[]).find(r=>r.contains(x,z))?.id:mapId,profile=habitatProfiles[biome];if(!profile)continue;
   centers.push({x,z,biome});const angle=biome==='sand'?-.7:random()*Math.PI*2;
   // Patches share a dominant plant, instead of every specimen alternating mechanically.
-  const shrub=biome==='forest'&&Math.sin(x*.19+Math.sin(z*.14)*1.6)>.18;
+  const habitat=biome==='forest'?forestHabitatAt(world,x,z):{shade:0,bank:0,ruin:0};
+  const shrub=biome==='forest'&&habitat.shade<.5&&habitat.bank<.4&&Math.sin(x*.19+Math.sin(z*.14)*1.6)>.18;
+  const bank=biome==='forest'&&habitat.bank>.4;
+  const plantKind=bank?(Math.sin(x*1.7+z*.9)>.45?'stone':'reed'):shrub?'shrub':profile.kind;
   // Uneven crescent patches have dense centers, tapered ends, and bare intervals.
   const count=profile.kind==='reed'?7:profile.kind==='fern'?4:3,mid=(count-1)/2;
   for(let j=0;j<count;j++){
@@ -260,7 +269,9 @@ export function installHabitatDetail(world,mapId){
    if(!allowed(px,pz))continue;
    if(mapId==='confluence'&&!(world.regions||[]).find(r=>r.id===biome)?.contains(px,pz))continue;
    const size=(.70+random()*.30)*(1-Math.abs(j-mid)*.10);
-   records.push({x:px,z:pz,biome,kind:shrub?'shrub':profile.kind,angle:angle+(random()-.5)*1.2,width:profile.width*size,height:profile.height*size,color:shrub?[0x506c42,0x698151,0x7f905c][j%3]:profile.color[j%3]});
+   const tint=new T.Color(shrub?[0x506c42,0x698151,0x7f905c][j%3]:profile.color[j%3]);
+   if(biome==='forest')tint.lerp(new T.Color(0x3e6653),habitat.shade*.55).lerp(new T.Color(plantKind==='stone'?0x72877d:0x5e8671),habitat.bank*.85).lerp(new T.Color(0x91995f),habitat.ruin*.5);
+   records.push({x:px,z:pz,biome,kind:plantKind,angle:angle+(random()-.5)*1.2,width:profile.width*size,height:bank&&plantKind==='stone'?.13*size:profile.height*size*(1+habitat.shade*.13-habitat.ruin*.22),color:tint.getHex()});
   }
  }
  const group=new T.Group();group.name='habitat-detail';group.userData={records,centers,disposed:false};

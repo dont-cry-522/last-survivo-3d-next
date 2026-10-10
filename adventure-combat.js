@@ -68,3 +68,10 @@ export function groundAim(ray,origin,range,fallbackAngle=0){
  const horizontal=Math.hypot(ray.direction.x,ray.direction.z),dx=horizontal>EPS?ray.direction.x/horizontal:Math.sin(fallbackAngle),dz=horizontal>EPS?ray.direction.z/horizontal:Math.cos(fallbackAngle);
  return{x:origin.x+dx*reach,y:0,z:origin.z+dz*reach};
 }
+
+/** First accepted swept contact. Prefix intersection is monotonic, including rounded caps. */
+export function segmentBodyEntry(a,b,target,radius=0){
+ if(!segmentHitsBody(a.x,a.y,a.z,b.x,b.y,b.z,target,radius))return null;
+ if(segmentHitsBody(a.x,a.y,a.z,a.x,a.y,a.z,target,radius))return 0;
+ let lo=0,hi=1;for(let i=0;i<18;i++){const t=(lo+hi)/2;if(segmentHitsBody(a.x,a.y,a.z,a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,a.z+(b.z-a.z)*t,target,radius))hi=t;else lo=t;}return hi;
+}

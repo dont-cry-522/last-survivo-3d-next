@@ -1,6 +1,7 @@
 import * as T from './vendor/three.module.js';
 
 const clamp=T.MathUtils.clamp,finite=(value,fallback)=>Number.isFinite(value)?value:fallback;
+export const MAX_PITCH=Math.PI/2-.025;
 const MIN_DISTANCE=4.8,MAX_DISTANCE=8,CAMERA_RADIUS=.25,GROUND_CLEARANCE=.35;
 
 // Sweep camera clearance against solid footprints with measured heights.
@@ -31,7 +32,7 @@ function clearFraction(start,end,obstacles){
  */
 export class AdventureCamera{
  constructor(camera,{mode='third',yaw=0,pitch=-.25,distance=6,shoulderOffset=.5}={}){
-  this.camera=camera;this.yaw=finite(yaw,0);this.pitch=clamp(finite(pitch,-.25),-1.2,1.2);
+  this.camera=camera;this.yaw=finite(yaw,0);this.pitch=clamp(finite(pitch,-.25),-MAX_PITCH,MAX_PITCH);
   this.distance=clamp(finite(distance,6),MIN_DISTANCE,MAX_DISTANCE);
   this.shoulderOffset=finite(shoulderOffset,.5);
   this._target=new T.Vector3();this._raw=new T.Vector3();this._anchor=new T.Vector3();this._end=new T.Vector3();this._forward=new T.Vector3();this._look=new T.Vector3();
@@ -45,7 +46,7 @@ export class AdventureCamera{
  toggleMode(){return this.setMode(this.mode==='third'?'first':'third');}
  rotate(deltaYaw,deltaPitch){
   this.yaw=Math.atan2(Math.sin(this.yaw+finite(deltaYaw,0)),Math.cos(this.yaw+finite(deltaYaw,0)));
-  this.pitch=clamp(this.pitch+finite(deltaPitch,0),-1.2,1.2);return this;
+  this.pitch=clamp(this.pitch+finite(deltaPitch,0),-MAX_PITCH,MAX_PITCH);return this;
  }
  zoom(deltaDistance){this.distance=clamp(this.distance+finite(deltaDistance,0),MIN_DISTANCE,MAX_DISTANCE);return this;}
  movement(strafeRight,forward,out=new T.Vector3()){

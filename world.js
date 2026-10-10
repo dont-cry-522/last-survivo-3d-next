@@ -18,7 +18,7 @@ import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=120';
 import{polishEnemyAppearance}from'./enemy-appearance.js?v=120';
 import{REGIONAL_ENEMIES}from'./map-enemies.js?v=114';
 import{groundCue}from'./ground-cues.js?v=114';
-import{heroesReady,createSkinnedHero,animateSkinnedHero}from'./skinned-hero.js?v=121';
+import{heroesReady,createSkinnedHero,animateSkinnedHero}from'./skinned-hero.js?v=123';
 import * as T from './vendor/three.module.js';
 import{makeHero,animateHero}from'./hero-model.js?v=114';
 import{MAPS,seeded}from'./rules.js?v=114';

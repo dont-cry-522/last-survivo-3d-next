@@ -28,7 +28,7 @@ test('switching modes preserves aim and zoom while first person uses the request
  assert.equal(rig.mode,'first');assert.deepEqual(rig.camera.position.toArray(),[4,1.88,10]);
  const ray=rig.getRay();near(ray.direction.length(),1);near(ray.direction.y,Math.sin(.45));near(rig.getShootDirection().y,0);
  rig.toggleMode().update(0,{x:4,y:.4,z:10});assert.deepEqual([rig.yaw,rig.pitch,rig.distance],before);
- rig.rotate(1,100);near(rig.pitch,1.2);rig.rotate(0,-100);near(rig.pitch,-1.2);
+ rig.rotate(1,100);near(rig.pitch,Math.PI/2-.025);rig.rotate(0,-100);near(rig.pitch,-Math.PI/2+.025);
  rig.zoom(-100);near(rig.distance,4.8);rig.zoom(100);near(rig.distance,8);
  assert.throws(()=>rig.setMode('top'),RangeError);
 });

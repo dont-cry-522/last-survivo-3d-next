@@ -306,24 +306,24 @@ export class SkillVFX{
   }else if(kind==='spikeAim')this.riftCast(x,z,1.2,e.angle,false);
   else if(kind==='spikes'){this.riftCast(x,z,1.2,e.angle,true);for(let i=-1;i<=1;i++){const m=this.particle('crystal',0x344252,x+i*.3,.35,z,{life:.4,size:[.15,.75-Math.abs(i)*.2,.13],grow:true,additive:false,priority:1});if(m)m.rotation.z=i*.17;}}
  }
- muzzle(w,x,z,angle){
+ muzzle(w,x,z,angle,height=1.15){
   const dx=Math.sin(angle),dz=Math.cos(angle),px=x+dx*.65,pz=z+dz*.65,path=w.pathId,rank=w.pathRank||0;
   if(w.id==='miasmalantern'){
-   const p=this.particle('sweep',0x9676b5,px,1.10,pz,{life:.25,size:[.31,.28,1],opacity:.43,additive:false,motion:'lash',roll:-1.2,velocity:[dx*.4,.05,dz*.4]});if(p)p.rotation.set(-.7,angle,.4);
+   const p=this.particle('sweep',0x9676b5,px,height-.05,pz,{life:.25,size:[.31,.28,1],opacity:.43,additive:false,motion:'lash',roll:-1.2,velocity:[dx*.4,.05,dz*.4]});if(p)p.rotation.set(-.7,angle,.4);
   }else if(w.id==='rifle'||w.id==='shotgun'){
    const scatter=w.id==='shotgun'&&w.count!==1,length=scatter?.22:path==='rifle_pierce'?.19+rank*.015:.16;
-   const core=this.particle('crystal',0xffedbd,px+dx*.12,1.15,pz+dz*.12,{life:.065,size:[scatter?.075:.045,length,scatter?.075:.045],opacity:.95,additive:false,priority:1});if(core)core.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(dx,0,dz));
-   for(const side of [-1,1]){const a=angle+side*(scatter?.55:.35),spark=this.particle('crystal',0xeab36e,px,1.15,pz,{life:.10,size:[.017,scatter?.11:.075,.017],velocity:[Math.sin(a)*3,side*.35,Math.cos(a)*3],opacity:.8,additive:false});if(spark)spark.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(Math.sin(a),0,Math.cos(a)));}
+   const core=this.particle('crystal',0xffedbd,px+dx*.12,height,pz+dz*.12,{life:.065,size:[scatter?.075:.045,length,scatter?.075:.045],opacity:.95,additive:false,priority:1});if(core)core.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(dx,0,dz));
+   for(const side of [-1,1]){const a=angle+side*(scatter?.55:.35),spark=this.particle('crystal',0xeab36e,px,height,pz,{life:.10,size:[.017,scatter?.11:.075,.017],velocity:[Math.sin(a)*3,side*.35,Math.cos(a)*3],opacity:.8,additive:false});if(spark)spark.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(Math.sin(a),0,Math.cos(a)));}
   }else if(w.id==='crossbow'){
-   for(const side of [-1,1])this.segment(new T.Vector3(px+dz*side*.16-dx*.12,1.15,pz-dx*side*.16-dz*.12),new T.Vector3(px+dx*.24,1.15,pz+dz*.24),path==='crossbow_pierce'?0xd4e1da:0x9cc5d5,.014,.10,false,0,.55);
+   for(const side of [-1,1])this.segment(new T.Vector3(px+dz*side*.16-dx*.12,height,pz-dx*side*.16-dz*.12),new T.Vector3(px+dx*.24,height,pz+dz*.24),path==='crossbow_pierce'?0xd4e1da:0x9cc5d5,.014,.10,false,0,.55);
   }else if(['shuriken','shadowblade','boomerang'].includes(w.id)){
-   const swipe=this.particle('sweep',w.id==='shuriken'?0xb9eedd:w.id==='boomerang'?0xe1cb97:0xb5c4d7,px,1.05,pz,{life:.14,size:[.28,.21,1],motion:'lash',roll:-4,opacity:.55});if(swipe)swipe.rotation.set(-Math.PI/2,0,-angle);
+   const swipe=this.particle('sweep',w.id==='shuriken'?0xb9eedd:w.id==='boomerang'?0xe1cb97:0xb5c4d7,px,height-.1,pz,{life:.14,size:[.28,.21,1],motion:'lash',roll:-4,opacity:.55});if(swipe)swipe.rotation.set(-Math.PI/2,0,-angle);
   }else if(w.id==='fire'){
-   this.particle('flame',path==='fire_blast'?0xffd999:0xffa054,px,1.15,pz,{life:.16,size:[.14,.23,1],velocity:[dx*2,.2,dz*2],opacity:.75});
-   this.particle('ember',0xffde9e,px,1.15,pz,{life:.12,size:[.035,.06,.035],velocity:[dx*3,.4,dz*3],additive:false});
+   this.particle('flame',path==='fire_blast'?0xffd999:0xffa054,px,height,pz,{life:.16,size:[.14,.23,1],velocity:[dx*2,.2,dz*2],opacity:.75});
+   this.particle('ember',0xffde9e,px,height,pz,{life:.12,size:[.035,.06,.035],velocity:[dx*3,.4,dz*3],additive:false});
   }else if(['dark','shade'].includes(w.id)){
-   const curl=this.particle('sweep',w.id==='dark'?0xa486c9:0x344152,px,1.1,pz,{life:.18,size:[.24,.19,1],velocity:[dx*.6,.1,dz*.6],motion:'lash',roll:-4,opacity:.55,additive:false});if(curl)curl.rotation.set(-.8,angle,.4);
-   this.particle('ember',w.id==='dark'?0xd3b4ed:0xccd5e2,px,1.15,pz,{life:.12,size:[.035,.05,.035],velocity:[dx*2,0,dz*2],opacity:.8});
+   const curl=this.particle('sweep',w.id==='dark'?0xa486c9:0x344152,px,height-.05,pz,{life:.18,size:[.24,.19,1],velocity:[dx*.6,.1,dz*.6],motion:'lash',roll:-4,opacity:.55,additive:false});if(curl)curl.rotation.set(-.8,angle,.4);
+   this.particle('ember',w.id==='dark'?0xd3b4ed:0xccd5e2,px,height,pz,{life:.12,size:[.035,.05,.035],velocity:[dx*2,0,dz*2],opacity:.8});
   }
  }
  flight(b,dt){

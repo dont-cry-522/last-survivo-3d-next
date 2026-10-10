@@ -32,7 +32,7 @@ export class MirageCombat{
   if(primary?.alive)this.attackHit(primary,w,{silent:true});
   for(const e of this.api.foes()){
    if(!this.active())return true;
-   if(e===primary||!e.alive||Math.hypot(e.x-x,e.z-z)>r||!this.clear(origin,e))continue;
+   if(e===primary||!e.alive||Math.hypot(e.x-x,e.z-z,Math.max((e.y||0)-(w.impactY||0),0,(w.impactY||0)-(e.y||0)-(e.height||1.5)))>r||!this.clear(origin,e))continue;
    // Spread is secondary and cannot inherit hit/kill procs or hit primary twice.
    this.api.damage(e,damage,false,{kind:'miragePoison',source:'mirage-splash',secondary:true});if(!this.active())return true;
    if(e.alive)this.attackHit(e,w,{silent:true});
@@ -71,7 +71,7 @@ export class MirageCombat{
    if(lure>=3)e.slow=Math.max(e.slow||0,C.lureSlow);
   }
  }
- area(e,t){let best=null;for(const q of this.clouds){if(q.born-EPS>t||q.expires+EPS<t||Math.hypot(e.x-q.x,e.z-q.z)>q.r||!this.clear(q,e))continue;if(!best||q.damage>best.damage)best=q;}return best;}
+ area(e,t){if((e.y||0)>.9)return null;let best=null;for(const q of this.clouds){if(q.born-EPS>t||q.expires+EPS<t||Math.hypot(e.x-q.x,e.z-q.z)>q.r||!this.clear(q,e))continue;if(!best||q.damage>best.damage)best=q;}return best;}
  tick(t){
   for(const e of this.api.foes()){
    if(!this.active())return;if(!e.alive){this.marks.delete(e);continue;}

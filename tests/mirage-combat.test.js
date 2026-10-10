@@ -125,3 +125,5 @@ test('a direct hit on a large boss surface still applies poison without an extra
  s.combat.api.damage(boss,w.damage,true,{source:'direct'});s.combat.burst(0,0,w,boss);
  near(boss.hp,968);assert(s.combat.marks.has(boss));s.combat.update(.5);near(boss.hp,964);
 });
+
+test('airborne orb splash uses impact height instead of striking floor bodies below',()=>{const s=setup(),high=s.foe(),ground=s.foe();high.y=5;high.height=.6;ground.height=1.8;s.combat.burst(0,0,{...s.weapon(),impactY:5.3},high);assert(s.hits.every(h=>h.e!==ground));assert(s.combat.marks.has(high));});

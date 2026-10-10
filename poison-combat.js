@@ -31,7 +31,7 @@ export class PoisonCombat{
  land(pod){
   if(!this.active())return;const q=this.addCloud(pod.x,pod.z,pod.w,pod.landAt);this.fx('poisonLand',q.x,q.z,{r:q.r,angle:pod.angle,w:pod.w});
   this.api.impactTerrain?.(q.x,q.z,C.impactRadius,pod.w.damage);
-  for(const e of this.api.foes()){if(!this.active())break;if(e.alive&&Math.hypot(e.x-q.x,e.z-q.z)<=C.impactRadius&&this.clear(q,e))this.api.damage(e,pod.w.damage,true,{kind:'sporelantern',source:'poison-impact',angle:pod.angle});}
+  for(const e of this.api.foes()){if(!this.active())break;if(e.alive&&(e.y||0)<=.9&&Math.hypot(e.x-q.x,e.z-q.z)<=C.impactRadius&&this.clear(q,e))this.api.damage(e,pod.w.damage,true,{kind:'sporelantern',source:'poison-impact',angle:pod.angle});}
  }
  beginDodge(x,z){
   if(!this.active())return;this.pods=this.pods.filter(q=>q.releaseAt<=this.now);
@@ -59,6 +59,7 @@ export class PoisonCombat{
  }
  absorb(damage){if(!this.active()||this.shield.until<=this.now||this.shield.amount<=0)return damage;const used=Math.min(damage,this.shield.amount);this.shield.amount-=used;return damage-used;}
  strongest(e,t){
+  if((e.y||0)>.9)return null;
   let best=null;
   for(const q of this.clouds){if(q.carried||q.born>=t||q.expires+EPS<t||!cloudContains(q,e.x,e.z,t)||!this.clear(q,e))continue;
    const maturity=clamp((t-q.settledAt)/C.matureTime,0,1);let damage=q.damage*(q.stillRank>=2?1+C.matureBonus*maturity:1);

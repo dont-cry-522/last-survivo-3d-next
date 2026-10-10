@@ -90,12 +90,12 @@ export class MirageVFX {
    const a=e.angle||0;v.particle('smoke',0x4a2b63,e.x,.95,e.z,{life:.30,size:[.19,.16,.24],opacity:.28,additive:false,grow:true,velocity:[-Math.sin(a)*.5,.15,-Math.cos(a)*.5]});
    for(let i=-1;i<=1;i++)petal(a+i*.55,.035,.75,.28,.95);
   }else if(e.kind==='mirageBurst'){
-   const r=Math.max(.1,e.r||2.2);v.particle('veil',0x4a2b63,e.x,.09,e.z,{life:.55,size:[r,r,1],opacity:.25,additive:false,grow:true,priority:1});
+   const r=Math.max(.1,e.r||2.2),height=e.w?.impactY||0;v.particle('veil',0x4a2b63,e.x,height+.09,e.z,{life:.55,size:[r,r,1],opacity:.25,additive:false,grow:true,priority:1});
    // A short low pressure cloud, distinct from the decoy's symmetrical petal flower.
    for(let i=0;i<5;i++){
     const a=i*2.39996+(e.angle||0),d=r*(.13+.055*(i%3));
-    v.particle('vapor',i%2?0x684180:0x453052,e.x+Math.sin(a)*d,.18+(i%2)*.07,e.z+Math.cos(a)*d,{life:.44+i*.02,size:[r*.23,r*.17,1],velocity:[Math.sin(a)*r*.50,.12,Math.cos(a)*r*.50],opacity:.27,additive:false,grow:true,priority:i===0?1:0});
-    petal(a,.055,r*.75,.42,.28);
+    v.particle('vapor',i%2?0x684180:0x453052,e.x+Math.sin(a)*d,height+.18+(i%2)*.07,e.z+Math.cos(a)*d,{life:.44+i*.02,size:[r*.23,r*.17,1],velocity:[Math.sin(a)*r*.50,.12,Math.cos(a)*r*.50],opacity:.27,additive:false,grow:true,priority:i===0?1:0});
+    petal(a,.055,r*.75,.42,height+.28);
    }
   }else if(e.kind==='mirageHit'){
    const a=e.angle||0;for(let i=-1;i<=1;i++)petal(a+i*.9,.025,.6,.2,.70);

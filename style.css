@@ -255,3 +255,10 @@ body.first-mouse-hidden:not(:has(dialog[open])) #encounter{pointer-events:none!i
 #crosshair b::before,#crosshair b::after{content:'';position:absolute;top:50%;left:0;width:100%;height:2px;background:linear-gradient(90deg,var(--hit-color,#f4eee0) 0 25%,transparent 25% 75%,var(--hit-color,#f4eee0) 75%);transform:rotate(45deg)}
 #crosshair b::after{transform:rotate(-45deg)}
 .dialog-actions{flex-wrap:wrap}.dialog-actions button{flex:1 1 140px}
+
+/* Independent, scalable posture buttons sit above the attack thumb area. */
+#jump,#crouch{position:fixed;z-index:4;touch-action:none;width:clamp(44px,calc(48px * var(--touch-scale)),64px);height:clamp(44px,calc(48px * var(--touch-scale)),64px);padding:0;font-size:11px;border-radius:50%;background:#183d35d9}
+body.touch #jump,body.touch #crouch{bottom:calc(var(--touch-bottom) + var(--stick-size) + 12px)}
+body.touch #jump{right:var(--touch-right)}body.touch #crouch{right:calc(var(--touch-right) + clamp(44px,calc(48px * var(--touch-scale)),64px) + 10px)}
+#crouch[aria-pressed="true"]{border-color:#f0ce88;background:#59644ae8}
+@media(orientation:portrait),(max-width:560px){body.touch #dash{right:calc(var(--touch-right) + clamp(44px,calc(48px * var(--touch-scale)),64px) + clamp(44px,calc(48px * var(--touch-scale)),64px) + 20px);bottom:calc(var(--touch-bottom) + var(--stick-size) + 12px)}body.touch #skills{bottom:calc(var(--touch-bottom) + var(--stick-size) + var(--dodge-size) + 22px)}body.touch #objective{bottom:calc(var(--touch-bottom) + var(--stick-size) + var(--dodge-size) + 63px)}}

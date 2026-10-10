@@ -3,8 +3,8 @@
 <header>同一光线 / 同一比例 · <select id="subject" aria-label="预览角色"><option value="all">全部角色</option><option value="wraith">影裔单人</option><option value="wraith-forms">影裔三形态并排</option></select><select id="gear" aria-label="影裔武器"><option value="shade">噬影掌</option><option value="shadowblade">回魂影镰</option><option value="grimoire">悬影魔典</option></select><select id="pose" aria-label="预览动作"><option value="idle">待机</option><option value="run">行走</option><option value="attack">攻击</option><option value="runattack">边走边攻击</option><option value="turn">转向行走</option><option value="startstop">起步与停步</option><option value="water">水中</option></select><button id="turn">转身</button><button id="check" disabled>检查全部武器与动作</button><button id="save" disabled>保存当前模型画面</button><span id="status">载入中</span></header><canvas id="view"></canvas><pre id="report"></pre>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=121';
-import {loadHeroAssets,disposeHero} from '../skinned-hero.js?v=121';
+import {actor,animateActor} from '../world.js?v=123';
+import {loadHeroAssets,disposeHero} from '../skinned-hero.js?v=123';
 import {HERO_LOADOUTS} from '../rules.js?v=114';
 const $=id=>document.getElementById(id),canvas=$('view'),scene=new T.Scene(),renderer=new T.WebGLRenderer({canvas,antialias:true}),camera=new T.PerspectiveCamera(31,1,.1,60),errors=[];
 window.addEventListener('error',e=>errors.push(e.message));window.addEventListener('unhandledrejection',e=>errors.push(String(e.reason)));

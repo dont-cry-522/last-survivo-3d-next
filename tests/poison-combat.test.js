@@ -75,3 +75,5 @@ test('dodging cancels a not-yet-released pod but leaves released flight intact',
 test('boss with no adds takes main poison and a finished game halts the tick immediately',()=>{
  const s=setup({poison_spread:3}),boss=s.foe(0,0,1);boss.boss=true;const api=s.combat.api.damage;s.combat.api.damage=(...args)=>{api(...args);if(!boss.alive)s.pause();};s.cloud();s.combat.update(1);assert.equal(boss.kills,1);assert.equal(s.events.filter(e=>e.kind==='poisonSpread').length,0);assert.equal(s.hits.length,1);
 });
+
+test('floor poison misses flying bodies, resumes after a low dive and preserves its lifetime',()=>{const s=setup(),e=s.foe();e.y=3;s.cloud();s.combat.update(1);near(e.hp,10000);e.y=.25;s.combat.update(1);assert(e.hp<10000);const hp=e.hp;e.y=3;s.combat.update(1);near(e.hp,hp);near(s.combat.clouds[0].expires,4.8);});

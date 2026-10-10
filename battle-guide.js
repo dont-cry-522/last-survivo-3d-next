@@ -1,3 +1,4 @@
+import{AIR_ENEMIES}from'./airborne-enemies.js?v=123';
 import{REGIONAL_ENEMIES}from'./map-enemies.js?v=114';
 export const ENEMY_GUIDE={
  mushroom:{image:"assets/bestiary/mushroom.png",traits:"红褐色斑点菌盖、小短腿；小跳挪动，菌盖随步伐摇摆。",name:'蹦跳蘑菇',attack:'蓄力后向锁定位置弹跳扑击',tip:'看到脚下的橙色爪痕就侧移，别沿直线后退。'},
@@ -20,3 +21,7 @@ export const CIRCLE_GUIDE=[
  {color:'金',name:'我方陨火',meaning:'金色落点属于自己升级的陨火，会伤害怪物。'},
  {color:'金绿',name:'补给与祭坛',meaning:'石门祭坛和补给箱是探索目标，靠近时会有柔和微光；先清理守卫，再靠近领取。'}
 ];
+
+for(const [id,cfg]of Object.entries(AIR_ENEMIES))ENEMY_GUIDE[id]={name:cfg.name,attack:cfg.pass>1?'蓄力后高位俯冲，可蹲避':'蓄力后贴地冲撞，可跳避',tip:cfg.tip,traits:'空中巡游；翼部收拢预告攻击，俯冲后低飞恢复。',image:'assets/bestiary/'+id+'.png'};
+
+Object.assign(ENEMY_GUIDE.sandguard,{attack:'举盾后正面高位刺击',tip:'绕到背后攻击；蓄力时侧移，或下蹲避开高位刺击。'});

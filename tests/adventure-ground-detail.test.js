@@ -5,7 +5,7 @@ import {buildWorld} from '../world.js';
 import {waterDepth} from '../water.js';
 import {bridgeContains} from '../coast.js';
 import {segmentDistance} from '../rules.js';
-import {installAdventureGroundDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
+import {installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const maps=['forest','snow','ash','sand','coast','confluence'];
@@ -116,4 +116,29 @@ test('existing cleanup releases each owned geometry but keeps the bounded shared
 test('unsupported or fully obstructed worlds do not allocate a detail draw',()=>{
  const world={seed:1,half:12,group:new T.Group(),spawn:{x:0,z:0},obstacles:[{x:0,z:0,r:50}],sites:[],ponds:[],patches:[]};
  assert.equal(installAdventureGroundDetail(world,'unknown'),null);assert.equal(installAdventureGroundDetail(world,'forest'),null);assert.equal(world.group.children.length,0);
+});
+
+
+test('habitat clusters support all biomes, protect gameplay and release bounded GPU batches',()=>{
+ for(const map of maps){
+  const w=buildWorld(map,7),before=state(w),g=installHabitatDetail(w,map),records=g.userData.records;
+  assert.equal(installHabitatDetail(w,map),g);assert.equal(state(w),before);
+  assert(records.length>100&&records.length<=3500,map+' missing or unbounded cover');assert(g.children.length<=12);
+  if(map==='confluence')assert.equal(new Set(records.map(p=>p.biome)).size,5);
+  const matrix=new T.Matrix4(),box=new T.Box3();let triangles=0,released=0;
+  for(const m of g.children){
+   assert(!m.castShadow&&!m.material.transparent&&m.userData.ownedGeometry);m.geometry.addEventListener('dispose',()=>released++);
+   triangles+=m.count*m.geometry.index.count/3;
+   for(let i=0;i<m.count;i++){m.getMatrixAt(i,matrix);assert(matrix.elements.every(Number.isFinite));box.copy(m.geometry.boundingBox).applyMatrix4(matrix);assert(box.max.y<.7&&box.min.y<0,'cover floats or blocks eye-level combat');}
+  }
+  assert(triangles<180000,'habitat exceeded triangle budget');
+  for(const p of records){
+   far(p,w.spawn,5.15);for(const o of w.obstacles)far(p,o,o.r+1.35);
+   for(const site of w.sites)far(p,site,(site.event?7:5.5)+1.15);
+   for(const pond of w.ponds)assert.equal(waterDepth(pond,p.x,p.z),0);
+   assert(Math.abs(p.x)<w.half-3.15&&Math.abs(p.z)<w.half-3.15);
+  }
+  cleanup(w);assert(g.userData.disposed);assert.equal(released,g.children.length);
+ }
+ const a=buildWorld('forest',7),b=buildWorld('forest',7);assert.deepEqual(installHabitatDetail(a,'forest').userData.records,installHabitatDetail(b,'forest').userData.records);cleanup(a);cleanup(b);
 });

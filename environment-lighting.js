@@ -49,7 +49,10 @@ export function installDistantLandscape(world,id,biomeAt=()=>id){
    const rhythm=ring
     ?.61+.19*Math.sin(angle*5+1.6)+.13*Math.sin(angle*11+.3)+.07*Math.cos(angle*19-1.1)
     :.56+.20*Math.sin(angle*7+.8)+.14*Math.sin(angle*13-1)+.10*Math.cos(angle*23+.4);
-   const top=(ring?1.3:1)*p.height*rhythm,base=edge+7+ring*16;
+   // Each horizon has its own geology: broad dunes, split coastal headlands,
+   // serrated alpine ridges and lower rolling woodland foothills.
+   const contour=biome==='sand'?.78+.22*Math.sin(angle*3+ring*1.8):biome==='coast'?.28+.72*Math.pow(.5+.5*Math.sin(angle*3+ring),2):biome==='snow'?1+Math.abs(Math.sin(angle*17+ring))*.28:biome==='ash'?1+Math.sin(angle*9+ring)*.14:1;
+   const top=(ring?1.3:1)*p.height*rhythm*contour,base=edge+7+ring*16;
    const color=new T.Color(p.ridge),haze=new T.Color(p.fog);
    for(let row=0;row<3;row++){
     const radius=base+row*9,y=row===0?-.13:row===1?top*.28:top;

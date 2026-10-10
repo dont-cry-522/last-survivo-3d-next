@@ -2,6 +2,7 @@ import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=114';
 import {bridgeContains} from './coast.js?v=114';
+import {naturalRockGeometry} from './biome-scenery.js?v=120';
 
 const profiles={
  forest:{count:1200,grass:.83,height:1,tuft:[0x566d48,0x829360],litter:[0x827561,0x66685c]},
@@ -97,7 +98,8 @@ function routesFor(world){
  return routes;
 }
 
-function placementFilter(world){
+function placementFilter(world,footprint=FOOTPRINT){
+ const FOOTPRINT=footprint;
  const regions=world.regions||[],routes=routesFor(world),districts=[...(world.districts||[]),...regions.flatMap(r=>r.districts||[])];
  const clearings=[{...world.spawn,r:4},...regions.map(r=>({x:r.x,z:r.z,r:6})),
   ...(world.sites||[]).flatMap(s=>[{x:s.x,z:s.z,r:s.event?7:5.5},...(s.nodes||[]).map(n=>({...n,r:2}))]),
@@ -153,4 +155,76 @@ export function installAdventureGroundDetail(world,mapId){
  // Existing world cleanup calls InstancedMesh.dispose and disposes ownedGeometry.
  // Moving drops can land anywhere; all detail stays below .30m, below their glow.
  world.group.add(group);world.adventureGroundDetail=group;return group;
+}
+
+// A separate mid-height layer: clustered growth follows shelter and banks, not a grid.
+// All solid scree stays ankle-high. Soft foliage bends and remains below the sight line.
+const habitatProfiles={
+ forest:{kind:'fern',color:[0x435b37,0x667849,0x7f8753],height:1,width:1},
+ snow:{kind:'stone',color:[0xb3c4c6,0x7a929a,0xd3dedd],height:.15,width:.65},
+ ash:{kind:'stone',color:[0x484247,0x65534b,0x817066],height:.17,width:.74},
+ sand:{kind:'reed',color:[0xa19063,0x88784f,0xb3a175],height:.65,width:.75},
+ coast:{kind:'reed',color:[0x567460,0x789071,0x8c986e],height:1.0,width:.9}
+};
+function fernGeometry(){
+ const p=[],c=[],ix=[],flex=[];
+ const vertex=(x,y,z,shade)=>{const n=p.length/3;p.push(x,y,z);c.push(shade*.94,shade,shade*.80);flex.push(Math.max(0,y/.65)**2);return n;};
+ for(let frond=0;frond<6;frond++){
+  const a=frond*2.399,s=Math.sin(a),co=Math.cos(a),reach=.55+(frond%3)*.075,h=.38+(frond%2)*.20;
+  const point=(t,side,shade)=>vertex(s*t*reach+co*side,Math.sin(t*Math.PI*.76)*h-.025,co*t*reach-s*side,shade);
+  const base=point(0,0,.46),left=point(.6,-.012,.74),tip=point(1,0,.9),right=point(.6,.012,.80);ix.push(base,left,tip,base,tip,right);
+  for(let pair=0;pair<4;pair++)for(const side of[-1,1]){
+   const t=.18+pair*.18,w=(.13-pair*.025)*side,n=point(t,0,.53+pair*.05),b=point(t+.07,w*.5,.81),end=point(t+.19,w,.92),d=point(t+.13,w*.34,.65);ix.push(n,b,end,n,end,d);
+  }
+ }
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;
+}
+function reedGeometry(){
+ const p=[],c=[],ix=[],flex=[];
+ for(let blade=0;blade<7;blade++){
+  const a=blade*2.399,s=Math.sin(a),z=Math.cos(a),height=.40+(blade%3)*.095,reach=.16+(blade%2)*.12,start=p.length/3;
+  for(let row=0;row<4;row++){
+   const t=row/3,w=Math.sin(Math.PI*t)*.024+.002,bend=reach*t*t;
+   for(const side of[-1,1]){p.push(s*bend+z*w*side,height*t,z*bend-s*w*side);const shade=.55+t*.42;c.push(shade*.98,shade,shade*.84);flex.push(t*t);}
+   if(row<3){const n=start+row*2;ix.push(n,n+1,n+2,n+1,n+3,n+2);}
+  }
+ }
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;
+}
+export function installHabitatDetail(world,mapId){
+ if(!habitatProfiles[mapId]&&mapId!=='confluence')return null;
+ if(world.habitatDetail&&!world.habitatDetail.userData.disposed)return world.habitatDetail;
+ const random=seeded(layoutSeed(world,mapId)^0x71af029),allowed=placementFilter(world,1.15),half=(world.half||96)-5;
+ const anchors=(world.obstacles||[]).filter(o=>!o.tactic),ponds=world.ponds||[],records=[],centers=[],limit=mapId==='confluence'?500:300;
+ for(let attempt=0;attempt<limit*12&&centers.length<limit;attempt++){
+  let x,z;
+  // Near-camp shoulders receive cover too; paths and the camp itself remain clear.
+  if(attempt%6===0){const a=random()*Math.PI*2,r=6+random()*19;x=world.spawn.x+Math.sin(a)*r;z=world.spawn.z+Math.cos(a)*r;}
+  else if(ponds.length&&attempt%3===0){const p=ponds[Math.floor(random()*ponds.length)],a=random()*Math.PI*2,tide=p.baseRx===undefined?1:1.19,rx=(p.baseRx??p.rx)*tide*1.12+2.8,rz=(p.baseRz??p.rz)*tide*1.12+2.8,u=Math.sin(a)*rx,v=Math.cos(a)*rz,turn=p.angle||0;x=p.x+Math.cos(turn)*u+Math.sin(turn)*v;z=p.z-Math.sin(turn)*u+Math.cos(turn)*v;}
+  else if(anchors.length&&attempt%5!==0){const o=anchors[Math.floor(random()*anchors.length)],a=random()*Math.PI*2,r=(o.r||.7)+2+random()*4;x=o.x+Math.sin(a)*r;z=o.z+Math.cos(a)*r;}
+  else{x=(random()-.5)*half*2;z=(random()-.5)*half*2;}
+  if(!allowed(x,z)||centers.some(p=>near(x,z,p,3.2)))continue;
+  const biome=mapId==='confluence'?(world.regions||[]).find(r=>r.contains(x,z))?.id:mapId,profile=habitatProfiles[biome];if(!profile)continue;
+  centers.push({x,z,biome});const angle=biome==='sand'?-.7:random()*Math.PI*2;
+  // Uneven crescent patches have dense centers, tapered ends, and bare intervals.
+  for(let j=0;j<(profile.kind==='reed'?7:3);j++){
+   const along=(j-3)*.63,across=Math.sin(j*.9)*.65+(random()-.5)*.7,px=x+Math.sin(angle)*along+Math.cos(angle)*across,pz=z+Math.cos(angle)*along-Math.sin(angle)*across;
+   if(!allowed(px,pz))continue;
+   if(mapId==='confluence'&&!(world.regions||[]).find(r=>r.id===biome)?.contains(px,pz))continue;
+   const size=(.70+random()*.30)*(1-Math.abs(j-3)*.10);
+   records.push({x:px,z:pz,biome,kind:profile.kind,angle:angle+(random()-.5)*1.2,width:profile.width*size,height:profile.height*size,color:profile.color[j%3]});
+  }
+ }
+ const group=new T.Group();group.name='habitat-detail';group.userData={records,centers,disposed:false};
+ const dummy=new T.Object3D(),color=new T.Color();
+ // Four quadrants permit frustum culling while bounding the complete layer to 12 draws.
+ for(const kind of['fern','reed','stone'])for(let quadrant=0;quadrant<4;quadrant++){
+  const list=records.filter(p=>p.kind===kind&&(Number(p.x>=0)+Number(p.z>=0)*2)===quadrant);if(!list.length)continue;
+  const geometry=kind==='fern'?fernGeometry():kind==='reed'?reedGeometry():naturalRockGeometry.clone();
+  if(kind==='stone')geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count),1));
+  geometry.computeBoundingBox();const batch=new T.InstancedMesh(geometry,material,list.length);batch.name='habitat-'+kind;batch.receiveShadow=true;batch.userData.ownedGeometry=true;
+  list.forEach((p,i)=>{dummy.position.set(p.x,kind==='stone'?-.055:-.042-geometry.boundingBox.min.y*p.height,p.z);dummy.scale.set(p.width,p.height,p.width);dummy.rotation.set(0,p.angle,0);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);batch.setColorAt(i,color.set(p.color));});
+  batch.computeBoundingSphere();batch.addEventListener('dispose',()=>{batch.visible=false;group.userData.disposed=true;});group.add(batch);
+ }
+ world.group.add(group);world.habitatDetail=group;return group;
 }

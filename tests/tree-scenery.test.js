@@ -25,7 +25,7 @@ test('tree canopies clear human height and every tree renders as two shared opaq
   for(const o of trees(w)){
    assert.equal(o.mesh.children.length,2);const canopy=o.mesh.getObjectByName('tree-canopy'),bounds=new T.Box3().setFromObject(o.mesh,true),crown=new T.Box3().setFromObject(canopy,true),snow=o.mesh.userData.treeBiome==='snow';
    assert(bounds.max.y>6.2&&bounds.max.y<8.5,'tree height lost its human scale');assert(crown.min.y>3.4,'canopy intrudes into the fighting plane');
-   assert(crown.max.x-crown.min.x<(snow?3.9:4.5),'crown became excessively broad');assert(canopy.geometry.attributes.normal&&canopy.geometry.attributes.color);
+   assert(crown.max.x-crown.min.x<(snow?3.9:6.3),'crown became excessively broad');assert(canopy.geometry.attributes.normal&&canopy.geometry.attributes.color);
    assert([...canopy.geometry.attributes.color.array].every(v=>Number.isFinite(v)&&v>=0&&v<=1),'canopy tint contains invalid colors');
    if(!snow){assert(bounds.max.y<7.2,'forest trunk stretched into a pole');assert(crown.max.x-crown.min.x>3.4,'forest crown collapsed into narrow balls');}
    assert(o.mesh.children.reduce((n,m)=>n+(m.geometry.index?.count??m.geometry.attributes.position.count)/3,0)<=(snow?450:1200),'tree exceeds its shared geometry budget');
@@ -92,7 +92,7 @@ test('layered crowns are full from above and below while retaining alpha-cut lig
   const bounds=new T.Box3().setFromObject(leaf,true),down=new T.Raycaster(),up=new T.Raycaster(),image=leaf.material.map.image;let covered=0;
   const normals=leaf.geometry.attributes.normal,normalMatrix=new T.Matrix3().getNormalMatrix(leaf.matrixWorld),normal=new T.Vector3();let horizontal=0,steep=0;
   for(let i=0;i<normals.count;i++){normal.fromBufferAttribute(normals,i).applyMatrix3(normalMatrix).normalize();const slope=Math.acos(Math.abs(normal.y));horizontal+=Number(slope<25*Math.PI/180);steep+=Number(slope>60*Math.PI/180);}
-  assert(horizontal/normals.count<.15&&steep/normals.count>.30,'crown sheets flattened into horizontal trays');
+  assert(horizontal/normals.count<.25&&steep/normals.count>.20,'crown sheets flattened into horizontal trays');
   const opaque=hits=>hits.some(hit=>{
    const x=Math.min(image.width-1,Math.floor(hit.uv.x*image.width)),y=Math.min(image.height-1,Math.floor(hit.uv.y*image.height));
    return image.data[(y*image.width+x)*4+3]/255>=leaf.material.alphaTest;

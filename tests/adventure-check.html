@@ -11,7 +11,7 @@ previewHero.value='silver';$('#preview-map').before(previewHero,previewWeapon);
 function previewWeapons(){previewWeapon.replaceChildren();for(const[index,id]of HERO_LOADOUTS[previewHero.value].entries()){const option=document.createElement('option');option.value=index;option.textContent=WEAPONS[id].name;previewWeapon.append(option);}}
 previewHero.onchange=previewWeapons;previewWeapons();
 const previewEnemy=document.createElement('select');previewEnemy.id='preview-enemy';previewEnemy.setAttribute('aria-label','预览怪物');for(const[id,name]of[['','无怪物'],['mushroom','蘑菇'],['wolf','狼'],['golem','岩怪'],['spitter','吐息者'],['shaman','萨满'],['flyer','本图飞行怪']])previewEnemy.add(new Option(name,id));$('#preview-place').after(previewEnemy);
-for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
+for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴'],['habitat-run','六地图环境检查']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
 async function load(mobile=false,width=1180,height=720){
@@ -216,6 +216,22 @@ $('#dodge-preview').onclick=async()=>{const button=$('#dodge-preview');button.di
  if(g.state==='paused')g.resume();win.document.querySelector('[data-attack-mode="manual"]').click();previewShot=null;g.player.dash=0;g.player.dashTime=0;g.dash();assert(g.player.dashTime>0,'当前位置无法开始闪避');step(4);previewDodge={frames:4};reportDodgePreview();
  }catch(e){$('#status').textContent='闪避预览失败：'+e.message;}finally{button.disabled=false;}};
 $('#recover-preview').onclick=()=>{if(!previewShot&&!previewDodge){$('#status').textContent='请先点击「单次出手预览」或「闪避预览」。';return;}if(g.state==='paused')g.resume();step(8);if(previewDodge){previewDodge.frames+=8;reportDodgePreview();}else{previewShot.frames+=8;reportAttackPreview();}};
+$('#habitat-run').onclick=async()=>{
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
+ const sheet=document.createElement('canvas');sheet.width=1180*2;sheet.height=756*3;const paint=sheet.getContext('2d');paint.fillStyle='#17272b';paint.fillRect(0,0,sheet.width,sheet.height);
+ try{for(const mobile of[false,true]){
+  await load(mobile,mobile?844:1180,mobile?390:720);
+  for(const [i,map]of['forest','snow','ash','sand','coast','confluence'].entries())await check(map+(mobile?' 手机横屏':' 桌面平视'),()=>{
+   select('silver',0,map);g.setView('first');g.adventureCamera.yaw=-.75;g.adventureCamera.pitch=-.08;step(2);g.pause();step(1,0);
+   const layer=g.world.habitatDetail;assert(layer?.children.length&&layer.children.length<=12,'缺失或过量环境批次');const after=reportFrame();
+   if(!mobile){paint.drawImage(g.renderer.domElement,(i%2)*1180,Math.floor(i/2)*756,1180,720);paint.fillStyle='#e4eddf';paint.font='22px sans-serif';paint.fillText(map,(i%2)*1180+16,Math.floor(i/2)*756+746);}
+   layer.visible=false;step(1,0);const before=reportFrame();layer.visible=true;step(1,0);assert(after.calls-before.calls<=12,'细节增加过多绘制调用');
+   return{instances:layer.userData.records.length,extraDraws:after.calls-before.calls,extraTriangles:after.triangles-before.triangles,...after};
+  });
+ }
+ const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v124-six-environments.png';a.click();$('#status').textContent='环境检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;publish();
+ }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
+};
 $('#third').onclick=()=>preview('third');$('#first').onclick=()=>preview('first');$('#air-portrait').onclick=()=>{const kind=AIR_ROSTERS[$('#preview-map').value]||'duskbat',scene=new T.Scene(),camera=new T.PerspectiveCamera(36,1.5,.1,30),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(360,240);renderer.setClearColor(0x213235);const model=makeAirborne(kind);scene.add(model);animateAirborne({kind,mesh:model,id:1,flight:{stage:'orbit'}},.2);scene.add(new T.HemisphereLight(0xe3efff,0x38462e,2.8));const sun=new T.DirectionalLight(0xffedce,3);sun.position.set(-3,5,4);scene.add(sun);camera.position.set(2,2.8,4);camera.lookAt(0,.25,0);renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='next-bestiary-'+kind+'.png';a.click();renderer.dispose();renderer.forceContextLoss();};$('#capture').onclick=()=>{step(1,0);const a=document.createElement('a');a.href=g.renderer.domElement.toDataURL('image/png');a.download='forest-next-'+g.player.weaponId+'-'+g.adventureCamera.mode+'-f'+(previewShot?.frames||previewDodge?.frames||0)+'.png';a.click();};
 try{await load();$('#status').textContent='已就绪';for(const b of document.querySelectorAll('button'))b.disabled=false;}catch(e){$('#status').textContent=e.message;}
 </script></html>

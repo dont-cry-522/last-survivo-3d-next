@@ -33,7 +33,8 @@ test('tree canopies clear human height and every tree renders as two shared opaq
   }
   const f=(w.regions?w.regions.find(r=>r.id==='forest'):w).foliage[0],before=f.leaf.position.x;animateWorld(w,2,w.spawn.x,w.spawn.z);assert.notEqual(f.leaf.position.x,before,'combined canopy stopped swaying');dispose(w);
  }
- assert.equal(materials.size,2,'world rebuilds allocate new tree materials');assert(geometries.size<=12,'world rebuilds allocate per-tree geometries');
+ // Bark, cutout broad leaves and folded double-sided fir sprays are fixed shared materials.
+ assert.equal(materials.size,3,'world rebuilds allocate new tree materials');assert(geometries.size<=12,'world rebuilds allocate per-tree geometries');
 });
 
 test('tree variants have outward foliage, curved tapering forks and visible branch gaps',()=>{

@@ -84,6 +84,51 @@ function crossbowDetail(source,gun){
  }
  if(geometry)geometry.name='First_person_'+name;return geometry;
 }
+function closeDetail(source,gun,id){
+ if(id==='crossbow')return crossbowDetail(source,gun);
+ let geometry;
+ if(['rifle','shotgun'].includes(id)&&source.geometry.type==='BoxGeometry'){
+  // Keep the authored contact points, but round receiver edges and taper the wooden stock.
+  geometry=hullGeometry([[0,0,-.5,.72,.78],[0,0,-.36,1,1],[0,.025,.29,.94,.92],[0,.025,.5,.65,.70]]);
+  if(source.scale.y>source.scale.z&&source.scale.y>source.scale.x)geometry.rotateX(Math.PI/2);
+  else if(source.scale.x>source.scale.z)geometry.rotateY(Math.PI/2);
+  geometry.name='First_person_shaped-firearm';
+ }else if(id==='grimoire'&&source.geometry.type==='BoxGeometry'){
+  if(source===gun.userData.page){
+   // Slightly curled flying sheet, retaining the source page's transform/flip timing.
+   geometry=new T.PlaneGeometry(1,1,8,1);geometry.rotateX(-Math.PI/2);
+   const p=geometry.attributes.position;for(let i=0;i<p.count;i++)p.setY(i,.14*Math.sin((p.getX(i)+.5)*Math.PI));geometry.computeVertexNormals();geometry.name='First_person_turning-page';
+  }else if(source.position.y>.01){
+   const sheets=[];for(let i=0;i<5;i++){const sheet=hullGeometry([[0,0,-.5,.97,.12],[0,0,.5,1,.12]]);sheet.translate((i%2)*.007,-.40+i*.20,0);sheets.push(sheet);}
+   geometry=mergeGeometries(sheets,false);sheets.forEach(g=>g.dispose());geometry.name='First_person_layered-pages';
+  }else{geometry=hullGeometry([[0,0,-.5,.92,.70],[0,0,-.45,1,1],[0,0,.45,1,1],[0,0,.5,.92,.70]]);geometry.name='First_person_bound-cover';}
+ }else if(id==='grimoire'&&source.geometry.type==='TubeGeometry'){
+  const points=source.geometry.parameters.path.points,sign=Math.sign(points[0].x),z=points[0].z;
+  const strokes=Math.abs(z)<.001?[[[sign*.041,z],[sign*.071,z]],[[sign*.138,z],[sign*.170,z]]]:[[[sign*.041,z],[sign*.078,z]],[[sign*.088,z],[sign*.115,z]],[[sign*.127,z],[sign*.161,z]]];
+  geometry=pageInk(strokes,.0011);geometry.name='First_person_fine-incantation';
+ }else if(id==='shuriken'&&source.geometry.type==='ConeGeometry'){
+  const shape=new T.Shape();shape.moveTo(-.063,-.135);shape.lineTo(.062,-.11);shape.lineTo(.007,.145);shape.lineTo(-.018,.02);shape.closePath();
+  geometry=new T.ExtrudeGeometry(shape,{depth:.040,bevelEnabled:true,bevelSize:.006,bevelThickness:.006,bevelSegments:1,steps:1});geometry.translate(0,0,-.02);geometry.name='First_person_ground-throwing-edge';
+ }
+ return geometry;
+}
+function pageInk(strokes,width){
+ const p=[],indices=[];
+ for(const stroke of strokes)for(let i=1;i<stroke.length;i++){
+  const [ax,az]=stroke[i-1],[bx,bz]=stroke[i],dx=bx-ax,dz=bz-az,length=Math.hypot(dx,dz),x=-dz/length*width*.5,z=dx/length*width*.5,n=p.length/3;
+  p.push(ax-x,.0307,az-z,ax+x,.0307,az+z,bx-x,.0307,bz-z,bx+x,.0307,bz+z);indices.push(n,n+1,n+2,n+2,n+1,n+3);
+ }
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setIndex(indices);g.computeVertexNormals();return g;
+}
+function detailBatch(){
+ const parts=[];
+ return{
+  add(geometry,color){parts.push(color===undefined?geometry:colored(geometry,color));},
+  line(points,radius,color){this.add(new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),Math.max(3,points.length*2),radius,5,false),color);},
+  stud(x,y,z,r,color){const g=new T.SphereGeometry(r,8,5);g.scale(1,.42,1);g.translate(x,y,z);this.add(g,color);},
+  finish(){const g=mergeGeometries(parts,false);parts.forEach(p=>p.dispose());return g;}
+ };
+}
 export class FirstPersonView {
  constructor(camera){
   this.camera=camera;this.root=new T.Group();this.root.name='First_person_equipment';this.root.layers.set(1);this.root.visible=false;camera.add(this.root);
@@ -91,7 +136,7 @@ export class FirstPersonView {
  }
  clear(){
   this.root.clear();for(const material of this.materials.values())material.dispose();for(const geometry of this.ownedGeometry)geometry.dispose();
-  this.materials.clear();this.ownedGeometry.length=0;this.parts.length=0;this.weapon=null;this.model=null;this.source=null;this.hero=null;this.hands=[];this.arms=[];this.handPoints=[];this.bowStrings=[];this.root.visible=false;
+  this.materials.clear();this.ownedGeometry.length=0;this.parts.length=0;this.weapon=null;this.model=null;this.source=null;this.hero=null;this.hands=[];this.arms=[];this.handPoints=[];this.bowStrings=[];this.charged=[];this.details=[];this.root.visible=false;
  }
  material(source){
   if(this.materials.has(source))return this.materials.get(source);
@@ -103,17 +148,84 @@ export class FirstPersonView {
  copyPart(source){
   // Object3D.clone serializes userData; page/pump/heart references then cease to be meshes.
   // Weapons are ordinary Groups/Meshes, so copy only the render graph and keep a pose map.
-  const detail=source.isMesh&&this.weaponId==='crossbow'?crossbowDetail(source,this.source):null;if(detail)this.ownedGeometry.push(detail);
+  const detail=source.isMesh?closeDetail(source,this.source,this.weaponId):null;if(detail)this.ownedGeometry.push(detail);
   const node=source.isMesh?new T.Mesh(detail||source.geometry,Array.isArray(source.material)?source.material.map(m=>this.material(m)):this.material(source.material)):new T.Group();
   node.name=source.name;node.position.copy(source.position);node.quaternion.copy(source.quaternion);node.scale.copy(source.scale);node.visible=source.visible;
   node.layers.set(1);node.renderOrder=10000;node.frustumCulled=false;node.castShadow=node.receiveShadow=false;this.parts.push([source,node]);
   for(const child of source.children)node.add(this.copyPart(child));return node;
+ }
+ addDetail(batch,parent,name,{roughness=.55,metalness=.35,emissive=0,side=T.FrontSide}={}){
+  const geometry=batch.finish();geometry.name='First_person_'+name;this.ownedGeometry.push(geometry);
+  const material=new T.MeshStandardMaterial({vertexColors:true,roughness,metalness,fog:false,side,emissive,emissiveIntensity:.13});this.materials.set(material,material);
+  const mesh=new T.Mesh(geometry,material);mesh.name=geometry.name;mesh.layers.set(1);mesh.renderOrder=10000;mesh.frustumCulled=false;parent.add(mesh);this.details.push(mesh);return mesh;
+ }
+ finishWeapon(){
+  const id=this.weaponId,gun=this.source,find=source=>this.parts.find(([s])=>s===source)?.[1];
+  if(['rifle','shotgun'].includes(id)){
+   const batch=detailBatch();
+   for(const z of[-.26,-.21,-.16]){
+    batch.line([[-.032,.117,z-.013],[0,.118,z],[.032,.117,z-.013]],.0017,0x9d7650);
+   }
+   for(const z of[.025,.15,.37])batch.stud(0,.151,z,.009,0xc0bdaf);
+   // Recessed ejection-port seam and brass extractor distinguish the receiver from the stock.
+   batch.line([[.056,.102,.045],[.058,.106,.15],[.058,.065,.15]],.003,0x10181c);
+   batch.line([[.06,.07,.055],[.06,.07,.115]],.004,0xb6a078);
+   this.addDetail(batch,this.model,'machined-fittings');
+   for(const [source,node]of this.parts)if(node.isMesh&&node.material.isMeshStandardMaterial){const hex=source.material.color.getHex(),wood=[0x5c4a3e,0x624f3d,0x8c6e48].includes(hex);node.material.roughness=wood?.76:.34;node.material.metalness=wood?0:.68;}
+  }else if(['fire','dark'].includes(id)){
+   const batch=detailBatch(),wrap=[];
+   for(let i=0;i<=48;i++){const a=i/48*Math.PI*12;wrap.push([Math.sin(a)*.031,-.18+i/48*.32,.045+Math.cos(a)*.031]);}
+   batch.line(wrap,.005,id==='fire'?0x573d2f:0x353044);
+   for(const sign of[-1,1])batch.line([[sign*.014,.20,.068],[sign*.022,.35,.065],[sign*.010,.48,.070]],.0025,id==='fire'?0xc2945d:0x908ca5);
+   this.addDetail(batch,this.model,'wrapped-staff-inlay',{roughness:.72,metalness:.12});
+   for(const [source,node]of this.parts)if(source.geometry?.type==='OctahedronGeometry'){
+    node.material.roughness=.24;node.material.metalness=.22;node.material.emissive.copy(node.material.color);this.charged.push({material:node.material,base:.45,power:1.0});
+   }
+  }else if(id==='grimoire'){
+   const batch=detailBatch();
+   for(const leaf of gun.children.filter(n=>n.isGroup)){
+    // Fine broken script and a small angular seal leave broad areas of quiet parchment.
+    const sign=Math.sign(leaf.rotation.z),local=detailBatch();
+    const strokes=[];
+    for(const [row,z]of[-.100,-.046,.046,.100].entries())for(let word=0;word<3;word++){
+     const x=.038+word*.047,length=.021+((word+row)%3)*.006;
+     strokes.push([[sign*x,z],[sign*(x+length*.64),z],[sign*(x+length*.71),z+.002],[sign*(x+length),z+.002]]);
+    }
+    strokes.push([[sign*.178,-.105],[sign*.178,.103]],[[sign*.026,-.104],[sign*.026,-.086]]);
+    local.add(pageInk(strokes,.00075),0x5c5064);
+    local.add(pageInk([[[sign*.104,-.021],[sign*.124,0],[sign*.104,.021],[sign*.084,0],[sign*.104,-.021]],[[sign*.096,-.008],[sign*.112,0],[sign*.096,.008]],[[sign*.104,-.028],[sign*.104,-.024]],[[sign*.104,.024],[sign*.104,.028]]],.001),0x493e52);
+    for(const z of[-.116,.116])local.line([[sign*.18,.010,z],[sign*.217,.011,z],[sign*.217,.011,z-Math.sign(z)*.027]],.004,0x777a84);
+    const g=local.finish();g.applyMatrix4(new T.Matrix4().compose(leaf.position,leaf.quaternion,leaf.scale));batch.add(g);
+   }
+   this.addDetail(batch,this.model,'book-corners-and-script',{roughness:.63,metalness:.25});
+   for(const [source,node]of this.parts){
+    if(source.geometry?.type==='BoxGeometry'){
+     if(source.position.y>.01){node.material.color.setHex(source===gun.userData.page?0xaaa2b0:0x8b8392);node.material.roughness=.95;node.material.metalness=0;}
+     if(source===gun.userData.page){node.material.side=T.DoubleSide;node.material.needsUpdate=true;}
+    }else if(source.geometry?.type==='TubeGeometry'){node.material.color.setHex(0x5c5064);node.material.toneMapped=true;}
+   }
+  }else if(['sporelantern','miasmalantern'].includes(id)){
+   const mist=id==='miasmalantern',heart=find(gun.userData.heart),batch=detailBatch();
+   for(let i=0;i<5;i++){const a=i*Math.PI*2/5,r=mist?.081:.115,y=mist?-.196:-.240;batch.stud(Math.sin(a)*r,y,Math.cos(a)*r,.011,mist?0xa6a1b7:0xd7b671);}
+   this.addDetail(batch,this.model,'lantern-rivets',{roughness:.31,metalness:.7});
+   if(heart){
+    const filaments=detailBatch();
+    for(let i=0;i<3;i++){const a=i*Math.PI*2/3,points=[];for(let j=0;j<=8;j++){const t=j/8,y=-.78+t*1.5,r=Math.sqrt(Math.max(0,1-y*y))*1.013;points.push([Math.sin(a+t*.9)*r,y,Math.cos(a+t*.9)*r]);}filaments.line(points,.019,mist?0xd0b6ea:0xffd494);}
+    const detail=this.addDetail(filaments,heart,'lantern-core-filaments',{roughness:.4,metalness:.1,emissive:mist?0x65457d:0x7d4421});
+    heart.material.roughness=.29;heart.material.emissive.copy(heart.material.color);this.charged.push({material:heart.material,base:.20,power:.75},{material:detail.material,base:.15,power:.35});
+   }
+  }else if(id==='boomerang'){
+   const batch=detailBatch();
+   for(const sign of[-1,1])for(let i=0;i<3;i++){const x=sign*(.16+i*.075),z=.008+i*.064;batch.line([[x-sign*.017,.030,z-.012],[x,.031,z+.015],[x+sign*.017,.030,z+.005]],.0023,0x8a7047);}
+   this.addDetail(batch,this.model,'bone-carving',{roughness:.89,metalness:0});
+  }
  }
  setHero(hero,weaponId){
   if(this.disposed)return;this.clear();this.hero=hero;this.weaponId=weaponId;this.profile=PROFILES[weaponId]||PROFILES.rifle;this.source=hero?.userData?.gun||hero?.userData?.weapon;
   if(!this.source)return;
   this.weapon=new T.Group();this.weapon.name='First_person_weapon';this.model=new T.Group();this.weapon.add(this.model);
   for(const child of this.source.children)this.model.add(this.copyPart(child));
+  this.finishWeapon();
   this.bowStrings=(this.source.userData.crossbowStrings||[]).map(source=>[source,this.parts.find(([part])=>part===source)?.[1]]);
   this.model.updateMatrixWorld(true);const box=new T.Box3(),partBox=new T.Box3();
   // The bow's unposed string starts as a unit cylinder. Its authored limbs/rail define framing.
@@ -150,6 +262,8 @@ export class FirstPersonView {
   const fired=attack>this.previousAttack+.025;this.previousAttack=attack;this.attackAge=fired?0:this.attackAge+step;
   const age=Number.isFinite(data.attackAge)?data.attackAge:this.attackAge,period=data.reloadDuration||WEAPON_RECOVERY[id]||attackDuration,cycle=Number.isFinite(data.reloadPhase)?data.reloadPhase:Math.min(1,age/period),motion=weaponGesture(id,age,cycle,period),kick=motion.kick,sweep=motion.sweep,draw=motion.draw;
   this.motion=motion;
+  // Only the existing crystal/lantern core brightens; no extra light or screen-sized halo.
+  for(const charged of this.charged)charged.material.emissiveIntensity=charged.base+charged.power*Math.min(1,motion.gather+kick*.60);
   // Third-person string posing begins only in the aiming layer. Before that, its
   // authored unit cylinders are not a valid bow pose; initialize only the clones.
   for(let i=0;i<this.bowStrings.length;i++){
@@ -166,13 +280,16 @@ export class FirstPersonView {
   }else if(profile.type==='thrust'){
    this.weapon.position.z=-.17*kick;this.weapon.position.y=kick*.025;this.weapon.rotation.x-=sweep*.12;
   }else if(profile.type==='throw'){
-   this.weapon.position.set(-.11*sweep,.055*kick,-.11*kick);this.weapon.rotation.z=-sweep*.62;this.weapon.rotation.x-=kick*.34;
+   const flick=id==='shuriken',bank=id==='boomerang';
+   this.weapon.position.set(-(bank?.14:.075)*sweep,(flick?.025:.055)*kick,-(flick?.14:.11)*kick);
+   this.weapon.rotation.z=-sweep*(flick?1.05:bank?.48:.70);this.weapon.rotation.x-=kick*(flick?.18:bank?.25:.38);this.weapon.rotation.y+=sweep*(bank?.28:0);
   }else if(profile.type==='lamp'){
    this.weapon.rotation.z=Math.sin((Number(time)||0)*1.7)*(.035+.025*this.sway)+sweep*.20;this.weapon.position.set(-sweep*.035,kick*.085,-kick*.055);
   }else if(profile.type==='book'){
    this.weapon.rotation.x+=kick*.10;this.weapon.rotation.z=Math.sin((Number(time)||0)*1.8)*.018;this.weapon.position.y=kick*.035;
   }else{
-   this.weapon.rotation.x-=kick*.22;this.weapon.rotation.z=sweep*.10;this.weapon.position.z=-kick*.065;
+   this.weapon.rotation.x-=kick*(id==='fire'?.27:.20);this.weapon.rotation.z=sweep*(id==='dark'?-.16:.10);this.weapon.position.z=-kick*.065;
+   if(profile.type==='staff')this.weapon.position.y=motion.gather*.018;
   }
   this.weapon.updateMatrix();
   const handScale=T.MathUtils.clamp(halfW/.29,.66,1.10),support=!!profile.support;

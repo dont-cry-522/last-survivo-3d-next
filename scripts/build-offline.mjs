@@ -12,7 +12,7 @@ if(process.argv.includes('--check')){
 }else await writeFile(play,html);
 const files=['index.html','play.html','style.css','manifest.webmanifest','THIRD_PARTY_ASSETS.md'];
 for(const f of await readdir(root))if(f.endsWith('.js')&&f!=='sw.js')files.push(f);
-for(const dir of ['vendor','assets/bestiary','assets/icons','assets/audio'])for(const f of await readdir(new URL(dir+'/',root)))if(/\.(js|png|ogg|mp3)$/.test(f))files.push(dir+'/'+f);
+for(const dir of ['vendor','assets/bestiary','assets/icons','assets/audio','assets/environment'])for(const f of await readdir(new URL(dir+'/',root)))if(/\.(js|png|jpg|ogg|mp3)$/.test(f))files.push(dir+'/'+f);
 const characterFiles=[...assets.textures,assets.motion.file,assets.motionFallback.file];
 for(const [name,model] of Object.entries(assets.models)){
  characterFiles.push(model.file,name+'.gltf');

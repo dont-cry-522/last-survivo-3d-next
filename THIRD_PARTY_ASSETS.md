@@ -86,3 +86,10 @@ The v94 edit shortens handheld weapon reports and recovery cues, separates pull/
 - v111 影裔沿用现有 Quaternius CC0 人体、兜帽和动画；蓝灰材质、不对称披肩、分叉消散披风与肩背薄影均为项目代码制作，没有新增第三方素材或依赖。
 
 - v113 仅调整影裔三种装备外形的煤黑/冷灰配色、独立材质去环境染色和低透明黑烟，未增加第三方素材或依赖。
+
+
+## Ground and stone surface textures — CC0 1.0
+
+The four files in `assets/environment/` are unmodified 1K JPG maps from Poly Haven: [Forest Floor](https://polyhaven.com/a/forest_floor) (eye-candy.xyz) and [Rock 01](https://polyhaven.com/a/rock_01), distributed under [CC0](https://polyhaven.com/license). Source pages and file checksums were checked on 2026-10-10 and recorded in `assets/environment/sources.json`.
+
+Each set supplies its diffuse and displacement map. Runtime shaders mix the diffuse map into the existing biome palette and use the displacement map only for surface-normal relief: playable terrain is not displaced. Forest litter is limited to forest/organic coastal and confluence ground; stone uses blended projections on obstacle boulders and selected ruin stones. These are real surface textures, not scanned environment models. Files are served locally, shared across maps and included in the offline bundle; failed image loading retains the previous procedural surface. Total delivered images: 2,880,466 bytes.

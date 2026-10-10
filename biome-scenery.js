@@ -2,9 +2,10 @@ import * as T from './vendor/three.module.js';
 import{MAP_HALF}from'./map-layout.js?v=114';
 import{bridgeContains}from'./coast.js?v=114';
 import{seeded}from'./rules.js?v=114';
+import{surfaceUniforms}from'./surface-textures.js?v=120';
 // One worn silhouette is shared by boulders, bank stones and instanced scree.
-export const naturalRockGeometry=(()=>{
- const g=new T.SphereGeometry(1,10,7),p=g.attributes.position,colors=[];
+function rockGeometry(width=10,height=7){
+ const g=new T.SphereGeometry(1,width,height),p=g.attributes.position,colors=[];
  for(let i=0;i<p.count;i++){
   const x=p.getX(i),y=p.getY(i),z=p.getZ(i),wear=1+Math.sin(x*3.6+z*2.2+y)*.105+Math.sin(z*4.3-y*2.6)*.065;
   p.setXYZ(i,x*wear*(1-y*.08)+y*.09,Math.max(-.73,y*wear*.91),z*wear*(1+y*.08));
@@ -15,13 +16,15 @@ export const naturalRockGeometry=(()=>{
  const n=g.attributes.normal,welded=new Map(),key=i=>[p.getX(i),p.getY(i),p.getZ(i)].map(v=>Math.round(v*1e5)).join(',');
  for(let i=0;i<p.count;i++){const k=key(i);if(!welded.has(k))welded.set(k,new T.Vector3());welded.get(k).add(new T.Vector3().fromBufferAttribute(n,i));}
  for(let i=0;i<p.count;i++){const v=welded.get(key(i)).normalize();n.setXYZ(i,v.x,v.y,v.z);}return g;
-})();
+}
+export const naturalRockGeometry=rockGeometry();
+export const boulderRockGeometry=rockGeometry(20,13);
 const rockMaterials=new Map();
 export function finishRock(rock){
- if(rock.geometry===naturalRockGeometry)return rock;
+ if(rock.geometry===boulderRockGeometry)return rock;
  const radius=rock.geometry.parameters?.radius||1,source=rock.material,key=source.uuid;
  if(!rockMaterials.has(key)){const m=source.clone();m.vertexColors=true;m.roughness=.94;m.flatShading=false;rockMaterials.set(key,m);}
- rock.geometry=naturalRockGeometry;rock.material=rockMaterials.get(key);rock.scale.multiplyScalar(radius);return rock;
+ rock.geometry=boulderRockGeometry;rock.material=rockMaterials.get(key);rock.scale.multiplyScalar(radius);return rock;
 }
 let groundDetailTexture;
 export function environmentDetailTexture(){
@@ -50,9 +53,10 @@ export function installGroundSurface(ground,id='confluence'){
  material.userData.groundSurface=id;
  material.onBeforeCompile=shader=>{
   shader.uniforms.groundDetail={value:detail};
+  Object.assign(shader.uniforms,{soilColor:surfaceUniforms.soilColor,soilHeight:surfaceUniforms.soilHeight,soilReady:surfaceUniforms.soilReady});
   shader.vertexShader='varying vec3 groundWorld;\n'+shader.vertexShader;
   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ngroundWorld=(modelMatrix*vec4(position,1.0)).xyz;');
-  shader.fragmentShader='uniform sampler2D groundDetail; varying vec3 groundWorld;\n'+shader.fragmentShader;
+  shader.fragmentShader='uniform sampler2D groundDetail,soilColor,soilHeight; uniform float soilReady; varying vec3 groundWorld;\n'+shader.fragmentShader;
   shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
    vec2 soilPoint=groundWorld.xz;
    float soilField=texture2D(groundDetail,soilPoint*.013).r;
@@ -84,6 +88,16 @@ export function installGroundSurface(ground,id='confluence'){
    // Millimetre grain replaces the coarse pebble bumps; no specular glitter is added.
    // No displaced terrain: feet, swimming, collision and hazards keep their baseline.
    float soilRelief=soilClump*.014+(soilGrain-.5)*mix(.0018,.0010,soilSnow)+litter*.0012+sandRidge*.003;
+   ${['forest','coast','confluence'].includes(id)?`vec2 litterUV=soilPoint/2.1;
+    vec3 photographedSoil=texture2D(soilColor,litterUV).rgb;
+    float photographedHeight=texture2D(soilHeight,litterUV).r;
+    float soilLuma=dot(photographedSoil,vec3(.2126,.7152,.0722));
+    // Retain the biome's moss/soil palette while exposing real leaf edges and fine gravel.
+    photographedSoil=mix(vec3(soilLuma),photographedSoil,.52)*.46;
+    photographedSoil=mix(photographedSoil,soilLuma*vec3(.25,.37,.19),moss*.82);
+    float realSoilMix=soilReady*soilOrganic*(.56+soilPatch*.22)*(1.0-moss*.32);
+    diffuseColor.rgb=mix(diffuseColor.rgb,photographedSoil,realSoilMix);
+    soilRelief+=(photographedHeight-.5)*.018*realSoilMix*soilGrainDetail;`:''}
   `);
   shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
    vec3 soilDx=dFdx(-vViewPosition),soilDy=dFdy(-vViewPosition);

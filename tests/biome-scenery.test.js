@@ -1,14 +1,14 @@
 import{test}from'node:test';import assert from'node:assert/strict';import * as T from'../vendor/three.module.js';
 import{buildWorld,clearAt,animateWorld}from'../world.js';import{sceneryAllowed}from'../biome-scenery.js';
 import{bridgeContains,updateTide}from'../coast.js';import{waterDepth}from'../water.js';
-import{naturalRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=118';
+import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=120';
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
 function dispose(w){w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});}
 test('worn rocks reuse a bounded smooth mesh and preserve placed obstacle transforms',()=>{
  const source=new T.MeshStandardMaterial({color:0x867863}),a=new T.Mesh(new T.DodecahedronGeometry(.7,0),source),b=a.clone();a.position.set(3,.3,-2);a.scale.set(1,.8,1);
- finishRock(a);finishRock(b);assert.strictEqual(a.geometry,naturalRockGeometry);assert.strictEqual(a.material,b.material);assert.notStrictEqual(a.material,source);assert(!source.vertexColors);assert(a.material.vertexColors);
+ finishRock(a);finishRock(b);assert.strictEqual(a.geometry,boulderRockGeometry);assert.strictEqual(a.material,b.material);assert.notStrictEqual(a.material,source);assert(!source.vertexColors);assert(a.material.vertexColors);
  assert.deepEqual(a.position.toArray(),[3,.3,-2]);assert(Math.abs(a.scale.y-.56)<1e-8);const scale=a.scale.clone();finishRock(a);assert(a.scale.equals(scale),'finishing a rock twice changes its footprint');
- assert(naturalRockGeometry.index.count/3<=120);const p=naturalRockGeometry.attributes.position,n=naturalRockGeometry.attributes.normal,radii=[];
+ assert(naturalRockGeometry.index.count/3<=120,'tiny instanced scree must retain its budget');assert(boulderRockGeometry.index.count/3<=480);const p=boulderRockGeometry.attributes.position,n=boulderRockGeometry.attributes.normal,radii=[];
  for(let i=0;i<p.count;i++){const v=new T.Vector3().fromBufferAttribute(n,i);assert(Math.abs(v.length()-1)<1e-5,'rock normal is invalid');radii.push(new T.Vector3().fromBufferAttribute(p,i).length());}
  assert(Math.max(...radii)-Math.min(...radii)>.15,'rock lost its worn silhouette');assert(Math.max(...radii)<1.2);
 });

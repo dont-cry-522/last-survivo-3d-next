@@ -85,7 +85,7 @@ test('both articulated hands meet weapon contacts and curved sleeves meet their 
  const camera=new T.PerspectiveCamera(60,16/9,.1,100),view=new FirstPersonView(camera),contact=new T.Vector3(0,.045,-.023),wrist=new T.Vector3(0,-.038,0);
  try{for(const id of Object.values(HERO_LOADOUTS).flat()){
   view.setHero(hero(weapon(id)),id);view.update(1,.016,{visible:true});camera.updateMatrixWorld(true);
-  assert.equal(view.hands.length,2);assert.equal(view.arms.length,2);assert.equal(view.ownedGeometry.length,id==='crossbow'?8:2,'unexpected viewmodel geometry allocations');
+  assert.equal(view.hands.length,2);assert.equal(view.arms.length,2);assert(view.ownedGeometry.length<=14,'unexpected viewmodel geometry allocations');assert(view.details.length<=2,'detail draw calls are unbounded');
   const hand=view.hands[0],actual=contact.clone().applyMatrix4(hand.matrixWorld),target=view.grip.clone().applyMatrix4(view.weapon.matrixWorld);
   assert(actual.distanceTo(target)<1e-6,id+' gripping hand detached from the handle');
   assert(hand.geometry.morphAttributes.position[0].count>300,'hand lost its thumb/finger articulation');
@@ -150,6 +150,58 @@ test('hand and sleeve palettes differ by hero without changing shared weapon col
   renderer.render=()=>{throw Error('render failed');};assert.throws(()=>view.render(renderer,scene));assert.equal(camera.layers.mask,mask);assert.equal(scene.background,background);assert.equal(renderer.autoClear,true);
  }finally{view.dispose();}
  });
+
+test('close equipment adds bounded real structure across firearms, thrown blades, staves, books and lamps',()=>{
+ const view=new FirstPersonView(new T.PerspectiveCamera(60,16/9,.1,100));
+ try{for(const id of['rifle','shotgun','shuriken','boomerang','fire','dark','grimoire','sporelantern','miasmalantern']){
+  const gun=weapon(id),sourceMaterials=new Map();gun.traverse(n=>{if(n.isMesh&&n.material.color)sourceMaterials.set(n.material,[n.material.color.getHex(),n.material.roughness,n.material.metalness,n.material.emissive?.getHex(),n.material.emissiveIntensity]);});
+  view.setHero(hero(gun),id);view.update(1,.016,{visible:true});
+  const changed=view.parts.filter(([source,clone])=>source.isMesh&&source.geometry!==clone.geometry),names=view.ownedGeometry.map(g=>g.name).join(' ');
+  if(['rifle','shotgun'].includes(id)){
+   assert(changed.length>=7,'firearm still consists of unchanged cuboids');assert.match(names,/shaped-firearm/);
+   const wood=view.parts.find(([s])=>s.material?.color?.getHex()===0x624f3d)[1].material,metal=view.parts.find(([s])=>s.material?.color?.getHex()===0x253440)[1].material;
+   assert(wood.roughness>metal.roughness+.25);assert(metal.metalness>wood.metalness+.5);
+  }else if(id==='shuriken'){assert.equal(changed.length,4);assert.match(names,/ground-throwing-edge/);}
+  else if(id==='boomerang')assert.match(names,/bone-carving/);
+  else if(['fire','dark'].includes(id)){assert.match(names,/wrapped-staff-inlay/);assert.equal(view.charged.length,1);}
+  else if(id==='grimoire'){
+   assert.equal(changed.filter(([,n])=>n.geometry.name==='First_person_layered-pages').length,2);assert.match(names,/turning-page/);assert.match(names,/book-corners-and-script/);
+   const ink=changed.filter(([,n])=>n.geometry.name==='First_person_fine-incantation');assert.equal(ink.length,6);
+   for(const [source,node]of ink){
+    assert.equal(source.material.color.getHex(),0xbac5cc,'third-person rune color changed');assert(Math.max(...node.material.color.toArray())<.15,'page ink is still a bright glow');assert.equal(node.material.toneMapped,true);
+    node.geometry.computeBoundingBox();assert(node.geometry.boundingBox.max.y-node.geometry.boundingBox.min.y<1e-6,'ink floats in a raised tube above the page');assert(node.geometry.index.count<=18);
+   }
+  }else{assert.match(names,/lantern-rivets/);assert.match(names,/lantern-core-filaments/);const core=view.parts.find(([s])=>s===gun.userData.heart)[1];assert(view.details.some(mesh=>mesh.parent===core),'core detail lost the real heart animation');}
+  let detailTriangles=0;
+  for(const mesh of view.details){
+   assert.equal(mesh.layers.mask,2);assert.equal(mesh.material.transparent,false);assert(mesh.material.depthTest&&mesh.material.depthWrite);assert.equal(mesh.castShadow,false);
+   const g=mesh.geometry;detailTriangles+=(g.index?.count||g.attributes.position.count)/3;assert([...g.attributes.position.array,...g.attributes.normal.array].every(Number.isFinite));
+  }
+  assert(detailTriangles<=1300,id+' adds excessive detail geometry');assert(view.details.length<=2);
+  for(const [m,values]of sourceMaterials)assert.deepEqual([m.color.getHex(),m.roughness,m.metalness,m.emissive?.getHex(),m.emissiveIntensity],values,id+' mutated the third-person material');
+ }}finally{view.dispose();}
+});
+
+test('crystals and lantern filaments charge with existing gesture timing, freeze and recover without a new light',()=>{
+ const view=new FirstPersonView(new T.PerspectiveCamera(60,16/9,.1,100));
+ try{for(const id of['fire','dark','sporelantern','miasmalantern']){
+  const gun=weapon(id),actor=hero(gun);Object.assign(actor.userData,{attackAge:10,reloadDuration:1,reloadPhase:1});view.setHero(actor,id);view.update(1,.016,{visible:true});
+  const idle=view.charged.map(c=>c.material.emissiveIntensity);Object.assign(actor.userData,{attackAge:.10,reloadPhase:.10});view.update(1.1,.016,{visible:true});
+  const active=view.charged.map(c=>c.material.emissiveIntensity);assert(active.some((v,i)=>v>idle[i]+.1),id+' core does not respond');assert(active.every(v=>v<=1.45));
+  view.update(1.1,0,{visible:true});assert.deepEqual(view.charged.map(c=>c.material.emissiveIntensity),active);
+  let lights=0;view.root.traverse(n=>{if(n.isLight)lights++;});assert.equal(lights,0);
+  Object.assign(actor.userData,{attackAge:10,reloadPhase:1});view.update(3,.016,{visible:true});assert.deepEqual(view.charged.map(c=>c.material.emissiveIntensity),idle);
+ }}finally{view.dispose();}
+});
+
+test('each category frees all exclusive detail resources once while retaining shared weapon assets',()=>{
+ const view=new FirstPersonView(new T.PerspectiveCamera(60,16/9,.1,100));let sharedDisposed=0;
+ try{for(const id of['rifle','shotgun','shuriken','boomerang','fire','dark','grimoire','sporelantern','miasmalantern']){
+  const gun=weapon(id),shared=new Set();gun.traverse(n=>{if(n.isMesh){shared.add(n.geometry);shared.add(n.material);}});for(const resource of shared)resource.addEventListener('dispose',()=>sharedDisposed++);
+  view.setHero(hero(gun),id);const own=new Set([...view.ownedGeometry,...view.materials.values()]),counts=new Map();for(const resource of own){counts.set(resource,0);resource.addEventListener('dispose',()=>counts.set(resource,counts.get(resource)+1));}
+  view.clear();assert.equal(view.details.length,0);assert.equal(view.charged.length,0);assert([...counts.values()].every(v=>v===1),id+' leaked or disposed an owned resource twice');assert.equal(sharedDisposed,0);
+ }}finally{view.dispose();}
+});
 
  test('close-view crossbow has a tapered beveled body and recurved limbs while retaining animated geometry',()=>{
  const camera=new T.PerspectiveCamera(60,1.6,.1,100),view=new FirstPersonView(camera),gun=weapon('crossbow');

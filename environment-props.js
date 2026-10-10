@@ -1,5 +1,6 @@
 import * as T from './vendor/three.module.js';
-import{finishRock,installGroundSurface}from'./biome-scenery.js?v=118';
+import{finishRock,installGroundSurface}from'./biome-scenery.js?v=120';
+import{surfaceUniforms}from'./surface-textures.js?v=120';
 
 // Shared rounded edges catch side light without adding meshes or changing collision footprints.
 const block=new T.BoxGeometry(1,1,1,3,3,3),p=block.attributes.position,colors=[],v=new T.Vector3(),core=new T.Vector3();
@@ -43,9 +44,13 @@ function surfaceMaterial(source,kind,axis='y',vertexColors=true){
   const before=source.onBeforeCompile,baseKey=source.customProgramCacheKey();
   m.onBeforeCompile=(shader,renderer)=>{
    before.call(m,shader,renderer);
-   shader.vertexShader='varying vec3 propPoint;\n'+shader.vertexShader;
-   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\npropPoint=position;');
-   shader.fragmentShader='varying vec3 propPoint;\n'+shader.fragmentShader;
+   shader.vertexShader='varying vec3 propPoint,propNormal;\n'+shader.vertexShader;
+   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\npropPoint=position;propNormal=normal;');
+   shader.fragmentShader='varying vec3 propPoint,propNormal;\n'+shader.fragmentShader;
+   if(kind==='stone'){
+    Object.assign(shader.uniforms,{rockColor:surfaceUniforms.rockColor,rockHeight:surfaceUniforms.rockHeight,rockReady:surfaceUniforms.rockReady});
+    shader.fragmentShader='uniform sampler2D rockColor,rockHeight; uniform float rockReady;\n'+shader.fragmentShader;
+   }
    const along=axis==='x'?'x':axis==='z'?'z':'y',across=axis==='x'?'yz':axis==='z'?'xy':'xz';
    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
     float propPixel=max(length(dFdx(propPoint)),length(dFdy(propPoint)));
@@ -55,7 +60,20 @@ function surfaceMaterial(source,kind,axis='y',vertexColors=true){
      float propGrain=.5+.5*sin(propAcross.x*39.0+propAcross.y*17.0+sin(propPoint.${along}*3.0+propAcross.y*9.0)*.7);
      diffuseColor.rgb*=.94+propPatch*.07-(1.0-propGrain)*(1.0-propGrain)*.12*propDetail;`
     :`float propDamp=1.0-smoothstep(-.5,.3,propPoint.y);
-     diffuseColor.rgb*=.92+propPatch*.14-propDamp*.035;`}
+     diffuseColor.rgb*=.92+propPatch*.14-propDamp*.035;
+     // Triplanar samples avoid stretched poles on boulders and seams on ruin blocks.
+     vec3 propWeights=pow(abs(normalize(propNormal)),vec3(4.));
+     propWeights/=max(.0001,propWeights.x+propWeights.y+propWeights.z);
+     vec3 stoneAlbedo=texture2D(rockColor,propPoint.yz*.78).rgb*propWeights.x+texture2D(rockColor,propPoint.xz*.78).rgb*propWeights.y+texture2D(rockColor,propPoint.xy*.78).rgb*propWeights.z;
+     float stoneHeight=texture2D(rockHeight,propPoint.yz*.78).r*propWeights.x+texture2D(rockHeight,propPoint.xz*.78).r*propWeights.y+texture2D(rockHeight,propPoint.xy*.78).r*propWeights.z;
+     diffuseColor.rgb*=mix(vec3(1.),clamp(stoneAlbedo*3.0,vec3(.43),vec3(1.48)),rockReady*.77);
+     float stoneRelief=(stoneHeight-.5)*.012*rockReady*propDetail;`}
+   `);
+   if(kind==='stone')shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+    vec3 stoneDx=dFdx(-vViewPosition),stoneDy=dFdy(-vViewPosition);
+    vec3 stoneRx=cross(stoneDy,normal),stoneRy=cross(normal,stoneDx);
+    float stoneDet=dot(stoneDx,stoneRx);
+    normal=normalize(abs(stoneDet)*normal-sign(stoneDet)*(dFdx(stoneRelief)*stoneRx+dFdy(stoneRelief)*stoneRy));
    `);
    shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+(propPatch-.5)*.06,.76,1.0);`);
   };

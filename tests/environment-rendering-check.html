@@ -21,7 +21,7 @@ async function load(mobile=false,width=1180,height=720){
  const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
  <\/script>`;
  frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
- for(let i=0;i<600&&!win.game3d;i++)await sleep(50);assert(win.game3d,'加载超时');g=win.game3d;g.audio.init=async()=>true;const render=g.renderer.render.bind(g.renderer);g.renderer.render=(scene,camera)=>{if(scene!==g.hero.parent)return render(scene,camera);win.qaCamera=camera;if(g.state==='menu'&&win.document.querySelector('#preview-detail').getAttribute('aria-pressed')!=='true'){
+ for(let i=0;i<600&&!win.game3d;i++)await sleep(50);assert(win.game3d,'加载超时');g=win.game3d;assert(await g.surfaceReady,'本地土石材质未全部加载');g.audio.init=async()=>true;const render=g.renderer.render.bind(g.renderer);g.renderer.render=(scene,camera)=>{if(scene!==g.hero.parent)return render(scene,camera);win.qaCamera=camera;if(g.state==='menu'&&win.document.querySelector('#preview-detail').getAttribute('aria-pressed')!=='true'){
  const box=new T.Box3().setFromObject(g.hero,true);if(g.companionMesh)box.union(new T.Box3().setFromObject(g.companionMesh,true));const rect=win.document.querySelector('#hero-preview').getBoundingClientRect();let max=0;
  for(const x of[box.min.x,box.max.x])for(const y of[box.min.y,box.max.y])for(const z of[box.min.z,box.max.z]){const v=new T.Vector3(x,y,z).project(camera),px=(v.x+1)*win.innerWidth/2,py=(1-v.y)*win.innerHeight/2;max=Math.max(max,Math.abs((px-rect.left)/rect.width*2-1),Math.abs((py-rect.top)/rect.height*2-1));}win.qaFraming=max;
  }return render(scene,camera);};

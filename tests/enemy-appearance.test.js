@@ -64,3 +64,45 @@ test('caster two-bone sleeves follow the grip through walking, windup and releas
   assert.ok(elbowTravel>.1,`${kind}: arm pose never followed staff`);
  }
 });
+
+test('near-view anatomy has a continuous wolf waist, exposed short teeth and separated claw tips',()=>{
+ const wolf=actor('wolf');
+ const hit=(name,origin,direction)=>{
+  const source=wolf.getObjectByName(name),part=new T.Mesh(source.geometry,source.material);
+  part.updateMatrixWorld(true);
+  return new T.Raycaster(new T.Vector3(...origin),new T.Vector3(...direction)).intersectObject(part)[0]?.point;
+ };
+ const waist=hit('creature-body',[1,.71,-.13],[-1,0,0]),chest=hit('creature-body',[1,.71,.15],[-1,0,0]);
+ assert.ok(waist&&chest&&waist.x>.17&&waist.x<chest.x*.9,'waist must narrow continuously behind the rib cage');
+ for(const z of[-.4,-.3,-.2,-.1,0,.1,.2,.3])assert.ok(hit('creature-body',[1,.71,z],[-1,0,0]),'torso has a side-view gap');
+ for(const x of[-.09,.09]){
+  const tooth=hit('wolf-head',[x,-.185,.6],[0,0,-1]);
+  assert.ok(tooth&&tooth.z>.30&&tooth.z<.36,'short canine must be visible below the upper lip');
+ }
+ for(const x of[-.043,0,.043]){
+  const claw=hit('wolf-lower-leg',[x+.001,-.24,.3],[0,0,-1]);
+  assert.ok(claw&&claw.z>.193&&claw.z<.21,'each toe needs a short exposed claw, inside the existing paw footprint');
+ }
+});
+
+test('thin mushroom gills and stone mottling remain real shared geometry within the forest budget',()=>{
+ const budgets={mushroom:2600,wolf:4800,golem:2300,spitter:3650,shaman:3700},materials=new Set();let triangles=0,calls=0;
+ for(const kind of kinds){
+  const g=actor(kind),parts=surfaces(g);let count=0;
+  for(const part of parts){count+=(part.geometry.index?.count||part.geometry.attributes.position.count)/3;materials.add(part.material);assert.ok(Array.from(part.geometry.attributes.normal.array).every(Number.isFinite));}
+  assert.ok(count<=budgets[kind],`${kind}: ${count} triangles`);triangles+=count;calls+=parts.length;
+ }
+ assert.ok(triangles<=16500,`forest set uses ${triangles} triangles`);assert.equal(calls,47);assert.equal(materials.size,2,'surface detail must not add per-creature materials');
+ const cap=actor('mushroom').getObjectByName('mushroom-cap').geometry,p=cap.attributes.position,n=cap.attributes.normal;let blades=0;
+ for(let i=0;i<p.count;i++)if(p.getY(i)<-.14&&Math.hypot(p.getX(i),p.getZ(i))>.15&&Math.abs(n.getY(i))<.35){assert.ok(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))>.99);blades++;}
+ assert.ok(blades>=100,'gills must hang below the cap and retain outward normals on both sides');
+ const stone=actor('golem').getObjectByName('creature-body').geometry.attributes.color;
+ const tones=new Set(Array.from({length:stone.count},(_,i)=>[stone.getX(i),stone.getY(i),stone.getZ(i)].map(v=>v.toFixed(3)).join(',')));
+ assert.ok(tones.size>100,'rock faces should contain baked damp/moss variation rather than one color per stone');
+ const skin=actor('wolf').getObjectByName('creature-body').material;
+ assert.equal(skin.map,null);assert.equal(skin.emissive.getHex(),0);
+ const shader={vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader,uniforms:{}};
+ skin.onBeforeCompile(shader);
+ assert.match(shader.vertexShader,/creaturePoint=position/);assert.match(shader.fragmentShader,/dFdx\(creaturePoint\)/);assert.match(shader.fragmentShader,/roughnessFactor=clamp/);
+ assert.equal(Object.keys(shader.uniforms).length,0,'no per-creature texture or animation uniform');
+});

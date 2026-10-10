@@ -38,15 +38,27 @@ const near=(x,z,p,r)=>(x-p.x)**2+(z-p.z)**2<r*r;
 
 function tuftGeometry(){
  const positions=[],colors=[],indices=[];
- // Unequal blades open out from a low crown, rather than five identical upright spikes.
- // Seven curved blades use 28 triangles: fewer than the former five-blade mesh.
- for(let blade=0;blade<7;blade++){
-  const angle=blade*2.399+.18*Math.sin(blade*1.8),s=Math.sin(angle),c=Math.cos(angle),height=.19+(.5+.5*Math.sin(blade*1.93))*.085,start=positions.length/3,reach=.12+(.5+.5*Math.cos(blade*2.7))*.10;
-  for(let row=0;row<=2;row++){
-   const t=row/2,bend=reach*t*t,wide=(.018+blade%3*.005)*(1-t),shade=.57+t*.39+Math.sin(blade*2.1)*.035,base=.024+blade%3*.018;
-   for(const side of[-1,1]){positions.push(s*(base+bend)+c*wide*side,-.035+Math.sin(t*Math.PI*.66)*height,c*(base+bend)-s*wide*side);colors.push(shade*.98,shade,shade*.87);}
+ const vertex=(x,y,z,shade)=>{const index=positions.length/3;positions.push(x,y,z);colors.push(shade*.98,shade,shade*.87);return index;};
+ // Four arching ribbon leaves have separate tapered tips, so all 20 triangles contribute.
+ // The lower leaves curl back down instead of forming the same straight spike silhouette.
+ for(let blade=0;blade<4;blade++){
+  const angle=blade*2.399+.18*Math.sin(blade*1.8),s=Math.sin(angle),c=Math.cos(angle),height=[.22,.28,.18,.25][blade],reach=[.19,.15,.27,.23][blade],base=.024+blade*.008,start=positions.length/3;
+  for(const [row,t]of[0,.38,.72].entries()){
+   const bend=base+reach*t*t,width=[.007,.026,.015][row]*(1+blade*.10),fold=Math.sin(t*Math.PI)*.009;
+   for(const side of[-1,1])vertex(s*bend+c*width*side,-.035+Math.sin(t*Math.PI*.78)*height+side*fold,c*bend-s*width*side,.56+t*.40+side*.025);
    if(row<2){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}
   }
+  const tip=vertex(s*(base+reach),-.035+Math.sin(Math.PI*.78)*height,c*(base+reach),.91);indices.push(start+4,start+5,tip);
+ }
+ // One low feathered frond adds paired leaflets and real gaps, with no alpha cards or texture.
+ const angle=1.35,s=Math.sin(angle),c=Math.cos(angle),point=(t,side,lift,shade)=>{
+  const reach=.035+t*.29,arch=t<.5?t*.30:.15-(t-.5)*.11;
+  return vertex(s*reach+c*side,-.035+arch+lift,c*reach-s*side,shade);
+ };
+ const stem=positions.length/3;point(0,-.004,0,.53);point(0,.004,0,.57);point(.5,-.003,0,.74);point(.5,.003,0,.77);point(1,0,0,.90);indices.push(stem,stem+1,stem+2,stem+1,stem+3,stem+2,stem+2,stem+3,stem+4);
+ for(let pair=0;pair<3;pair++)for(const side of[-1,1]){
+  const t=.15+pair*.22,width=(.080-pair*.017)*side,a=point(t,0,0,.61+pair*.08),b=point(t+.11,width*.47,.012,.76+pair*.055),tip=point(t+.22,width,-.009,.83+pair*.04),d=point(t+.18,width*.37,-.009,.66+pair*.075);
+  indices.push(a,b,tip,a,tip,d);
  }
  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(positions.filter((v,i)=>i%3===1).map(y=>Math.max(0,(y+.035)/.29)**2),1));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
 }

@@ -45,6 +45,25 @@ test('wind moves only flexible blade tips, with one shared game-time uniform and
  cleanup(w);
 });
 
+test('curved low leaves use their triangle budget and stay inside the reserved wind footprint',()=>{
+ const world=buildWorld('forest',7),group=installAdventureGroundDetail(world,'forest'),geometry=group.getObjectByName('adventure-ground-tuft').geometry,p=geometry.attributes.position,n=geometry.attributes.normal,index=geometry.index;
+ const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
+ assert(index.count/3<=36,'leaf detail exceeds its per-instance budget');
+ for(let i=0;i<index.count;i+=3){
+  a.fromBufferAttribute(p,index.getX(i));b.fromBufferAttribute(p,index.getX(i+1));c.fromBufferAttribute(p,index.getX(i+2));
+  assert(b.sub(a).cross(c.sub(a)).lengthSq()>1e-12,'collapsed leaf-tip triangles waste geometry and give unstable normals');
+ }
+ let raised=0,lowerOuter=0;
+ for(let i=0;i<p.count;i++){
+  assert(Math.abs(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))-1)<1e-5,'leaf normal is invalid');
+  const radius=Math.hypot(p.getX(i),p.getZ(i));
+  assert(radius*1.14+.035<.55,'curled leaves cross the reserved placement footprint in the wind');
+  if(p.getY(i)>.21)raised++;
+  if(radius>.25&&p.getY(i)<.17)lowerOuter++;
+ }
+ assert(raised>0&&lowerOuter>0,'low cover lost its high inner blades and drooping outer leaves');cleanup(world);
+});
+
 test('footprints avoid maximum tide, irregular shores, trails, main roads and all hidden interaction clearings',()=>{
  for(const map of maps){
   const world=buildWorld(map,19),group=installAdventureGroundDetail(world,map),routes=[];

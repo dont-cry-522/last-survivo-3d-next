@@ -1,10 +1,19 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 双视角实测</title><style>body{margin:12px;background:#17272b;color:#e2ecea;font:14px system-ui}button{padding:10px;margin:4px;background:#254943;border:1px solid #709582;color:inherit;border-radius:5px}iframe{display:block;border:0;margin-top:8px}pre{white-space:pre-wrap}#view{overflow:auto}</style><button id="run" disabled>运行双视角回归</button><select id="preview-map" aria-label="预览地图"><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="confluence">五境</option></select><select id="preview-place" aria-label="预览位置"><option value="spawn">出生地</option><option value="water">水岸</option><option value="trees">树丛</option></select><button id="third" disabled>第三人称预览</button><button id="first" disabled>第一人称预览</button><button id="capture" disabled>保存画面</button><p id="status">正在加载真实游戏（隔离存档，固定帧测试）</p><div id="view"></div><pre id="report"></pre><script type="module">
 import * as T from '../vendor/three.module.js';
+import {HERO_LOADOUTS,WEAPONS} from '../rules.js?v=114';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
-const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text();let frame,g,win,now=0;const results=[],errors=[];
+const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text();let frame,g,win,now=0,previewShot=null;const results=[],errors=[];
+const previewHero=document.createElement('select'),previewWeapon=document.createElement('select'),sourceDocument=new DOMParser().parseFromString(html,'text/html');
+previewHero.id='preview-hero';previewHero.setAttribute('aria-label','预览人物');previewWeapon.id='preview-weapon';previewWeapon.setAttribute('aria-label','预览武器');
+for(const hero of Object.keys(HERO_LOADOUTS)){const option=document.createElement('option');option.value=hero;option.textContent=sourceDocument.querySelector('[data-hero="'+hero+'"]').childNodes[0].textContent.trim();previewHero.append(option);}
+previewHero.value='silver';$('#preview-map').before(previewHero,previewWeapon);
+function previewWeapons(){previewWeapon.replaceChildren();for(const[index,id]of HERO_LOADOUTS[previewHero.value].entries()){const option=document.createElement('option');option.value=index;option.textContent=WEAPONS[id].name;previewWeapon.append(option);}}
+previewHero.onchange=previewWeapons;previewWeapons();
+for(const[id,text]of[['attack-preview','单次出手预览'],['recover-preview','推进回收 8 帧']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
 async function load(mobile=false,width=1180,height=720){
+ previewShot=null;
  if(g){errors.push(...win.qaErrors);g.audio.stopMusic();g.cinema?.dispose();g.renderer.dispose();g.renderer.forceContextLoss();}frame?.remove();
  frame=document.createElement('iframe');frame.title='真实游戏环境预览';frame.style.width=width+'px';frame.style.height=height+'px';$('#view').append(frame);
  const boot=`<base href="../"><script>
@@ -27,14 +36,69 @@ function reportFrame(){const r=g.renderer;assert(!win.qaErrors.length,win.qaErro
 
 function select(hero='silver',index=0,map='forest'){g.menu();win.qaSeed();g.select(hero,map,index);win.qaSeed();g.start();g.player.inv=9999;g.player.attack=9999;g.player.pending=0;step(2);}
 function arena(){g.world.obstacles=[];g.world.patches=[];g.player.x=g.player.z=0;g.hero.position.set(0,0,0);for(const e of g.enemies){e.alive=false;e.mesh.visible=false;}g.adventureCamera.yaw=0;g.adventureCamera.pitch=-.10;g.adventureCamera.update(0,g.player,[],{snap:true});}
-function pointer(target,type,opts={}){const init={bubbles:true,pointerId:1,pointerType:'mouse',button:0,clientX:500,clientY:300,...opts};if(init.pointerType==='mouse'&&['pointerdown','pointerup'].includes(type))target.dispatchEvent(new win.MouseEvent(type==='pointerdown'?'mousedown':'mouseup',init));else target.dispatchEvent(new win.PointerEvent(type,init));}
-function key(type,key){win.dispatchEvent(new win.KeyboardEvent(type,{key,bubbles:true}));}
+function pointer(target,type,opts={}){const init={bubbles:true,pointerId:1,pointerType:'mouse',button:0,buttons:0,clientX:500,clientY:300,...opts},mouseTypes={pointerdown:'mousedown',pointerup:'mouseup',pointermove:'mousemove'};if(init.pointerType==='mouse'&&mouseTypes[type])target.dispatchEvent(new win.MouseEvent(mouseTypes[type],init));else target.dispatchEvent(new win.PointerEvent(type,init));}
+function mouseMove(target,x,y,opts={}){const event=new win.MouseEvent('mousemove',{bubbles:true,buttons:0,clientX:x,clientY:y,...opts});for(const key of['movementX','movementY'])if(key in opts)Object.defineProperty(event,key,{value:opts[key]});target.dispatchEvent(event);}
+// These substitutions exercise game lifecycle handling, not real browser permission or pointer capture.
+function simulatePointerLock(){
+ const doc=win.document,canvas=doc.querySelector('#world'),saved=[[doc,'pointerLockElement'],[doc,'exitPointerLock'],[canvas,'requestPointerLock']].map(([object,key])=>({object,key,descriptor:Object.getOwnPropertyDescriptor(object,key)}));let locked=null,requests=0,exits=0,denied=false,delayed=false,finish;
+ const set=element=>{locked=element;doc.dispatchEvent(new win.Event('pointerlockchange'));};
+ Object.defineProperty(doc,'pointerLockElement',{configurable:true,get:()=>locked});
+ doc.exitPointerLock=()=>{exits++;set(null);};canvas.requestPointerLock=async()=>{requests++;if(denied)throw new win.DOMException('Fixture denies pointer lock','NotAllowedError');if(delayed)await new Promise(resolve=>{finish=resolve;});set(canvas);};
+ return{lock:()=>set(canvas),escape:()=>set(null),deny:()=>{denied=true;},defer:()=>{delayed=true;},complete(){assert(finish,'没有待完成的模拟请求');const resolve=finish;finish=null;resolve();},get requests(){return requests;},get exits(){return exits;},restore(){finish?.();if(locked)set(null);for(const{object,key,descriptor}of saved){if(descriptor)Object.defineProperty(object,key,descriptor);else delete object[key];}}};
+}
+function key(type,key,opts={}){win.dispatchEvent(new win.KeyboardEvent(type,{key,bubbles:true,...opts}));}
 function aimAt(e){for(let i=0;i<4;i++){step();g.adventureCamera.yaw=Math.atan2(e.x-g.camera.position.x,e.z-g.camera.position.z);g.adventureCamera.pitch=Math.atan2(e.height*.5-g.camera.position.y,Math.hypot(e.x-g.camera.position.x,e.z-g.camera.position.z));}step();}
 function fire(n=30){g.player.attack=0;pointer(win.document.querySelector('#world'),'pointerdown');step(n);pointer(win,'pointerup');}
 async function check(name,fn){$('#status').textContent=name;try{results.push({name,pass:true,detail:await fn()});}catch(e){results.push({name,pass:false,error:e.message});}publish();await sleep(0);}
 $('#run').onclick=async()=>{
  for(const b of document.querySelectorAll('button'))b.disabled=true;results.length=0;errors.length=0;
+ await load();
  await check('双视角、暂停、返大厅及重开',()=>{select();g.setView('first');step(2);assert(g.firstPerson.root.visible,'第一人称武器不显示');assert(g.hero.visible,'渲染后角色visible未恢复');const mode=g.adventureCamera.mode;key('keydown','v');step();assert(g.adventureCamera.mode!==mode,'V切换失败');key('keyup','v');g.pause();const t=g.time;step(60);assert(g.time===t,'暂停推进模拟');assert(!g.controls.held,'暂停未清攻击');g.menu();step();assert(!g.firstPerson.root.visible,'大厅泄漏武器');assert(!g.atmosphere.mesh.visible,'大厅泄漏天空');g.start();step();assert(g.state==='playing','不能重开');return reportFrame();});
+ await check('长按 Esc 不会反复切换暂停与继续',()=>{
+  select('scout');key('keydown','Escape');assert(g.state==='paused','首次 Esc 未暂停');const time=g.time;
+  for(let i=0;i<4;i++){key('keydown','Escape',{repeat:true});step(2);assert(g.state==='paused','长按 Esc 自动继续了游戏');}assert(g.time===time,'长按 Esc 推进了暂停时间');
+  key('keyup','Escape');key('keydown','Escape');assert(g.state==='playing','松开后再次按 Esc 未继续');for(let i=0;i<4;i++){key('keydown','Escape',{repeat:true});assert(g.state==='playing','继续后长按 Esc 再次暂停');}key('keyup','Escape');return reportFrame();
+ });
+ await check('暂停菜单可打开待选成长并正确选择或稍后处理',()=>{
+  select('scout');g.player.level=3;g.player.pending=2;g.pause();const doc=win.document,time=g.time,openGrowth=()=>{const button=[...doc.querySelectorAll('#dialog-content .dialog-actions button')].find(b=>b.textContent.startsWith('选择成长'));assert(button,'暂停菜单没有待选成长入口');button.click();assert(g.state==='upgrade'&&doc.querySelector('#dialog').open,'暂停菜单未打开成长卡片');assert(doc.querySelectorAll('[data-upgrade]').length>0,'成长选择没有卡片');};
+  openGrowth();step(5);assert(g.time===time&&g.player.pending===2,'打开卡片时推进战斗或消耗次数');doc.querySelector('[data-upgrade]').click();assert(g.state==='playing'&&g.player.pending===1,'选择成长未恢复战斗或扣错次数');
+  g.pause();openGrowth();doc.querySelector('#upgrade-later').click();assert(g.state==='playing'&&g.player.pending===1,'稍后选择丢失待选次数');assert(!g.controls.held,'成长对话框关闭后残留攻击');return reportFrame();
+ });
+ await check('第一人称无按键鼠标转向、第三人称无按键不转',()=>{
+  select('scout');arena();g.setView('first');const c=win.document.querySelector('#world'),yaw=g.adventureCamera.yaw,pitch=g.adventureCamera.pitch;assert(win.document.pointerLockElement!==c,'此项必须验证未锁定的自由移动');
+  mouseMove(c,300,250);assert(g.adventureCamera.yaw===yaw,'首次移入画面产生视角跳变');mouseMove(c,380,270);assert(g.adventureCamera.yaw<yaw-.15&&g.adventureCamera.pitch<pitch-.03,'第一人称不按键移动鼠标未转向');assert(!g.controls.held,'无按键转向误触发攻击');
+  const firstYaw=g.adventureCamera.yaw;mouseMove(win.document.querySelector('#hud'),450,290);assert(g.adventureCamera.yaw===firstYaw,'操作界面时自由视角仍转动');
+  c.dispatchEvent(new win.MouseEvent('mouseleave'));mouseMove(c,650,300);assert(g.adventureCamera.yaw===firstYaw,'离开再进入画面产生视角跳变');mouseMove(c,690,300);assert(g.adventureCamera.yaw<firstYaw-.08,'重新进入后不能自由转向');
+  g.setView('third');const thirdYaw=g.adventureCamera.yaw,thirdPitch=g.adventureCamera.pitch;mouseMove(c,300,240);mouseMove(c,500,340);assert(g.adventureCamera.yaw===thirdYaw&&g.adventureCamera.pitch===thirdPitch,'第三人称无按键移动也转向');return reportFrame();
+ });
+ await check('第一人称暂停与大厅停止转向、继续后不跳视角',()=>{
+  select('scout');g.setView('first');const c=win.document.querySelector('#world');mouseMove(c,300,250);mouseMove(c,340,260);g.pause();const yaw=g.adventureCamera.yaw,pitch=g.adventureCamera.pitch;mouseMove(c,700,450);mouseMove(c,800,500);assert(g.adventureCamera.yaw===yaw&&g.adventureCamera.pitch===pitch,'暂停仍在响应自由瞄准');
+  g.resume();mouseMove(c,420,300);assert(g.adventureCamera.yaw===yaw,'继续时沿用暂停前鼠标位置导致跳变');mouseMove(c,460,310);assert(g.adventureCamera.yaw<yaw-.08,'继续后不能自由瞄准');
+  g.menu();const menuYaw=g.adventureCamera.yaw,menuPitch=g.adventureCamera.pitch;mouseMove(c,250,200);mouseMove(c,650,450);assert(g.adventureCamera.yaw===menuYaw&&g.adventureCamera.pitch===menuPitch,'大厅仍在响应自由瞄准');return reportFrame();
+ });
+ await check('锁定鼠标位移、退出暂停和返大厅释放（API模拟）',()=>{
+  select('scout');g.setView('first');const c=win.document.querySelector('#world'),lock=simulatePointerLock();
+  try{lock.lock();const yaw=g.adventureCamera.yaw,pitch=g.adventureCamera.pitch;mouseMove(c,500,300,{movementX:40,movementY:20});assert(g.adventureCamera.yaw<yaw-.08&&g.adventureCamera.pitch<pitch-.03,'锁定后没有使用相对位移');
+   g.pause();assert(win.document.pointerLockElement===null&&lock.exits>0,'暂停未释放鼠标锁定');assert(g.state==='paused','释放锁定后错误地继续游戏');g.resume();lock.lock();lock.escape();assert(g.state==='paused'&&!g.controls.held,'浏览器解除锁定后未暂停或未清攻击');
+   g.resume();lock.lock();g.menu();assert(win.document.pointerLockElement===null,'返回大厅没有释放锁定');assert(g.state==='menu','返回大厅被锁定事件改成暂停');return{simulation:'pointerLockElement/requestPointerLock/exitPointerLock; real browser permission not tested',...reportFrame()};
+  }finally{lock.restore();}
+ });
+ await check('锁定请求被拒绝后仍能直接移动瞄准（API模拟）',async()=>{
+  select('scout');g.setView('first');const c=win.document.querySelector('#world'),lock=simulatePointerLock();lock.deny();
+  try{await win.document.querySelector('#mouse-look').onclick({isTrusted:true});assert(lock.requests>0,'没有实际执行被拒绝的模拟锁定请求');assert(g.state==='playing'&&win.document.pointerLockElement===null,'锁定失败阻止继续游戏');const yaw=g.adventureCamera.yaw;mouseMove(c,300,250);mouseMove(c,370,270);assert(g.adventureCamera.yaw<yaw-.14,'锁定失败后仍需按住右键');return{simulation:'rejected requestPointerLock and trusted-handler argument; real browser permission not tested',...reportFrame()};
+  }finally{lock.restore();}
+ });
+ await check('迟到的锁定请求不能抢回暂停、菜单或已取消的鼠标（API模拟）',async()=>{
+  select('scout');g.setView('first');const lock=simulatePointerLock(),button=win.document.querySelector('#mouse-look');lock.defer();
+  try{for(const state of['paused','menu','resumed']){
+   if(g.state==='menu'){g.start();g.setView('first');}else if(g.state==='paused')g.resume();
+   const pending=button.onclick({isTrusted:true});g.pause();if(state==='menu')g.menu();if(state==='resumed')g.resume();lock.complete();await pending;
+   assert(win.document.pointerLockElement===null,'迟到请求重新锁住鼠标：'+state);assert(g.state===(state==='resumed'?'playing':state),'迟到锁定改变游戏状态：'+state);
+  }
+   g.setView('third');win.document.querySelector('#view-toggle').onclick({isTrusted:true});assert(g.adventureCamera.mode==='first'&&lock.requests===4,'没有发起第一人称自动锁定请求');g.setView('third');lock.complete();await sleep(0);assert(win.document.pointerLockElement===null&&g.adventureCamera.mode==='third'&&g.state==='playing','切回第三人称后迟到的自动锁定抢回鼠标');
+   assert(lock.requests===4&&lock.exits>=4,'未覆盖四种迟到请求');return{simulation:'delayed manual and automatic requestPointerLock resolutions; real browser permission not tested',...reportFrame()};
+  }finally{lock.restore();}
+ });
  await check('相机相对移动、闪避和拖动视角',()=>{select('scout');arena();g.adventureCamera.yaw=Math.PI/2;key('keydown','w');step(20);key('keyup','w');assert(g.player.x>1&&Math.abs(g.player.z)<.3,'前进未跟随视角');g.player.dash=0;key('keydown','w');g.dash();key('keyup','w');assert(Math.abs(g.player.dashAngle-Math.PI/2)<.01,'闪避不跟随视角');const yaw=g.adventureCamera.yaw,c=win.document.querySelector('#world');c.setPointerCapture=()=>{};pointer(c,'pointerdown',{button:2,clientX:300});pointer(win,'pointermove',{button:2,clientX:430});pointer(win,'pointerup',{button:2});assert(g.adventureCamera.yaw<yaw-.2,'右键拖动未转视角');return reportFrame();});
  await check('鼠标双键同时转向与开火、单独松键',()=>{select('scout');arena();const c=win.document.querySelector('#world');pointer(c,'pointerdown',{button:2});pointer(c,'pointerdown',{button:0});assert(g.controls.held,'右键中不能左键开火');pointer(win,'pointerup',{button:0});assert(!g.controls.held,'松左键仍开火');const y=g.adventureCamera.yaw;pointer(win,'pointermove',{button:2,clientX:580});assert(g.adventureCamera.yaw!==y,'松左键影响右键转向');pointer(win,'pointerup',{button:2});return reportFrame();});
  for(const [hero,count]of [['scout',3],['silver',3],['wraith',3],['tide',1],['lingya',1],['wuling',1],['mirage',1]])for(let index=0;index<count;index++)await check(hero+' 武器 '+index+' 双视角攻击',()=>{select(hero,index);arena();win.document.querySelector('[data-attack-mode="manual"]').click();g.setView('first');step(2);assert(g.firstPerson.root.visible,'没有手持武器');const e=g.spawn('golem',0,4);assert(e,'靶子生成失败');e.hp=e.maxHp=10000;e.speed=0;e.cool=9999;g.adventureCamera.pitch=-Math.atan2(g.camera.position.y-e.height*.5,4);step(2);fire(65);const damage=10000-e.hp;assert(damage>0,'第一人称攻击未命中: '+g.player.weaponId);g.setView('third');step(2);assert(!g.firstPerson.root.visible,'第三人称仍有贴面武器');aimAt(e);const before=e.hp;fire(95);assert(e.hp<before,'第三人称攻击未命中: '+g.player.weaponId);g.dash();step(35);assert(Number.isFinite(g.player.x),'闪避位置无效');return{damage,...reportFrame()};});
@@ -45,11 +109,14 @@ $('#run').onclick=async()=>{
  await check('全部浏览器日志',()=>{errors.push(...win.qaErrors);assert(!errors.length,errors.join('\n'));return{errors};});
  publish();$('#status').textContent=results.every(r=>r.pass)?'全部 '+results.length+' 项通过（手机为尺寸与触控模拟，非真机）':'存在失败，请查看报告';for(const b of document.querySelectorAll('button'))b.disabled=false;
 };
-async function preview(mode){await load();select('silver',0,$('#preview-map').value);g.setView(mode);g.adventureCamera.yaw=-.75;g.adventureCamera.pitch=mode==='first'?-.08:-.20;
+async function preview(mode){await load();select(previewHero.value,Number(previewWeapon.value),$('#preview-map').value);g.setView(mode);g.adventureCamera.yaw=-.75;g.adventureCamera.pitch=mode==='first'?-.08:-.20;
  const place=$('#preview-place').value;
  if(place==='water'){const p=g.world.ponds[0];if(p){g.player.x=p.x+p.rx+2;g.player.z=p.z;g.adventureCamera.yaw=-Math.PI/2;g.adventureCamera.pitch=mode==='first'?-.23:-.32;}}
  if(place==='trees'){const trees=g.world.obstacles.filter(o=>o.mesh.getObjectByName('tree-canopy')),p=trees.find(o=>g.world.obstacles.every(q=>Math.hypot(o.x-q.x,o.z+5-q.z)>q.r+1));if(p){g.player.x=p.x;g.player.z=p.z+5;g.adventureCamera.yaw=Math.PI;g.adventureCamera.pitch=mode==='first'?.15:.05;}}
- step(30);$('#status').textContent=(mode==='first'?'第一人称':'第三人称')+' · '+$('#preview-map').selectedOptions[0].text+' · '+JSON.stringify(reportFrame());}
-$('#third').onclick=()=>preview('third');$('#first').onclick=()=>preview('first');$('#capture').onclick=()=>{step();const a=document.createElement('a');a.href=g.renderer.domElement.toDataURL('image/png');a.download='forest-next-'+g.adventureCamera.mode+'.png';a.click();};
+ step(30);$('#status').textContent=(mode==='first'?'第一人称':'第三人称')+' · '+previewHero.selectedOptions[0].text+' / '+previewWeapon.selectedOptions[0].text+' · '+$('#preview-map').selectedOptions[0].text+' · '+JSON.stringify(reportFrame())+' · 真实鼠标锁定需在游戏画面内点击验证；固定帧预览移动后点击保存即可刷新。';}
+function reportAttackPreview(){assert(g.hero.userData.shotSerial===previewShot.serial,'回收预览意外触发第二次攻击');$('#status').textContent=WEAPONS[g.player.weaponId].name+' · 单次攻击第 '+previewShot.frames+' 帧（60 帧/秒；可反复推进回收） · '+JSON.stringify({attackAge:g.hero.userData.attackAge,reloadPhase:g.hero.userData.reloadPhase,weaponVisible:g.firstPerson.weapon.visible,...reportFrame()});}
+$('#attack-preview').onclick=async()=>{const button=$('#attack-preview');button.disabled=true;try{await preview('first');win.document.querySelector('[data-attack-mode="manual"]').click();const serial=g.hero.userData.shotSerial||0;fire(1);step(3);assert(g.hero.userData.shotSerial===serial+1,'未触发恰好一次攻击');previewShot={serial:serial+1,frames:4};reportAttackPreview();}catch(e){$('#status').textContent='出手预览失败：'+e.message;}finally{button.disabled=false;}};
+$('#recover-preview').onclick=()=>{if(!previewShot){$('#status').textContent='请先选择人物与武器，再点击「单次出手预览」。';return;}if(g.state==='paused')g.resume();step(8);previewShot.frames+=8;reportAttackPreview();};
+$('#third').onclick=()=>preview('third');$('#first').onclick=()=>preview('first');$('#capture').onclick=()=>{step(1,0);const a=document.createElement('a');a.href=g.renderer.domElement.toDataURL('image/png');a.download='forest-next-'+g.player.weaponId+'-'+g.adventureCamera.mode+'-f'+(previewShot?.frames||0)+'.png';a.click();};
 try{await load();$('#status').textContent='已就绪';for(const b of document.querySelectorAll('button'))b.disabled=false;}catch(e){$('#status').textContent=e.message;}
 </script></html>

@@ -1,11 +1,11 @@
-import{buildConfluence,biomeWeights}from'./confluence.js?v=133';
-import{addTree}from'./tree-scenery.js?v=133';
+import{buildConfluence,biomeWeights}from'./confluence.js?v=134';
+import{addTree,updateTreeDetail}from'./tree-scenery.js?v=134';
 import{installTactics}from'./map-tactics.js?v=114';
-import{installRoaming}from'./roaming-events.js?v=131';
-import{installDiscoveries}from'./map-discoveries.js?v=131';
+import{installRoaming}from'./roaming-events.js?v=134';
+import{installDiscoveries}from'./map-discoveries.js?v=134';
 import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=114';
-import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=131';
-import{districtLayout,buildDistricts}from'./map-districts.js?v=131';
+import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=134';
+import{districtLayout,buildDistricts}from'./map-districts.js?v=134';
 import{makeCoastEnemy,animateCoastEnemy,coastProp}from'./coast-models.js?v=114';
 import{installCoast}from'./coast.js?v=114';
 import{coastLayout as buildCoastLayout}from'./coast-layout.js?v=114';
@@ -13,7 +13,7 @@ import{makeBoss,animateBoss,makeSandEnemy,animateSandEnemy}from'./expansion-mode
 import{siteSchedule}from'./site-discovery.js?v=114';
 import{MAP_EVENTS,biomeEvent,eventNodes}from'./map-events.js?v=114';
 import{MAP_HALF,MAP_SCALE}from'./map-layout.js?v=114';
-import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=133';
+import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=134';
 import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=120';
 import{polishEnemyAppearance}from'./enemy-appearance.js?v=120';
 import{REGIONAL_ENEMIES}from'./map-enemies.js?v=114';
@@ -236,7 +236,7 @@ export function buildWorld(id,seed=1){if(id==='confluence')return buildConfluenc
 export function animateWorld(world,t,focusX=world.spawn.x,focusZ=world.spawn.z){
  if(world.regions){for(const r of world.regions){r.sandstorm=r.id==='sand'?world.sandstorm:null;r.tide=r.id==='coast'?world.tide:null;animateWorld(r,t,focusX,focusZ);}animateScenery(world,t,focusX,focusZ);return;}
  animateWater(world.weather.kind,t);animateScenery(world,t,focusX,focusZ);
- for(const f of world.foliage){const sway=Math.sin(t*1.35+f.phase)*.026+Math.sin(t*2.7+f.phase)*.008;f.leaf.rotation.z=sway;f.leaf.position.x=f.x+sway*1.3;f.leaf.position.z=f.z+Math.cos(t*1.1+f.phase)*.015;}
+ for(const f of world.foliage){updateTreeDetail(f.leaf,focusX,focusZ);const sway=Math.sin(t*1.35+f.phase)*.026+Math.sin(t*2.7+f.phase)*.008;f.leaf.rotation.z=sway;f.leaf.position.x=f.x+sway*1.3;f.leaf.position.z=f.z+Math.cos(t*1.1+f.phase)*.015;}
  const weather=world.weather,dt=weather.lastTime===undefined?0:Math.max(0,Math.min(.05,t-weather.lastTime));weather.lastTime=t;
  for(let i=0;i<weather.particles.length;i++){
   const p=weather.particles[i],d=weather.dummy;

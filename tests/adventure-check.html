@@ -325,8 +325,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=133');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=133');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=134');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=134');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -346,11 +346,13 @@ $('#lighting-run').onclick=async()=>{
    for(const mode of['first','third'])for(const offset of[0,250,437])await check((mobile?width+'×'+height:'电脑')+' '+mode+' 光照 '+offset,()=>{
     g.setView(mode);const l=g.environmentLighting;l.timeOffset=offset;l.update('forest',null,0,g.time);step(2);g.renderer.shadowMap.needsUpdate=true;step();
     const sun=l.sun.position.clone().sub(l.sun.target.position).normalize(),sky=g.atmosphere.mesh.material.uniforms.sunDirection.value;
-    assert(sun.distanceTo(sky)<1e-7,'天空和投影光方向不一致');assert(g.world.forestMist.count<=(mobile?3:6),'地雾超预算');assert(g.renderer.info.render.calls<2000,'绘制次数超预算');
+    assert(sun.distanceTo(sky)<1e-7,'天空和投影光方向不一致');assert(g.world.forestMist.count<=(mobile?3:6),'地雾超预算');assert(g.world.forestBackdrop.children.length===6,'背景林带绘制批次异常');const lods=g.world.foliage.map(f=>f.leaf.userData.treeLOD);assert(lods.every(n=>[0,1,2].includes(n)),'树冠细节状态异常');assert(g.renderer.info.render.calls<2000,'绘制次数超预算');
     const frozen=[...sun.toArray(),l.hemi.intensity,l.scene.fog.density,g.world.forestMist.material.uniforms.mistTime.value];g.pause();step(5);assert(JSON.stringify(frozen)===JSON.stringify([...l.sun.position.clone().sub(l.sun.target.position).normalize().toArray(),l.hemi.intensity,l.scene.fog.density,g.world.forestMist.material.uniforms.mistTime.value]),'暂停仍推进环境');g.resume();
-    return{...reportFrame(),sun:sun.toArray(),day:l.day};
+    return{...reportFrame(),sun:sun.toArray(),day:l.day,treeLOD:[0,1,2].map(level=>lods.filter(n=>n===level).length)};
    });
-   await check((mobile?width+'×'+height:'电脑')+' 重开清理',()=>{const mist=g.world.forestMist;g.menu();assert(mist.userData.disposed,'旧地雾未回收');g.start();step();assert(g.environmentLighting.timeOffset===0,'重开残留测试时间');return reportFrame();});
+   const tree=g.world.foliage.map(f=>f.leaf).sort((a,b)=>a.parent.position.distanceTo(g.hero.position)-b.parent.position.distanceTo(g.hero.position))[0];
+   for(const[distance,level]of[[5,0],[20,1],[40,2]])await check((mobile?width+'×'+height:'电脑')+' 树冠距离 '+distance,()=>{g.player.x=tree.parent.position.x+distance;g.player.z=tree.parent.position.z;step(2);assert(tree.userData.treeLOD===level,'移动后未切换到预期细节 '+tree.userData.treeLOD);return reportFrame();});
+   await check((mobile?width+'×'+height:'电脑')+' 重开清理',()=>{const mist=g.world.forestMist,backdrop=g.world.forestBackdrop;g.menu();assert(backdrop.userData.disposed,'旧林带实例未回收');assert(mist.userData.disposed,'旧地雾未回收');g.start();step();assert(g.environmentLighting.timeOffset===0,'重开残留测试时间');return reportFrame();});
   }
   errors.push(...win.qaErrors);publish();$('#status').textContent='森林昼夜检查完成';
  }finally{buttons.forEach(b=>b.disabled=false);}

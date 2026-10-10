@@ -117,6 +117,12 @@ function broadFan(x,y,z,width,depth,height,phase){
  const g=surface(vertices,indices);g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));return g;
 }
 function rootFlare(angle,snow){
+ if(!snow){
+  const g=limb([[0,.22,0],[.23,.13,.035],[.48,.06,-.025],[.74,.025,.015]],[.18,.14,.075,.004],5),p=g.attributes.position;
+  for(let i=0;i<p.count;i++)p.setY(i,Math.max(.018,p.getY(i)*.8));
+  g.computeVertexNormals();g.rotateY(angle);return g;
+ }
+
  const reach=snow?.61:.74,width=snow?.12:.16,height=snow?.43:.55,vertices=[0,.04,-width,0,.04,width,reach,.025,width*.16,reach,.025,-width*.16,.13,height,0],indices=[0,1,4,0,4,3,3,4,2,2,4,1,0,2,1,0,3,2];
  const g=surface(vertices,indices);g.rotateY(angle);return g;
 }
@@ -144,7 +150,7 @@ function treeTemplate(id,variant){
   const a=i*2.15+variant*.71,cos=Math.cos(a),sin=Math.sin(a),start=snow?2.8+i*.42:1.88+i*.48,reach=snow?.62:1.18-(i%2)*.12,tip=snow?start+.65:3.64+i*.31;
   branches.push(tint(limb([[lean*.7,start,0],[cos*reach*.38,start+.48,sin*reach*.30],[cos*reach*.78,tip-.12,sin*reach*.74],[cos*reach,tip,sin*reach]],snow?[.09,.052,.018]:[.19-i*.018,.105,.017],snow?4:6),wood));
  }
- const crowns=[],tips=[];
+ const crowns=[],tips=[],sprays=[];
  if(snow){
   for(let layer=0;layer<4;layer++)for(let j=0;j<4;j++){
    const a=j*Math.PI*.5+layer*.75+variant*.57,reach=(1.42-layer*.23)*(1+Math.sin(j*2.2+variant)*.09);
@@ -158,12 +164,12 @@ function treeTemplate(id,variant){
    for(let twig=0;twig<3;twig++){
     const side=twig-1,angle=a+side*.53,reach=r+(twig===1?.18:-.06),rise=y+(twig===1?.17:side*.11);
     const x=Math.cos(angle)*reach,z=Math.sin(angle)*reach,h=.51+(branch%2)*.06;
-    crowns.push(broadFan(x,rise,z,twig===1?.66:.57,twig===1?.45:.39,h,angle+.16*side));tips.push({x,y:rise+h*.24,z,branch});
+    sprays.push([x,rise,z,twig===1?.66:.57,twig===1?.45:.39,h,angle+.16*side]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:rise+h*.24,z,branch});
    }
   }
   for(let j=0;j<3;j++){
    const a=j*2.3+variant*.8,r=j===2?.14:.36;
-   const x=Math.cos(a)*r,z=Math.sin(a)*r,y=1.36+j*.22;crowns.push(broadFan(x,y,z,.59-j*.07,.42-j*.025,.49,a));tips.push({x,y:y+.49*.24,z,branch:4});
+   const x=Math.cos(a)*r,z=Math.sin(a)*r,y=1.36+j*.22;sprays.push([x,y,z,.59-j*.07,.42-j*.025,.49,a]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:y+.49*.24,z,branch:4});
   }
  }
  const canopy=merge(crowns),bottom=canopy.boundingBox.min.y;canopy.translate(0,-bottom,0);canopy.computeBoundingBox();
@@ -176,12 +182,88 @@ function treeTemplate(id,variant){
  }
  const trunk=merge(branches);
  for(const [geometry,kind]of[[trunk,0],[canopy,snow?2:1]])geometry.setAttribute('treeSurface',new T.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count).fill(kind),1));
- const template={trunk,trunkHeight,canopy,canopyHeight:canopy.boundingBox.max.y};templates.set(key,template);return template;
+ const template={trunk,trunkHeight,canopy,canopyHeight:canopy.boundingBox.max.y,sprays,bottom,lods:[null,null,canopy]};templates.set(key,template);return template;
 }
 export function addTree(parent,id,tall,{angle=0,variation=1,bend=0}={}){
  const variant=Math.abs(Math.floor(angle*1.7))%3,template=treeTemplate(id,variant),height=id==='snow'?5.2+tall*.52:5.6+tall*.26,canopyHeight=height*(id==='snow'?.46:.47),width=(.88+variation*.12)*(id==='snow'?1:2.04);
  parent.userData.treeBiome=id;parent.rotation.y=angle;
  const trunk=new T.Mesh(template.trunk,material);trunk.name='tree-trunk';trunk.scale.set(.94+variation*.06,(height-canopyHeight*.32)/template.trunkHeight,.94+variation*.06);trunk.rotation.z=bend*.10;
- const canopy=new T.Mesh(template.canopy,id==='snow'?firMaterial:leafMaterial);canopy.name='tree-canopy';canopy.userData.treeCanopy=true;canopy.position.set(bend*.5,height-canopyHeight,0);canopy.scale.set(width,canopyHeight/template.canopyHeight,width*(.94+variant*.035));
+ const canopy=new T.Mesh(template.canopy,id==='snow'?firMaterial:leafMaterial);canopy.name='tree-canopy';canopy.userData.treeCanopy=true;if(id==='forest'){canopy.userData.treeTemplate=template;canopy.userData.treeLOD=2;}canopy.position.set(bend*.5,height-canopyHeight,0);canopy.scale.set(width,canopyHeight/template.canopyHeight,width*(.94+variant*.035));
  for(const mesh of[trunk,canopy]){mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);}return canopy;
+}
+
+// Add folded leaves to the existing silhouette, rather than swapping it for a
+// different crown. All three variants share their LOD geometries and material.
+// The constant UV samples one opaque leaf texel; vertex tint supplies leaf veins.
+function detailedCrown(template,level){
+ if(template.lods[level])return template.lods[level];
+ const p=[],ix=[],uv=[],colors=[],point=new T.Vector3(),normal=new T.Vector3(),across=new T.Vector3(),along=new T.Vector3(),up=new T.Vector3(0,1,0);
+ const image=leafMaterial.map.image;let pixel=0;
+ for(let i=0;i<image.data.length;i+=4)if(image.data[i+3]===255){pixel=i/4;break;}
+ const u=(pixel%image.width+.5)/image.width,v=(Math.floor(pixel/image.width)+.5)/image.height,count=level===0?16:6;
+ for(const [x,y,z,width,depth,height,phase]of template.sprays)for(let spray=0;spray<5;spray++){
+  const angle=phase+spray*2.399,tilt=[.25,.82,-.18,.45,.65][spray];
+  normal.set(Math.cos(angle)*.72,tilt,Math.sin(angle)*.72).normalize();across.crossVectors(up,normal).normalize();along.crossVectors(normal,across);
+  const center=new T.Vector3(x+Math.cos(angle)*width*.34,y+height*(.24+.22*Math.sin(spray*1.9+phase)),z+Math.sin(angle)*depth*.40);
+  for(let leaf=0;leaf<count;leaf++){
+   const a=leaf*2.399+phase,r=Math.sqrt((leaf+.5)/count),cx=Math.cos(a)*r*width*.68,cy=Math.sin(a)*r*depth*.91;
+   const direction=a*.47+spray,co=Math.cos(direction),si=Math.sin(direction),length=.18+.07*(.5+.5*Math.sin(leaf*7+phase)),w=length*.28,first=p.length/3;
+   // Six vertices, six triangles: raised midrib and drooping tip retain a smooth folded profile.
+   const shape=[[0,-length*.5,.035],[0,0,.060],[-w,0,.016],[0,length*.55,-.016],[w,0,.016],[0,length*.25,.036]];
+   for(const [i,[lx,ly,bow]]of shape.entries()){
+    point.copy(center).addScaledVector(across,cx+lx*co-ly*si).addScaledVector(along,cy+lx*si+ly*co).addScaledVector(normal,bow+height*.065);
+    p.push(point.x,point.y-template.bottom,point.z);uv.push(u,v);
+    const shade=(i===1||i===5?1:.83)+.08*Math.sin(a*3+spray);colors.push(Math.min(1,shade*.98),Math.min(1,shade),shade*.86);
+   }
+   ix.push(first,first+1,first+2,first+2,first+1,first+5,first+2,first+5,first+3,first,first+4,first+1,first+4,first+5,first+1,first+4,first+3,first+5);
+  }
+ }
+ const detail=surface(p,ix);detail.setAttribute('uv',new T.Float32BufferAttribute(uv,2));detail.setAttribute('color',new T.Float32BufferAttribute(colors,3));detail.setAttribute('treeSurface',new T.Float32BufferAttribute(new Float32Array(p.length/3).fill(1),1));
+ // Keep extra leaves inside the existing crown envelope, preserving camera clearance.
+ const bounds=template.canopy.boundingBox,a=detail.attributes.position;
+ for(let i=0;i<a.count;i++)a.setXYZ(i,T.MathUtils.clamp(a.getX(i),bounds.min.x,bounds.max.x),T.MathUtils.clamp(a.getY(i),bounds.min.y,bounds.max.y),T.MathUtils.clamp(a.getZ(i),bounds.min.z,bounds.max.z));
+ detail.computeVertexNormals();
+ return template.lods[level]=merge([template.canopy.clone(),detail]);
+}
+export function updateTreeDetail(canopy,x,z){
+ const template=canopy.userData.treeTemplate,parent=canopy.parent;if(!template||!parent)return;
+ const distance=Math.hypot(parent.position.x-x,parent.position.z-z),previous=canopy.userData.treeLOD;
+ // 10/30 metre bands with hysteresis prevent repeated swaps while standing at a boundary.
+ const near=previous===0?11:9,far=previous===2?28:32,level=distance<near?0:distance<far?1:2;
+ if(level===previous)return;
+ canopy.geometry=level===2?template.canopy:detailedCrown(template,level);canopy.userData.treeLOD=level;
+}
+
+// Backdrop trees remain wholly outside the playable square, on its low foothills.
+// Six batches, shared far geometry, no collision, no per-frame updates or lights.
+export function installForestBackdrop(world,id,biomeAt=()=>id){
+ if(id!=='forest'&&id!=='confluence')return null;
+ if(world.forestBackdrop&&!world.forestBackdrop.userData.disposed)return world.forestBackdrop;
+ const group=new T.Group(),records=[],dummy=new T.Object3D(),matrix=new T.Matrix4(),color=new T.Color();group.name='SM_Forest_Backdrop_A';group.userData={records,disposed:false};
+ for(let i=0;i<240;i++){
+  const angle=i/240*Math.PI*2+Math.sin(i*13.7)*.007,s=Math.sin(angle),c=Math.cos(angle),edge=world.half/Math.max(Math.abs(s),Math.abs(c));
+  if(id==='confluence'&&biomeAt(s*edge,c*edge)!=='forest')continue;
+  const radius=edge+11+(i%3)*3.5+Math.sin(i*5.7)*1.5;
+  records.push({x:s*radius,z:c*radius,y:-.35,scale:1.25+.18*Math.sin(i*1.7)+.12*(i%3),angle,variant:i%3});
+ }
+ for(let variant=0;variant<3;variant++){
+  const list=records.filter(p=>p.variant===variant);if(!list.length)continue;
+  const source=new T.Group();addTree(source,'forest',4,{angle:variant===2?1.5:variant});
+  const template=treeTemplate('forest',variant);
+  if(!template.backdropTrunk){
+   const lean=(variant-1)*.16,parts=[tint(limb([[0,0,0],[lean-.12,2.5,.06],[lean,5,0]],[.35,.20,.025],5),0x665b43)];
+   for(const side of[-1,1])parts.push(tint(limb([[0,2.7,0],[side*.6,3.6,side*.2],[side,4.3,side*.4]],[.12,.065,.008],4),0x665b43));
+   template.backdropTrunk=merge(parts);template.backdropTrunk.setAttribute('treeSurface',new T.Float32BufferAttribute(new Float32Array(template.backdropTrunk.attributes.position.count),1));
+  }
+  source.children[0].geometry=template.backdropTrunk;
+  for(const part of source.children){
+   part.updateMatrix();const batch=new T.InstancedMesh(part.geometry,part.material,list.length);batch.name=part.name+'-backdrop';batch.receiveShadow=true;
+   for(const [i,p]of list.entries()){
+    dummy.position.set(p.x,p.y,p.z);dummy.rotation.set(0,p.angle,0);dummy.scale.setScalar(p.scale);dummy.updateMatrix();matrix.multiplyMatrices(dummy.matrix,part.matrix);batch.setMatrixAt(i,matrix);batch.setColorAt(i,color.setHex(0xb8c9b8).multiplyScalar(.88+.12*Math.sin(p.angle*5)**2));
+   }
+   batch.computeBoundingSphere();batch.addEventListener('dispose',()=>{batch.visible=false;group.userData.disposed=true;});group.add(batch);
+  }
+ }
+ if(!records.length)return null;
+ world.group.add(group);world.forestBackdrop=group;return group;
 }

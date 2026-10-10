@@ -143,3 +143,12 @@ test('habitat clusters support all biomes, protect gameplay and release bounded 
  }
  const a=buildWorld('forest',7),b=buildWorld('forest',7);assert.deepEqual(installHabitatDetail(a,'forest').userData.records,installHabitatDetail(b,'forest').userData.records);cleanup(a);cleanup(b);
 });
+
+
+test('fern stems follow their curved midrib without filling the arch with triangular sheets',()=>{
+ const world=buildWorld('forest',7),group=installHabitatDetail(world,'forest'),mesh=group.children.find(m=>m.name==='habitat-fern'),g=mesh.geometry,p=g.attributes.position,index=g.index;
+ const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();let maxArea=0;
+ for(let i=0;i<index.count;i+=3){a.fromBufferAttribute(p,index.getX(i));b.fromBufferAttribute(p,index.getX(i+1)).sub(a);c.fromBufferAttribute(p,index.getX(i+2)).sub(a);maxArea=Math.max(maxArea,b.cross(c).length()*.5);}
+ assert(maxArea<.018,'a broad green sheet still fills the space below a curved stem');
+ world.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
+});

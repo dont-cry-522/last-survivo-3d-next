@@ -2,7 +2,7 @@ import{test}from'node:test';
 import assert from'node:assert/strict';
 import{createHash}from'node:crypto';
 import * as T from'../vendor/three.module.js';
-import{addTree}from'../tree-scenery.js';
+import{addTree,updateTreeDetail,installForestBackdrop}from'../tree-scenery.js';
 import{buildWorld,animateWorld}from'../world.js';
 import{damageTerrain,updateTactics}from'../map-tactics.js?v=92';
 
@@ -114,4 +114,40 @@ test('replacing a tree with breakable timber keeps the existing fall and collisi
  assert(damageTerrain(timber,100,{x:timber.x-2,z:timber.z}));
  const context={player:{x:100,z:100},foes:[],clear:()=>true,fx:()=>{}};updateTactics(w,.8,context);assert.equal(timber.state,'fallen');assert(w.obstacles.some(o=>o.owner===timber));
  updateTactics(w,8,context);assert.equal(timber.state,'spent');assert(!w.obstacles.some(o=>o.owner===timber));assert.strictEqual(other.children[0].geometry,geometry);assert(geometry.attributes.position.count>0);dispose(w);
+});
+
+
+test('forest canopy LOD preserves the silhouette, shadow material and mesh identity with bounded shared detail',()=>{
+ const caches=[new Set(),new Set(),new Set()];
+ for(const angle of[0,1,1.5])for(let repeat=0;repeat<3;repeat++){
+  const parent=new T.Group(),leaf=addTree(parent,'forest',4,{angle}),material=leaf.material,far=leaf.geometry;
+  for(const [distance,level]of[[40,2],[20,1],[5,0],[10,0],[12,1],[30,1],[34,2],[30,2],[27,1]]){
+   updateTreeDetail(leaf,distance,0);assert.equal(leaf.userData.treeLOD,level);assert.strictEqual(leaf.material,material);assert.strictEqual(leaf.parent,parent);assert.equal(parent.children.length,2);
+   const geometry=leaf.geometry;caches[level].add(geometry);assert(geometry.index.count/3<=7650);assert.deepEqual(geometry.boundingBox,far.boundingBox,'detail enlarged the collision/clearance envelope');
+   for(const attribute of Object.values(geometry.attributes))assert([...attribute.array].every(Number.isFinite));
+   assert.equal(geometry.attributes.position.count,geometry.attributes.uv.count);assert(!leaf.userData.ownedGeometry);
+  }
+  assert.strictEqual(leaf.geometry,leaf.userData.treeTemplate.lods[1]);
+ }
+ for(const cache of caches)assert.equal(cache.size,3,'LOD allocations grow with trees or restarts');
+ const counts=caches.map(set=>[...set][0].index.count);assert(counts[0]>counts[1]&&counts[1]>counts[2]);
+ const snow=addTree(new T.Group(),'snow',4),geometry=snow.geometry;updateTreeDetail(snow,0,0);assert.strictEqual(snow.geometry,geometry);
+});
+
+test('forest backdrop stays beyond play bounds, batches at most 240 trees and releases only instances',()=>{
+ const geometries=new Set(),materials=new Set();
+ for(let repeat=0;repeat<2;repeat++){
+  const world={group:new T.Group(),half:96,obstacles:[]},group=installForestBackdrop(world,'forest');
+  assert.equal(group.children.length,6);assert(group.children.reduce((n,b)=>n+b.count*b.geometry.index.count/3,0)<140000,'backdrop triangle budget exceeded');assert.equal(group.userData.records.length,240);assert.strictEqual(installForestBackdrop(world,'forest'),group);assert.equal(world.obstacles.length,0);
+  for(const batch of group.children){
+   assert(batch.isInstancedMesh);assert(!batch.userData.ownedGeometry);assert(!batch.castShadow,'distant forest added an unbounded shadow pass');geometries.add(batch.geometry);materials.add(batch.material);
+   batch.geometry.computeBoundingBox();const matrix=new T.Matrix4();
+   for(let i=0;i<batch.count;i++){batch.getMatrixAt(i,matrix);const bounds=batch.geometry.boundingBox.clone().applyMatrix4(matrix);assert(bounds.min.x>world.half||bounds.max.x<-world.half||bounds.min.z>world.half||bounds.max.z<-world.half,'background tree enters the playable square');}
+   batch.dispose();assert(!batch.visible);assert(batch.geometry.attributes.position.count>0);
+  }
+  assert(group.userData.disposed);
+ }
+ assert.equal(geometries.size,6);assert.equal(materials.size,2);
+ const joined={group:new T.Group(),half:144},group=installForestBackdrop(joined,'confluence',(x,z)=>x>0&&z<0?'forest':'snow');assert(group.userData.records.every(p=>p.x>0&&p.z<0));
+ assert.equal(installForestBackdrop({group:new T.Group(),half:96},'snow'),null);
 });

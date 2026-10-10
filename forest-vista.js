@@ -1,8 +1,8 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
-import{mesh,mat}from'./world.js?v=133';
-import{naturalRockGeometry}from'./biome-scenery.js?v=131';
-import{polishEnvironmentModels}from'./environment-props.js?v=131';
+import{mesh,mat}from'./world.js?v=134';
+import{naturalRockGeometry}from'./biome-scenery.js?v=134';
+import{polishEnvironmentModels}from'./environment-props.js?v=134';
 import{seeded,segmentDistance}from'./rules.js?v=125';
 
 // All new pieces share the existing scene geometry/material families. Bake the

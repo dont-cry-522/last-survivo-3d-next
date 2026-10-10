@@ -2,7 +2,7 @@ import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
 import {bridgeContains} from './coast.js?v=114';
-import {naturalRockGeometry} from './biome-scenery.js?v=131';
+import {naturalRockGeometry} from './biome-scenery.js?v=134';
 
 const profiles={
  forest:{count:1200,grass:.83,height:1,tuft:[0x566d48,0x829360],litter:[0x827561,0x66685c]},
@@ -192,10 +192,16 @@ function fernGeometry(){
  const vertex=(x,y,z,shade)=>{const n=p.length/3;p.push(x,y,z);c.push(shade*.94,shade,shade*.80);flex.push(Math.max(0,y/.65)**2);return n;};
  for(let frond=0;frond<6;frond++){
   const a=frond*2.399,s=Math.sin(a),co=Math.cos(a),reach=.55+(frond%3)*.075,h=.38+(frond%2)*.20;
-  const point=(t,side,shade)=>vertex(s*t*reach+co*side,Math.sin(t*Math.PI*.76)*h-.025,co*t*reach-s*side,shade);
-  const base=point(0,0,.46),left=point(.6,-.012,.74),tip=point(1,0,.9),right=point(.6,.012,.80);ix.push(base,left,tip,base,tip,right);
+  const point=(t,side,shade,fold=0)=>{const curl=.06*Math.sin(t*Math.PI)*Math.sin(a);return vertex(s*t*reach+co*(side+curl),Math.sin(t*Math.PI*(.78+frond*.013))*h-.025+fold,co*t*reach-s*(side+curl),shade);};
+  // A bent stem is a narrow ribbon along the arc. Connecting base/middle/tip
+  // as one fan filled the entire space under the arc with a solid green wedge.
+  const stem=p.length/3;
+  for(let row=0;row<=3;row++){
+   const t=row/3,w=.006*(1-t*.8);point(t,-w,.46+t*.40);point(t,w,.49+t*.40);
+   if(row<3){const n=stem+row*2;ix.push(n,n+1,n+2,n+1,n+3,n+2);}
+  }
   for(let pair=0;pair<4;pair++)for(const side of[-1,1]){
-   const t=.18+pair*.18,w=(.13-pair*.025)*side,n=point(t,0,.53+pair*.05),b=point(t+.07,w*.5,.81),end=point(t+.19,w,.92),d=point(t+.13,w*.34,.65);ix.push(n,b,end,n,end,d);
+   const t=.18+pair*.18,w=(.13-pair*.025)*side,n=point(t,0,.53+pair*.05),b=point(t+.07,w*.5,.81,.025),end=point(t+.19,w,.92,-.025-pair*.002),d=point(t+.13,w*.34,.65,.009);ix.push(n,b,end,n,end,d);
   }
  }
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;

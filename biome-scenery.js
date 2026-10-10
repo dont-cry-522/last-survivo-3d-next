@@ -94,8 +94,8 @@ export function installGroundSurface(ground,id='confluence'){
     float soilLuma=dot(photographedSoil,vec3(.2126,.7152,.0722));
     // Retain the biome's moss/soil palette while exposing real leaf edges and fine gravel.
     photographedSoil=mix(vec3(soilLuma),photographedSoil,.52)*.46;
-    photographedSoil=mix(photographedSoil,soilLuma*vec3(.25,.37,.19),moss*.82);
-    float realSoilMix=soilReady*soilOrganic*(.40+soilPatch*.22)*(1.0-moss*.32);
+    photographedSoil=mix(photographedSoil,soilLuma*vec3(.25,.37,.19),moss*${id==='forest'?'.95':'.82'});
+    float realSoilMix=soilReady*soilOrganic*(${id==='forest'?'.28+soilPatch*.18':'.40+soilPatch*.22'})*(1.0-moss*.32);
     diffuseColor.rgb=mix(diffuseColor.rgb,photographedSoil,realSoilMix);
     soilRelief+=(photographedHeight-.5)*.018*realSoilMix*soilGrainDetail;`:''}
   `);
@@ -136,8 +136,8 @@ function frondGeometry(){
  const p=[],colors=[],ix=[],height=t=>Math.sin(t*Math.PI*.82)*.34,vertex=(x,y,z,shade)=>{p.push(x,y,z);colors.push(shade*.96,shade,shade*.91);};
  for(let i=0;i<=5;i++){const t=i/5;vertex(-.008,height(t),t*.92,.69+t*.27);vertex(.008,height(t),t*.92,.69+t*.27);if(i<5){const n=i*2;ix.push(n,n+1,n+2,n+1,n+3,n+2);}}
  for(let i=0;i<5;i++){
-  const t=.13+i*.16,y=height(t),z=t*.92,w=Math.sin(Math.PI*t)*.29,shade=.77+t*.20;
-  for(const side of[-1,1]){const n=p.length/3,reach=w*(side<0?.95:1.04);vertex(0,y,z,shade*.85);vertex(side*reach*.43,y-.020,z+.025,shade*.91);vertex(side*reach,y+.012-i*.005,z+.15,shade*1.06);vertex(side*reach*.40,y-.043,z+.105,shade);ix.push(n,n+1,n+2,n,n+2,n+3);}
+  const t=.13+i*.16,y=height(t),z=t*.92,w=Math.sin(Math.PI*t)*.22,shade=.77+t*.20;
+  for(const side of[-1,1]){const n=p.length/3,reach=w*(side<0?.95:1.04);vertex(0,y,z,shade*.85);vertex(side*reach*.43,y-.020,z+.025,shade*.91);vertex(side*reach,y-.006-i*.009,z+.16,shade*1.06);vertex(side*reach*.40,y-.043,z+.105,shade);ix.push(n,n+1,n+2,n,n+2,n+3);}
  }
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(ix);g.computeVertexNormals();return g;
 }geometries.frond=frondGeometry();
@@ -188,7 +188,7 @@ export function installScenery(w,id,rnd){
  const routes=w.road?[w.road]:w.sites.filter(s=>s.trail).map(s=>{const p=s.trail.geometry.attributes.position,path=[];for(let i=0;i<p.count;i+=4)path.push({x:(p.getX(i+1)+p.getX(i+2))*.5,z:(p.getZ(i+1)+p.getZ(i+2))*.5});return path;});
  const onRoute=(x,z)=>routes.some(path=>{for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i],dx=b.x-a.x,dz=b.z-a.z,t=T.MathUtils.clamp(((x-a.x)*dx+(z-a.z)*dz)/(dx*dx+dz*dz||1),0,1);if((x-a.x-dx*t)**2+(z-a.z-dz*t)**2<1.45**2)return true;}return false;});
  const add=(kind,color,x,y,z,sx,sy,sz,angle=0,tilt=0)=>{if(!sceneryAllowed(w,x,z)||onRoute(x,z))return;dummy.position.set(x,y,z);dummy.scale.set(sx,sy,sz);dummy.rotation.set(0,angle,0);dummy.rotateX(tilt);dummy.updateMatrix();const key=w.regional?kind+':'+Math.floor(x/32)+','+Math.floor(z/32):kind;if(!batches.has(key))batches.set(key,[]);batches.get(key).push({matrix:dummy.matrix.clone(),color:new T.Color(color)});};
- const palette={forest:[0x40664c,0x71904e,0x2f5d50],snow:[0xd8e6e5,0xa6c3cb,0x7d9ea9],ash:[0x383b40,0x69574f,0x89715b],sand:[0x9b895d,0xb6a275,0x857654],coast:[0x627b60,0x899c6c,0x49685c]}[id];
+ const palette={forest:[0x47785c,0x6a945e,0x315d51],snow:[0xd8e6e5,0xa6c3cb,0x7d9ea9],ash:[0x383b40,0x69574f,0x89715b],sand:[0x9b895d,0xb6a275,0x857654],coast:[0x627b60,0x899c6c,0x49685c]}[id];
  const snowColor=w.regional?0xacbfc1:0x96b7bd;
  // Most plants grow around existing trees/rocks or along the banks; open areas stay sparse.
  for(let i=0;i<235;i++){

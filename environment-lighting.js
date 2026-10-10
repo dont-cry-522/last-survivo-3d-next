@@ -1,3 +1,4 @@
+import{installForestBackdrop}from'./tree-scenery.js?v=134';
 import * as T from './vendor/three.module.js';
 
 // The same three lights serve every climate; transitions do not allocate lights or shadow maps.
@@ -101,5 +102,5 @@ export function installDistantLandscape(world,id,biomeAt=()=>id){
   seam.fromBufferAttribute(normal,first).add(last.fromBufferAttribute(normal,end)).normalize();
   normal.setXYZ(first,seam.x,seam.y,seam.z);normal.setXYZ(end,seam.x,seam.y,seam.z);
  }
- const mesh=new T.Mesh(geometry,ridgeMaterial);mesh.name='distant-landscape';mesh.userData.ownedGeometry=true;world.group.add(mesh);return mesh;
+ const mesh=new T.Mesh(geometry,ridgeMaterial);mesh.name='distant-landscape';mesh.userData.ownedGeometry=true;world.group.add(mesh);installForestBackdrop(world,id,biomeAt);return mesh;
 }

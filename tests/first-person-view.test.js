@@ -340,3 +340,19 @@ test('scythe contact calibration preserves the cutting arc instead of pinning th
   assert(samples[0].clone().sub(samples[1]).dot(samples[2].clone().sub(samples[1]))<0,'blade reverses on contact instead of following through');
  }}finally{view.dispose();}
 });
+
+test('first two scythe cuts cross the screen in opposite directions, with and without a target',()=>{
+ const camera=new T.PerspectiveCamera(70,16/9,.1,100),view=new FirstPersonView(camera),actor=hero(weapon('shadowblade'));
+ try{view.setHero(actor,'shadowblade');for(const aspect of[16/9,844/390,390/844])for(const target of[null,new T.Vector3(.12,-.25,-2.5)])for(const combo of[0,1]){
+  camera.aspect=aspect;camera.updateProjectionMatrix();const samples=[],hands=[];let previousRotation=null,turn=0;
+  for(let n=0;n<=24;n++){
+   const phase=.24+.38*n/24;Object.assign(actor.userData,{attackAge:.56*phase,reloadDuration:1,scytheCombo:combo,scytheTarget:target});view.update(1,1/60,{visible:true});camera.updateMatrixWorld(true);
+   samples.push(view.model.localToWorld(new T.Vector3(.78,.54,.045)).project(camera).x);hands.push(view.hands[0].getWorldPosition(new T.Vector3()).project(camera).x);
+   if(previousRotation)turn+=previousRotation.angleTo(view.weapon.quaternion);previousRotation=view.weapon.quaternion.clone();
+  }
+  const direction=combo===0?-1:1;
+  for(let n=1;n<samples.length;n++)assert((samples[n]-samples[n-1])*direction>0,`combo ${combo} reverses instead of sweeping`);
+  assert((samples.at(-1)-samples[0])*direction>.30,'cut is too small to read');assert((hands.at(-1)-hands[0])*direction>.30,'blade spins while grip stays still');
+  assert(turn<1,'side cut twists the shaft through a large rotation');
+ }}finally{view.dispose();}
+});

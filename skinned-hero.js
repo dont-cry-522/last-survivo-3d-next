@@ -13,12 +13,12 @@ import{lingyaHopPose}from'./lingya-motion.js?v=114';
 import{lingyaOutfit,lingyaAccessories,lingyaLegs}from'./lingya-appearance.js?v=114';
 import{boneBoomerang}from'./beast-model.js?v=114';
 import{makeHarpoon}from'./coast-models.js?v=114';
-import{weaponGesture,shotStarted,scythePose}from'./weapon-performance.js?v=129';
+import{weaponGesture,shotStarted,scythePose}from'./weapon-performance.js?v=130';
 import{rollProgress,rollWeight}from'./dodge-motion.js?v=114';
 import * as T from './vendor/three.module.js';
 import {clone} from './vendor/SkeletonUtils.js';
 import {loadCharacterData} from './character-loader.js?v=114';
-import {makeHero as makePrototype} from './hero-model.js?v=129';
+import {makeHero as makePrototype} from './hero-model.js?v=130';
 
 const templates=new Map(),clips=new Map();
 let lingyaFace;

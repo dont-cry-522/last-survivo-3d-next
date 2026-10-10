@@ -54,7 +54,8 @@ test('scythe sweeps through contact without braking, then returns below the load
  for(const combo of[0,1,2])for(const period of[.16,.35,1]){
   const duration=Math.min(.56,Math.max(.12,period*.9)),rest=scythePose(0,period,combo),hit=scythePose(duration*.44,period,combo),before=scythePose(duration*.43,period,combo),after=scythePose(duration*.45,period,combo),returning=scythePose(duration*.8,period,combo);
   assert.deepEqual(scythePose(duration,period,combo),rest);assert.deepEqual(scythePose(10,period,combo),rest);
-  assert(Math.abs(after.yaw-before.yaw)>.04,'blade brakes at contact');assert(returning.y<hit.y-.1,'loaded and unloaded paths coincide');
+  // Side cuts are driven by cross-body hand travel; the heavy cut rotates down.
+  assert(combo<2?Math.abs(after.x-before.x)>.025:Math.abs(after.yaw-before.yaw)>.04,'blade brakes at contact');assert(returning.y<hit.y-.1,'loaded and unloaded paths coincide');
   let previous=rest;
   for(let i=1;i<=1000;i++){const pose=scythePose(duration*i/1000,period,combo);for(const key of Object.keys(pose)){assert(Number.isFinite(pose[key]));assert(Math.abs(pose[key]-previous[key])<.03);}previous=pose;}
  }

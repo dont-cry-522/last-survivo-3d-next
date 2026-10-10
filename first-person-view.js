@@ -20,7 +20,7 @@ const PROFILES={
  dark:{type:'staff',width:.64,height:1.36,depth:.40,x:.64,y:-.25,pitch:.04},
  shuriken:{type:'throw',width:.58,height:.85,depth:.44,x:.56,y:-.57,pitch:.60},
  boomerang:{type:'throw',width:.73,height:1,depth:.48,x:.46,y:-.48,pitch:.72},
- shadowblade:{type:'scythe',width:.80,height:1.50,depth:.70,x:.08,y:-.55,pitch:.12,support:SCYTHE_SUPPORT},
+ shadowblade:{type:'scythe',width:.80,height:1.50,depth:.70,x:-.18,y:-.62,pitch:.12,support:SCYTHE_SUPPORT},
  shade:{type:'palm',width:.42,height:.72,depth:.35,x:.42,y:-.48,pitch:.12},
  grimoire:{type:'book',width:.74,height:.66,depth:.44,x:.01,y:-.47,pitch:.42,grip:[-.15,.01,.065],support:[.16,.01,.065]},
  harpoon:{type:'thrust',width:.76,height:1,depth:1.66,x:.42,y:-.66,pitch:.13,support:[0,0,.36]},
@@ -256,7 +256,9 @@ export class FirstPersonView {
  poseScythe(object,pose,scale){
   object.scale.setScalar(scale);object.rotation.set(this.profile.pitch,Math.PI-.045,0,'YXZ');this.restRotation.copy(object.quaternion);
   object.position.set(-(pose.x+.20)*.9,(pose.y+.28)*.85,-(pose.z-.28)*.8);
-  object.rotation.set(this.profile.pitch+pose.pitch,Math.PI-.045+pose.yaw,pose.roll,'YXZ');
+  // Camera framing turns the crescent above the shaft; retain the same action
+  // phases without forcing this close-up grip orientation onto the body skeleton.
+  object.rotation.set(this.profile.pitch-pose.pitch,Math.PI-.045+Math.PI-pose.yaw,-pose.roll,'YXZ');
   this.scratch.copy(this.grip).multiplyScalar(scale);object.position.add(this.wrist.copy(this.scratch).applyQuaternion(this.restRotation)).sub(this.scratch.applyQuaternion(object.quaternion));
   object.updateMatrix();
  }

@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
-import{mesh,mat}from'./world.js?v=136';
+import{mesh,mat}from'./world.js?v=137';
 import{naturalRockGeometry}from'./biome-scenery.js?v=134';
 import{polishEnvironmentModels,stoneSurfaceMaterial,wornStoneBlock}from'./environment-props.js?v=135';
 import{seeded,segmentDistance}from'./rules.js?v=125';

@@ -1,9 +1,9 @@
-import{installForestBackdrop}from'./tree-scenery.js?v=134';
+import{installForestBackdrop}from'./tree-scenery.js?v=137';
 import * as T from './vendor/three.module.js';
 
 // The same three lights serve every climate; transitions do not allocate lights or shadow maps.
 export const CLIMATE_LIGHT={
- forest:{sky:0x9bbbd2,bounce:0x71816a,sun:0xffe1ad,rim:0xaac8c6,fog:0x829b91,ambient:1.22,key:3.25,edge:.70,density:.0085,exposure:1.02,ridge:0x39554e,height:14},
+ forest:{sky:0x9bbbd2,bounce:0x71816a,sun:0xffe1ad,rim:0xaac8c6,fog:0x829b91,ambient:1.22,key:3.25,edge:.70,density:.0085,exposure:1.02,ridge:0x39554e,height:20},
  snow:{sky:0xbcd5e8,bounce:0x647c8b,sun:0xffe5c5,rim:0x97c5ed,fog:0x99b8c7,ambient:1.30,key:3.10,edge:1.0,density:.012,exposure:1.02,ridge:0x6e919f,height:23},
  ash:{sky:0xada7bc,bounce:0x36333e,sun:0xffc18b,rim:0xb599c1,fog:0x6f5964,ambient:1.04,key:3.4,edge:1.2,density:.014,exposure:1.08,ridge:0x4a3d49,height:17},
  sand:{sky:0xb8cddc,bounce:0x86735d,sun:0xffdfaf,rim:0xb0c5d5,fog:0xbba789,ambient:1.15,key:3.9,edge:.8,density:.009,exposure:1.04,ridge:0x9c8361,height:12},

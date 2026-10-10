@@ -206,6 +206,24 @@ function fernGeometry(){
  }
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;
 }
+// A low woodland shrub with curved stems and broad, drooping leaves. It shares
+// the ground wind material and replaces part of the fern budget, not extra cover.
+function shrubGeometry(){
+ const positions=[],colors=[],flex=[],indices=[];
+ const vertex=(x,y,z,shade)=>{const i=positions.length/3;positions.push(x,y,z);colors.push(shade*.91,shade,shade*.78);flex.push(Math.max(0,Math.min(1,y/.65))**2);return i;};
+ for(let branch=0;branch<4;branch++){
+  const a=branch*2.399,s=Math.sin(a),c=Math.cos(a),height=.42+(branch%3)*.08,reach=.15+branch*.035,start=positions.length/3;
+  const stem=t=>({x:s*reach*t*t,y:height*t-.035,z:c*reach*t*t});
+  for(let row=0;row<=3;row++){const t=row/3,p=stem(t),w=.012*(1-t*.7);vertex(p.x+c*w,p.y,p.z-s*w,.43+t*.27);vertex(p.x-c*w,p.y,p.z+s*w,.48+t*.27);if(row<3){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}}
+  for(let tier=0;tier<2;tier++)for(const side of[-1,1]){
+   const base=stem(.47+tier*.33),angle=a+side*(.9+tier*.3),sx=Math.sin(angle),cz=Math.cos(angle),length=.29-tier*.035,n=positions.length/3;
+   const leaf=(t,width,shade)=>vertex(base.x+sx*length*t+cz*width,base.y+.08*Math.sin(t*Math.PI)-.075*t*t+width*.16,base.z+cz*length*t-sx*width,shade);
+   leaf(0,0,.60);for(const t of[.32,.68]){const w=Math.sin(t*Math.PI)*(.083-tier*.009);leaf(t,-w,.66+t*.16);leaf(t,w,.82+t*.14);}leaf(1,0,.90);
+   indices.push(n,n+1,n+2,n+1,n+3,n+2,n+2,n+3,n+4,n+3,n+5,n+4);
+  }
+ }
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(indices);g.computeVertexNormals();return g;
+}
 function reedGeometry(){
  const p=[],c=[],ix=[],flex=[];
  for(let blade=0;blade<7;blade++){
@@ -233,6 +251,8 @@ export function installHabitatDetail(world,mapId){
   if(!allowed(x,z)||centers.some(p=>near(x,z,p,3.2)))continue;
   const biome=mapId==='confluence'?(world.regions||[]).find(r=>r.contains(x,z))?.id:mapId,profile=habitatProfiles[biome];if(!profile)continue;
   centers.push({x,z,biome});const angle=biome==='sand'?-.7:random()*Math.PI*2;
+  // Patches share a dominant plant, instead of every specimen alternating mechanically.
+  const shrub=biome==='forest'&&Math.sin(x*.19+Math.sin(z*.14)*1.6)>.18;
   // Uneven crescent patches have dense centers, tapered ends, and bare intervals.
   const count=profile.kind==='reed'?7:profile.kind==='fern'?4:3,mid=(count-1)/2;
   for(let j=0;j<count;j++){
@@ -240,15 +260,15 @@ export function installHabitatDetail(world,mapId){
    if(!allowed(px,pz))continue;
    if(mapId==='confluence'&&!(world.regions||[]).find(r=>r.id===biome)?.contains(px,pz))continue;
    const size=(.70+random()*.30)*(1-Math.abs(j-mid)*.10);
-   records.push({x:px,z:pz,biome,kind:profile.kind,angle:angle+(random()-.5)*1.2,width:profile.width*size,height:profile.height*size,color:profile.color[j%3]});
+   records.push({x:px,z:pz,biome,kind:shrub?'shrub':profile.kind,angle:angle+(random()-.5)*1.2,width:profile.width*size,height:profile.height*size,color:shrub?[0x506c42,0x698151,0x7f905c][j%3]:profile.color[j%3]});
   }
  }
  const group=new T.Group();group.name='habitat-detail';group.userData={records,centers,disposed:false};
  const dummy=new T.Object3D(),color=new T.Color();
- // Four quadrants permit frustum culling while bounding the complete layer to 12 draws.
- for(const kind of['fern','reed','stone'])for(let quadrant=0;quadrant<4;quadrant++){
+ // Four quadrants permit frustum culling while bounding the complete layer to 16 draws.
+ for(const kind of['fern','shrub','reed','stone'])for(let quadrant=0;quadrant<4;quadrant++){
   const list=records.filter(p=>p.kind===kind&&(Number(p.x>=0)+Number(p.z>=0)*2)===quadrant);if(!list.length)continue;
-  const geometry=kind==='fern'?fernGeometry():kind==='reed'?reedGeometry():naturalRockGeometry.clone();
+  const geometry=kind==='fern'?fernGeometry():kind==='shrub'?shrubGeometry():kind==='reed'?reedGeometry():naturalRockGeometry.clone();
   if(kind==='stone')geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count),1));
   geometry.computeBoundingBox();const batch=new T.InstancedMesh(geometry,material,list.length);batch.name='habitat-'+kind;batch.receiveShadow=true;batch.userData.ownedGeometry=true;
   list.forEach((p,i)=>{dummy.position.set(p.x,kind==='stone'?-.055:-.042-geometry.boundingBox.min.y*p.height,p.z);dummy.scale.set(p.width,p.height,p.width);dummy.rotation.set(0,p.angle,0);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);batch.setColorAt(i,color.set(p.color));});

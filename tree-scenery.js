@@ -241,9 +241,10 @@ export function installForestBackdrop(world,id,biomeAt=()=>id){
  if(world.forestBackdrop&&!world.forestBackdrop.userData.disposed)return world.forestBackdrop;
  const group=new T.Group(),records=[],dummy=new T.Object3D(),matrix=new T.Matrix4(),color=new T.Color();group.name='SM_Forest_Backdrop_A';group.userData={records,disposed:false};
  for(let i=0;i<240;i++){
-  const angle=i/240*Math.PI*2+Math.sin(i*13.7)*.007,s=Math.sin(angle),c=Math.cos(angle),edge=world.half/Math.max(Math.abs(s),Math.abs(c));
+  const base=i/240*Math.PI*2,angle=base+.07*Math.sin(base*7)+.025*Math.sin(base*13)+Math.sin(i*13.7)*.007,s=Math.sin(angle),c=Math.cos(angle),edge=world.half/Math.max(Math.abs(s),Math.abs(c));
   if(id==='confluence'&&biomeAt(s*edge,c*edge)!=='forest')continue;
-  const radius=edge+11+(i%3)*3.5+Math.sin(i*5.7)*1.5;
+  // Irregular thickets and openings replace three evenly spaced fence-like rows.
+  const radius=edge+11+Math.sin(angle*9+.4)**2*8+Math.sin(i*5.7)*1.5;
   records.push({x:s*radius,z:c*radius,y:-.35,scale:1.25+.18*Math.sin(i*1.7)+.12*(i%3),angle,variant:i%3});
  }
  for(let variant=0;variant<3;variant++){

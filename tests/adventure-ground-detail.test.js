@@ -124,7 +124,7 @@ test('habitat clusters support all biomes, protect gameplay and release bounded 
  for(const map of maps){
   const w=buildWorld(map,7),before=state(w),g=installHabitatDetail(w,map),records=g.userData.records;
   assert.equal(installHabitatDetail(w,map),g);assert.equal(state(w),before);
-  assert(records.length>100&&records.length<=3500,map+' missing or unbounded cover');assert(g.children.length<=12);
+  assert(records.length>100&&records.length<=3500,map+' missing or unbounded cover');assert(g.children.length<=16);
   if(map==='confluence')assert.equal(new Set(records.map(p=>p.biome)).size,5);
   const matrix=new T.Matrix4(),box=new T.Box3();let triangles=0,released=0;
   for(const m of g.children){
@@ -151,4 +151,14 @@ test('fern stems follow their curved midrib without filling the arch with triang
  for(let i=0;i<index.count;i+=3){a.fromBufferAttribute(p,index.getX(i));b.fromBufferAttribute(p,index.getX(i+1)).sub(a);c.fromBufferAttribute(p,index.getX(i+2)).sub(a);maxArea=Math.max(maxArea,b.cross(c).length()*.5);}
  assert(maxArea<.018,'a broad green sheet still fills the space below a curved stem');
  world.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
+});
+
+
+test('forest shrubs replace fern patches within the same count and sightline budget, never leak to other biomes',()=>{
+ for(const map of maps){const w=buildWorld(map,43837033),g=installHabitatDetail(w,map),records=g.userData.records,shrubs=records.filter(p=>p.kind==='shrub');
+  if(['forest','confluence'].includes(map)){assert(shrubs.length>20);assert(records.some(p=>p.kind==='fern'));}else assert.equal(shrubs.length,0);
+  for(const p of shrubs)assert.equal(p.biome,'forest');
+  for(const mesh of g.children.filter(m=>m.name==='habitat-shrub')){const geo=mesh.geometry;assert(geo.index.count/3<=132);assert(geo.boundingBox.max.y<.65);const p=geo.attributes.position;for(let i=0;i<p.count;i++)assert(Math.hypot(p.getX(i),p.getZ(i))+.035<1.15);}
+  cleanup(w);
+ }
 });

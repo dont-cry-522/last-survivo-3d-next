@@ -246,7 +246,7 @@ $('#habitat-run').onclick=async()=>{
   await load(mobile,mobile?844:1180,mobile?390:720);
   for(const [i,map]of['forest','snow','ash','sand','coast','confluence'].entries())await check(map+(mobile?' 手机横屏':' 桌面平视'),()=>{
    select('silver',0,map);g.setView('first');g.adventureCamera.yaw=-.75;g.adventureCamera.pitch=-.08;step(2);g.pause();step(1,0);
-   const layer=g.world.habitatDetail;assert(layer?.children.length&&layer.children.length<=12,'缺失或过量环境批次');const after=reportFrame();
+   const layer=g.world.habitatDetail;assert(layer?.children.length&&layer.children.length<=16,'缺失或过量环境批次');const after=reportFrame();
    if(!mobile){paint.drawImage(g.renderer.domElement,(i%2)*1180,Math.floor(i/2)*756,1180,720);paint.fillStyle='#e4eddf';paint.font='22px sans-serif';paint.fillText(map,(i%2)*1180+16,Math.floor(i/2)*756+746);}
    layer.visible=false;step(1,0);const before=reportFrame();layer.visible=true;step(1,0);assert(after.calls-before.calls<=12,'细节增加过多绘制调用');
    return{instances:layer.userData.records.length,extraDraws:after.calls-before.calls,extraTriangles:after.triangles-before.triangles,...after};

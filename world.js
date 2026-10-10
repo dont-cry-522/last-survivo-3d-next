@@ -1,3 +1,4 @@
+import{bodyTravel}from'./actor-collision.js?v=136';
 import{buildConfluence,biomeWeights}from'./confluence.js?v=135';
 import{addTree,updateTreeDetail}from'./tree-scenery.js?v=134';
 import{installTactics}from'./map-tactics.js?v=114';
@@ -251,4 +252,4 @@ export function animateWorld(world,t,focusX=world.spawn.x,focusZ=world.spawn.z){
  weather.mesh.instanceMatrix.needsUpdate=true;
 }
 export function clearAt(world,x,z,r=.45){return Math.abs(x)<(world.half||MAP_HALF)-r&&Math.abs(z)<(world.half||MAP_HALF)-r&&!world.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<r+o.r);}
-export function moveActor(world,p,dx,dz,r=.45){let x=p.x+dx,z=p.z+dz;if(clearAt(world,x,z,r)){p.x=x;p.z=z;return;}if(clearAt(world,x,p.z,r))p.x=x;if(clearAt(world,p.x,z,r))p.z=z;}
+export function moveActor(world,p,dx,dz,r=.45){if(p.boss)r=1.6;const travel=bodyTravel(world,p,dx,dz,r);let x=p.x+dx*travel,z=p.z+dz*travel;if(clearAt(world,x,z,r)){p.x=x;p.z=z;if(travel===1)return;dx*=1-travel;dz*=1-travel;}const sx=p.x+dx*bodyTravel(world,p,dx,0,r);if(clearAt(world,sx,p.z,r))p.x=sx;const sz=p.z+dz*bodyTravel(world,p,0,dz,r);if(clearAt(world,p.x,sz,r))p.z=sz;}

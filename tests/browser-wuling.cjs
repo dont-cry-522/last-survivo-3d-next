@@ -64,7 +64,7 @@ const url=process.env.TEST_URL||'http://127.0.0.1:8899/';
    // Poison kills must flow through ordinary XP and victory handling once.
    setup();const victim=target(0,6,1);g.poison.addCloud(0,6,weaponStats(g.player));advance(.25);
    check(!victim.alive&&g.orbs.length===1,'poison kill did not grant one ordinary XP drop');advance(.3);check(g.orbs.length===1,'poison kill duplicated XP');
-   setup();g.spawnBoss();const boss=g.boss;Object.assign(boss,{x:0,z:6,hp:1,cool:999,recover:0,stage:'walk'});boss.mesh.position.set(0,0,6);
+   setup();for(let round=0;round<2;round++){g.spawnBoss();g.hurtEnemy(g.boss,1e6);}g.player.pending=0;g.spawnBoss();const boss=g.boss;Object.assign(boss,{x:0,z:6,hp:1,cool:999,recover:0,stage:'walk'});boss.mesh.position.set(0,0,6);
    g.poison.addCloud(0,6,weaponStats(g.player));advance(.25);
    check(g.state==='won'&&!boss.alive,'poison boss kill did not finish expedition');
    const journal=JSON.parse(localStorage.getItem('forest-echoes-expedition-v1'));check(journal.wins.includes('forest:sporelantern'),'poison victory was not persisted');

@@ -26,7 +26,8 @@ test('every boss commits a decoy attack, completes it after decoy removal, and r
   for(let i=0;i<360;i++)tickBoss(b,p,1/60,io);
   assert.deepEqual(b.target,locked);assert.equal(zones.length,count);assert.equal(b.stage,'walk');
   p.mirageHidden=false;tickBoss(b,p,.01,io);assert(b.reacquired);assert(!b.targetLost);
-  for(let i=0;i<45;i++)tickBoss(b,p,1/60,io);assert(zones.length>count,kind+' never reacquired');
+  for(let i=0;i<45;i++)tickBoss(b,p,1/60,io);assert.equal(zones.length,count,'out-of-range boss attacks empty ground');
+  for(let i=0;i<60*35&&zones.length===count;i++)tickBoss(b,p,1/60,io);assert(zones.length>count,kind+' never closed distance after reacquiring');
  }
 });
 test('new hero victory journal preserves old weapon history and survives reload',()=>{

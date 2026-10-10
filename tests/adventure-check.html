@@ -11,7 +11,7 @@ previewHero.value='silver';$('#preview-map').before(previewHero,previewWeapon);
 function previewWeapons(){previewWeapon.replaceChildren();for(const[index,id]of HERO_LOADOUTS[previewHero.value].entries()){const option=document.createElement('option');option.value=index;option.textContent=WEAPONS[id].name;previewWeapon.append(option);}}
 previewHero.onchange=previewWeapons;previewWeapons();
 const previewEnemy=document.createElement('select');previewEnemy.id='preview-enemy';previewEnemy.setAttribute('aria-label','预览怪物');for(const[id,name]of[['','无怪物'],['mushroom','蘑菇'],['wolf','狼'],['golem','岩怪'],['spitter','吐息者'],['shaman','萨满'],['flyer','本图飞行怪']])previewEnemy.add(new Option(name,id));$('#preview-place').after(previewEnemy);
-for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴'],['polish-run','持械与特效检查'],['habitat-run','六地图环境检查'],['weapon-run','枪口与近战镰刀检查'],['melee-poses','近战动作与尾迹检查'],['melee-sequence','近战完整动作检查'],['lighting-whitebox','光照白模检查'],['lighting-run','森林昼夜检查'],['lighting-day','晨光预览'],['lighting-night','月夜预览']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
+for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴'],['polish-run','持械与特效检查'],['habitat-run','六地图环境检查'],['weapon-run','枪口与近战镰刀检查'],['melee-poses','近战动作与尾迹检查'],['melee-sequence','近战完整动作检查'],['lighting-whitebox','光照白模检查'],['lighting-run','森林昼夜检查'],['lighting-day','晨光预览'],['lighting-night','月夜预览'],['boss-run','三首领与实体碰撞检查'],['boss-preview','第三首领预览']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
 async function load(mobile=false,width=1180,height=720){
@@ -359,4 +359,32 @@ $('#lighting-run').onclick=async()=>{
  }finally{buttons.forEach(b=>b.disabled=false);}
 };
 
+$('#boss-preview').onclick=async()=>{await load();select('silver',0,'forest');g.setView('third');g.player.inv=999;g.player.attack=999;for(let i=0;i<2;i++){g.spawnBoss();g.hurtEnemy(g.boss,1e8);}g.player.pending=0;g.spawnBoss();g.boss.x=g.player.x+4;g.boss.z=g.player.z+5;g.boss.mesh.position.set(g.boss.x,0,g.boss.z);step(2);$('#status').textContent='首领 3/3 实景';};
+$('#boss-run').onclick=async()=>{
+ const buttons=[...document.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);results.length=0;errors.length=0;
+ try{
+  for(const mobile of[false,true]){
+   await load(mobile,mobile?844:1180,mobile?390:720);
+   for(const map of['forest','snow','ash','sand','coast'])await check((mobile?'手机':'电脑')+' '+map+' 三首领流程',()=>{
+    g.select('silver',map,0);g.start();g.player.inv=9999;g.player.attack=9999;g.world.sites=[];g.world.discoveries=[];g.world.roaming=[];
+    const advance=seconds=>{g.player.pending=0;g.step(seconds);};
+    advance(120.1);assert(g.boss?.alive,'首领未定时出现');const kinds=[],health=[];
+    for(let round=0;round<3;round++){
+     const b=g.boss;kinds.push(b.kind);health.push(b.maxHp);b.stage='walk';b.cool=0;b.x=g.player.x;b.z=g.player.z+4;g.step(.02);assert(g.zones.some(z=>z.source===b.kind),'无攻击预警');
+     g.hurtEnemy(b,1e8);assert(!g.zones.some(z=>z.source===b.kind),'战后残留攻击');const defeated=g.bossRun.defeated;g.hurtEnemy(b,1e8);assert(g.bossRun.defeated===defeated,'重复击杀奖励');
+     if(round<2){assert(g.state==='playing','过早结算');const t=g.time;g.pause();g.step(10);assert(g.time===t,'暂停推进计时');g.resume();advance(74.8);assert(!g.boss.alive,'下一位过早出现');advance(.3);assert(g.boss.alive,'下一位未出现');}else assert(g.state==='won','第三位未结算');
+    }
+    assert(new Set(kinds).size===3,'首领重复');assert(health[0]<health[1]&&health[1]<health[2],'强度未递增');g.start();assert(g.bossRun.defeated===0&&g.bossRun.nextAt===120&&!g.boss,'重开未清理');return{kinds,health};
+   });
+   await check((mobile?'手机':'电脑')+' 五境仍需五守卫',()=>{g.select('silver','confluence',0);g.start();g.player.inv=9999;for(const r of g.world.regions){g.spawnBoss(r.id);assert(g.boss.alive,'区域守卫生成失败');g.hurtEnemy(g.boss,1e8);}assert(g.state==='won','五境不能完成');return true;});
+   for(const hero of['scout','wuling','lingya','silver','wraith'])await check((mobile?'手机':'电脑')+' '+hero+' 闪避实体',()=>{
+    g.select(hero,'forest',0);g.start();g.world.obstacles=[];g.world.patches=[];g.world.ponds=[];g.world.sites=[];g.world.discoveries=[];g.world.roaming=[];Object.assign(g.player,{x:0,z:0,inv:999,attack:999});g.adventureCamera.yaw=0;
+    const e=g.spawn('golem',0,3);e.speed=0;e.cool=999;win.dispatchEvent(new win.KeyboardEvent('keydown',{key:'w'}));g.dash();win.dispatchEvent(new win.KeyboardEvent('keyup',{key:'w'}));for(let i=0;i<40;i++)g.step(.02);
+    if(['silver','wraith'].includes(hero))assert(g.player.z>4,'瞬移未越过实体');else assert(g.player.z<3-e.size*.6-.44,'翻滚或燕步穿过实体');
+    assert(Math.hypot(g.player.x-e.x,g.player.z-e.z)>=e.size*.6+.44,'落点重叠');return{z:g.player.z};
+   });
+  }
+  errors.push(...win.qaErrors);publish();$('#status').textContent='三首领与实体检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;
+ }finally{buttons.forEach(b=>b.disabled=false);}
+};
 </script></html>

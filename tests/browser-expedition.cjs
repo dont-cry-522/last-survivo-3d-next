@@ -24,7 +24,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright'),assert=req
   assert(await page.locator('.journal-relics .discovered').count()===1);const back=await page.getByRole('button',{name:'返回',exact:true}).boundingBox();assert(back.y>=0&&back.y+back.height<=height,'journal back button stays visible without scrolling');
   await page.getByRole('button',{name:'返回',exact:true}).click();assert.equal(await page.evaluate(()=>game3d.state),'lost');
   await page.getByRole('button',{name:'再次远征',exact:true}).click();assert.equal(await page.evaluate(()=>game3d.player.relic),undefined);
-  await page.evaluate(()=>{game3d.spawnBoss();game3d.hurtEnemy(game3d.boss,1e6)});assert.equal(await page.evaluate(()=>game3d.state),'won');
+  await page.evaluate(()=>{for(let i=0;i<3;i++){game3d.spawnBoss();game3d.hurtEnemy(game3d.boss,1e6)}});assert.equal(await page.evaluate(()=>game3d.state),'won');
   await page.getByRole('button',{name:'远征手册',exact:true}).click();assert.equal(await page.locator('.journal-weapons .discovered').count(),1);
   if(process.env.OUTPUT_DIR)await page.screenshot({path:process.env.OUTPUT_DIR+'/expedition-journal-'+width+'.png'});
   await page.locator('[data-expedition-map="ash"][data-expedition-weapon="grimoire"]').click();

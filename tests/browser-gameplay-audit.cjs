@@ -26,7 +26,7 @@ const assert=require('node:assert/strict');
   assert.equal(result.guarded.afterKill.claimed,true,'defeating guards should unlock the supply');
   assert.equal(result.guarded.afterKill.hp,90000,'supply should restore 40% of max health');
   assert(result.bossDistance>=result.bossRadius,'boss must not appear inside an obstacle');
-  await page.evaluate(()=>game3d.hurtEnemy(game3d.boss,100000));assert.equal(await page.evaluate(()=>game3d.state),'won');
+  await page.evaluate(()=>{game3d.hurtEnemy(game3d.boss,100000);for(let i=0;i<2;i++){game3d.spawnBoss();game3d.hurtEnemy(game3d.boss,100000);}});assert.equal(await page.evaluate(()=>game3d.state),'won');
   await page.getByRole('button',{name:'再次远征'}).click();assert.equal(await page.evaluate(()=>game3d.state),'playing');
   assert((await page.evaluate(()=>game3d.time))<1,'restart should reset the timer');
   await page.evaluate(()=>game3d.damage(100000,game3d.player.x,game3d.player.z));assert.equal(await page.evaluate(()=>game3d.state),'lost');

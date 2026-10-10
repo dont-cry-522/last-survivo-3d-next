@@ -26,6 +26,11 @@ export function bossAttackPlan(kind,move,b,target){
  if(move==='burrow')add(target,2.5*r,wind+.85,27,'sand');
  return{angle:a,zones,duration:Math.max(...zones.map(z=>z.delay))-wind+.3};
 }
+// Don't spend the entire attack cycle swinging at empty ground outside reach.
+export function chooseBossMove(b,distance){
+ const moves=BOSS_STYLES[b.kind].moves,ranges={claws:5.4,surge:9,anchors:12,branches:5.5,roots:b.phase===2?14:10.4,leap:12,icefan:9,furnace:10,embers:12,pincers:5.3,tail:5.2,burrow:12};
+ for(let i=0;i<moves.length;i++){const turn=(b.turn||0)+i,move=moves[turn%moves.length];if(distance<=ranges[move])return{move,next:turn+1};}return null;
+}
 export function tickBoss(b,p,dt,io){
  const style=BOSS_STYLES[b.kind],d=b.mesh.userData,focus=observePlayer(b,p,dt,io.decoy);
  if(b.reacquired)b.cool=Math.max(b.cool||0,.45);
@@ -36,10 +41,11 @@ export function tickBoss(b,p,dt,io){
  if(b.stage==='walk'){
   b.cool-=dt;const a=Math.atan2(focus.x-b.x,focus.z-b.z),distance=Math.hypot(focus.x-b.x,focus.z-b.z);
   const orbit=!b.targetLost&&b.kind==='cinderlord'?(distance<8?1.15:.4):0;
-  if(distance>(b.kind==='cinderlord'?5:3))io.move(b,Math.sin(a+orbit)*style.speed*dt*(b.slow>0?.6:1),Math.cos(a+orbit)*style.speed*dt*(b.slow>0?.6:1));
+  if(distance>(b.kind==='cinderlord'?5:3))io.move(b,Math.sin(a+orbit)*style.speed*1.25*(b.pressure||1)*dt*(b.slow>0?.6:1),Math.cos(a+orbit)*style.speed*1.25*(b.pressure||1)*dt*(b.slow>0?.6:1));
   b.angle=b.targetLost&&distance<=3?b.searchHeading+Math.sin(b.searchTime*2)*.4:a;
-  if(!b.targetLost&&b.cool<=0&&io.visible(b)){
-   b.move=style.moves[(b.turn||0)%style.moves.length];b.turn=(b.turn||0)+1;
+  const selected=chooseBossMove(b,distance);
+  if(!b.targetLost&&b.cool<=0&&selected&&io.visible(b)){
+   b.move=selected.move;b.turn=selected.next;
    const distance=Math.hypot(focus.x-b.x,focus.z-b.z),limit=b.move==='tail'?4.2:12,k=Math.min(1,limit/Math.max(distance,.01));
    b.target=io.landing({x:b.x+(focus.x-b.x)*k,z:b.z+(focus.z-b.z)*k},b);
    const plan=bossAttackPlan(b.kind,b.move,b,b.target);b.angle=plan.angle;b.actionDuration=plan.duration;
@@ -54,13 +60,13 @@ export function tickBoss(b,p,dt,io){
   }else if(b.stage==='strike'){
    if(b.move==='leap'||b.move==='burrow'){
     const duration=b.move==='leap'?.65:.85,u=clamp(b.elapsed/duration,0,1),f=u*u*(3-2*u);
-    b.x=b.from.x+(b.target.x-b.from.x)*f;b.z=b.from.z+(b.target.z-b.from.z)*f;
+    const x=b.from.x+(b.target.x-b.from.x)*f,z=b.from.z+(b.target.z-b.from.z)*f;io.move(b,x-b.x,z-b.z);
     d.lift=b.move==='leap'?Math.sin(u*Math.PI)*3.8:-Math.sin(u*Math.PI)*2.5;
    }
    if(b.elapsed>=b.actionDuration){b.stage='recover';b.elapsed=0;b.recover=style.recovery;d.lift=0;io.sound(b,'impact');}
   }else{
    b.recover=Math.max(0,style.recovery-b.elapsed);
-   if(!b.recover){b.stage='walk';b.cool=b.phase===2?1.35:2.1;b.elapsed=0;}
+   if(!b.recover){b.stage='walk';b.cool=(b.phase===2?.9:1.5)/(b.pressure||1);b.elapsed=0;}
   }
  }
  const diff=Math.atan2(Math.sin(b.angle-b.mesh.rotation.y),Math.cos(b.angle-b.mesh.rotation.y));

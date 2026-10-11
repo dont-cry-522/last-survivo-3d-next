@@ -1,4 +1,4 @@
-import {applyFernSurface} from './fern-surfaces.js?v=153';
+import {applyFernSurface} from './fern-surfaces.js?v=154';
 import * as T from './vendor/three.module.js';
 import{MAP_HALF}from'./map-layout.js?v=114';
 import{bridgeContains}from'./coast.js?v=114';
@@ -171,15 +171,21 @@ function leafGeometry(){
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(idx);g.computeVertexNormals();return g;
 }geometries.leaf=leafGeometry();
 function frondGeometry(){
- const p=[],colors=[],uv=[],ix=[];
+ const p=[],colors=[],uv=[],ix=[],stalk=[];
  // One gently drooping scanned frond replaces six large solid diamonds. The
  // isolated atlas column includes transparent margins on both sides of the stem.
- for(let row=0;row<=7;row++){
-  const t=row/7,width=.17*(row===0?.72:1),z=t*.88,y=Math.sin(t*Math.PI*.86)*.31;
-  for(const side of[-1,0,1]){p.push(side*width,y-Math.abs(side)*Math.sin(t*Math.PI)*.025,z);const shade=.70+t*.26;colors.push(shade,shade,shade);uv.push(.307+(side+1)*.5*(.458-.307),1-(.786+(.021-.786)*t));}
-  if(row<7){const n=row*3;for(let k=0;k<2;k++)ix.push(n+k,n+k+1,n+k+3,n+k+1,n+k+4,n+k+3);}
+ for(let row=0;row<=6;row++){
+  const t=row/6,width=.17*(row===0?.72:1),z=t*.88,y=Math.sin(t*Math.PI*.86)*.31;
+  for(const side of[-1,0,1]){p.push(side*width,y-Math.abs(side)*Math.sin(t*Math.PI)*.025,z);const shade=.70+t*.26;colors.push(shade,shade,shade);stalk.push(0);uv.push(.307+(side+1)*.5*(.458-.307),1-(.786+(.021-.786)*t));}
+  if(row<6){const n=row*3;for(let k=0;k<2;k++)ix.push(n+k,n+k+1,n+k+3,n+k+1,n+k+4,n+k+3);}
  }
- const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(ix);g.computeVertexNormals();return g;
+ const root=p.length/3;
+ for(let row=0;row<3;row++){
+  const t=row*.12;
+  for(const side of[-1,1]){p.push(side*.0045,Math.sin(t*Math.PI*.86)*.31,t*.88);colors.push(.70,.70,.70);uv.push(.3825,1-(.786+(.021-.786)*t));stalk.push(1);}
+  if(row<2){const n=root+row*2;ix.push(n,n+1,n+2,n+1,n+3,n+2);}
+ }
+ const g=new T.BufferGeometry();g.setAttribute('fernStem',new T.Float32BufferAttribute(stalk,1));g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(ix);g.computeVertexNormals();return g;
 }geometries.frond=frondGeometry();
 function material(kind,id){const key=['leaf','frond','ice'].includes(kind)?kind+':'+id:kind;if(!materials.has(key)){
  const m=new T.MeshStandardMaterial({color:0xffffff,roughness:1,vertexColors:['snow','stone','leaf','frond'].includes(kind),side:['leaf','frond'].includes(kind)?T.DoubleSide:T.FrontSide});
@@ -228,7 +234,7 @@ export function installScenery(w,id,rnd){
  // Reuse the rendered routes. This is a build-time visual filter, never a new collider.
  const routes=w.road?[w.road]:w.sites.filter(s=>s.trail).map(s=>{const p=s.trail.geometry.attributes.position,path=[];for(let i=0;i<p.count;i+=4)path.push({x:(p.getX(i+1)+p.getX(i+2))*.5,z:(p.getZ(i+1)+p.getZ(i+2))*.5});return path;});
  const onRoute=(x,z)=>routes.some(path=>{for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i],dx=b.x-a.x,dz=b.z-a.z,t=T.MathUtils.clamp(((x-a.x)*dx+(z-a.z)*dz)/(dx*dx+dz*dz||1),0,1);if((x-a.x-dx*t)**2+(z-a.z-dz*t)**2<1.45**2)return true;}return false;});
- const add=(kind,color,x,y,z,sx,sy,sz,angle=0,tilt=0)=>{if(!sceneryAllowed(w,x,z)||onRoute(x,z))return;dummy.position.set(x,y,z);dummy.scale.set(sx,sy,sz);dummy.rotation.set(0,angle,0);dummy.rotateX(tilt);dummy.updateMatrix();const key=w.regional?kind+':'+Math.floor(x/32)+','+Math.floor(z/32):kind;if(!batches.has(key))batches.set(key,[]);batches.get(key).push({matrix:dummy.matrix.clone(),color:new T.Color(color).lerp(new T.Color(0xffffff),kind==='frond'?.92:0)});};
+ const add=(kind,color,x,y,z,sx,sy,sz,angle=0,tilt=0)=>{if(!sceneryAllowed(w,x,z)||onRoute(x,z))return;dummy.position.set(x,kind==='frond'?-.047:y,z);dummy.scale.set(sx,sy,sz);dummy.rotation.set(0,angle,0);dummy.rotateX(tilt);dummy.updateMatrix();const key=w.regional?kind+':'+Math.floor(x/32)+','+Math.floor(z/32):kind;if(!batches.has(key))batches.set(key,[]);batches.get(key).push({matrix:dummy.matrix.clone(),color:new T.Color(color).lerp(new T.Color(0xffffff),kind==='frond'?.84:0)});};
  const palette={forest:[0x47785c,0x6a945e,0x315d51],snow:[0xd8e6e5,0xa6c3cb,0x7d9ea9],ash:[0x383b40,0x69574f,0x89715b],sand:[0x9b895d,0xb6a275,0x857654],coast:[0x627b60,0x899c6c,0x49685c]}[id];
  const snowColor=w.regional?0xacbfc1:0x96b7bd;
  // Most plants grow around existing trees/rocks or along the banks; open areas stay sparse.

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import * as T from '../vendor/three.module.js';
+import {buildWorld} from '../world.js';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 let serial=0;
@@ -87,7 +88,7 @@ test('fern cutouts use alpha-tested green-channel masks and retain the shared in
  assert.equal(material.side,T.DoubleSide);assert.equal(material.transparent,false);assert.equal(material.depthWrite,true);assert(material.alphaTest>.3&&material.alphaTest<.6);assert.equal(material.map.colorSpace,T.SRGBColorSpace);assert.equal(alpha.colorSpace,T.NoColorSpace);assert.equal(alpha.flipY,false);assert(material.normalScale.x>0&&material.normalScale.x<=.4);
  const {data,width,height}=alpha.image,green=[];for(let i=1;i<data.length;i+=4)green.push(data[i]);assert(green.some(v=>v===0)&&green.some(v=>v===255),'fallback is an opaque card or entirely invisible');
  const uv=h.fern.geometry.attributes.uv,sample=i=>data[(Math.round(uv.getY(i)*(height-1))*width+Math.round(uv.getX(i)*(width-1)))*4+1];
- for(let frond=0;frond<6;frond++){const middle=frond*19+10;assert(sample(middle)/255>material.alphaTest,'fallback atlas is flipped or missing the frond center');assert(sample(middle-1)/255<material.alphaTest&&sample(middle+1)/255<material.alphaTest,'fallback retains rectangular card sides');}
+ for(let frond=0;frond<6;frond++){const middle=frond*22+7;assert(sample(middle)/255>material.alphaTest,'fallback atlas is flipped or missing the frond center');assert(sample(middle-1)/255<material.alphaTest&&sample(middle+1)/255<material.alphaTest,'fallback retains rectangular card sides');}
  const fern=shaderFor(material),shrub=shaderFor(h.shrub.material);assert.strictEqual(fern.uniforms.groundWindTime,module.groundWindTime);assert.strictEqual(shrub.uniforms.groundWindTime,module.groundWindTime);
  for(const token of['#include <map_fragment>','#include <alphamap_fragment>','#include <alphatest_fragment>','#include <normal_fragment_maps>'])assert(fern.fragmentShader.includes(token),'standard texture stage removed: '+token);
  assert(fern.vertexShader.includes('instanceMatrix*grassPoint'));assert(fern.vertexShader.includes('mat3(modelMatrix*instanceMatrix)'));assert(fern.vertexShader.includes('groundFlex*.035'));assert(!fern.vertexShader.includes('undefined'));assert(!fern.fragmentShader.includes('undefined'));
@@ -128,8 +129,28 @@ test('shrub cutouts share one RGBA atlas and retain wind without transparent sor
   const first=branch*46;for(let i=0;i<10;i++)assert(sample(first+i)>m.alphaTest,'stem vanished into the transparent atlas');
   for(let leaf=0;leaf<4;leaf++){const center=first+10+leaf*9+4;assert(sample(center)>m.alphaTest,'leaf center disappeared');assert(sample(center-1)<m.alphaTest&&sample(center+1)<m.alphaTest,'scan retains opaque rectangular sides');}
  }
- const tint=new T.Color();for(let i=0;i<h.shrub.count;i++){h.shrub.getColorAt(i,tint);assert(Math.min(tint.r,tint.g,tint.b)>.91,'instance tint hides scanned leaf colour');}
+ const tint=new T.Color();for(let i=0;i<h.shrub.count;i++){h.shrub.getColorAt(i,tint);assert(Math.min(tint.r,tint.g,tint.b)>.83&&Math.max(tint.r,tint.g,tint.b)<.94,'instance tint hides scanned leaf colour');}
  const shader=shaderFor(m);assert.strictEqual(shader.uniforms.groundWindTime,module.groundWindTime);assert(shader.vertexShader.includes('groundFlex*.035'));assert(shader.vertexShader.includes('mat3(modelMatrix*instanceMatrix)'));
  for(const token of['#include <map_fragment>','#include <alphatest_fragment>'])assert(shader.fragmentShader.includes(token));assert(!shader.fragmentShader.includes('undefined'));
  let disposed=0;texture.addEventListener('dispose',()=>disposed++);release(h.world);release(other.world);assert.equal(disposed,0,'world cleanup disposed a shared leaf atlas');
+});
+
+
+test('both fern layers keep opaque narrow stalks connected below the actual ground',async()=>{
+ const module=await fresh(),world=buildWorld('forest',7),habitat=module.installHabitatDetail(world,'forest');
+ const meshes=[world.scenery.batches.find(m=>m.userData.biomeDetail==='frond'),...habitat.children.filter(m=>m.name==='habitat-fern')],matrix=new T.Matrix4(),point=new T.Vector3();
+ for(const mesh of meshes){
+  const {position:p,fernStem:stem,groundFlex:flex}=mesh.geometry.attributes,rootIndices=[];assert.equal(stem.count,p.count);
+  for(let i=0;i<p.count;i++)if(stem.getX(i)===1&&p.getY(i)<.001)rootIndices.push(i);
+  assert(rootIndices.length>=2,'alpha cutout has no solid root');
+  for(let i=0;i<mesh.count;i++){
+   mesh.getMatrixAt(i,matrix);
+   for(const j of rootIndices){point.fromBufferAttribute(p,j).applyMatrix4(matrix);assert(point.y<world.ground.position.y-.005,'visible stalk floats above terrain');if(flex)assert.equal(flex.getX(j),0,'root moves in wind');}
+  }
+  const shader=shaderFor(mesh.material),body=shader.fragmentShader;
+  assert(body.indexOf('if(fernStalk>.5)diffuseColor.a=opacity')>body.indexOf('#include <alphamap_fragment>'));
+  assert(body.indexOf('if(fernStalk>.5)diffuseColor.a=opacity')<body.indexOf('#include <alphatest_fragment>'),'stalk is still discarded by alpha test');
+  assert(!body.includes('skyColor*.30'),'unconditional bright foliage fill returned');
+ }
+ release(world);
 });

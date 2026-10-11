@@ -1,4 +1,4 @@
-import {applyFernSurface} from './fern-surfaces.js?v=153';
+import {applyFernSurface} from './fern-surfaces.js?v=154';
 import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=153';
 import{sceneryRhythmAt}from'./exploration-composition.js?v=144';
 import * as T from './vendor/three.module.js';
@@ -6,7 +6,7 @@ import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
 import {forestHabitatAt} from './forest-habitats.js?v=139';
 import {bridgeContains} from './coast.js?v=114';
-import {naturalRockGeometry} from './biome-scenery.js?v=153';
+import {naturalRockGeometry} from './biome-scenery.js?v=154';
 import {surfaceUniforms} from './surface-textures.js?v=120';
 
 const profiles={
@@ -361,24 +361,26 @@ const habitatProfiles={
 // Bent fronds use three scanned atlas regions; alpha cuts the individual leaflets,
 // while the curved midrib/cross-fold remain real geometry (132 triangles per plant).
 function fernGeometry(){
- const p=[],c=[],uv=[],ix=[],flex=[];
+ const p=[],c=[],uv=[],ix=[],flex=[],stalk=[];
  const regions=[[.078,.240,.948,.109],[.307,.458,.786,.021],[.718,.839,.903,.107]];
  for(let frond=0;frond<6;frond++){
   const a=frond*2.399+.14*Math.sin(frond*1.6),s=Math.sin(a),co=Math.cos(a),reach=.57+(frond%3)*.065,h=.36+(frond%2)*.18;
   const [u0,u1,base,tip]=regions[frond%3],start=p.length/3;
-  const vertex=(t,side)=>{
-   const curl=.025*Math.sin(t*Math.PI)*Math.sin(a),width=.080+(frond%3)*.009;
+  const vertex=(t,side,stem=false)=>{
+   const curl=.025*Math.sin(t*Math.PI)*Math.sin(a),width=stem?.0045:.078+(frond%3)*.009;
    p.push(s*t*reach+co*(side*width+curl),Math.sin(t*Math.PI*(.78+frond*.013))*h-.025+(1-Math.abs(side))*.018*Math.sin(t*Math.PI),co*t*reach-s*(side*width+curl));
-   const shade=.80+t*.22+(side===0?-.025:0);c.push(shade,shade,shade);flex.push(t*t*.75);
+   const shade=.80+t*.22+(side===0?-.025:0);c.push(shade,shade,shade);flex.push(t*t*.75);stalk.push(stem?1:0);
    uv.push(u0+(side+1)*.5*(u1-u0),1-(base+(tip-base)*t));
   };
-  for(let row=0;row<=5;row++){
-   for(const side of[-1,0,1])vertex(row*.19,side);
-   if(row<5){const n=start+row*3;ix.push(n,n+3,n+1,n+1,n+3,n+4,n+1,n+4,n+2,n+2,n+4,n+5);}
+  for(let row=0;row<=4;row++){
+   for(const side of[-1,0,1])vertex(row*.2375,side);
+   if(row<4){const n=start+row*3;ix.push(n,n+3,n+1,n+1,n+3,n+4,n+1,n+4,n+2,n+2,n+4,n+5);}
   }
-  vertex(1,0);ix.push(start+15,start+18,start+16,start+16,start+18,start+17);
+  vertex(1,0);ix.push(start+12,start+15,start+13,start+13,start+15,start+14);
+  const root=p.length/3;
+  for(let row=0;row<3;row++){for(const side of[-1,1])vertex(row*.12,side,true);if(row<2){const n=root+row*2;ix.push(n,n+2,n+1,n+1,n+2,n+3);}}
  }
- const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setAttribute('fernStem',new T.Float32BufferAttribute(stalk,1));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;
 }
 // Each small leaf bends across a raised midrib. The scan supplies the irregular
 // outline, so the geometry does not taper it a second time into a pointed arrow.
@@ -481,7 +483,7 @@ export function installHabitatDetail(world,mapId){
   const damp=kind==='stone'?Float32Array.from(list,p=>p.biome==='forest'?forestHabitatAt(world,p.x,p.z).bank:0):null;
   if(damp)geometry.setAttribute('stoneDamp',new T.InstancedBufferAttribute(damp,1));
   geometry.computeBoundingBox();const batch=new T.InstancedMesh(geometry,kind==='fern'?fernMaterial:kind==='shrub'?shrubMaterial:kind==='stone'?habitatStoneMaterial:material,list.length);batch.name='habitat-'+kind;batch.receiveShadow=true;batch.userData.ownedGeometry=true;
-  list.forEach((p,i)=>{dummy.position.set(p.x,kind==='stone'?-.055:-.042-geometry.boundingBox.min.y*p.height,p.z);dummy.scale.set(p.width,p.height,p.width);dummy.rotation.set(0,p.angle,0);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);color.set(p.color);if(kind==='fern'||kind==='shrub')color.lerp(fernTint,.92);if(kind==='stone'&&p.biome==='forest')color.lerp(new T.Color(0x777468).lerp(new T.Color(0x545d57),damp[i]),.88);batch.setColorAt(i,color);});
+  list.forEach((p,i)=>{dummy.position.set(p.x,kind==='stone'?-.055:-.042-geometry.boundingBox.min.y*p.height,p.z);dummy.scale.set(p.width,p.height,p.width);dummy.rotation.set(0,p.angle,0);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);color.set(p.color);if(kind==='fern'||kind==='shrub')color.lerp(fernTint,.84);if(kind==='stone'&&p.biome==='forest')color.lerp(new T.Color(0x777468).lerp(new T.Color(0x545d57),damp[i]),.88);batch.setColorAt(i,color);});
   batch.computeBoundingSphere();batch.addEventListener('dispose',()=>{batch.visible=false;group.userData.disposed=true;});group.add(batch);
  }
  world.group.add(group);world.habitatDetail=group;return group;

@@ -1,7 +1,7 @@
 import{test}from'node:test';import assert from'node:assert/strict';import * as T from'../vendor/three.module.js';
 import{buildWorld,clearAt,animateWorld}from'../world.js';import{sceneryAllowed}from'../biome-scenery.js';
 import{bridgeContains,updateTide}from'../coast.js';import{waterDepth}from'../water.js';
-import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=153';
+import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=154';
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
 function dispose(w){w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});}
 test('worn rocks reuse a bounded smooth mesh and preserve placed obstacle transforms',()=>{
@@ -63,7 +63,7 @@ test('the shared detail texture packs sparse filtered litter without replacing t
 test('biome details are bounded, finite, grounded and clear of rewards, bridges and hazard warnings',()=>{
  for(const id of ['forest','snow','ash','sand','coast'])for(let seed=1;seed<=5;seed++){
   const w=buildWorld(id,seed);assert(w.scenery.records.length>35,id);assert(w.scenery.batches.length<=3);const matrix=new T.Matrix4();let instances=0;
-  for(const m of w.scenery.batches){instances+=m.count;assert(m.isInstancedMesh&&!m.castShadow);for(let i=0;i<m.count;i++){m.getMatrixAt(i,matrix);assert(matrix.elements.every(Number.isFinite));assert(matrix.elements[13]>=0&&matrix.elements[13]<.4);}}assert(instances<3700);
+  for(const m of w.scenery.batches){instances+=m.count;assert(m.isInstancedMesh&&!m.castShadow);for(let i=0;i<m.count;i++){m.getMatrixAt(i,matrix);assert(matrix.elements.every(Number.isFinite));assert(matrix.elements[13]>=(m.userData.biomeDetail==='frond'?-.048:0)&&matrix.elements[13]<.4);}}assert(instances<3700);
   for(const p of w.scenery.records)assert(sceneryAllowed(w,p.x,p.z),id+' invalid decoration placement');
   assert(w.ground.userData.ownedGeometry&&w.ground.material.vertexColors);const colors=w.ground.geometry.attributes.color;assert.equal(colors.count,w.ground.geometry.attributes.position.count);assert([...colors.array].every(v=>Number.isFinite(v)&&v>.3&&v<1.4));dispose(w);
  }
@@ -193,7 +193,7 @@ test('scanned forest fronds retain folded ribs, curved tips, original footprint 
  const w=buildWorld('forest',7),batch=w.scenery.batches.find(m=>m.userData.biomeDetail==='frond'),g=batch.geometry,p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;
  assert(g.index.count/3<=30);g.computeBoundingBox();assert.equal(g.boundingBox.min.y,0);assert(g.boundingBox.max.y<.34&&g.boundingBox.max.z<=.920001);assert(g.boundingBox.max.x-g.boundingBox.min.x<.433);
  for(let i=0;i<p.count;i++){assert(Math.abs(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))-1)<1e-5);assert(uv.getX(i)>=.307-1e-6&&uv.getX(i)<=.458+1e-6);}
- for(let row=1;row<7;row++)assert(p.getY(row*3+1)>p.getY(row*3),'midrib lost its fold');assert(p.getY(p.count-2)<p.getY(13),'tip no longer droops');
+ for(let row=1;row<6;row++)assert(p.getY(row*3+1)>p.getY(row*3),'midrib lost its fold');assert(p.getY(19)<p.getY(10),'tip no longer droops');
  const material=batch.material;assert(material.alphaMap&&material.map&&material.alphaTest>.3);assert(material.userData.motion);assert(material.userData.fernSurface);assert(!material.transparent);
  const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};material.onBeforeCompile(shader);assert(shader.vertexShader.includes('sceneryTime'));assert(shader.fragmentShader.includes('hemisphereLights[0].skyColor'));dispose(w);
 });

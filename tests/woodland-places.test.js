@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
 import {buildWoodlandPlace} from '../woodland-places.js';
-import {naturalRockGeometry} from '../biome-scenery.js?v=153';
+import {naturalRockGeometry} from '../biome-scenery.js?v=154';
 
 function capture(biome){
  const pieces=[],solids=[];

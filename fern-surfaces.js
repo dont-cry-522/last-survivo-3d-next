@@ -23,13 +23,33 @@ export function applyFernSurface(material){
  Object.assign(material,current);material.alphaTest=.42;material.roughness=.88;material.normalScale.set(.32,.32);material.userData.fernSurface=true;
  material.onBeforeCompile=(shader,renderer)=>{
   before.call(material,shader,renderer);
+  shader.vertexShader='attribute float fernStem; varying float fernStalk; varying float fernHeight;\n'+shader.vertexShader;
+  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+   fernStalk=fernStem; vec4 fernPoint=vec4(position,1.0);
+   #ifdef USE_INSTANCING
+    fernPoint=instanceMatrix*fernPoint;
+   #endif
+   fernHeight=(modelMatrix*fernPoint).y;
+  `);
+  shader.fragmentShader='varying float fernStalk; varying float fernHeight;\n'+shader.fragmentShader;
+  // A real narrow stalk joins the scan to the buried root, even where its alpha
+  // photograph has empty margins. It shares the leaf material and draw call.
+  shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+   if(fernStalk>.5)diffuseColor.rgb=diffuse*vec3(.20,.24,.11);
+  `);
+  shader.fragmentShader=shader.fragmentShader.replace('#include <alphamap_fragment>','#include <alphamap_fragment>\nif(fernStalk>.5)diffuseColor.a=opacity;');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+   float fernRoot=1.0-smoothstep(-.025,.16,fernHeight);
+   diffuseColor.rgb*=mix(vec3(1.0),vec3(.65,.68,.52),fernRoot);
+  `);
+  shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nif(fernStalk>.5)normal=nonPerturbedNormal;');
   shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
    #if NUM_HEMI_LIGHTS > 0
-    reflectedLight.indirectDiffuse+=diffuseColor.rgb*hemisphereLights[0].skyColor*.30;
+    reflectedLight.indirectDiffuse+=diffuseColor.rgb*hemisphereLights[0].skyColor*(gl_FrontFacing?.055:.12)*(1.0-fernRoot);
    #endif
   `);
  };
- material.customProgramCacheKey=()=>key+'|fern-surface';materials.add(material);
+ material.customProgramCacheKey=()=>key+'|fern-rooted-surface';materials.add(material);
  material.addEventListener('dispose',()=>materials.delete(material));return material;
 }
 let fernLoading;

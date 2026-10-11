@@ -14,7 +14,7 @@ import {installExplorationRoutes} from '../exploration-routes.js';
 import {installExplorationLandmarks} from '../exploration-landmarks.js';
 import {installExplorationComposition} from '../exploration-composition.js';
 import {installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
-import {naturalRockGeometry} from '../biome-scenery.js?v=153';
+import {naturalRockGeometry} from '../biome-scenery.js?v=154';
 import {surfaceUniforms} from '../surface-textures.js?v=120';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};

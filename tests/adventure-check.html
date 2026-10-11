@@ -204,15 +204,25 @@ $('#run').onclick=async()=>{
 };
 function positionPlace(mark){
  const p=mark.place;if(!p)return;
- for(const distance of[13,15,18,21]){
-  const x=p.x-Math.sin(p.angle)*distance,z=p.z-Math.cos(p.angle)*distance;
+ for(const distance of[13,15,18,21])for(const side of[0,-3,3,-6,6]){
+  const x=p.x-Math.sin(p.angle)*distance+Math.cos(p.angle)*side,z=p.z-Math.cos(p.angle)*distance-Math.sin(p.angle)*side;
   if(g.world.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+.6))continue;
-  g.player.x=x;g.player.z=z;g.adventureCamera.yaw=p.angle;g.adventureCamera.pitch=-.045;g.adventureCamera._ready=false;return;
+  const dx=p.x-x,dz=p.z-z,d2=dx*dx+dz*dz;
+  if(g.world.obstacles.some(o=>{const t=((o.x-x)*dx+(o.z-z)*dz)/d2;return o.height>1.1&&t>.04&&t<.9&&Math.hypot(o.x-x-dx*t,o.z-z-dz*t)<o.r+.15;}))continue;
+  g.player.x=x;g.player.z=z;g.adventureCamera.yaw=Math.atan2(dx,dz);g.adventureCamera.pitch=-.045;g.adventureCamera._ready=false;return;
  }
  g.player.x=p.x;g.player.z=p.z;g.adventureCamera.yaw=p.angle;g.adventureCamera.pitch=-.06;g.adventureCamera._ready=false;
 }
 function positionPreview(mode,place){
  if(place==='landmark')positionPlace(g.world.explorationLandmarks[0]);
+ if(place==='horizon'&&g.world.harborHorizon){
+  const records=[...g.world.harborHorizon.userData.records].sort((a,b)=>Math.hypot(a.x-g.player.x,a.z-g.player.z)-Math.hypot(b.x-g.player.x,b.z-g.player.z));
+  outer:for(const p of records)for(const distance of[28,33,38]){
+   const a=Math.atan2(p.x,p.z),x=p.x-Math.sin(a)*distance,z=p.z-Math.cos(a)*distance;
+   if(Math.max(Math.abs(x),Math.abs(z))>g.world.half-2||g.world.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+.8))continue;
+   g.player.x=x;g.player.z=z;g.adventureCamera.yaw=a;g.adventureCamera.pitch=-.03;g.adventureCamera._ready=false;break outer;
+  }
+ }
  if(place==='water'){const p=g.world.ponds[0];if(p){g.player.x=p.x+p.rx+2;g.player.z=p.z;g.adventureCamera.yaw=-Math.PI/2;g.adventureCamera.pitch=mode==='first'?-.23:-.32;}}
  if(['waterbed','watercenter'].includes(place)){const p=g.world.ponds[0];if(p){const distance=place==='waterbed'?.91:0;g.player.x=p.x+Math.cos(p.angle)*p.rx*distance;g.player.z=p.z-Math.sin(p.angle)*p.rx*distance;g.adventureCamera.yaw=p.angle-Math.PI/2;g.adventureCamera.pitch=mode==='first'?-.65:-.50;}}
  if(place==='trees'){const trees=g.world.obstacles.filter(o=>o.mesh.getObjectByName('tree-canopy')),p=trees.find(o=>g.world.obstacles.every(q=>Math.hypot(o.x-q.x,o.z+5-q.z)>q.r+1));if(p){g.player.x=p.x;g.player.z=p.z+5;g.adventureCamera.yaw=Math.PI;g.adventureCamera.pitch=mode==='first'?.15:.05;}}
@@ -220,7 +230,7 @@ function positionPreview(mode,place){
  if(['elder','thicket'].includes(place)&&g.world.forestHabitats){const h=g.world.forestHabitats,p=place==='elder'?h.elder:g.world.obstacles.find(o=>o.mesh.userData.forestHabitat==='thicket');if(p){for(let n=0;n<16;n++){const a=n*Math.PI/8,r=place==='elder'?13:6,x=p.x+Math.sin(a)*r,z=p.z+Math.cos(a)*r;if(g.world.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+.8))continue;g.player.x=x;g.player.z=z;g.adventureCamera.yaw=Math.atan2(p.x-x,p.z-z);g.adventureCamera.pitch=place==='elder'?.27:.1;break;}}}
  if(place==='floor'){const leaves=g.world.adventureGroundDetail?.userData.records.filter(p=>p.kind==='litter')||[];for(const p of leaves){const x=p.x,z=p.z+1.5;if(g.world.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+.7))continue;g.player.x=x;g.player.z=z;g.adventureCamera.yaw=Math.PI;g.adventureCamera.pitch=-.68;break;}}
 }
-async function preview(mode){const controls=[...document.querySelectorAll('button,select')],disabled=controls.map(c=>c.disabled);for(const c of controls)c.disabled=true;try{await load();select(previewHero.value,Number(previewWeapon.value),$('#preview-map').value);g.setView(mode);g.adventureCamera.yaw=-.75;g.adventureCamera.pitch=mode==='first'?-.08:-.20;
+async function preview(mode){const controls=[...document.querySelectorAll('button,select')],disabled=controls.map(c=>c.disabled);for(const c of controls)c.disabled=true;try{await load();select(previewHero.value,Number(previewWeapon.value),$('#preview-map').value);g.setView(mode);g.adventureCamera.pitch=mode==='first'?-.08:-.20;
  positionPreview(mode,$('#preview-place').value);
  if(previewEnemy.value){const distance=previewHero.value==='tide'?3.3:g.player.weaponId==='shadowblade'?2.6:4.8,e=g.spawn(previewEnemy.value,g.player.x+Math.sin(g.adventureCamera.yaw)*distance,g.player.z+Math.cos(g.adventureCamera.yaw)*distance);if(e){e.speed=0;e.cool=9999;e.hp=9999;}}
  step(30);previewContext=[previewHero.value,previewWeapon.value,$('#preview-map').value,$('#preview-place').value,previewEnemy.value].join(':');$('#status').textContent=(mode==='first'?'第一人称':'第三人称')+' · '+previewHero.selectedOptions[0].text+' / '+previewWeapon.selectedOptions[0].text+' · '+$('#preview-map').selectedOptions[0].text+' · '+JSON.stringify(reportFrame())+' · 真实鼠标锁定需在游戏画面内点击验证；固定帧预览移动后点击保存即可刷新。';}finally{controls.forEach((c,i)=>c.disabled=disabled[i]);}}
@@ -260,14 +270,15 @@ $('#habitat-run').onclick=async()=>{
  try{for(const mobile of[false,true]){
   await load(mobile,mobile?844:1180,mobile?390:720);
   for(const [i,map]of['forest','snow','ash','sand','coast','confluence'].entries())await check(map+(mobile?' 手机横屏':' 桌面平视'),()=>{
-   select('silver',0,map);g.setView('first');g.adventureCamera.yaw=-.75;g.adventureCamera.pitch=-.08;step(2);g.pause();step(1,0);
+   select('silver',0,map);g.setView('first');step(20);const yaw=g.adventureCamera.yaw;g.pause();step(1,0);g.resume();step(2);assert(g.adventureCamera.yaw===yaw,'继续游戏重置视角');g.pause();step(1,0);
+   const clusters=g.world.environmentClusters;assert(clusters?.records.length>=(map==='confluence'?25:12),'缺少中景聚落');assert(clusters.draws<=30&&clusters.triangles<40000,'中景预算超限');if(map==='coast'||map==='confluence')assert(g.world.harborHorizon?.children.length===3,'缺少海港远景');
    const layer=g.world.habitatDetail;assert(layer?.children.length&&layer.children.length<=16,'缺失或过量环境批次');const after=reportFrame();
    if(!mobile){paint.drawImage(g.renderer.domElement,(i%2)*1180,Math.floor(i/2)*756,1180,720);paint.fillStyle='#e4eddf';paint.font='22px sans-serif';paint.fillText(map,(i%2)*1180+16,Math.floor(i/2)*756+746);}
    layer.visible=false;step(1,0);const before=reportFrame();layer.visible=true;step(1,0);assert(after.calls-before.calls<=12,'细节增加过多绘制调用');
    return{instances:layer.userData.records.length,extraDraws:after.calls-before.calls,extraTriangles:after.triangles-before.triangles,...after};
   });
  }
- const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v145-six-environments.png';a.click();$('#status').textContent='环境检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;publish();
+ const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v146-six-environments.png';a.click();$('#status').textContent='环境检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;publish();
  }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
 };
 $('#third').onclick=()=>preview('third');$('#first').onclick=()=>preview('first');$('#air-portrait').onclick=()=>{const kind=AIR_ROSTERS[$('#preview-map').value]||'duskbat',scene=new T.Scene(),camera=new T.PerspectiveCamera(36,1.5,.1,30),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(360,240);renderer.setClearColor(0x213235);const model=makeAirborne(kind);scene.add(model);animateAirborne({kind,mesh:model,id:1,flight:{stage:'orbit'}},.2);scene.add(new T.HemisphereLight(0xe3efff,0x38462e,2.8));const sun=new T.DirectionalLight(0xffedce,3);sun.position.set(-3,5,4);scene.add(sun);camera.position.set(2,2.8,4);camera.lookAt(0,.25,0);renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='next-bestiary-'+kind+'.png';a.click();renderer.dispose();renderer.forceContextLoss();};$('#capture').onclick=()=>{step(1,0);const a=document.createElement('a');a.href=g.renderer.domElement.toDataURL('image/png');a.download='forest-next-'+g.player.weaponId+'-'+g.adventureCamera.mode+'-f'+(previewShot?.frames||previewDodge?.frames||0)+'.png';a.click();};
@@ -437,6 +448,7 @@ $('#environment-closeups').onclick=async()=>{
  }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
 };
 $('#preview-place').add(new Option('地标沿路视角','landmark'));
+$('#preview-place').add(new Option('海港远景近看','horizon'));
 const explorationButton=document.createElement('button');explorationButton.textContent='探索路线与地标检查';$('#capture').before(explorationButton);
 explorationButton.onclick=async()=>{
  const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
@@ -463,7 +475,7 @@ explorationButton.onclick=async()=>{
   }
  }
  await check('地标重开回收与新局完整',()=>{const owned=[];g.world.group.traverse(o=>{if(o.userData.ownedGeometry)owned.push(o.geometry);});let disposed=0;for(const geo of new Set(owned))geo.addEventListener('dispose',()=>disposed++);g.menu();assert(disposed===new Set(owned).size,'世界自有几何未完全释放');g.start();step();assert(g.world.explorationLandmarks.length===5,'合集重开地标缺失');return{disposed,...reportFrame()};});
- const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v145-exploration.png';a.click();publish();$('#status').textContent='探索环境完成：'+results.filter(r=>r.pass).length+'/'+results.length;
+ const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v146-exploration.png';a.click();publish();$('#status').textContent='探索环境完成：'+results.filter(r=>r.pass).length+'/'+results.length;
  }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
 };
 </script>

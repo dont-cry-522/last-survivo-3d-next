@@ -1,4 +1,11 @@
-import{waterDepth}from'./water.js?v=143';
+import{waterDepth}from'./water.js?v=146';
+
+// New-run composition only. Resume and free-look never call this function.
+export function entryLandscapeYaw(world){
+ const places=(world.biomePlaces||[]).filter(p=>p.index===0);
+ const target=places.reduce((best,p)=>!best||Math.hypot(p.x-world.spawn.x,p.z-world.spawn.z)<Math.hypot(best.x-world.spawn.x,best.z-world.spawn.z)?p:best,null);
+ return target?Math.atan2(target.x-world.spawn.x,target.z-world.spawn.z):0;
+}
 
 // Menu-only composition of the existing world. Never moves its spawn, rewards or colliders.
 export function lobbyLandscape(world,id){

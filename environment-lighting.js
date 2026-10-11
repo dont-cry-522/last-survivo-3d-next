@@ -1,3 +1,4 @@
+import{installHarborHorizon}from'./harbor-horizon.js?v=146';
 import{installForestBackdrop}from'./tree-scenery.js?v=143';
 import * as T from './vendor/three.module.js';
 
@@ -109,5 +110,5 @@ export function installDistantLandscape(world,id,biomeAt=()=>id){
   seam.fromBufferAttribute(normal,first).add(last.fromBufferAttribute(normal,end)).normalize();
   normal.setXYZ(first,seam.x,seam.y,seam.z);normal.setXYZ(end,seam.x,seam.y,seam.z);
  }
- const mesh=new T.Mesh(geometry,ridgeMaterial);mesh.name='distant-landscape';mesh.userData.ownedGeometry=true;world.group.add(mesh);installForestBackdrop(world,id,biomeAt);return mesh;
+ const mesh=new T.Mesh(geometry,ridgeMaterial);mesh.name='distant-landscape';mesh.userData.ownedGeometry=true;world.group.add(mesh);installForestBackdrop(world,id,biomeAt);installHarborHorizon(world,id,biomeAt,mesh);return mesh;
 }

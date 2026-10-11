@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
 import {buildHarborPlace} from '../harbor-place.js';
+import {createOverheadQuery} from '../adventure-overheads.js';
 
 function build(){
  const pieces=[],solids=[],dummy=new T.Object3D();
@@ -57,7 +58,7 @@ test('all raised non-overhead vertices have registered solids, with no blocking 
    point.copy(a).add(c).add(d).multiplyScalar(1/3);check(point.x,point.y,point.z);
   }
  }
- assert(b.solids.length<=60);
+ assert(b.solids.length<=70);
  for(const s of b.solids)assert(Math.abs(s.x)-s.r-.55>=3.1,'solid removes player clearance from the central lane');
  assert(!b.solids.some(s=>contains(s,-6.3,1.5,-1.7)),'empty amidships was filled with one solid');
  const floor=b.pieces.filter(p=>{p.geometry.computeBoundingBox();return p.geometry.boundingBox.max.y<=.12;});
@@ -72,6 +73,27 @@ test('both sides of the closed hull have outward winding for consistent wood lig
   for(let i=0;i<index.count;i+=3){a.fromBufferAttribute(p,index.getX(i));c.fromBufferAttribute(p,index.getX(i+1));d.fromBufferAttribute(p,index.getX(i+2));volume+=a.dot(c.cross(d))/6;}
   assert(volume>0,'inverted curved side plank');
  }
+ b.dispose();
+});
+
+test('repair hoist, suspended cargo and layered sailcloth provide a connected middle and upper silhouette',()=>{
+ const b=build(),named=new Map(b.pieces.filter(p=>p.geometry.name).map(p=>[p.geometry.name,p]));
+ for(const name of['SM_Harbor_WinchDrum_A','SM_Harbor_HoistSheave_A','SM_Harbor_SuspendedSling_A','SM_Harbor_RepairSail_A','SM_Harbor_GatheredSail_A','SM_Harbor_FurledSail_A','SM_Harbor_TiedCargo_1'])assert(named.has(name),name+' is absent');
+ const sheave=named.get('SM_Harbor_HoistSheave_A'),sling=named.get('SM_Harbor_SuspendedSling_A'),sail=named.get('SM_Harbor_GatheredSail_A');
+ sheave.geometry.computeBoundingBox();sling.geometry.computeBoundingBox();sail.geometry.computeBoundingBox();
+ assert(sheave.overhead);assert(sheave.geometry.boundingBox.min.y>4.3);assert(sling.geometry.boundingBox.max.y>2.2);
+ assert(sail.geometry.boundingBox.getSize(new T.Vector3()).x>2.5);assert(sail.geometry.boundingBox.getSize(new T.Vector3()).z>.10,'sail is a flat sign');
+ assert(b.pieces.some(p=>p.overhead&&p.category==='cloth'),'furled overhead sail is missing from the roof query batch');
+ assert(b.solids.some(s=>Math.hypot(s.x+6.3,s.z+4.35)<.001&&s.height>=5),'hoist mast still has the old low deck collider');
+ const group=new T.Group(),material=new T.MeshBasicMaterial({side:T.DoubleSide});
+ for(const p of b.pieces.filter(p=>p.overhead)){const mesh=new T.Mesh(p.geometry,material);mesh.userData.placeOverhead=true;group.add(mesh);}
+ const query=createOverheadQuery({group});
+ for(const name of['SM_Harbor_HoistSheave_A','SM_Harbor_FurledSail_A']){
+  const g=named.get(name).geometry;g.computeBoundingBox();const center=g.boundingBox.getCenter(new T.Vector3());
+  assert(query.firstHit({x:center.x,y:6,z:center.z},{x:center.x,y:3.2,z:center.z}),name+' is missing from actual overhead rays');
+ }
+ assert.equal(query.firstHit({x:0,y:6,z:0},{x:0,y:.2,z:0}),null,'hoist and sail create a phantom roof across the centre lane');
+ material.dispose();
  b.dispose();
 });
 

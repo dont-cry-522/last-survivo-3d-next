@@ -2,9 +2,16 @@ import test from'node:test';
 import assert from'node:assert/strict';
 import{buildWorld,clearAt}from'../world.js';
 import{installForestVista}from'../forest-vista.js';
-import{lobbyLandscape}from'../lobby-landscape.js';
+import{lobbyLandscape,entryLandscapeYaw}from'../lobby-landscape.js';
 import{waterDepth}from'../water.js';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
+
+test('a new expedition faces its nearest scene entrance without changing spawn or reward state',()=>{
+ const w={spawn:{x:2,z:3},biomePlaces:[{x:-5,z:3,index:1},{x:22,z:3,index:0},{x:2,z:33,index:0}]},before=JSON.stringify(w);
+ assert.equal(entryLandscapeYaw(w),Math.PI/2);assert.equal(JSON.stringify(w),before);
+ w.biomePlaces.reverse();assert.equal(entryLandscapeYaw(w),Math.PI/2);
+ assert.equal(entryLandscapeYaw({spawn:{x:0,z:0}}),0);
+});
 
 test('lobby views use dry clear ground in real maps without changing gameplay or discovery',()=>{
  for(const id of['forest','snow','ash','sand','coast','confluence'])for(const seed of[7,522,43837033]){

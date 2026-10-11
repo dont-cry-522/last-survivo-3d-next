@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
 const geometries=new Map(),materials=new Map();
 function part(p,color,pos,size,type='sphere',glow=false){
- if(!geometries.has(type))geometries.set(type,type==='rock'?new T.DodecahedronGeometry(1,1):type==='box'?new T.BoxGeometry(2,2,2):type==='cone'?new T.ConeGeometry(1,2,12):new T.SphereGeometry(1,16,12));
+ if(!geometries.has(type))geometries.set(type,type==='rock'?new T.DodecahedronGeometry(1,1):type==='box'?new T.BoxGeometry(2,2,2):type==='cone'?new T.ConeGeometry(1,2,12):type==='barrel'?new T.CylinderGeometry(.88,1,2,10):type==='hoop'?new T.TorusGeometry(1,.055,5,12):new T.SphereGeometry(1,16,12));
  const key=color+':'+glow;if(!materials.has(key))materials.set(key,new T.MeshStandardMaterial({color,roughness:.62,metalness:.08,emissive:glow?color:0,emissiveIntensity:glow?.6:0}));
  const m=new T.Mesh(geometries.get(type),materials.get(key));m.position.set(...pos);m.scale.set(...size);m.castShadow=m.receiveShadow=true;p.add(m);return m;
 }
@@ -43,7 +43,14 @@ export function animateCoastEnemy(g,t,speed,attack,dt){
 export function coastProp(parent,index,rnd){
  if(index%17===0){const hull=part(parent,0x665b4e,[0,.40,0],[1.6,.4,.7]);hull.rotation.y=rnd()*6;for(const s of[-1,1])part(hull,0x9e8b70,[s*.0,.75,s*.7],[.75,.12,.08],'box');part(parent,0x766c55,[0,1.1,0],[.065,.8,.065],'box');return 1.5;}
  if(index%3===0){part(parent,0x789088,[0,.55,0],[.74,.56,.68],'rock');part(parent,0xa7b5a2,[.2,.9,.1],[.28,.28,.3],'rock');return .7;}
- part(parent,0x746b57,[0,.75,0],[.16,.75,.16],'box');part(parent,0x9f997f,[0,1.28,0],[.2,.10,.2]);return .35;
+ // Ordinary dry-land props keep the same .35m footprint and random stream.
+ // Only one in four is a lone post; the rest read as fishing/cargo remnants.
+ const kind=index%4;parent.userData.coastPropKind=['mooring','cask','net-roll','cargo-sack'][kind];
+ if(kind===0){part(parent,0x746b57,[0,.56,0],[.16,.56,.16],'box');const ring=part(parent,0x9f997f,[0,.91,0],[.22,.22,.22],'hoop');ring.rotation.x=Math.PI/2;}
+ else if(kind===1){part(parent,0x766c55,[0,.43,0],[.27,.43,.27],'barrel');for(const y of[.16,.68])part(parent,0x506568,[0,y,0],[.27,.27,.27],'hoop').rotation.x=Math.PI/2;}
+ else if(kind===2){part(parent,0x59756d,[0,.22,0],[.29,.22,.25]);for(const y of[.15,.28])part(parent,0x9f997f,[0,y,0],[.27,.27,.27],'hoop').rotation.x=Math.PI/2;}
+ else{part(parent,0x9c987d,[0,.35,0],[.27,.35,.25]);part(parent,0x746b57,[0,.70,0],[.065,.075,.065],'barrel');}
+ return .35;
 }
 // Smooth shaft and forged, swept tines keep the silhouette readable without white blocks.
 let harpoonTemplate;

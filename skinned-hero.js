@@ -12,7 +12,7 @@ import{heroDodgePose}from'./hero-dodge.js?v=114';
 import{lingyaHopPose}from'./lingya-motion.js?v=114';
 import{lingyaOutfit,lingyaAccessories,lingyaLegs}from'./lingya-appearance.js?v=114';
 import{boneBoomerang}from'./beast-model.js?v=114';
-import{makeHarpoon}from'./coast-models.js?v=114';
+import{makeHarpoon}from'./coast-models.js?v=146';
 import{weaponGesture,shotStarted,scythePose}from'./weapon-performance.js?v=130';
 import{rollProgress,rollWeight}from'./dodge-motion.js?v=114';
 import * as T from './vendor/three.module.js';

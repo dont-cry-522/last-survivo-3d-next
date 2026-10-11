@@ -17,7 +17,13 @@ test('new place roofs are solid while their central ground passage stays clear',
  const w=world('coast');installBiomePlaces(w,'coast');const query=createOverheadQuery(w);
  for(const p of w.biomePlaces){
   const roofs=p.mesh.children.filter(m=>m.userData.placeOverhead);assert(roofs.length&&roofs.every(m=>query.meshes.includes(m)));
-  for(const roof of roofs){const center=new T.Box3().setFromObject(roof).getCenter(new T.Vector3());assert(query.firstHit({x:center.x,y:10,z:center.z},{x:center.x,y:.5,z:center.z}));}
+  // A combined batch can span two roofs with empty space between them. Shoot
+  // through an actual face along its normal, not through the batch AABB centre.
+  for(const roof of roofs){const geo=roof.geometry,position=geo.attributes.position,index=geo.index,a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3(),normal=new T.Vector3();let checked=false;
+   for(let i=0;i<index.count;i+=3){a.fromBufferAttribute(position,index.getX(i)).applyMatrix4(roof.matrixWorld);b.fromBufferAttribute(position,index.getX(i+1)).applyMatrix4(roof.matrixWorld);c.fromBufferAttribute(position,index.getX(i+2)).applyMatrix4(roof.matrixWorld);normal.crossVectors(b.clone().sub(a),c.clone().sub(a));if(normal.lengthSq()<1e-10)continue;
+    normal.normalize();const center=a.add(b).add(c).multiplyScalar(1/3);assert(query.firstHit(center.clone().addScaledVector(normal,.2),center.clone().addScaledVector(normal,-.2)));checked=true;break;
+   }assert(checked);
+  }
   assert.equal(query.firstHit({x:p.x,y:2,z:p.z},{x:p.x,y:.2,z:p.z}),null);
  }
  w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});

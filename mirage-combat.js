@@ -71,7 +71,7 @@ export class MirageCombat{
    if(lure>=3)e.slow=Math.max(e.slow||0,C.lureSlow);
   }
  }
- area(e,t){if((e.y||0)>.9)return null;let best=null;for(const q of this.clouds){if(q.born-EPS>t||q.expires+EPS<t||Math.hypot(e.x-q.x,e.z-q.z)>q.r||!this.clear(q,e))continue;if(!best||q.damage>best.damage)best=q;}return best;}
+ area(e,t){if((e.y||0)-(this.api.groundHeight?.(e.x,e.z)||0)>.9)return null;let best=null;for(const q of this.clouds){if(q.born-EPS>t||q.expires+EPS<t||Math.hypot(e.x-q.x,e.z-q.z)>q.r||!this.clear(q,e))continue;if(!best||q.damage>best.damage)best=q;}return best;}
  tick(t){
   for(const e of this.api.foes()){
    if(!this.active())return;if(!e.alive){this.marks.delete(e);continue;}

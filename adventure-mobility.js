@@ -1,10 +1,17 @@
 // Horizontal movement still uses moveActor; ground is the current support's world height.
 export const MOBILITY={gravity:18.8,takeoff:6.4,landRest:.20,crouchSpeed:.48,crouchRatio:.55,blendSpeed:6};
 export const ATTACK_BANDS={shock:[0,.45],frost:[0,.4],ember:[0,.55],tide:[0,.75],sweep:[1.25,2.2],pounce:[0,1.15],root:[0,2.6],sand:[0,2.6],poison:[0,3],hex:[0,3],boss:[0,4],vent:[0,4]};
-export function resetMobility(p){p.y=0;p.groundHeight=0;p.jumpVelocity=0;p.jumpRest=0;p.crouch=0;p.landTime=0;}
+export function resetMobility(p,ground=0){p.y=ground;p.groundHeight=ground;p.jumpVelocity=0;p.jumpRest=0;p.crouch=0;p.landTime=0;}
 export function airborne(p){return (p.y||0)>(p.groundHeight||0)+.001||Math.abs(p.jumpVelocity||0)>.0001;}
 export function bodyHeight(p){return (p.standHeight||1.8)*(1-(1-MOBILITY.crouchRatio)*(p.crouch||0));}
-export function attackReachesPlayer(p,kind){const band=ATTACK_BANDS[kind];return !band||((p.y||0)<=band[1]&&(p.y||0)+bodyHeight(p)>=band[0]);}
+export function attackReachesPlayer(p,kind,ground=0){const band=ATTACK_BANDS[kind],feet=(p.y||0)-ground;return !band||(feet<=band[1]&&feet+bodyHeight(p)>=band[0]);}
+// Follow only natural soil, never an elevated platform. Walking off a box must
+// still fall; an actual jump keeps its world trajectory until it meets a slope.
+export function followNaturalGround(p,from,to){
+ const feet=p.y||0,resting=Math.abs(feet-from)<.002&&Math.abs(p.jumpVelocity||0)<.0001;
+ if(resting)p.y=to;
+ else if(feet<to){p.y=to;if((p.jumpVelocity||0)<=0){p.jumpVelocity=0;p.jumpRest=MOBILITY.landRest;p.landTime=.16;}}
+}
 export function beginJump(p,depth=0){
  if(airborne(p)||(p.jumpRest||0)>0||p.dashTime>0||depth>.42)return false;
  p.jumpVelocity=MOBILITY.takeoff;p.landTime=0;return true;
@@ -17,7 +24,7 @@ export function tickMobility(p,dt,{crouching=false,depth=0,ceiling=Infinity,grou
  p.crouch=old+Math.max(-MOBILITY.blendSpeed*dt,Math.min(MOBILITY.blendSpeed*dt,wanted-old));
  // A low roof prevents standing; never let releasing Ctrl push the head through it.
  if(!inAir&&ceiling-ground<(p.standHeight||1.8))p.crouch=Math.max(p.crouch,Math.min(1,(1-(ceiling-ground)/(p.standHeight||1.8))/(1-MOBILITY.crouchRatio)));
- if(!inAir)return false;
+ if(!inAir){p.y=ground;return false;}
  let y=(p.y||0)+(p.jumpVelocity||0)*dt-MOBILITY.gravity*dt*dt/2;p.jumpVelocity=(p.jumpVelocity||0)-MOBILITY.gravity*dt;
  const cap=Math.max(ground,ceiling-bodyHeight(p));if(y>cap){y=cap;p.jumpVelocity=Math.min(0,p.jumpVelocity);}
  if(y<=ground&&p.jumpVelocity<=0){p.y=ground;p.jumpVelocity=0;p.jumpRest=MOBILITY.landRest;p.landTime=.16;return true;}

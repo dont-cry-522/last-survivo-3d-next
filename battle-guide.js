@@ -1,4 +1,4 @@
-import{AIR_ENEMIES}from'./airborne-enemies.js?v=123';
+import{AIR_ENEMIES}from'./airborne-enemies.js?v=157';
 import{REGIONAL_ENEMIES}from'./map-enemies.js?v=114';
 export const ENEMY_GUIDE={
  mushroom:{image:"assets/bestiary/mushroom.png",traits:"红褐色斑点菌盖、小短腿；小跳挪动，菌盖随步伐摇摆。",name:'蹦跳蘑菇',attack:'蓄力后向锁定位置弹跳扑击',tip:'看到脚下的橙色爪痕就侧移，别沿直线后退。'},

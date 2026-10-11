@@ -15,11 +15,12 @@ function cylinderEntry(a,d,c){
 }
 
 /** Camera-center ray: nearest visible body or blocking obstacle, otherwise range end. */
-export function aimPoint(ray,range,enemies=[],obstacles=[]){
+export function aimPoint(ray,range,enemies=[],obstacles=[],groundHeight){
  const reach=Math.max(0,range),n=length(ray.direction),d=n>EPS?{x:ray.direction.x/n*reach,y:ray.direction.y/n*reach,z:ray.direction.z/n*reach}:{x:0,y:0,z:0};
  let nearest=1;
  for(const target of enemies){if(target.alive===false)continue;const hit=cylinderEntry(ray.origin,d,body(target));if(hit)nearest=Math.min(nearest,hit.lo);}
  for(const target of obstacles){const bottom=target.y??0,c={x:target.x,z:target.z,r:Math.max(0,target.radius??target.r??target.size??.5),bottom,top:bottom+Math.max(0,target.height??6)},hit=cylinderEntry(ray.origin,d,c);if(hit)nearest=Math.min(nearest,hit.lo);}
+ if(groundHeight)nearest=Math.min(nearest,segmentGroundEntry(ray.origin,pointAt(ray.origin,d,1),groundHeight)??1);
  return pointAt(ray.origin,d,nearest);
 }
 
@@ -62,11 +63,27 @@ export function launchVelocity(origin,target,speed){
 }
 
 /** Ground spells stay inside the player's horizontal range, even when looking at the sky. */
-export function groundAim(ray,origin,range,fallbackAngle=0){
+export function groundAim(ray,origin,range,fallbackAngle=0,groundHeight){
+ if(groundHeight){
+  const reach=Math.max(0,range),length=Math.max(reach*4,Math.abs(ray.origin.y||0)*4+reach),end=pointAt(ray.origin,ray.direction,length),entry=segmentGroundEntry(ray.origin,end,groundHeight),p=entry===null?groundAim(ray,origin,range,fallbackAngle):pointAt(ray.origin,delta(ray.origin,end),entry),dx=p.x-origin.x,dz=p.z-origin.z,d=Math.hypot(dx,dz),scale=d>reach?reach/d:1,x=origin.x+dx*scale,z=origin.z+dz*scale;
+  return{x,y:groundHeight(x,z)||0,z};
+ }
  const reach=Math.max(0,range),t=Math.abs(ray.direction.y)>EPS?-(ray.origin.y||0)/ray.direction.y:-1;
  if(t>=0){const p=pointAt(ray.origin,ray.direction,t),dx=p.x-origin.x,dz=p.z-origin.z,d=Math.hypot(dx,dz),scale=d>reach?reach/d:1;return{x:origin.x+dx*scale,y:0,z:origin.z+dz*scale};}
  const horizontal=Math.hypot(ray.direction.x,ray.direction.z),dx=horizontal>EPS?ray.direction.x/horizontal:Math.sin(fallbackAngle),dz=horizontal>EPS?ray.direction.z/horizontal:Math.cos(fallbackAngle);
  return{x:origin.x+dx*reach,y:0,z:origin.z+dz*reach};
+}
+
+/** Bounded sweep over gently varying soil; the height query samples actual terrain triangles.
+ * The short step also catches a mound when both segment endpoints are above ground.
+ */
+export function segmentGroundEntry(a,b,groundHeight,clearance=0){
+ if(!groundHeight)return null;
+ const d=delta(a,b),gap=t=>{const x=a.x+d.x*t,z=a.z+d.z*t;return(a.y||0)+d.y*t-(groundHeight(x,z)||0)-clearance;};
+ if(gap(0)<=0)return 0;
+ const steps=Math.min(256,Math.max(1,Math.ceil(Math.hypot(d.x,d.z)/.25)));let lo=0;
+ for(let i=1;i<=steps;i++){const hi=i/steps;if(gap(hi)>0){lo=hi;continue;}let end=hi;for(let n=0;n<14;n++){const mid=(lo+end)/2;if(gap(mid)>0)lo=mid;else end=mid;}return end;}
+ return null;
 }
 
 /** First accepted swept contact. Prefix intersection is monotonic, including rounded caps. */

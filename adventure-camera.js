@@ -1,4 +1,5 @@
 import * as T from './vendor/three.module.js';
+import {segmentGroundEntry} from './adventure-combat.js?v=157';
 
 const clamp=T.MathUtils.clamp,finite=(value,fallback)=>Number.isFinite(value)?value:fallback;
 export const MAX_PITCH=Math.PI/2-.025;
@@ -28,7 +29,7 @@ function clearFraction(start,end,obstacles){
 /** DOM-free orbit/eye camera. Yaw 0 faces +Z, positive yaw turns toward +X;
  * pitch is positive upward. Player is {x,y?,z}; y is the foot elevation.
  * Third-person assumes the player is outside the world's solid footprints,
- * as enforced by moveActor. groundY is one flat plane, not a terrain query.
+ * as enforced by moveActor. groundHeight is optional; groundY retains the flat-map baseline.
  */
 export class AdventureCamera{
  constructor(camera,{mode='third',yaw=0,pitch=-.25,distance=6,shoulderOffset=.5}={}){
@@ -60,36 +61,37 @@ export class AdventureCamera{
  getRay(out=new T.Ray()){
   this.camera.getWorldPosition(out.origin);this.camera.getWorldDirection(out.direction);return out;
  }
- update(dt,player,obstacles=[],{eyeHeight=1.65,shoulderHeight=1.15,shoulderOffset=this.shoulderOffset,groundY=0,snap=false,followRate=12,roll=0}={}){
-  const seconds=Math.max(0,finite(dt,0)),floor=finite(groundY,0)+GROUND_CLEARANCE;
+ update(dt,player,obstacles=[],{eyeHeight=1.65,shoulderHeight=1.15,shoulderOffset=this.shoulderOffset,groundY=0,groundHeight,snap=false,followRate=12,roll=0}={}){
+  const seconds=Math.max(0,finite(dt,0)),floor=(groundHeight?.(player.x,player.z)??finite(groundY,0))+GROUND_CLEARANCE;
+  const clear=(a,b)=>{const hit=groundHeight?segmentGroundEntry(a,b,groundHeight,GROUND_CLEARANCE):null;return Math.min(clearFraction(a,b,obstacles),hit===null?1:Math.max(0,hit-.0001));};
   const height=this.mode==='first'?finite(eyeHeight,1.65):finite(shoulderHeight,1.15);
   this._anchor.set(player.x,Math.max(floor,finite(player.y,0)+height),player.z);
   this._raw.copy(this._anchor);
   if(this.mode==='third'){
    const offset=finite(shoulderOffset,.5);
    this._raw.x-=Math.cos(this.yaw)*offset;this._raw.z+=Math.sin(this.yaw)*offset;
-   this._raw.lerpVectors(this._anchor,this._raw,clearFraction(this._anchor,this._raw,obstacles));
+   this._raw.lerpVectors(this._anchor,this._raw,clear(this._anchor,this._raw));
   }
   const reset=snap||!this._ready;
   if(reset||this.mode==='first')this._target.copy(this._raw);
   else{
    this._target.lerp(this._raw,-Math.expm1(-Math.max(0,finite(followRate,12))*seconds));
    // A lagging pivot must not remain on the opposite side of a tree/stone.
-   if(clearFraction(this._anchor,this._target,obstacles)<1)this._target.copy(this._raw);
+   if(clear(this._anchor,this._target)<1)this._target.copy(this._raw);
   }
   const cp=Math.cos(this.pitch);
   this._forward.set(Math.sin(this.yaw)*cp,Math.sin(this.pitch),Math.cos(this.yaw)*cp);
   if(this.mode==='first')this.camera.position.copy(this._target);
   else{
    this._end.copy(this._target).addScaledVector(this._forward,-this.distance);
-   let safe=this.distance*clearFraction(this._target,this._end,obstacles);
-   if(this._forward.y>0)safe=Math.min(safe,(this._target.y-floor)/this._forward.y);
+   let safe=this.distance*clear(this._target,this._end);
+   if(!groundHeight&&this._forward.y>0)safe=Math.min(safe,(this._target.y-floor)/this._forward.y);
    this._boom=reset?safe:Math.min(safe,this._boom+(this.distance-this._boom)*-Math.expm1(-8*seconds));
    this.camera.position.copy(this._target).addScaledVector(this._forward,-this._boom);
    // The offset pivot's L-shaped path may be clear while the direct view to the
    // actor cuts a corner. Keep that final sightline clear as well.
    this._end.copy(this.camera.position);
-   this.camera.position.lerpVectors(this._anchor,this._end,clearFraction(this._anchor,this._end,obstacles));
+   this.camera.position.lerpVectors(this._anchor,this._end,clear(this._anchor,this._end));
   }
   // Do not lookAt the pivot: a fully collapsed boom still needs a stable view.
   this._look.copy(this.camera.position).add(this._forward);this.camera.lookAt(this._look);

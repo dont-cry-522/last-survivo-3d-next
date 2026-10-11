@@ -1,16 +1,16 @@
 import * as T from './vendor/three.module.js';
-import{addTree}from'./tree-scenery.js?v=153';
+import{addTree}from'./tree-scenery.js?v=157';
 import{MAPS,seeded,segmentDistance}from'./rules.js?v=125';
-import{buildPonds}from'./water.js?v=156';
+import{buildPonds}from'./water.js?v=157';
 import{installCoast}from'./coast.js?v=114';
 import{coastProp}from'./coast-models.js?v=146';
-import{buildDistricts}from'./map-districts.js?v=156';
+import{buildDistricts}from'./map-districts.js?v=157';
 import{installScenery}from'./biome-scenery.js?v=156';
-import{installDiscoveries}from'./map-discoveries.js?v=156';
+import{installDiscoveries}from'./map-discoveries.js?v=157';
 import{installTactics}from'./map-tactics.js?v=149';
 import{installRoaming}from'./roaming-events.js?v=156';
 import{biomeEvent}from'./map-events.js?v=114';
-import{groundCue}from'./ground-cues.js?v=114';
+import{groundCue}from'./ground-cues.js?v=157';
 export const CONFLUENCE_HALF=140;
 export const REGIONS=[
  {id:'forest',x:-72,z:20,label:'古木河谷',transition:'林缘渐冷，针叶林沿山麓向雪线延伸'},

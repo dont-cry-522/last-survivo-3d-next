@@ -1,6 +1,35 @@
 import * as T from './vendor/three.module.js';
 
 const plane=new T.PlaneGeometry(2,2),textures=new Map();
+const groundSurfaces=new WeakMap(),point=new T.Vector3(),inverse=new T.Matrix4();
+export const flatGround=()=>0;
+// Own only the small draped copy. Flat/shared source geometry is never changed.
+// Height is sampled from the world's rendered triangles, after the final transform.
+// Repeated calls reuse buffers and skip sampling when the transform is unchanged.
+export function fitGroundSurface(mesh,groundHeight=flatGround,{centerHeight=false}={}){
+ if(!mesh?.geometry?.attributes.position)return mesh;
+ if(groundHeight===flatGround){disposeGroundSurface(mesh);return mesh;}
+ mesh.updateWorldMatrix(true,false);
+ let state=groundSurfaces.get(mesh),source=mesh.geometry;
+ if(state&&source===state.geometry)source=state.source;
+ if(state?.source!==source){disposeGroundSurface(mesh);state=null;}
+ if(!state){const params=source.parameters,isPlane=source.type==='PlaneGeometry',base=isPlane?new Float32Array(81*3):source.attributes.position.array.slice();
+  if(isPlane)for(let z=0;z<=8;z++)for(let x=0;x<=8;x++){const i=(z*9+x)*3;base[i]=(x/8-.5)*params.width;base[i+1]=(.5-z/8)*params.height;}
+  state={source,geometry:null,base,fitted:new Float32Array(base.length),matrix:[],height:null,centerHeight:null,isPlane};groundSurfaces.set(mesh,state);
+ }
+ const matrix=mesh.matrixWorld.elements;
+ if(state.height===groundHeight&&state.centerHeight===centerHeight&&state.matrix.every((v,i)=>v===matrix[i])&&state.matrix.length===16){mesh.geometry=state.draped?state.geometry:state.source;return mesh;}
+ state.height=groundHeight;state.centerHeight=centerHeight;state.matrix=matrix.slice();
+ const origin=centerHeight?groundHeight(matrix[12],matrix[14])||0:0;inverse.copy(mesh.matrixWorld).invert();let draped=false;
+ for(let i=0;i<state.base.length/3;i++){point.fromArray(state.base,i*3).applyMatrix4(mesh.matrixWorld);const h=(groundHeight(point.x,point.z)||0)-origin;draped||=Math.abs(h)>.000001;point.y+=h;point.applyMatrix4(inverse);point.toArray(state.fitted,i*3);}
+ state.draped=draped;
+ // No extra GPU geometry on flat maps (including zero-returning world callbacks).
+ if(draped){state.geometry||=state.isPlane?new T.PlaneGeometry(source.parameters.width,source.parameters.height,8,8):source.clone();const pos=state.geometry.attributes.position;pos.array.set(state.fitted);pos.needsUpdate=true;state.geometry.computeBoundingSphere();}
+ mesh.geometry=draped?state.geometry:state.source;
+ return mesh;
+}
+export function disposeGroundSurface(mesh){const state=groundSurfaces.get(mesh);if(!state)return;if(mesh.geometry===state.geometry)mesh.geometry=state.source;state.geometry?.dispose();groundSurfaces.delete(mesh);}
+export function fitGroundCue(mesh,groundHeight=flatGround){return fitGroundSurface(mesh,groundHeight);}
 function texture(style){
  if(textures.has(style))return textures.get(style);
  // Data textures also work in the headless map checks. Share them across every run.
@@ -23,4 +52,4 @@ export function groundCue(color,r=1,style='danger',opacity=.58){
  const m=new T.Mesh(plane,new T.MeshBasicMaterial({map:texture(style),color,transparent:true,opacity,depthWrite:false,side:T.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
  m.rotation.x=-Math.PI/2;m.scale.set(r,r,1);m.userData.groundCue=style;m.userData.ownedMaterial=true;return m;
 }
-export function disposeCue(mesh){if(mesh?.userData.ownedMaterial)mesh.material.dispose();}
+export function disposeCue(mesh){disposeGroundSurface(mesh);if(mesh?.userData.ownedMaterial)mesh.material.dispose();}

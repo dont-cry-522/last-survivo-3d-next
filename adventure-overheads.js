@@ -1,7 +1,12 @@
 import * as T from './vendor/three.module.js';
-import {bodyHeight} from './adventure-mobility.js?v=149';
+import {bodyHeight} from './adventure-mobility.js?v=157';
 
 const ceilingOffsets=[[0,0],[.3,0],[-.3,0],[0,.3],[0,-.3]];
+// Natural soil elevation is not an airborne/platform posture. Avoid raycasting
+// every roof on each ordinary step along a shallow hill.
+export function needsMobilityCeiling(world,p,crouching=false){
+ return (p.y||0)>(world.groundHeightAt?.(p.x,p.z)||0)+.001||Math.abs(p.jumpVelocity||0)>.0001||(p.crouch||0)>0||crouching;
+}
 // Return a world height, querying above the feet so a raised support is not a roof.
 export function mobilityCeiling(world,p,x=p.x,z=p.z){
  if(!world.overhead?.meshes?.length)return Infinity;
@@ -18,7 +23,7 @@ export function mobilityCeiling(world,p,x=p.x,z=p.z){
 // Airborne movement must meet a roof's side before the next vertical update.
 // Ground movement keeps its existing footprint collision and crouch behaviour.
 export function canMoveBelowOverhead(world,p,x,z){
- if(!(p.y>0)||!world.overhead?.meshes?.length)return true;
+ if(!world.overhead?.meshes?.length||!needsMobilityCeiling(world,p))return true;
  const dx=x-p.x,dz=z-p.z,d=Math.hypot(dx,dz);
  if(d<1e-8)return true;
  const height=bodyHeight(p),radius=p.size||.45,nx=-dz/d,nz=dx/d;

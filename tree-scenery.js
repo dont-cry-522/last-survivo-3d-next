@@ -3,6 +3,8 @@ import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
 
 // Six shared templates keep each tree independently removable without per-tree GPU assets.
 const templates=new Map(),material=new T.MeshStandardMaterial({vertexColors:true,roughness:1});
+// Updated from the existing game-time canopy loop, never from wall-clock time.
+const treeBreezeTime={value:0};
 // Object-space detail stays attached during canopy sway and fades before it becomes subpixel noise.
 material.onBeforeCompile=shader=>{
  shader.vertexShader='attribute float treeSurface; varying float treeKind; varying vec3 treePoint;\n'+shader.vertexShader;
@@ -175,10 +177,25 @@ firMaterial.onBeforeCompile=shader=>{
 };
 firMaterial.customProgramCacheKey=()=> 'tree-rounded-snow-sprays';
 leafMaterial.onBeforeCompile=shader=>{
+ shader.uniforms.treeBreezeTime=treeBreezeTime;
+ shader.vertexShader='uniform float treeBreezeTime; attribute float treeLeafFlex;\n'+shader.vertexShader;
+ shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+  mat4 treeFrame=modelMatrix;
+  #ifdef USE_INSTANCING
+   treeFrame=modelMatrix*instanceMatrix;
+  #endif
+  vec3 treeOrigin=treeFrame[3].xyz;
+  float treePhase=treeOrigin.x*.17+treeOrigin.z*.13;
+  float treeGust=.65+.35*(.5+.5*sin(treeBreezeTime*.42+treeOrigin.x*.08+treeOrigin.z*.06));
+  float treeFlutter=sin(treeBreezeTime*1.3+position.x*2.1+position.z*1.4+treePhase)*.008+sin(treeBreezeTime*2.07+position.y*2.4+treePhase*.7)*.003;
+  vec2 treeWind=vec2(-.644,.765);
+  vec2 treeLocalWind=vec2(dot(treeWind,normalize(treeFrame[0].xz)),dot(treeWind,normalize(treeFrame[2].xz)));
+  transformed.xz+=treeLocalWind*treeFlutter*treeGust*treeLeafFlex;
+ `);
  shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n diffuseColor.rgb*=vec3(1.13,1.10,1.02);');
  thinLeafLight(shader);
 };
-leafMaterial.customProgramCacheKey=()=> 'tree-branched-thin-leaves';
+leafMaterial.customProgramCacheKey=()=> 'tree-branched-thin-leaves-breeze';
 function sprayPose(x,y,z,width,depth,height,phase,spray){
  const angle=phase+spray*2.399,tilt=[.30,.92,-.32,.54,.14][spray],normal=new T.Vector3(Math.cos(angle)*.72,tilt,Math.sin(angle)*.72).normalize();
  const across=new T.Vector3().crossVectors(new T.Vector3(0,1,0),normal).normalize(),along=new T.Vector3().crossVectors(normal,across);
@@ -189,12 +206,12 @@ const sprayBow=(u,v)=>.18-.20*(u*u+v*v)/(1.17*1.17);
 function broadFan(x,y,z,width,depth,height,phase){
  // Five small curved sprays sit around a twig, rather than intersecting at one large card.
  // The six-triangle fans keep their alpha silhouette and use 25% fewer canopy triangles.
- const vertices=[],indices=[],colors=[],uvs=[],normals=[],point=new T.Vector3(),shading=new T.Vector3();
+ const vertices=[],indices=[],colors=[],uvs=[],normals=[],flex=[],point=new T.Vector3(),shading=new T.Vector3();
  for(let spray=0;spray<5;spray++){
   const first=vertices.length/3,{center,normal,across,along}=sprayPose(x,y,z,width,depth,height,phase,spray);
   const vertex=(u,v)=>{
    point.copy(center).addScaledVector(across,u*width*.72).addScaledVector(along,v*depth*.96).addScaledVector(normal,sprayBow(u,v)*height);
-   vertices.push(point.x,point.y,point.z);uvs.push(.5+u*.5,.5+v*.5);
+   vertices.push(point.x,point.y,point.z);uvs.push(.5+u*.5,.5+v*.5);flex.push(Math.min(1,Math.hypot(u,v)/1.17));
    // Continuous dome normals avoid six broad triangular highlights across one leaf cluster.
    shading.copy(normal).addScaledVector(across,.40*height*u/(1.17*1.17*width*.72)).addScaledVector(along,.40*height*v/(1.17*1.17*depth*.96)).normalize();normals.push(shading.x,shading.y,shading.z);
    const shade=.83+(normal.y+1)*.075+spray*.012,warm=.5+.5*Math.sin(phase*2.7+spray);
@@ -204,7 +221,7 @@ function broadFan(x,y,z,width,depth,height,phase){
   for(let i=0;i<6;i++){const a=i*Math.PI/3,r=1.17*(.95+.035*Math.sin(a*3+phase+spray*.6)+.015*Math.cos(a*2-phase));vertex(Math.cos(a)*r,Math.sin(a)*r);}
   for(let i=0;i<6;i++)indices.push(first,first+1+i,first+1+(i+1)%6);
  }
- const g=surface(vertices,indices);g.setAttribute('normal',new T.Float32BufferAttribute(normals,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));return g;
+ const g=surface(vertices,indices);g.setAttribute('normal',new T.Float32BufferAttribute(normals,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));g.setAttribute('treeLeafFlex',new T.Float32BufferAttribute(flex,1));return g;
 }
 function rootFlare(angle,snow){
  if(!snow){
@@ -327,7 +344,7 @@ function detailedCrown(template,level){
   for(let i=0;i<p.count;i++)p.setXYZ(i,T.MathUtils.clamp(p.getX(i),bounds.min.x,bounds.max.x),T.MathUtils.clamp(p.getY(i),bounds.min.y,bounds.max.y),T.MathUtils.clamp(p.getZ(i),bounds.min.z,bounds.max.z));
   g.setAttribute('treeSurface',new T.Float32BufferAttribute(new Float32Array(p.count).fill(2),1));g.computeBoundingBox();g.computeBoundingSphere();return template.lods[level]=g;
  }
- const p=[],ix=[],uv=[],colors=[],point=new T.Vector3();
+ const p=[],ix=[],uv=[],colors=[],flex=[],point=new T.Vector3();
  const u=.5,v=.5,count=level===0?16:6;
  for(const [x,y,z,width,depth,height,phase]of template.sprays)for(let spray=0;spray<5;spray++){
   const {center,normal,across,along}=sprayPose(x,y,z,width,depth,height,phase,spray);
@@ -342,13 +359,13 @@ function detailedCrown(template,level){
    for(const [i,[lx,ly,bow]]of shape.entries()){
     // The local tangent follows the curved spray without stretching individual leaves.
     point.copy(leafCenter).addScaledVector(leafAcross,lx*co-ly*si).addScaledVector(leafAlong,lx*si+ly*co).addScaledVector(leafNormal,bow);
-    p.push(point.x,point.y-template.bottom,point.z);uv.push(u,v);
+    p.push(point.x,point.y-template.bottom,point.z);uv.push(u,v);flex.push([0,.5,.5,1,.5,.75][i]);
     const shade=(i===1||i===5?1:.83)+.08*Math.sin(a*3+spray);colors.push(Math.min(1,shade*.98),Math.min(1,shade),shade*.86);
    }
    ix.push(first,first+1,first+2,first+2,first+1,first+5,first+2,first+5,first+3,first,first+4,first+1,first+4,first+5,first+1,first+4,first+3,first+5);
   }
  }
- const detail=surface(p,ix);detail.setAttribute('uv',new T.Float32BufferAttribute(uv,2));detail.setAttribute('color',new T.Float32BufferAttribute(colors,3));detail.setAttribute('treeSurface',new T.Float32BufferAttribute(new Float32Array(p.length/3).fill(1),1));
+ const detail=surface(p,ix);detail.setAttribute('uv',new T.Float32BufferAttribute(uv,2));detail.setAttribute('color',new T.Float32BufferAttribute(colors,3));detail.setAttribute('treeLeafFlex',new T.Float32BufferAttribute(flex,1));detail.setAttribute('treeSurface',new T.Float32BufferAttribute(new Float32Array(p.length/3).fill(1),1));
  // Keep extra leaves inside the existing crown envelope, preserving camera clearance.
  const bounds=template.canopy.boundingBox,a=detail.attributes.position;
  for(let i=0;i<a.count;i++)a.setXYZ(i,T.MathUtils.clamp(a.getX(i),bounds.min.x,bounds.max.x),T.MathUtils.clamp(a.getY(i),bounds.min.y,bounds.max.y),T.MathUtils.clamp(a.getZ(i),bounds.min.z,bounds.max.z));
@@ -362,6 +379,20 @@ export function updateTreeDetail(canopy,x,z){
  const near=previous===0?11:9,far=previous===2?28:32,level=distance<near?0:distance<far?1:2;
  if(level===previous)return;
  canopy.geometry=level===2?template.canopy:detailedCrown(template,level);canopy.userData.treeLOD=level;
+}
+
+export function animateTreeCanopy(canopy,time,{x=0,z=0,phase=0}={}){
+ if(!Number.isFinite(time))return;
+ const parent=canopy.parent;
+ if(parent?.userData.treeBiome!=='forest'){
+  // Preserve the existing snow motion and other biome animation exactly.
+  const sway=Math.sin(time*1.35+phase)*.026+Math.sin(time*2.7+phase)*.008;
+  canopy.rotation.z=sway;canopy.position.x=x+sway*1.3;canopy.position.z=z+Math.cos(time*1.1+phase)*.015;return;
+ }
+ treeBreezeTime.value=time;
+ const gust=.65+.35*(.5+.5*Math.sin(time*.42+parent.position.x*.08+parent.position.z*.06));
+ const lean=gust*(Math.sin(time*.68+phase)*.009+Math.sin(time*1.07+phase*1.37)*.003),c=Math.cos(parent.rotation.y),s=Math.sin(parent.rotation.y),dx=-.644*c-.765*s,dz=-.644*s+.765*c;
+ canopy.rotation.x=dz*lean;canopy.rotation.z=-dx*lean;canopy.position.x=x+dx*lean*1.8;canopy.position.z=z+dz*lean*1.8;
 }
 
 // Backdrop trees remain wholly outside the playable square, on its low foothills.

@@ -3,13 +3,68 @@ import assert from'node:assert/strict';
 import{createHash}from'node:crypto';
 import{readFileSync}from'node:fs';
 import * as T from'../vendor/three.module.js';
-import{addTree,updateTreeDetail,installForestBackdrop}from'../tree-scenery.js';
+import{addTree,updateTreeDetail,animateTreeCanopy,installForestBackdrop}from'../tree-scenery.js';
 import{buildWorld,animateWorld}from'../world.js';
 import{damageTerrain,updateTactics}from'../map-tactics.js?v=149';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const dispose=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
 const trees=w=>w.obstacles.filter(o=>o.mesh.getObjectByName('tree-canopy'));
+
+test('forest breeze pins the trunk and uses bounded, smooth motion at the same game time',()=>{
+ const root=new T.Group(),leaf=addTree(root,'forest',4,{angle:.7}),trunk=root.children[0];root.position.set(14,.18,-9);
+ const rest={x:leaf.position.x,z:leaf.position.z,phase:14*.17-9*.13},rootPose=root.matrix.clone(),trunkPose=trunk.matrix.clone(),geometry=leaf.geometry,positions=geometry.attributes.position.array.slice(),y=leaf.position.y;
+ root.updateMatrix();trunk.updateMatrix();rootPose.copy(root.matrix);trunkPose.copy(trunk.matrix);
+ let previous=null,largestStep=0;
+ for(let frame=0;frame<=1800;frame++){
+  animateTreeCanopy(leaf,frame/30,rest);
+  assert(Math.hypot(leaf.position.x-rest.x,leaf.position.z-rest.z)<.0217,'wind moves canopy too far');
+  assert(Math.hypot(leaf.rotation.x,leaf.rotation.z)<.0121,'wind tips the whole crown too far');
+  if(previous)largestStep=Math.max(largestStep,Math.hypot(leaf.position.x-previous.x,leaf.position.z-previous.z));
+  previous=leaf.position.clone();
+ }
+ assert(largestStep>.0001&&largestStep<.001,'wind jitters or no longer moves');
+ const paused=[...leaf.position,...leaf.rotation.toArray()];for(let i=0;i<120;i++)animateTreeCanopy(leaf,60,rest);
+ assert.deepEqual([...leaf.position,...leaf.rotation.toArray()],paused,'same paused game time drifts');
+ animateTreeCanopy(leaf,NaN,rest);assert.deepEqual([...leaf.position,...leaf.rotation.toArray()],paused,'invalid time corrupts pose');
+ assert.equal(leaf.position.y,y);assert.strictEqual(leaf.geometry,geometry);assert.deepEqual(geometry.attributes.position.array,positions,'wind rewrites shared vertex buffers');
+ root.updateMatrix();trunk.updateMatrix();assert.deepEqual(root.matrix,rootPose);assert.deepEqual(trunk.matrix,trunkPose);assert.equal(root.children.length,2);
+ const other=new T.Group(),otherLeaf=addTree(other,'forest',4,{angle:.7});other.position.set(-22,.18,31);animateTreeCanopy(otherLeaf,60,{x:rest.x,z:rest.z,phase:-22*.17+31*.13});
+ assert(Math.hypot(otherLeaf.position.x-leaf.position.x,otherLeaf.position.z-leaf.position.z)>.001,'separate trees sway in lockstep');
+ animateTreeCanopy(leaf,0,rest);const restart=[...leaf.position,...leaf.rotation.toArray()];animateTreeCanopy(leaf,17,rest);animateTreeCanopy(leaf,0,rest);assert.deepEqual([...leaf.position,...leaf.rotation.toArray()],restart,'restart retains old wind phase');
+});
+
+test('all forest LODs share one breeze uniform, weighted leaf tips and instancing-safe wind',()=>{
+ let clock;
+ for(const angle of[0,1,1.5]){
+  const root=new T.Group(),leaf=addTree(root,'forest',4,{angle}),farCount=leaf.geometry.attributes.position.count;
+  const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};leaf.material.onBeforeCompile(shader);
+  if(clock)assert.strictEqual(shader.uniforms.treeBreezeTime,clock);else clock=shader.uniforms.treeBreezeTime;
+  assert(shader.vertexShader.includes('modelMatrix*instanceMatrix'),'background batches lose per-tree phase');
+  assert(shader.vertexShader.includes('treeLocalWind*treeFlutter*treeGust*treeLeafFlex'),'leaf flutter is not weighted');
+  assert(shader.vertexShader.includes('treeBreezeTime*.42+treeOrigin.x*.08+treeOrigin.z*.06'));
+  for(const distance of[40,20,5]){
+   updateTreeDetail(leaf,distance,0);const g=leaf.geometry,flex=g.attributes.treeLeafFlex;
+   assert.equal(flex.count,g.attributes.position.count);assert([...flex.array].every(v=>Number.isFinite(v)&&v>=0&&v<=1));
+   for(let i=0;i<farCount;i+=7)assert.equal(flex.getX(i),0,'branch spray attachment is not pinned');
+   for(let i=farCount;i<flex.count;i+=6){assert.equal(flex.getX(i),0,'individual leaf root floats');assert.equal(flex.getX(i+3),1,'individual leaf tip cannot flutter');}
+   assert.equal(root.children.length,2);assert(!root.children[0].geometry.attributes.treeLeafFlex,'trunk acquired leaf deformation');
+  }
+  animateTreeCanopy(leaf,12.5,{x:leaf.position.x,z:leaf.position.z,phase:angle});assert.equal(clock.value,12.5);
+  animateTreeCanopy(leaf,12.5,{x:0,z:0,phase:angle});assert.equal(clock.value,12.5,'pause advanced GPU wind time');
+ }
+});
+
+test('snow preserves its previous canopy motion and does not inherit the forest wind shader',()=>{
+ const root=new T.Group(),leaf=addTree(root,'snow',4,{angle:1}),rest={x:leaf.position.x,z:leaf.position.z,phase:2.7};
+ for(const time of[0,.25,3,21]){
+  animateTreeCanopy(leaf,time,rest);const sway=Math.sin(time*1.35+rest.phase)*.026+Math.sin(time*2.7+rest.phase)*.008;
+  assert.equal(leaf.rotation.z,sway);assert.equal(leaf.rotation.x,0);assert.equal(leaf.position.x,rest.x+sway*1.3);assert.equal(leaf.position.z,rest.z+Math.cos(time*1.1+rest.phase)*.015);
+ }
+ const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};leaf.material.onBeforeCompile(shader);
+ assert(!shader.uniforms.treeBreezeTime);assert(!shader.vertexShader.includes('treeLeafFlex'));
+ for(const distance of[40,20,5]){updateTreeDetail(leaf,distance,0);assert(!leaf.geometry.attributes.treeLeafFlex);}
+});
 
 test('tree art preserves the established obstacle, reward, terrain and ground-detail layouts',()=>{
  const before={forest:['1c485468e05a8657eff1b670350553cb666c403693a607332926b653f1f536d2','ebf829a3b04a874d0704b2694466aebf4e9347246448562584bd2dbe5cd4535b'],snow:['b0abb255379b8280117d8ecbc5d3131483118603a25c01633fb71609556183d4','a40ac01130c5da5389c6840dc3d16bea0b45e302ac606e498ac337feadb48b7e'],confluence:['61a3e28ac98ef4704f18e8c4722c18a8d0e03d8f4079eb8337860cac335d5ed2','2949ce831ae43f87aeb8d274d0253388c2793e746ef1499a06ca967eeb4f2f2b']};

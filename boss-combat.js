@@ -72,5 +72,5 @@ export function tickBoss(b,p,dt,io){
  const diff=Math.atan2(Math.sin(b.angle-b.mesh.rotation.y),Math.cos(b.angle-b.mesh.rotation.y));
  b.mesh.rotation.y+=clamp(diff*dt*5,-dt*2.5,dt*2.5);
  Object.assign(d,{bossStage:b.stage,bossMove:b.move,windProgress:b.stage==='wind'?clamp(b.elapsed/style.wind,0,1):0,strikeProgress:b.stage==='strike'?clamp(b.elapsed/b.actionDuration,0,1):0,recoverProgress:b.stage==='recover'?clamp(b.elapsed/style.recovery,0,1):0});
- b.mesh.position.set(b.x,0,b.z);return Math.hypot(b.x-oldX,b.z-oldZ)/Math.max(dt,.001);
+ b.y=io.groundHeight?.(b.x,b.z)||0;b.mesh.position.set(b.x,b.y,b.z);return Math.hypot(b.x-oldX,b.z-oldZ)/Math.max(dt,.001);
 }

@@ -1,8 +1,8 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 双视角实测</title><style>body{margin:12px;background:#17272b;color:#e2ecea;font:14px system-ui}button{padding:10px;margin:4px;background:#254943;border:1px solid #709582;color:inherit;border-radius:5px}iframe{display:block;border:0;margin-top:8px}pre{white-space:pre-wrap}#view{overflow:auto}</style><button id="run" disabled>运行双视角回归</button><select id="preview-map" aria-label="预览地图"><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="confluence">五境</option></select><select id="preview-place" aria-label="预览位置"><option value="spawn">出生地</option><option value="water">水岸</option><option value="waterbed">浅水石底</option><option value="watercenter">水中近看</option><option value="trees">树丛</option><option value="ruins">遗迹近景</option><option value="elder">古树空地</option><option value="thicket">幽暗密林</option><option value="floor">地表细节近景</option></select><button id="third" disabled>第三人称预览</button><button id="first" disabled>第一人称预览</button><button id="capture" disabled>保存画面</button><p id="status">正在加载真实游戏（隔离存档，固定帧测试）</p><div id="view"></div><pre id="report"></pre><script type="module">
 import * as T from '../vendor/three.module.js';
-import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=123';
-import {HERO_LOADOUTS,WEAPONS} from '../rules.js?v=125';
-import {terrainAt,waterDepth} from '../water.js?v=156';
+import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=157';
+import {HERO_LOADOUTS,WEAPONS,weaponStats} from '../rules.js?v=125';
+import {terrainAt,waterDepth} from '../water.js?v=157';
 import {updateTide} from '../coast.js?v=114';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
@@ -39,7 +39,9 @@ async function load(mobile=false,width=1180,height=720){
 function reportFrame(){const r=g.renderer;assert(!win.qaErrors.length,win.qaErrors.join('\n'));assert(r.info.programs.every(p=>p.diagnostics?.runnable!==false),'GPU 着色器未通过');assert(r.getContext().getError()===0,'WebGL 错误');return{calls:r.info.render.calls,triangles:r.info.render.triangles,geometries:r.info.memory.geometries,textures:r.info.memory.textures,pixels:r.domElement.width*r.domElement.height};}
 
 function select(hero='silver',index=0,map='forest'){g.menu();win.qaSeed();g.select(hero,map,index);win.qaSeed();g.start();g.player.inv=9999;g.player.attack=9999;g.player.pending=0;step(2);}
-function arena(){g.world.obstacles=[];g.world.patches=[];g.player.x=g.player.z=0;g.hero.position.set(0,0,0);for(const e of g.enemies){e.alive=false;e.mesh.visible=false;}g.adventureCamera.yaw=0;g.adventureCamera.pitch=-.10;g.adventureCamera.update(0,g.player,[],{snap:true});}
+// Legacy arena checks intentionally use the old flat physics baseline. The terrain-run
+// checks below never call this fixture and retain the real terrain and scenery.
+function arena(){g.world.obstacles=[];g.world.patches=[];delete g.world.groundHeightAt;g.player.x=g.player.z=0;Object.assign(g.player,{y:0,groundHeight:0,jumpVelocity:0,jumpRest:0,crouch:0,landTime:0});g.hero.position.set(0,0,0);for(const e of g.enemies){e.alive=false;e.mesh.visible=false;}g.adventureCamera.yaw=0;g.adventureCamera.pitch=-.10;g.adventureCamera.update(0,g.player,[],{snap:true});}
 function pointer(target,type,opts={}){const init={bubbles:true,pointerId:1,pointerType:'mouse',button:0,buttons:0,clientX:500,clientY:300,...opts},mouseTypes={pointerdown:'mousedown',pointerup:'mouseup',pointermove:'mousemove'};if(init.pointerType==='mouse'&&mouseTypes[type])target.dispatchEvent(new win.MouseEvent(mouseTypes[type],init));else target.dispatchEvent(new win.PointerEvent(type,init));}
 function mouseMove(target,x,y,opts={}){const event=new win.MouseEvent('mousemove',{bubbles:true,buttons:0,clientX:x,clientY:y,...opts});for(const key of['movementX','movementY'])if(key in opts)Object.defineProperty(event,key,{value:opts[key]});target.dispatchEvent(event);}
 // These substitutions exercise game lifecycle handling, not real browser permission or pointer capture.
@@ -237,6 +239,7 @@ function positionClusterEdge(mode){
  throw Error('真实景物簇附近没有安全的近景站位');
 }
 function positionPreview(mode,place){
+ if(place==='terrain-approach'||place==='terrain-bank'){positionTerrainApproach(mode,place==='terrain-bank');return;}
  if(place==='grass'){const plant=g.world.adventureGroundDetail.userData.records.find(p=>p.kind==='tuft'&&p.biome==='forest'&&Math.hypot(p.x-g.world.spawn.x,p.z-g.world.spawn.z)<16);assert(plant,'缺少草层');g.player.x=plant.x;g.player.z=plant.z+2;g.adventureCamera.yaw=Math.PI;g.adventureCamera.pitch=-.58;}
  if(place==='cluster-edge')positionClusterEdge(mode);
  if(place==='fern'){const plant=g.world.habitatDetail.userData.records.find(p=>p.kind==='fern'&&Math.hypot(p.x-g.world.spawn.x,p.z-g.world.spawn.z)<24);assert(plant,'缺少近景蕨草');g.player.x=plant.x;g.player.z=plant.z+2.6;g.adventureCamera.yaw=Math.PI;g.adventureCamera.pitch=-.62;}
@@ -386,8 +389,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=156');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=156');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=157');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=157');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -764,5 +767,122 @@ sceneryEdgeButton.onclick=async()=>{
  }catch(e){errors.push(e.message);publish();$('#status').textContent='景物边缘检查中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
 };
 
+// Real-terrain integration checks: keep scenery, solids, water and encounter arrays intact.
+// Only actor placement/health are fixtures; movement and lifecycle use the production APIs.
+const terrainButton=document.createElement('button');terrainButton.id='terrain-run';terrainButton.textContent='真实缓坡与七角色检查';$('#capture').before(terrainButton);
+$('#preview-place').add(new Option('出生地沿小路看缓坡','terrain-approach'));
+$('#preview-place').add(new Option('小路尽头看水岸','terrain-bank'));
+const terrainFloor=(x,z)=>g.world.groundHeightAt?.(x,z)||0;
+function putTerrainPlayer(x,z,yaw=0){
+ for(const k of['w','a','s','d',' ','Shift','Control'])key('keyup',k);
+ const h=terrainFloor(x,z);Object.assign(g.player,{x,z,y:h,groundHeight:h,jumpVelocity:0,jumpRest:0,landTime:0,crouch:0,dash:0,dashTime:0,iceVX:0,iceVZ:0,vx:0,vz:0,inv:9999,attack:9999,pending:0});
+ g.hero.position.set(x,h,z);g.adventureCamera.yaw=yaw;g.adventureCamera.pitch=-.15;g.adventureCamera._ready=false;
+}
+function terrainStandClear(x,z){
+ if(!sceneryStandClear(x,z,.65))return false;
+ if([...(g.world.sites||[]),...(g.world.discoveries||[]),...(g.world.roaming||[])].some(p=>Math.hypot(x-p.x,z-p.z)<9))return false;
+ const h=terrainFloor(x,z);return !g.world.overhead.firstHit({x,y:h+.05,z},{x,y:h+g.player.standHeight+1.4,z});
+}
+function terrainLane(){
+ const data=g.world.forestTerrain;assert(data&&typeof g.world.groundHeightAt==='function','真实森林地形未安装');
+ const candidates=[];for(let row=0;row<=data.rows;row++)for(let col=0;col<=data.cols;col++){
+  const x=g.world.ground.position.x-data.width/2+col*data.width/data.cols,z=g.world.ground.position.z-data.height/2+row*data.height/data.rows,h=terrainFloor(x,z);
+  if(h>.005)candidates.push({x,z,h});
+ }
+ candidates.sort((a,b)=>b.h-a.h);
+ for(const p of candidates.slice(0,240))for(let turn=0;turn<16;turn++){
+  const yaw=turn*Math.PI/8,dx=Math.sin(yaw),dz=Math.cos(yaw);let safe=true;
+  for(let j=0;j<=12;j++){const x=p.x+dx*j*.25,z=p.z+dz*j*.25;if(!terrainStandClear(x,z)){safe=false;break;}}
+  if(safe)return{...p,yaw,dx,dz};
+ }
+ throw Error('固定种子没有找到非零缓坡上安全的 3 米步行路径；没有删障碍伪造测试');
+}
+function positionTerrainApproach(mode,bank=false){
+ const points=g.world.forestHabitats?.approach?.points;assert(points?.length>1,'请使用独立林地预览出生地到水岸路线');
+ const desired=bank?points.at(-1):points[0],target=bank?g.world.ponds.reduce((best,p)=>!best||Math.hypot(p.x-desired.x,p.z-desired.z)<Math.hypot(best.x-desired.x,best.z-desired.z)?p:best,null):points[Math.min(2,points.length-1)];let spot;
+ for(const r of[0,1,2,3]){for(let i=0;i<16;i++){const a=i*Math.PI/8,x=desired.x+Math.sin(a)*r,z=desired.z+Math.cos(a)*r;if(sceneryStandClear(x,z,.7)){spot={x,z};break;}}if(spot)break;}
+ assert(spot&&target,'路线端点没有安全取景位置');putTerrainPlayer(spot.x,spot.z,Math.atan2(target.x-spot.x,target.z-spot.z));g.adventureCamera.pitch=mode==='first'?-.10:-.22;
+ return{stand:spot,target,ground:terrainFloor(spot.x,spot.z)};
+}
+function terrainFrames(n,inspect=()=>{},hz=60){
+ for(let i=0;i<n;i++){g.step(1/hz);assert(g.state==='playing','缓坡检查意外进入 '+g.state);assert(g.player.y>=terrainFloor(g.player.x,g.player.z)-.00001,'脚底穿过真实地形');inspect(i);}
+}
+function checkTerrainHero(hero,mobile=false){
+ select(hero,0,'forest');win.document.querySelector('[data-attack-mode="manual"]').click();const lane=terrainLane(),original=g.world,solids=g.world.obstacles,patches=g.world.patches,sites=g.world.sites,ground=g.world.ground.geometry;
+ putTerrainPlayer(lane.x,lane.z,lane.yaw);g.setView('third');let low=Infinity,high=-Infinity;
+ key('keydown','w');terrainFrames(18,()=>{const h=terrainFloor(g.player.x,g.player.z);low=Math.min(low,h);high=Math.max(high,h);assert(Math.abs(g.player.y-h)<.00001,'走坡浮空 '+hero);assert(g.player.jumpVelocity===0&&g.player.jumpRest===0,'走坡误触发跳跃或落地锁');});key('keyup','w');
+ assert(Math.hypot(g.player.x-lane.x,g.player.z-lane.z)>1,'真实步行未发生');
+ g.setView('first');obstacleJump(mobile);const takeoff=g.player.y;let peak=takeoff;
+ terrainFrames(18,()=>peak=Math.max(peak,g.player.y));assert(peak>takeoff+.85,'坡上跳跃没有足够高度');
+ g.pause();const frozen=[g.time,g.player.y,g.player.jumpVelocity,g.player.groundHeight];g.step(.4);step(1,0);assert(JSON.stringify(frozen)===JSON.stringify([g.time,g.player.y,g.player.jumpVelocity,g.player.groundHeight]),'暂停仍推进坡上跳跃');g.resume();terrainFrames(48);
+ assert(Math.abs(g.player.y-terrainFloor(g.player.x,g.player.z))<.00001&&g.player.jumpVelocity===0,'跳跃没有落回真实地形');
+ putTerrainPlayer(lane.x,lane.z,lane.yaw);key('keydown','w');g.dash();assert(g.player.dashTime>0,'坡上闪避未触发');key('keyup','w');terrainFrames(Math.ceil(dodgeCases[hero].duration*60)+32,()=>assert(Math.abs(g.player.y-terrainFloor(g.player.x,g.player.z))<.00001,'闪避脱离坡面 '+hero));
+ assert(g.player.dashTime===0,'坡上闪避没有恢复');step(1,0);assert(g.camera.position.y>=terrainFloor(g.camera.position.x,g.camera.position.z)+.349,'第一人称镜头入地');g.setView('third');step(1,0);assert(g.camera.position.y>=terrainFloor(g.camera.position.x,g.camera.position.z)+.349,'第三人称镜头入地');
+ putTerrainPlayer(lane.x,lane.z,lane.yaw);const e=g.spawn('mushroom',lane.x+lane.dx*2.6,lane.z+lane.dz*2.6);assert(e,'坡上目标怪物未生成');e.cool=9999;e.speed=0;e.stagger=9999;e.hp=e.maxHp=10000;
+ terrainFrames(2);assert(Math.abs(e.y-terrainFloor(e.x,e.z))<.00001&&Math.abs(e.mesh.position.y-e.y)<.00001,'怪物模型和受击高度没有贴地');
+ if(g.companion){Object.assign(g.companion,{x:lane.x+lane.dx*1.3,z:lane.z+lane.dz*1.3});terrainFrames(12,()=>assert(Math.abs(g.companion.y-terrainFloor(g.companion.x,g.companion.z))<.00001&&Math.abs(g.companionMesh.position.y-g.companion.y)<.00001,'伙伴浮空或受击高度不同步'));}
+ g.hurtEnemy(e,1e8);const orb=g.orbs.at(-1);assert(orb&&Math.abs(orb.mesh.position.y-(terrainFloor(orb.x,orb.z)+.5))<.00001,'掉落没有生成在坡面上');terrainFrames(1);assert(Math.abs(orb.mesh.position.y-(terrainFloor(orb.x,orb.z)+.45+Math.sin(g.time*3)*.08))<.00001,'经验吸引时穿坡');
+ assert(g.world===original&&g.world.obstacles===solids&&g.world.patches===patches&&g.world.sites===sites&&g.world.ground.geometry===ground,'测试改动了真实世界或移除了地形');
+ g.player.inv=0;g.mirage.reset();g.damage(1e8,g.player.x,g.player.z,'poison');assert(g.state==='lost'&&Math.abs(g.player.y-terrainFloor(g.player.x,g.player.z))<.00001&&g.player.jumpVelocity===0,'结束没有清理垂直状态');step(1,0);
+ return{hero,source:mobile?'触控跳跃按钮与手机尺寸模拟，非真机':'真实键盘 W / Space 与生产闪避',lane,walkHeights:[low,high],jumpRise:peak-takeoff,...reportFrame()};
+}
+function checkTerrainPoison(){
+ select('wuling',0,'forest');const lane=terrainLane();putTerrainPlayer(lane.x,lane.z,lane.yaw);const w=weaponStats(g.player);assert(g.poison.cast(w,g.player,lane.yaw,{x:lane.x,z:lane.z}),'毒囊没有施放');terrainFrames(90);
+ const fog=g.poisonVFX.fog.find(m=>m.visible);assert(g.poison.clouds.length===1&&fog,'毒囊没有落地并形成毒雾');fog.updateWorldMatrix(true,false);const pos=fog.geometry.attributes.position,p=new T.Vector3();let maximum=0;
+ for(let i=0;i<pos.count;i++){p.fromBufferAttribute(pos,i).applyMatrix4(fog.matrixWorld);const h=terrainFloor(p.x,p.z);maximum=Math.max(maximum,h);assert(Math.abs(p.y-h-.07)<.00002,'毒雾网格没有逐点贴合地形');}
+ assert(maximum>.005,'毒雾测试落在了平地');const oldWorld=g.world,oldTerrain=oldWorld.forestTerrain,geometry=oldWorld.ground.geometry,fogGeometry=fog.geometry;let released=0,fogReleased=0;geometry.addEventListener('dispose',()=>released++);fogGeometry.addEventListener('dispose',()=>fogReleased++);
+ g.menu();assert(oldTerrain.disposed&&released===1&&!oldWorld.groundHeightAt,'返回大厅没有释放旧地形/查询');assert(!g.poison.clouds.length&&!g.poisonVFX.fog.some(m=>m.visible)&&fogReleased===1,'返回大厅残留毒雾/贴地几何');g.start();step(1,0);
+ assert(g.world!==oldWorld&&g.world.forestTerrain!==oldTerrain&&g.player.jumpVelocity===0&&g.poison.clouds.length===0,'重开继承旧地形或战斗状态');assert(released===1&&fogReleased===1,'重开重复释放旧资源');return{maximum,vertices:pos.count,terrainDisposals:released,fogDisposals:fogReleased,...reportFrame()};
+}
+terrainButton.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
+ try{
+  await load();for(const hero of Object.keys(HERO_LOADOUTS))await check(hero+' 真实林地缓坡：走/跳/闪避/怪物/掉落/死亡',()=>checkTerrainHero(hero));
+  await check('真实坡面毒囊、毒雾逐顶点贴地与重开释放',checkTerrainPoison);
+  for(const map of['snow','ash','sand','coast','confluence'])await check(map+' 沿用旧平地且不带入森林高度',()=>{select('silver',0,map);assert(!g.world.groundHeightAt&&!g.world.forestTerrain,'森林缓坡串入旧地图');assert(g.player.y===0&&g.player.groundHeight===0,'旧地图出生高度变化');return reportFrame();});
+  await load(true,844,390);for(const hero of['silver','lingya','wuling'])await check(hero+' 手机横屏模拟：真实缓坡与触控跳跃',()=>checkTerrainHero(hero,true));
+  errors.push(...win.qaErrors);publish();$('#status').textContent='真实缓坡检查完成：'+results.filter(r=>r.pass).length+'/'+results.length+'；保留实际实体和水域。手机为尺寸/触控模拟，非真机或帧率测试。';
+ }catch(e){errors.push(e.message);publish();$('#status').textContent='真实缓坡检查中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
+};
+// Shared shader clocks and existing canopy motion: no wall-clock timers or test wind.
+const ambientButton=document.createElement('button'),ambientSave=document.createElement('button');ambientButton.id='ambient-run';ambientButton.textContent='微风与水面动效检查';ambientSave.id='ambient-save';ambientSave.textContent='保存微风水岸对比';ambientSave.disabled=true;$('#capture').before(ambientButton,ambientSave);
+function ambientShader(material){const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};material.onBeforeCompile(shader);return shader;}
+function ambientRefs(){
+ const pond=g.world.ponds[0],leaves=g.world.foliage.filter(f=>f.leaf.parent?.userData.treeBiome==='forest').map(f=>f.leaf).sort((a,b)=>a.parent.position.distanceTo(g.hero.position)-b.parent.position.distanceTo(g.hero.position)).slice(0,24),grass=g.world.adventureGroundDetail.children.find(m=>m.geometry?.attributes.groundFlex&&m.count>0);
+ assert(pond&&leaves.length&&grass,'真实水面、森林叶冠或地草缺失');const water=ambientShader(pond.mesh.material),leaf=ambientShader(leaves[0].material),ground=ambientShader(grass.material),waterClock=water.uniforms.waterTime,leafClock=leaf.uniforms.treeBreezeTime,grassClock=ground.uniforms.groundWindTime;
+ assert(waterClock&&leafClock&&grassClock,'微风/水纹没有绑定生产 shader 时钟');assert(water.fragmentShader.includes('waterTime')&&leaf.vertexShader.includes('treeBreezeTime')&&ground.vertexShader.includes('groundWindTime'),'动效 shader 入口缺失');
+ return{pond,leaves,grass,waterClock,leafClock,grassClock};
+}
+function ambientMotion(refs){return{clocks:[refs.waterClock.value,refs.leafClock.value,refs.grassClock.value],leaves:refs.leaves.flatMap(m=>[...m.position.toArray(),...m.quaternion.toArray()])};}
+function ambientStatic(refs){
+ const pose=m=>[...m.position.toArray(),...m.quaternion.toArray(),...m.scale.toArray()],samples=array=>{const out=[array.length];for(let i=0;i<array.length;i+=Math.max(1,Math.floor(array.length/97)))out.push(array[i]);return out;};
+ return JSON.stringify({trunks:refs.leaves.map(m=>{const trunk=m.parent.getObjectByName('tree-trunk');assert(trunk,'叶冠没有对应真实树干');return[...pose(m.parent),...pose(trunk),...samples(trunk.geometry.attributes.position.array)];}),
+  ponds:g.world.ponds.map(p=>({bounds:[p.x,p.z,p.rx,p.rz,p.angle],water:pose(p.mesh),bank:pose(p.bank),waterVertices:samples(p.mesh.geometry.attributes.position.array),bankVertices:samples(p.bank.geometry.attributes.position.array),depth:[0,.5,.9,1.08,1.2].map(r=>waterDepth(p,p.x+Math.cos(p.angle)*p.rx*r,p.z-Math.sin(p.angle)*p.rx*r))})),
+  obstacles:g.world.obstacles.map(o=>[o.x,o.z,o.r,o.height,...pose(o.mesh)]),ground:samples(g.world.ground.geometry.attributes.position.array),grassInstances:samples(refs.grass.instanceMatrix.array)});
+}
+ambientSave.onclick=()=>{const sheet=$('#ambient-contact');if(!sheet)return;const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='forest-next-ambient-water-wind.png';a.click();};
+ambientButton.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;$('#ambient-contact')?.remove();
+ const sheet=document.createElement('canvas'),cellW=590,cellH=390;sheet.id='ambient-contact';sheet.width=cellW*2;sheet.height=cellH*2;sheet.style.cssText='display:block;max-width:100%;height:auto;margin:16px 0';sheet.setAttribute('aria-label','真实森林水岸动效前后：每行左侧起始、右侧两秒后；上桌面、下手机横屏模拟');$('#report').before(sheet);const paint=sheet.getContext('2d');paint.fillStyle='#17272b';paint.fillRect(0,0,sheet.width,sheet.height);
+ function capture(row,col,label){const c=g.renderer.domElement,scale=Math.min(cellW/c.width,(cellH-28)/c.height),x=col*cellW+(cellW-c.width*scale)/2,y=row*cellH+(cellH-28-c.height*scale)/2;paint.drawImage(c,x,y,c.width*scale,c.height*scale);paint.fillStyle='#e4eddf';paint.font='15px sans-serif';paint.fillText(label,col*cellW+12,(row+1)*cellH-8);}
+ try{
+  for(const [row,mobile]of [false,true].entries()){
+   const label=mobile?'手机横屏模拟':'桌面';await load(mobile,mobile?844:1180,mobile?390:720);select('silver',0,'forest');g.setView('first');positionTerrainApproach('first',true);step(4);
+   await check(label+' 微风、水面时钟、暂停恢复和静态碰撞不变',()=>{
+    const refs=ambientRefs(),before=ambientMotion(refs),fixed=ambientStatic(refs),oldWorld=g.world,oldSolids=g.world.obstacles;capture(row,0,label+' · 起始');
+    step(120);const after=ambientMotion(refs);for(let i=0;i<3;i++)assert(Math.abs(after.clocks[i]-before.clocks[i]-2)<.00001,'两秒固定步进未推进生产动效时钟 '+i);
+    assert(after.leaves.some((v,i)=>Math.abs(v-before.leaves[i])>.000001),'两秒后叶冠姿态完全不变');assert(g.world===oldWorld&&g.world.obstacles===oldSolids&&ambientStatic(refs)===fixed,'微风改变树干、岸线、水深、草根、地形或实体碰撞');
+    const stats=reportFrame();assert(stats.calls<2000&&stats.textures<64,'环境绘制或纹理超预算');assert(stats.pixels<=(mobile?1800000:3200000),'环境像素超预算');capture(row,1,label+' · 两秒后');
+    g.pause();const paused=ambientMotion(refs);step(60);assert(JSON.stringify(ambientMotion(refs))===JSON.stringify(paused),'暂停后叶冠/草/水 shader 时钟仍推进');assert(ambientStatic(refs)===fixed,'暂停改变环境位置');g.resume();step(24);const resumed=ambientMotion(refs);assert(resumed.clocks.every((v,i)=>v>paused.clocks[i]),'恢复后动效没有继续');assert(resumed.leaves.some((v,i)=>Math.abs(v-paused.leaves[i])>.000001),'恢复后叶冠没有继续');
+    assert(ambientStatic(refs)===fixed,'恢复后环境碰撞发生变化');return{seconds:2,clockNames:['waterTime','treeBreezeTime','groundWindTime'],before:before.clocks,after:after.clocks,leafCrowns:refs.leaves.length,...stats};
+   });
+   await check(label+' 微风水面重开、隔离存档与真实 GPU 编译',()=>{
+    const old=g.world,terrain=old.forestTerrain;g.menu();g.start();g.player.inv=g.player.attack=9999;g.player.pending=0;step(2);assert(old!==g.world&&terrain.disposed,'重开未更换并回收旧场景');assert(g.player.level===1&&g.player.xp===0&&g.player.jumpVelocity===0,'重开继承战斗状态');
+    const refs=ambientRefs(),before=ambientMotion(refs);step(12);const after=ambientMotion(refs);assert(after.clocks.every((v,i)=>v>before.clocks[i]),'新场景 shader 时钟没有推进');const stats=reportFrame();assert(stats.calls<2000&&stats.textures<64,'重开超出绘制/纹理预算');return{isolatedSave:true,...stats};
+   });
+  }
+  assert(sheet.toDataURL('image/png').startsWith('data:image/png;base64,'),'真实画面对比不能保存');errors.push(...win.qaErrors);publish();$('#status').textContent='微风与水面检查：'+results.filter(r=>r.pass).length+'/'+results.length+'；对比图可保存，手机为尺寸/触控模拟，非真机或帧率结论。';
+ }catch(e){errors.push(e.message);publish();$('#status').textContent='微风水面检查中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);ambientSave.disabled=!$('#ambient-contact');}
+};
 </script>
 </html>

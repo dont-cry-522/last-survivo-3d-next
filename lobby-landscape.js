@@ -1,7 +1,16 @@
-import{waterDepth}from'./water.js?v=156';
+import{waterDepth}from'./water.js?v=157';
 
 // New-run composition only. Resume and free-look never call this function.
 export function entryLandscapeYaw(world){
+ const approach=world.forestHabitats?.approach;
+ if(approach?.points.length>1&&Math.hypot(approach.start.x-world.spawn.x,approach.start.z-world.spawn.z)<.01){
+  let ahead=8;
+  for(let i=1;i<approach.points.length;i++){
+   const a=approach.points[i-1],b=approach.points[i],length=Math.hypot(b.x-a.x,b.z-a.z);if(length<.001)continue;
+   if(ahead<=length||i===approach.points.length-1){const t=Math.min(1,ahead/length),x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;return Math.atan2(x-world.spawn.x,z-world.spawn.z);}
+   ahead-=length;
+  }
+ }
  const places=(world.biomePlaces||[]).filter(p=>p.index===0);
  const target=places.reduce((best,p)=>!best||Math.hypot(p.x-world.spawn.x,p.z-world.spawn.z)<Math.hypot(best.x-world.spawn.x,best.z-world.spawn.z)?p:best,null);
  return target?Math.atan2(target.x-world.spawn.x,target.z-world.spawn.z):0;

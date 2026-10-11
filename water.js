@@ -5,7 +5,7 @@ import{coastLayout}from'./coast-layout.js?v=114';
 import{swimStroke,swimLimb,HERO_SWIM,heroSwimPose,swimTravel}from'./swim-motion.js?v=114';
 import{newHeroAttack}from'./new-hero-motion.js?v=114';
 import{naturalRockGeometry,environmentDetailTexture}from'./biome-scenery.js?v=156';
-import{CLIMATE_LIGHT}from'./environment-lighting.js?v=156';
+import{CLIMATE_LIGHT}from'./environment-lighting.js?v=157';
 import * as T from './vendor/three.module.js';
 const clamp=T.MathUtils.clamp;
 const shore=a=>1+.07*Math.sin(a*3)+.045*Math.cos(a*5);
@@ -97,20 +97,21 @@ function waterSurface(id){
     ${coast?'float ownRadial=radial;radial=coastRadial(waterWorld.xz,1.0,radial);':''}
     float depth=clamp((1.0-radial)/.48,0.0,1.0),edge=1.0-smoothstep(.0,1.0,depth);
     // A slowly advecting field bends and breaks crests across intersecting reaches.
-    vec2 waterFlow=texture2D(waterDetail,waterWorld.xz*.035+vec2(waterTime*.0012,-waterTime*.0008)).rg;
+    vec2 waterFlow=texture2D(waterDetail,waterWorld.xz*.035+${id==='forest'?'vec2(waterTime*.0010,-waterTime*.0012)':'vec2(waterTime*.0012,-waterTime*.0008)'}).rg;
     vec3 shoreGrain=texture2D(waterDetail,waterWorld.xz*.065).rgb;
     float shoreBreak=smoothstep(.23,.76,shoreGrain.y);
     float waterPixel=max(length(dFdx(waterWorld.xz)),length(dFdy(waterWorld.xz)));
     float rippleDetail=1.0-smoothstep(.09,.36,waterPixel);
-    float swellA=waterWorld.x*.65+waterWorld.z*.95-waterTime*.55+waterFlow.x*2.6;
-    float swellB=waterWorld.x*-1.25+waterWorld.z*.48-waterTime*.41+waterFlow.x*1.7-waterFlow.y*.7;
+    float forestBreeze=.65+.35*(.5+.5*sin(waterTime*.42+waterWorld.x*.08+waterWorld.z*.06));
+    float swellA=${id==='forest'?'waterWorld.x*-.74+waterWorld.z*.88-waterTime*.28':'waterWorld.x*.65+waterWorld.z*.95-waterTime*.55'}+waterFlow.x*2.6;
+    float swellB=waterWorld.x*-1.25+waterWorld.z*.48-waterTime*${id==='forest'?'.15':'.41'}+waterFlow.x*1.7-waterFlow.y*.7;
     float rippleA=sin(waterWorld.x*2.8+waterWorld.z*3.9+sin(swellA)*1.5+sin(swellB)*.8-waterTime*.83);
     float rippleB=sin(waterWorld.x*-3.5+waterWorld.z*2.1+sin(swellB)*1.1+waterFlow.y*2.2-waterTime*.62);
-    float light=pow(max(0.0,rippleA),10.0)*smoothstep(.48,.87,rippleB)*(.3+waterFlow.y*.7)*${id==='forest'?'.009':'.038'}*rippleDetail;
+    float light=pow(max(0.0,rippleA),10.0)*smoothstep(.48,.87,rippleB)*(.3+waterFlow.y*.7)*${id==='forest'?'.014*forestBreeze':'.038'}*rippleDetail;
     // Wind crosses the bank in short fragments, never in radial foam rings.
     float lapPhase=swellA*1.35+waterFlow.y*2.0;
     float shoreLap=pow(max(0.0,sin(lapPhase)),5.0)*smoothstep(.72,.88,radial)*(1.0-smoothstep(.95,1.0,radial))*(.3+waterFlow.y*.7)*shoreBreak;
-    float waveHeight=(sin(swellA)*${id==='coast'?'.045':id==='forest'?'.016':'.033'}+sin(swellB)*${id==='coast'?'.026':id==='forest'?'.011':'.020'}+(rippleA+rippleB)*${id==='forest'?'.008':'.0025'}*rippleDetail)*(1.0-edge*${id==='forest'?'.30':'.72'})+shoreLap*.003;
+    float waveHeight=(sin(swellA)*${id==='coast'?'.045':id==='forest'?'.016':'.033'}+sin(swellB)*${id==='coast'?'.026':id==='forest'?'.005':'.020'}+(rippleA+rippleB)*${id==='forest'?'.006':'.0025'}*rippleDetail)*${id==='forest'?'forestBreeze*smoothstep(.015,.24,depth)':'(1.0-edge*.72)'}+shoreLap*.003;
     vec3 deepWater=vec3(${id==='coast'?'.021,.098,.129':id==='snow'?'.029,.086,.126':id==='sand'?'.035,.076,.086':'.012,.050,.048'});
     vec3 shallowWater=vec3(${id==='coast'?'.070,.139,.153':id==='snow'?'.090,.170,.200':id==='forest'?'.021,.064,.055':'.126,.143,.106'});
     vec3 sediment=vec3(${bedStyle.sediment});
@@ -191,7 +192,8 @@ function waterSurface(id){
       float reedPhase=dot(reedAnchor.xz,vec2(.51,.37));
       float reedFlex=clamp(position.y+.5,0.,1.);
       float reedWave=sin(reedTime*1.15+reedPhase)*.7+sin(reedTime*2.1+reedPhase*.6)*.3;
-      vec3 reedBend=vec3(.64,0.,.77)*reedWave*reedFlex*reedFlex*.055;
+      float reedBreeze=.65+.35*(.5+.5*sin(reedTime*.42+reedAnchor.x*.08+reedAnchor.z*.06));
+      vec3 reedBend=vec3(-.644,0.,.765)*reedWave*reedBreeze*reedFlex*reedFlex*.055;
       mat3 reedBasis=mat3(modelMatrix*instanceMatrix);
       transformed+=vec3(dot(reedBend,reedBasis[0])/dot(reedBasis[0],reedBasis[0]),dot(reedBend,reedBasis[1])/dot(reedBasis[1],reedBasis[1]),dot(reedBend,reedBasis[2])/dot(reedBasis[2],reedBasis[2]));
      #endif

@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import {segmentDistance} from './rules.js?v=125';
-import {waterDepth} from './water.js?v=156';
+import {waterDepth} from './water.js?v=157';
 import {bridgeContains} from './coast.js?v=114';
 
 const STEP=2,CLEARANCE=.60,MAX_POINTS=40;
@@ -104,6 +104,46 @@ function ribbonPoints(points){
 }
 
 const routeLength=points=>points.reduce((sum,p,i)=>sum+(i?Math.hypot(p.x-points[i-1].x,p.z-points[i-1].z):0),0);
+function forestApproach(world,navigation){
+ const habitat=world.forestHabitats;if(!habitat||habitat.region||world.regions||!habitat.ponds?.length)return null;
+ const start={x:world.spawn.x,z:world.spawn.z},relic=habitat.relic,candidates=[];
+ for(const [index,pond]of habitat.ponds.slice(0,8).entries()){
+  const c=Math.cos(pond.angle||0),s=Math.sin(pond.angle||0),dx=start.x-pond.x,dz=start.z-pond.z;
+  const facing=Math.atan2((s*dx+c*dz)/pond.rz,(c*dx-s*dz)/pond.rx);
+  for(let i=0;i<12;i++){
+   const a=facing+(i-5.5)*.18,k=1+.07*Math.sin(a*3)+.045*Math.cos(a*5),u=Math.cos(a)*(pond.rx*k+1.8),v=Math.sin(a)*(pond.rz*k+1.8);
+   const shore={x:pond.x+c*u+s*v,z:pond.z-s*u+c*v},distance=Math.hypot(shore.x-start.x,shore.z-start.z);
+   if(distance<7||distance>38)continue;
+   const offset=relic?segmentDistance(shore.x,shore.z,start.x,start.z,relic.x,relic.z):0;
+   candidates.push({pond,shore,distance,index,score:distance+offset*.35});
+  }
+ }
+ candidates.sort((a,b)=>a.score-b.score||a.index-b.index);let searches=0;
+ for(const candidate of candidates){
+  if(searches++===6)break;
+  const points=navigation.route(start,candidate.shore);
+  if(points.length<2||routeLength(points)>Math.min(48,candidate.distance*1.8+8))continue;
+  return{points,pond:candidate.pond,shore:candidate.shore,start};
+ }
+ return null;
+}
+function joinShore(navigation,selected,approach){
+ const original=selected.points;if(!approach||original.length<2)return original;
+ const distance=routeLength(original),limit=Math.min(distance+12,distance*1.35),placeIndex=selected.place?original.findIndex(p=>Math.hypot(p.x-selected.place.x,p.z-selected.place.z)<.001):-1;
+ // Rejoin before a connected place: the existing full passage stays intact.
+ const last=placeIndex>0?Math.max(1,placeIndex-1):original.length-1;
+ let best=Infinity,result=original;
+ for(let join=1;join<=Math.min(last,6);join++){
+  if(routeLength(approach.points)+Math.hypot(approach.shore.x-original[join].x,approach.shore.z-original[join].z)+routeLength(original.slice(join))>Math.min(limit,best))continue;
+  const next=navigation.route(approach.shore,original[join]);if(next.length<2)continue;
+  const points=[...approach.points,...next.slice(1),...original.slice(join+1)],length=routeLength(points);
+  if(points.length>MAX_POINTS||length>limit||length>=best)continue;
+  const a=approach.points.at(-2),b=approach.shore,c=next[1],dot=(b.x-a.x)*(c.x-b.x)+(b.z-a.z)*(c.z-b.z);
+  if(dot<-.35*Math.hypot(b.x-a.x,b.z-a.z)*Math.hypot(c.x-b.x,c.z-b.z))continue;
+  result=points;best=length;
+ }
+ return result;
+}
 function throughPlace(navigation,world,site,start,end,direct){
  if(direct.length<2)return{points:direct,place:null};
  const distance=routeLength(direct),limit=Math.min(distance+35,distance*1.7+12);let best=Infinity,points=direct,place=null;
@@ -141,10 +181,12 @@ function throughPlace(navigation,world,site,start,end,direct){
 export function installExplorationRoutes(world){
  if(world.explorationRoutes)return world.explorationRoutes;
  const navigation=navigator(world),routes=[];
+ const approach=forestApproach(world,navigation);
+ if(approach)world.forestHabitats.approach=approach;
  for(const site of world.sites||[]){
   if(!site.trail?.isMesh||!site.trail.userData.ownedGeometry)continue;
   const region=world.regions?.find(r=>r.id===site.biome),start={x:region?.x??world.spawn.x,z:region?.z??world.spawn.z},end={x:site.x,z:site.z};
-  const selected=throughPlace(navigation,world,site,start,end,navigation.route(start,end)),points=ribbonPoints(selected.points);
+  const selected=throughPlace(navigation,world,site,start,end,navigation.route(start,end)),points=ribbonPoints(site===world.forestHabitats?.relic?joinShore(navigation,selected,approach):selected.points);
   const old=site.trail.geometry;site.trail.geometry=ribbon(points,world);old.dispose();
   routes.push({site,biome:site.biome||world.weather?.kind||'forest',points,start,end,place:selected.place});
  }

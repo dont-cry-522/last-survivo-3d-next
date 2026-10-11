@@ -6,6 +6,8 @@ function bakeForestFloor(world,data,size,extent){
  const inside=(x,z)=>!habitat.region||habitat.region.contains(x,z),pixel=2*extent/size,segments=[],point=new T.Vector3();
  const line=(a,b,width)=>{if(segments.length<2048&&Number.isFinite(a.x+a.z+b.x+b.z)&&Math.hypot(a.x-b.x,a.z-b.z)>.001)segments.push({a,b,width});};
  for(let i=1;i<(world.road?.length||0);i++)line(world.road[i-1],world.road[i],2.2);
+ const approach=world.forestHabitats?.approach;
+ for(let i=1;i<(approach?.points.length||0);i++)line(approach.points[i-1],approach.points[i],.72);
  for(const site of world.sites||[]){
   const trail=site.trail,p=trail?.geometry?.attributes.position;
   // Discovery still owns hidden guides. Do not bake unrevealed destinations

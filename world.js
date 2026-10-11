@@ -1,13 +1,14 @@
 import{bodyTravel}from'./actor-collision.js?v=136';
-import{canMoveBelowOverhead}from'./adventure-overheads.js?v=149';
-import{buildConfluence,biomeWeights}from'./confluence.js?v=156';
-import{addTree,updateTreeDetail}from'./tree-scenery.js?v=153';
+import{followNaturalGround}from'./adventure-mobility.js?v=157';
+import{canMoveBelowOverhead}from'./adventure-overheads.js?v=157';
+import{buildConfluence,biomeWeights}from'./confluence.js?v=157';
+import{addTree,updateTreeDetail,animateTreeCanopy}from'./tree-scenery.js?v=157';
 import{installTactics}from'./map-tactics.js?v=149';
 import{installRoaming}from'./roaming-events.js?v=156';
-import{installDiscoveries}from'./map-discoveries.js?v=156';
+import{installDiscoveries}from'./map-discoveries.js?v=157';
 import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=114';
 import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=156';
-import{districtLayout,buildDistricts}from'./map-districts.js?v=156';
+import{districtLayout,buildDistricts}from'./map-districts.js?v=157';
 import{makeCoastEnemy,animateCoastEnemy,coastProp}from'./coast-models.js?v=146';
 import{installCoast}from'./coast.js?v=114';
 import{coastLayout as buildCoastLayout}from'./coast-layout.js?v=114';
@@ -15,11 +16,11 @@ import{makeBoss,animateBoss,makeSandEnemy,animateSandEnemy}from'./expansion-mode
 import{siteSchedule}from'./site-discovery.js?v=114';
 import{MAP_EVENTS,biomeEvent,eventNodes}from'./map-events.js?v=114';
 import{MAP_HALF,MAP_SCALE}from'./map-layout.js?v=114';
-import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=156';
+import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=157';
 import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=120';
 import{polishEnemyAppearance}from'./enemy-appearance.js?v=120';
 import{REGIONAL_ENEMIES}from'./map-enemies.js?v=114';
-import{groundCue}from'./ground-cues.js?v=114';
+import{groundCue}from'./ground-cues.js?v=157';
 import{heroesReady,createSkinnedHero,animateSkinnedHero}from'./skinned-hero.js?v=146';
 import * as T from './vendor/three.module.js';
 import{makeHero,animateHero}from'./hero-model.js?v=130';
@@ -238,7 +239,7 @@ export function buildWorld(id,seed=1){if(id==='confluence')return buildConfluenc
 export function animateWorld(world,t,focusX=world.spawn.x,focusZ=world.spawn.z){
  if(world.regions){for(const r of world.regions){r.sandstorm=r.id==='sand'?world.sandstorm:null;r.tide=r.id==='coast'?world.tide:null;animateWorld(r,t,focusX,focusZ);}animateScenery(world,t,focusX,focusZ);return;}
  animateWater(world.weather.kind,t);animateScenery(world,t,focusX,focusZ);
- for(const f of world.foliage){updateTreeDetail(f.leaf,focusX,focusZ);const sway=Math.sin(t*1.35+f.phase)*.026+Math.sin(t*2.7+f.phase)*.008;f.leaf.rotation.z=sway;f.leaf.position.x=f.x+sway*1.3;f.leaf.position.z=f.z+Math.cos(t*1.1+f.phase)*.015;}
+ for(const f of world.foliage){updateTreeDetail(f.leaf,focusX,focusZ);animateTreeCanopy(f.leaf,t,f);}
  const weather=world.weather,dt=weather.lastTime===undefined?0:Math.max(0,Math.min(.05,t-weather.lastTime));weather.lastTime=t;
  for(let i=0;i<weather.particles.length;i++){
   const p=weather.particles[i],d=weather.dummy;
@@ -268,7 +269,7 @@ export function clearAt(world,x,z,r=.45,feet=0){
  });
 }
 export function supportHeight(world,p,r=.45){
- let ground=0;
+ let ground=world.groundHeightAt?.(p.x,p.z)||0;
  for(const o of world.obstacles){
   const top=o.sceneryHeight??o.height;
   // Never pull an actor up a side wall. Missing heights remain solid, not platforms.
@@ -277,8 +278,18 @@ export function supportHeight(world,p,r=.45){
  }
  return ground;
 }
-function actorClearAt(world,p,x,z,r,feet){return clearAt(world,x,z,r,feet)&&(!(feet>0)||canMoveBelowOverhead(world,p,x,z));}
+function actorClearAt(world,p,x,z,r,feet){return clearAt(world,x,z,r,feet)&&(typeof p.groundHeight!=='number'||canMoveBelowOverhead(world,p,x,z));}
 export function moveActor(world,p,dx,dz,r=.45){
+ const x=p.x,z=p.z;moveActorFlat(world,p,dx,dz,r);followTerrain(world,p,x,z);
+}
+export function followTerrain(world,p,fromX,fromZ){
+ if(!world.groundHeightAt||p.role==='flyer')return;
+ const floor=world.groundHeightAt(p.x,p.z)||0;
+ if(typeof p.groundHeight==='number'){
+  followNaturalGround(p,world.groundHeightAt(fromX,fromZ)||0,floor);p.groundHeight=supportHeight(world,p);
+ }else p.y=floor;
+}
+function moveActorFlat(world,p,dx,dz,r=.45){
  if(p.boss)r=1.6;
  const feet=typeof p.groundHeight==='number'?p.y||0:0,travel=bodyTravel(world,p,dx,dz,r);
  const x=p.x+dx*travel,z=p.z+dz*travel;

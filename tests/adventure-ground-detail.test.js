@@ -407,3 +407,20 @@ test('forest transition planting keeps rotated scenery passages clear in both fo
   cleanup(world);
  }
 });
+
+test('near-shore approaches retain a clear walking strip while the same cover budget frames its sides',()=>{
+ for(const seed of[7,522,43837033]){
+  const world=scenicWorld('forest',seed),approach=world.forestHabitats.approach;assert(approach);
+  const snapshot=state(world),layers=[installAdventureGroundDetail(world,'forest'),installHabitatDetail(world,'forest')];
+  assert.equal(layers[0].userData.records.length,1200);assert.equal(layers[0].children.length,2);assert(layers[1].children.length<=16);assert.equal(state(world),snapshot);
+  for(const [layer,group]of layers.entries()){
+   const footprint=layer?1.15:.55;let framed=0;
+   for(const p of group.userData.records){
+    let distance=Infinity;for(let i=1;i<approach.points.length;i++){const a=approach.points[i-1],b=approach.points[i];distance=Math.min(distance,segmentDistance(p.x,p.z,a.x,a.z,b.x,b.z));}
+    assert(distance>=1.65+footprint-1e-7,'new cover fills the dry walking approach');if(distance<9)framed++;
+   }
+   assert(framed>8,'the walking approach lost its foreground vegetation');
+  }
+  cleanup(world);
+ }
+});

@@ -1,6 +1,6 @@
 import {applyFernSurface} from './fern-surfaces.js?v=156';
-import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=153';
-import{sceneryRhythmAt}from'./exploration-composition.js?v=144';
+import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=157';
+import{sceneryRhythmAt}from'./exploration-composition.js?v=157';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
@@ -31,7 +31,8 @@ material.onBeforeCompile=shader=>{
   #endif
   float grassWave=sin(groundWindTime*1.35+grassPoint.x*.7+grassPoint.z*.45)*.7+sin(groundWindTime*2.1+grassPoint.z*1.2)*.3;
   // Only blade tips move. Stones/twigs carry zero flexibility, and roots stay buried.
-  vec3 grassBend=vec3(-.644,0.,.765)*grassWave*groundFlex*.035;
+  float grassBreeze=.65+.35*(.5+.5*sin(groundWindTime*.42+grassPoint.x*.08+grassPoint.z*.06));
+  vec3 grassBend=vec3(-.644,0.,.765)*grassWave*grassBreeze*groundFlex*.035;
   #ifdef USE_INSTANCING
    mat3 grassBasis=mat3(modelMatrix*instanceMatrix);
    grassBend=vec3(dot(grassBend,grassBasis[0])/dot(grassBasis[0],grassBasis[0]),dot(grassBend,grassBasis[1])/dot(grassBasis[1],grassBasis[1]),dot(grassBend,grassBasis[2])/dot(grassBasis[2],grassBasis[2]));
@@ -226,6 +227,7 @@ function layoutSeed(world,mapId){
 
 function routesFor(world){
  const routes=world.road?[{points:world.road,width:5.8}]:[];
+ const approach=world.forestHabitats?.approach;if(approach?.points.length>1)routes.push({points:approach.points,width:1.65});
  for(const site of world.sites||[]){
   const p=site.trail?.geometry?.attributes.position;if(!p)continue;
   const points=[];for(let i=0;i+3<p.count;i+=4)points.push({x:(p.getX(i+1)+p.getX(i+2))*.5,z:(p.getZ(i+1)+p.getZ(i+2))*.5});
@@ -267,6 +269,11 @@ function softenSceneryEdges(world,mapId,records,footprint,allowed){
   ...places.map((p,index)=>({...p,edge:'place',index,weight:3}))
  ].filter(p=>p.solids?.length);
  if(!sources.length)return;
+ const approach=world.forestHabitats?.approach;
+ if(approach)for(const source of sources)if(source.biome==='forest'){
+  let distance=Infinity;for(let i=1;i<approach.points.length;i++){const a=approach.points[i-1],b=approach.points[i];distance=Math.min(distance,segmentDistance(source.x,source.z,a.x,a.z,b.x,b.z));}
+  source.weight*=1+(1-T.MathUtils.smoothstep(distance,5,15))*.65;
+ }
  const random=seeded(layoutSeed(world,mapId)^(footprint===FOOTPRINT?0x2ce459:0x7ab913)),budget=Math.floor(records.length*.22),weight=sources.reduce((n,p)=>n+p.weight,0),donors=new Map();
  const quadrant=p=>Number(p.x>=0)+Number(p.z>=0)*2,key=p=>p.biome+':'+quadrant(p);
  // Keep road shoulders, near-spawn cover, and existing scenery-edge growth.
@@ -276,7 +283,7 @@ function softenSceneryEdges(world,mapId,records,footprint,allowed){
   const k=key(p);if(!donors.has(k))donors.set(k,[]);donors.get(k).push(i);
  }
  const lanes=[];
- for(const route of world.explorationRoutes||[])for(let i=1;i<route.points.length;i++){
+ for(const route of [...(world.explorationRoutes||[]),...(approach?[approach]:[])])for(let i=1;i<route.points.length;i++){
   const a=route.points[i-1],b=route.points[i],r=2+footprint;
   lanes.push({a,b,r,minX:Math.min(a.x,b.x)-r,maxX:Math.max(a.x,b.x)+r,minZ:Math.min(a.z,b.z)-r,maxZ:Math.max(a.z,b.z)+r});
  }
@@ -337,7 +344,7 @@ function connectForestCover(world,mapId,records,footprint,allowed){
   const p=records[i];if(p.biome!=='forest'||p.shoulder||near(p.x,p.z,world.spawn,20))continue;
   const key=p.kind+':'+quadrant(p);if(!donors.has(key))donors.set(key,[]);donors.get(key).push(i);
  }
- const lanes=(world.explorationRoutes||[]).flatMap(r=>r.points.slice(1).map((b,i)=>({a:r.points[i],b}))),shoulderAllowed=floor?placementFilter(world,footprint,true):allowed;
+ const lanes=[...(world.explorationRoutes||[]),...(habitat.approach?[habitat.approach]:[])].flatMap(r=>r.points.slice(1).map((b,i)=>({a:r.points[i],b}))),shoulderAllowed=floor?placementFilter(world,footprint,true):allowed;
  const passages=(world.biomePlaces||[]).map(p=>({...p,c:Math.cos(p.angle||0),s:Math.sin(p.angle||0)}));
  let moved=0;
  for(const [sourceIndex,source]of sources.entries()){
@@ -347,7 +354,7 @@ function connectForestCover(world,mapId,records,footprint,allowed){
    const along=(random()-.5)*7.5,across=(random()-.5)*2.8,x=source.x+Math.sin(source.angle)*along+Math.cos(source.angle)*across,z=source.z+Math.cos(source.angle)*along-Math.sin(source.angle)*across;
    if(region&&!region.contains(x,z))continue;
    const h=forestHabitatAt(world,x,z),rhythm=sceneryRhythmAt(world,x,z);
-   if(source.zone==='shade'&&h.shade<.2||source.zone==='bank'&&h.bank<.22||rhythm.opening>.78)continue;
+   if(source.zone==='shade'&&h.shade<.2||source.zone==='bank'&&h.bank<.22||rhythm.opening>.78&&!habitat.approach)continue;
    if(lanes.some(({a,b})=>segmentDistance(x,z,a.x,a.z,b.x,b.z)<2+footprint))continue;
    if(passages.some(p=>{const dx=x-p.x,dz=z-p.z;return Math.abs(p.c*dx-p.s*dz)<3.1+footprint&&Math.abs(p.s*dx+p.c*dz)<10+footprint;}))continue;
    if(!(source.zone==='shoulder'?shoulderAllowed:allowed)(x,z)||records.some(p=>near(x,z,p,floor?(source.zone==='shade'||source.zone==='bank'?.64:.9):.62)))continue;
@@ -555,6 +562,7 @@ export function installHabitatDetail(world,mapId){
  for(const p of records)if(p.biome==='forest'&&(p.kind==='fern'||p.kind==='shrub')){
   const habitat=forestHabitatAt(world,p.x,p.z),growth=.5+.5*Math.sin(p.x*.23+Math.sin(p.z*.17)*1.7);
   p.width*=.84+growth*.40+habitat.shade*.12;p.height*=.76+growth*.22;
+  if(world.forestHabitats?.approach)p.height*=.80+sceneryRhythmAt(world,p.x,p.z).cover*.20;
  }
  const group=new T.Group();group.name='habitat-detail';group.userData={records,centers,disposed:false};
  const dummy=new T.Object3D(),color=new T.Color();

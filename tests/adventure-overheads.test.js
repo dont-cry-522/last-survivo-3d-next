@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
-import {buildWorld,clearAt} from '../world.js';
+import {buildWorld,clearAt,moveActor} from '../world.js';
 import {polishEnvironmentModels} from '../environment-props.js';
 import {installForestVista} from '../forest-vista.js';
 import {AdventureCamera} from '../adventure-camera.js';
-import {createOverheadQuery,mobilityCeiling,canMoveBelowOverhead} from '../adventure-overheads.js';
+import {createOverheadQuery,mobilityCeiling,canMoveBelowOverhead,needsMobilityCeiling} from '../adventure-overheads.js';
 import {installBiomePlaces} from '../biome-places.js';
 
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
@@ -135,5 +135,27 @@ test('destination ceiling rejects entering a thin sloped roof between body sweep
  const w=overheadFixture([roof]),p={x:-2,y:.7,z:0,standHeight:1.8,size:.45};
  assert.equal(canMoveBelowOverhead(w,p,0,0),false);
  assert.equal(canMoveBelowOverhead(w,p,-1.5,0),true);
+ roof.geometry.dispose();roof.material.dispose();
+});
+
+test('ordinary steps on nonzero natural ground cast no roof rays, while platform/jump/crouch retain queries',()=>{
+ let rays=0;const w={half:20,obstacles:[],groundHeightAt:x=>.15+x*.005,overhead:{meshes:[{}],firstHit(){rays++;return null;}}};
+ const player=()=>({x:0,z:0,y:.15,groundHeight:.15,heroId:'scout',standHeight:1.8,jumpVelocity:0,crouch:0});
+ const p=player();assert.equal(needsMobilityCeiling(w,p),false);
+ for(let i=0;i<60;i++){if(needsMobilityCeiling(w,p))mobilityCeiling(w,p);moveActor(w,p,.05,0);close(p.y,w.groundHeightAt(p.x,p.z));}
+ assert.equal(rays,0,'hill walking accidentally entered the airborne roof path');
+ for(const state of[{y:.8,groundHeight:.8},{jumpVelocity:6.4},{crouch:1}]){
+  const q={...player(),...state};rays=0;assert(needsMobilityCeiling(w,q));mobilityCeiling(w,q);moveActor(w,q,.1,0);assert(rays>10,'posture must keep vertical and side checks');
+ }
+ assert(needsMobilityCeiling(w,player(),true),'initial crouch input must query before pose blending');
+ const flat={...w,groundHeightAt:undefined};assert.equal(needsMobilityCeiling(flat,{...player(),y:0,groundHeight:0}),false);assert(needsMobilityCeiling(flat,{...player(),y:.6,groundHeight:.6}));
+ rays=0;moveActor(w,{x:0,z:0,y:2,role:'flyer',size:.4},.1,0);assert.equal(rays,0,'non-mobility flyers retained their old clearance');
+});
+
+test('natural ground exemption never lets a raised platform cross a real overhead',()=>{
+ const roof=boxRoof(0,2.3,0,1,.2,2),w={...overheadFixture([roof]),half:20,obstacles:[],groundHeightAt:()=>.2};
+ const p={x:-2,y:.8,z:0,groundHeight:.8,heroId:'scout',standHeight:1.8};moveActor(w,p,2,0);close(p.x,-2);
+ assert.equal(needsMobilityCeiling(w,{...p,y:.2,groundHeight:.2}),false);
+ close(mobilityCeiling(w,{...p,y:.2},0,0),2.12,'explicit teleport destination query stays available');
  roof.geometry.dispose();roof.material.dispose();
 });

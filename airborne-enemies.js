@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=114';
-import {segmentHitsBody} from './adventure-combat.js?v=123';
+import {segmentHitsBody} from './adventure-combat.js?v=157';
 
 export const AIR_ROSTERS={forest:'duskbat',snow:'frostwing',ash:'cinderwing',sand:'sunscarab',coast:'skyray'};
 export const AIR_ENEMIES={
@@ -16,6 +16,7 @@ export function airWaveEligible(time,enemies,random=Math.random){return time>=24
 // Shares the normal enemy lifecycle and reward path. No independent timers or projectiles.
 export function tickAirborne(e,focus,dt,time,io){
  const cfg=AIR_ENEMIES[e.kind];if(!cfg||!e.alive||dt<=0)return;
+ const floor=(x,z)=>io.groundHeight?.(x,z)||0;
  e.flight??={stage:'orbit',timer:1.6};const f=e.flight;f.timer-=dt;
  const ox=e.x,oy=e.y??cfg.altitude,oz=e.z;
  if(e.stagger>0){f.stage='recover';f.timer=Math.max(f.timer,.65);}
@@ -23,21 +24,21 @@ export function tickAirborne(e,focus,dt,time,io){
   const dx=focus.x-e.x,dz=focus.z-e.z,d=Math.hypot(dx,dz)||1,orbit=d<8?1:0;
   const speed=e.speed*(e.slow>0?.45:1),side=e.id%2?1:-1;
   io.move(e,(dx/d*(d>6?1:0)+dz/d*orbit*side*.6)*speed*dt,(dz/d*(d>6?1:0)-dx/d*orbit*side*.6)*speed*dt);
-  e.y=oy+(cfg.altitude+Math.sin(time*1.7+e.id)*.16-oy)*Math.min(1,dt*3);
-  if(f.timer<=0&&d<11&&!e.targetLost&&io.visible(e)){f.stage='wind';f.timer=cfg.windTime;f.from={x:e.x,z:e.z,y:e.y};const len=Math.hypot(dx,dz)||1;f.to={x:focus.x+dx/len*2,z:focus.z+dz/len*2,y:cfg.pass>1?(io.player().standHeight||1.8)*.85-.3:cfg.pass};f.hit=false;io.sound(e,'wind');}
+  e.y=oy+(floor(e.x,e.z)+cfg.altitude+Math.sin(time*1.7+e.id)*.16-oy)*Math.min(1,dt*3);
+  if(f.timer<=0&&d<11&&!e.targetLost&&io.visible(e)){f.stage='wind';f.timer=cfg.windTime;f.from={x:e.x,z:e.z,y:e.y};const len=Math.hypot(dx,dz)||1;f.to={x:focus.x+dx/len*2,z:focus.z+dz/len*2,y:cfg.pass>1?(io.player().standHeight||1.8)*.85-.3:cfg.pass};f.to.y+=floor(f.to.x,f.to.z);f.hit=false;io.sound(e,'wind');}
  }else if(f.stage==='wind'){
-  e.y=oy+(f.to.y-oy)*Math.min(1,dt*6);
+  e.y=Math.max(floor(e.x,e.z),oy+(f.to.y-oy)*Math.min(1,dt*6));
   if(f.timer<=0){f.stage='strike';f.timer=cfg.strikeTime;f.from={x:e.x,y:e.y,z:e.z};io.sound(e,'attack');}
  }else if(f.stage==='strike'){
   const t=Math.min(1,1-f.timer/cfg.strikeTime),ease=t*t*(3-2*t);
   const nx=f.from.x+(f.to.x-f.from.x)*ease,nz=f.from.z+(f.to.z-f.from.z)*ease;
-  io.move(e,nx-e.x,nz-e.z);e.y=f.from.y+(f.to.y-f.from.y)*ease;
-  const decoy=io.decoy?.();if(!f.hit&&decoy?.alive&&segmentHitsBody(ox,oy+.3,oz,e.x,e.y+.3,e.z,{...decoy,y:0,height:1.8,radius:.4},.22)){f.hit=true;io.hitDecoy(e);}
+  io.move(e,nx-e.x,nz-e.z);e.y=Math.max(floor(e.x,e.z),f.from.y+(f.to.y-f.from.y)*ease);
+  const decoy=io.decoy?.();if(!f.hit&&decoy?.alive&&segmentHitsBody(ox,oy+.3,oz,e.x,e.y+.3,e.z,{...decoy,y:floor(decoy.x,decoy.z),height:1.8,radius:.4},.22)){f.hit=true;io.hitDecoy(e);}
   if(!f.hit&&segmentHitsBody(ox,oy+.3,oz,e.x,e.y+.3,e.z,io.player(),.22)){f.hit=true;io.hit(e);}
   if(f.timer<=0){f.stage='recover';f.timer=1.15;}
  }else{
   // Brief low recovery lets short weapons and ground poison punish a missed pass.
-  e.y=oy+(.25-oy)*Math.min(1,dt*6);
+  e.y=oy+(floor(e.x,e.z)+.25-oy)*Math.min(1,dt*6);
   if(f.timer<=0){f.stage='orbit';f.timer=2.6+(e.id%3)*.4;}
  }
  const a=f.stage==='wind'?Math.atan2(f.to.x-e.x,f.to.z-e.z):Math.hypot(e.x-ox,e.z-oz)>.001?Math.atan2(e.x-ox,e.z-oz):e.mesh.rotation.y;

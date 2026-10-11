@@ -112,3 +112,17 @@ test('real joined coast folds blend continuously where the nearest segment chang
  }
  cleanup(w);
 });
+
+test('short forest approaches frame a sheltered middle and a small open shore without a giant landmark clearing',()=>{
+ const world=corridor();world.explorationRoutes=[{biome:'forest',points:[{x:0,z:0},{x:26,z:0}]}];world.explorationLandmarks=[{biome:'forest',x:19,z:4}];
+ world.forestHabitats={approach:{start:{x:0,z:0},shore:{x:26,z:0},points:[{x:0,z:0},{x:12,z:0},{x:26,z:0}]}};
+ const before=JSON.stringify(world.explorationRoutes),state=installExplorationComposition(world,'forest');assert(state.approach);
+ const start=sceneryRhythmAt(world,1,3),middle=sceneryRhythmAt(world,13,3),shore=sceneryRhythmAt(world,25.8,3);
+ assert(start.opening>.95&&shore.opening>.95);assert(middle.enclosure>.85&&middle.opening<.05,'the entire short walk was flattened into an open clearing');
+ assert(middle.cover>start.cover&&middle.cover>shore.cover);assert.equal(JSON.stringify(world.explorationRoutes),before);
+ for(let x=0;x<30;x+=.25)for(const z of[0,3,6,9,12]){
+  const a=sceneryRhythmAt(world,x,z),b=sceneryRhythmAt(world,x+.001,z+.001);
+  for(const key of['opening','enclosure','cover','shade'])assert(Math.abs(a[key]-b[key])<.004,'approach transition has a sharp field seam');
+ }
+ cleanup(world);
+});

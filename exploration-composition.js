@@ -15,7 +15,7 @@ const smooth=T.MathUtils.smoothstep;
 // cover <= 1 preserves their old collision-free footprint and height budgets.
 export function sceneryRhythmAt(world,x,z){
  const state=world.explorationComposition,region=world.regions?.find(r=>r.contains?.(x,z));
- let biome=region?.id||state?.mapId,distance=Infinity,progress=0,influence=0,opening=0,closed=0;
+ let biome=region?.id||state?.mapId,distance=Infinity,progress=0,influence=0,opening=0,closed=0,approachWeight=0,approachOpen=0,approachClosed=0;
  if(!state)return{biome,distance,progress,enclosure:0,opening:0,cover:1,shade:0};
  for(const route of state.routes){
   if(region&&route.biome!==region.id)continue;
@@ -24,6 +24,12 @@ export function sceneryRhythmAt(world,x,z){
    const d=Math.hypot(x-s.x-s.dx*t,z-s.z-s.dz*t);
    const routeProgress=(s.start+t*s.length)/route.length;
    if(d<distance){distance=d;progress=routeProgress;biome=route.biome;}
+   if(route.approach){
+    const weight=1-smooth(d,3.5,11);approachWeight=Math.max(approachWeight,weight);
+    approachOpen=Math.max(approachOpen,Math.max(1-smooth(routeProgress,.04,.20),smooth(routeProgress,.76,.98))*weight);
+    approachClosed=Math.max(approachClosed,smooth(routeProgress,.12,.32)*(1-smooth(routeProgress,.67,.88))*weight);
+    continue;
+   }
    if(d>=18)continue;
    const weight=1-smooth(d,5,18);influence=Math.max(influence,weight);
    // Each segment contributes a continuous field. Choosing one nearest segment
@@ -34,8 +40,10 @@ export function sceneryRhythmAt(world,x,z){
  }
  for(const landmark of state.landmarks){
   if(region&&landmark.biome!==region.id)continue;
-  opening=Math.max(opening,1-smooth(Math.hypot(x-landmark.x,z-landmark.z),8,20));
+  const compact=state.approach&&landmark.biome==='forest';
+  opening=Math.max(opening,1-smooth(Math.hypot(x-landmark.x,z-landmark.z),compact?4:8,compact?11:20));
  }
+ opening=opening*(1-approachWeight)+approachOpen;closed=closed*(1-approachWeight)+approachClosed;influence=Math.max(influence,approachWeight);
  const enclosure=closed*(1-opening);
  return{biome,distance,progress,enclosure,opening,cover:Math.max(.48,1-opening*.38-influence*(1-enclosure)*.14),shade:enclosure*.10-opening*.025};
 }
@@ -43,18 +51,19 @@ export function sceneryRhythmAt(world,x,z){
 export function installExplorationComposition(world,mapId){
  if(world.explorationComposition)return world.explorationComposition;
  const routes=[];
- for(const source of world.explorationRoutes||[]){
+ const approach=world.forestHabitats?.approach,sources=[...(world.explorationRoutes||[]),...(approach?[{...approach,biome:'forest',approach:true}]:[])];
+ for(const source of sources){
   const points=source.points||[],segments=[];let length=0;
   for(let i=1;i<points.length;i++){
    const a=points[i-1],b=points[i];if(![a?.x,a?.z,b?.x,b?.z].every(Number.isFinite))continue;
    const dx=b.x-a.x,dz=b.z-a.z,d=Math.hypot(dx,dz);if(d<.001)continue;
    segments.push({x:a.x,z:a.z,dx,dz,length:d,start:length});length+=d;
   }
-  if(length>1)routes.push({biome:source.biome||mapId,segments,length});
+  if(length>1)routes.push({biome:source.biome||mapId,segments,length,approach:!!source.approach});
  }
  if(!routes.length)return null;
  const landmarks=(world.explorationLandmarks||[]).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.z));
- const state={mapId,routes,landmarks,trees:0,skippedLowTrees:0,groundVertices:0};world.explorationComposition=state;
+ const state={mapId,routes,landmarks,approach:!!approach,trees:0,skippedLowTrees:0,groundVertices:0};world.explorationComposition=state;
  const protectedMeshes=new Set(landmarks.flatMap(p=>[p.mesh,p.obstacle?.mesh])),protectedObstacles=new Set([...(world.breakables||[]),...landmarks.map(p=>p.obstacle)]);
  const gate=world.forestVista?.gateCenter,box=new T.Box3(),oldScale=new T.Vector3();world.group.updateMatrixWorld(true);
  // Reserve the existing .034-radian canopy sway as well as its resting bounds.

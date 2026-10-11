@@ -13,6 +13,12 @@ test('a new expedition faces its nearest scene entrance without changing spawn o
  assert.equal(entryLandscapeYaw({spawn:{x:0,z:0}}),0);
 });
 
+test('forest entry looks along the first safe bend instead of directly at the lake or distant place',()=>{
+ const world={spawn:{x:0,z:0},biomePlaces:[{x:-20,z:0,index:0}],forestHabitats:{approach:{start:{x:0,z:0},points:[{x:0,z:0},{x:0,z:6},{x:10,z:6}],shore:{x:10,z:6},pond:{x:20,z:0}}}},before=JSON.stringify(world);
+ assert.equal(entryLandscapeYaw(world),Math.atan2(2,6));assert.equal(JSON.stringify(world),before);
+ world.forestHabitats.approach.start={x:50,z:50};assert.equal(entryLandscapeYaw(world),-Math.PI/2,'a remote biome approach stole the player entry view');
+});
+
 test('lobby views use dry clear ground in real maps without changing gameplay or discovery',()=>{
  for(const id of['forest','snow','ash','sand','coast','confluence'])for(const seed of[7,522,43837033]){
   const w=buildWorld(id,seed);installForestVista(w,id);

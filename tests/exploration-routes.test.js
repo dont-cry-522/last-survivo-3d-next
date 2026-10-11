@@ -122,3 +122,25 @@ test('a place reached over a narrow bridge retains high-water safety and the sam
  w.spawn={x:-8*c,z:8*s};Object.assign(w.sites[0],{x:8*c,z:-8*s});w.biomePlaces=[{x:0,z:0,site:w.sites[0]}];
  const r=installExplorationRoutes(w)[0];assert.equal(r.place,w.biomePlaces[0]);checkRoute(w,r);cleanup(w);
 });
+
+test('forest approach chooses an existing reachable near shore without moving gameplay or revealing hidden rewards',()=>{
+ for(const seed of[7,19,522,43837033]){
+  const world=buildWorld('forest',seed);installForestVista(world,'forest');installForestHabitats(world,'forest');installBiomePlaces(world,'forest');
+  const before=state(world);installExplorationRoutes(world);const approach=world.forestHabitats.approach;
+  assert(approach,'no safe near-shore approach for seed '+seed);assert.equal(state(world),before);assert(world.ponds.includes(approach.pond));
+  assert.deepEqual(approach.start,world.spawn);assert.deepEqual(approach.points[0],world.spawn);assert.deepEqual(approach.points.at(-1),approach.shore);
+  assert(length(approach.points)<=48);checkRoute(world,{...approach,end:approach.shore});
+  const pond=approach.pond,c=Math.cos(pond.angle),s=Math.sin(pond.angle),dx=approach.shore.x-pond.x,dz=approach.shore.z-pond.z;
+  const normalized=Math.hypot((c*dx-s*dz)/pond.rx,(s*dx+c*dz)/pond.rz);assert(normalized>1.1&&normalized<1.8,'shore endpoint is not at the actual dry bank');
+  const points=approach.points.map(p=>({...p}));assert.strictEqual(installExplorationRoutes(world),world.explorationRoutes);assert.deepEqual(approach.points,points);cleanup(world);
+ }
+});
+
+test('a short shore detour can join the old guide, while an inaccessible shore preserves its original route',()=>{
+ const world=smallWorld([],[],[{x:0,z:3.5,rx:1,rz:1,angle:0}]);world.forestHabitats={relic:world.sites[0],ponds:world.ponds};
+ const route=installExplorationRoutes(world)[0],approach=world.forestHabitats.approach;assert(approach);checkRoute(world,route);
+ assert(route.points.some(p=>Math.hypot(p.x-approach.shore.x,p.z-approach.shore.z)<1e-6),'the permitted shore visit was not joined to its existing guide');
+ assert(length(route.points)<=16*1.35);assert.deepEqual(route.points.at(-1),{x:8,z:0});cleanup(world);
+ const blocked=smallWorld([{x:0,z:18,r:7}],[],[{x:0,z:18,rx:2,rz:2,angle:0}]);blocked.forestHabitats={relic:blocked.sites[0],ponds:blocked.ponds};
+ const actual=installExplorationRoutes(blocked)[0];assert.equal(blocked.forestHabitats.approach,undefined);checkRoute(blocked,actual);assert.equal(length(actual.points),16);cleanup(blocked);
+});

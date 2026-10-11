@@ -72,34 +72,65 @@ export class EnvironmentLighting{
 const ridgeMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:1,side:T.DoubleSide});
 // Opaque foothill silhouettes live beyond the playable square. No new collision or rewards.
 export function installDistantLandscape(world,id,biomeAt=()=>id){
- const positions=[],colors=[],indices=[],segments=144,rows=5,half=world.half;
+ const positions=[],colors=[],indices=[],segments=192,rows=9,half=world.half;
+ const stone=new T.Color(0x6c776d),snow=new T.Color(0xb8cbd0),basalt=new T.Color(0x746960),sand=new T.Color(0xb59c78),cliff=new T.Color(0x879188);
+ const sample=(biome,angle,ring,t)=>{
+  const p=CLIMATE_LIGHT[biome]||CLIMATE_LIGHT.forest,fade=Math.sin(t*Math.PI),phase=ring*1.7;
+  let rhythm=ring?.61+.19*Math.sin(angle*5+1.6)+.13*Math.sin(angle*11+.3)+.07*Math.cos(angle*19-1.1):.56+.20*Math.sin(angle*7+.8)+.14*Math.sin(angle*13-1)+.10*Math.cos(angle*23+.4);
+  let contour=1,slope=.20*t+.80*t*t,relief=0;
+  const fold=Math.sin(angle*17+phase+t*2.8),gully=.5+.5*Math.sin(angle*29+phase-t*3+Math.sin(angle*7)*.65);
+  if(biome==='forest'){
+   rhythm=ring?.68+.17*Math.sin(angle*4+1.6)+.12*Math.sin(angle*10+.3)+.05*Math.cos(angle*19-1.1):.61+.18*Math.sin(angle*5+.8)+.13*Math.sin(angle*9-1)+.06*Math.cos(angle*16+.4);
+   // Broad wooded shoulders broken by wandering drainage folds, not horizontal bands.
+   slope+=fade*.035;relief=fade*(.045*fold+.023*Math.sin(angle*31-t*5+phase));
+  }else if(biome==='snow'){
+   rhythm=.58+.15*Math.sin(angle*(ring?5:4)+phase)+.19*Math.abs(Math.sin(angle*(ring?9:8)+.4))+.07*Math.sin(angle*17+phase);
+   contour=.94+.22*(.5+.5*Math.sin(angle*11+ring))**2;slope=.07*t+.93*t**1.35;
+   relief=fade*(.065*fold-.060*gully*gully+.023*Math.sin(angle*43+t*4));
+  }else if(biome==='ash'){
+   rhythm=.62+.18*Math.sin(angle*(ring?5:6)+phase)+.12*Math.sin(angle*11+.5)+.045*Math.cos(angle*25+ring);
+   contour=.93+.12*Math.sin(angle*9+ring);slope=.12*t+.88*t**1.7;
+   relief=fade*(.07*fold+.032*Math.sin(t*7+angle*5+phase)-.026*gully);
+  }else if(biome==='sand'){
+   rhythm=.64+.20*Math.sin(angle*(ring?4:3)+phase)+.11*Math.sin(angle*7+.3)+.035*Math.cos(angle*13+ring);
+   contour=.83+.17*Math.sin(angle*3+ring*1.8);slope=.3*t+.7*t*t*(3-2*t);
+   relief=fade*(.032*Math.sin(angle*11+t*4+phase)+.015*Math.sin(angle*21-t*3));
+  }else if(biome==='coast'){
+   // Preserve the low quay-bearing shelf; new relief sits on the upper headlands.
+   contour=.28+.72*(.5+.5*Math.sin(angle*3+ring))**2;
+   const profile=[0,.12,.68,.91,1],q=t*4,k=Math.min(3,Math.floor(q));slope=T.MathUtils.lerp(profile[k],profile[k+1],q-k);
+   relief=fade*Math.sin(angle*29+ring*1.3)*.055+T.MathUtils.smoothstep(t,.50,.95)*fade*(.035*fold-.018*gully);
+  }
+  const top=(ring?1.3:1)*p.height*rhythm*contour,y=t===0?-.13:Math.max(.015,top*(slope+relief)),shade=new T.Color(p.ridge),haze=new T.Color(p.fog);
+  if(biome==='forest')shade.lerp(stone,T.MathUtils.smoothstep(t,.40,.98)*(.11+.16*gully)).multiplyScalar(.94+.06*fold);
+  if(biome==='snow'){
+   const snowline=t+.085*Math.sin(angle*11+phase)-.15*gully*gully+.035*fold;
+   shade.lerp(snow,T.MathUtils.smoothstep(snowline,.42,.93)*.85).multiplyScalar(.94+.06*(1-gully));
+  }
+  if(biome==='ash')shade.lerp(basalt,(.14+.12*(.5+.5*fold))*T.MathUtils.smoothstep(t,.15,.92)).multiplyScalar(.89+.11*(1-gully));
+  if(biome==='sand')shade.lerp(sand,.13+.12*(.5+.5*Math.sin(angle*7-t*2+phase))).multiplyScalar(.95+.05*Math.sin(angle*11+t*3));
+  if(biome==='coast')shade.lerp(cliff,T.MathUtils.smoothstep(t,.32,.82)*(.22+.08*fold)).multiplyScalar(1-.06*gully*T.MathUtils.smoothstep(t,.35,.9));
+  // Keep the second silhouette quieter; the existing scene fog still applies.
+  shade.lerp(haze,(ring?.56:.04)+t*.17).multiplyScalar(.90+t*.11);
+  return{y,shade};
+ };
  for(let ring=0;ring<2;ring++){
   const offset=positions.length/3;
   for(let i=0;i<=segments;i++){
    const angle=i/segments*Math.PI*2,s=Math.sin(angle),c=Math.cos(angle),edge=half/Math.max(Math.abs(s),Math.abs(c));
-   const biome=id==='confluence'?biomeAt(s*edge,c*edge):id,p=CLIMATE_LIGHT[biome]||CLIMATE_LIGHT.forest;
-   const rhythm=ring
-    ?.61+.19*Math.sin(angle*5+1.6)+.13*Math.sin(angle*11+.3)+.07*Math.cos(angle*19-1.1)
-    :.56+.20*Math.sin(angle*7+.8)+.14*Math.sin(angle*13-1)+.10*Math.cos(angle*23+.4);
-   // Each horizon has its own geology: broad dunes, split coastal headlands,
-   // serrated alpine ridges and lower rolling woodland foothills.
-   const contour=biome==='sand'?.78+.22*Math.sin(angle*3+ring*1.8):biome==='coast'?.28+.72*Math.pow(.5+.5*Math.sin(angle*3+ring),2):biome==='snow'?1+Math.abs(Math.sin(angle*17+ring))*.28:biome==='ash'?1+Math.sin(angle*9+ring)*.14:1;
-   const top=(ring?1.3:1)*p.height*rhythm*contour,base=edge+7+ring*16;
-   const color=new T.Color(p.ridge),haze=new T.Color(p.fog);
-   const slope=biome==='coast'?[0,.12,.68,.91,1]:biome==='sand'?[0,.40,.73,.93,1]:biome==='ash'?[0,.16,.42,.80,1]:[0,.10,.35,.69,1];
+   const weights=new Map(),base=edge+7+ring*16;
+   if(id==='confluence'){
+    // Blend a short angular neighborhood at the five-climate boundary, using
+    // the real outer square rather than drawing a separate ring around each region.
+    for(let j=-2;j<=2;j++){const a=angle+j*.024,ss=Math.sin(a),cc=Math.cos(a),r=half/Math.max(Math.abs(ss),Math.abs(cc)),biome=biomeAt(ss*r,cc*r),weight=(3-Math.abs(j))/9;weights.set(biome,(weights.get(biome)||0)+weight);}
+   }else weights.set(id,1);
    for(let row=0;row<rows;row++){
-    const t=row/(rows-1),spur=Math.sin(angle*29+ring*1.3)*Math.sin(t*Math.PI)*.055;
-    const radius=base+row*5.25,y=row===0?-.13:top*(slope[row]+spur);
+    const t=row/(rows-1),radius=base+t*21,shade=new T.Color(0);let y=0;
+    for(const[biome,weight]of weights){const value=sample(biome,angle,ring,t);y+=value.y*weight;shade.r+=value.shade.r*weight;shade.g+=value.shade.g*weight;shade.b+=value.shade.b*weight;}
     positions.push(s*radius,y,c*radius);
-    const shade=color.clone();
-    if(biome==='snow')shade.lerp(new T.Color(0xaac1ca),T.MathUtils.smoothstep(t+Math.sin(angle*11+ring)*.09,.60,.96)*.78);
-    if(biome==='coast')shade.lerp(new T.Color(0x879188),T.MathUtils.smoothstep(t,.32,.82)*.22);
-    if(biome==='ash')shade.multiplyScalar(.91+.09*Math.sin(angle*9+t*13+ring));
-    // Softer distant colors separate the two silhouettes; relief lives outside playable terrain.
-    shade.lerp(haze,(ring?.50:.04)+t*.17).multiplyScalar(.90+t*.11);
     colors.push(shade.r,shade.g,shade.b);
    }
-   if(i<segments)for(let row=0;row<rows-1;row++){const n=offset+i*rows+row;indices.push(n,n+rows,n+1,n+1,n+rows,n+rows+1);}
+   if(i<segments)for(let row=0;row<rows-1;row++){const n=offset+i*rows+row;indices.push(n,n+1,n+rows,n+1,n+rows+1,n+rows);}
   }
  }
  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();

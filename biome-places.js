@@ -1,18 +1,19 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
-import{stoneSurfaceMaterial}from'./environment-props.js?v=143';
-import{waterDepth}from'./water.js?v=146';
+import{batchedSurfaceMaterial,prepareBatchedSurface}from'./environment-props.js?v=147';
+import{waterDepth}from'./water.js?v=147';
 import{bridgeContains}from'./coast.js?v=114';
 import{segmentDistance}from'./rules.js?v=125';
 import{buildWoodlandPlace}from'./woodland-places.js?v=145';
-import{buildRuinPlace}from'./ruin-places.js?v=145';
+import{buildRuinPlace}from'./ruin-places.js?v=147';
 import{buildHarborPlace}from'./harbor-place.js?v=146';
 
 const templates=new Map(),materials=new Map(),HALF_X=9.4,HALF_Z=8.4;
 function finish(category){
  if(materials.has(category))return materials.get(category);
  let material=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:/ice/.test(category)?.28:/metal/.test(category)?.57:.95,metalness:/metal/.test(category)?.55:0,side:T.DoubleSide});
- if(/stone|rock/.test(category)){const base=material;material=stoneSurfaceMaterial(base);base.dispose();}
+ const kind=/wood/.test(category)?'wood':/cloth/.test(category)?'cloth':/stone|rock/.test(category)?'stone':category;
+ const base=material;material=batchedSurfaceMaterial(base,kind);if(material!==base)base.dispose();
  materials.set(category,material);return material;
 }
 
@@ -23,11 +24,12 @@ export function placeTemplate(id){
  const parts=new Map(),solids=[],dummy=new T.Object3D(),tint=new T.Color();
  const kit={piece(category,geometry,color,transform={}){
   const{x=0,y=0,z=0,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1,overhead=false}=transform;
+  prepareBatchedSurface(geometry,/wood/.test(category)?'wood':/cloth/.test(category)?'cloth':category,transform);
   dummy.position.set(x,y,z);dummy.rotation.set(rx,ry,rz);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();geometry.applyMatrix4(dummy.matrix);
   const p=geometry.attributes.position,c=geometry.attributes.color,colors=[];tint.setHex(color);
   for(let i=0;i<p.count;i++){const shade=c?(c.getX(i)+c.getY(i)+c.getZ(i))/3:1;colors.push(tint.r*shade,tint.g*shade,tint.b*shade);}
   geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));if(!geometry.attributes.normal)geometry.computeVertexNormals();
-  for(const name of Object.keys(geometry.attributes))if(!['position','normal','color'].includes(name))geometry.deleteAttribute(name);
+  for(const name of Object.keys(geometry.attributes))if(!['position','normal','color','surfaceCoord','surfaceKind'].includes(name))geometry.deleteAttribute(name);
   if(!geometry.index)geometry.setIndex(Array.from({length:p.count},(_,i)=>i));
   const key=category+(overhead?':roof':'');if(!parts.has(key))parts.set(key,{category,overhead,geometries:[]});parts.get(key).geometries.push(geometry);
  },solid(x,z,r,height){solids.push({x,z,r,height});},solidBox(x,z,w,d,height,angle=0){

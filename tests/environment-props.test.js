@@ -1,10 +1,61 @@
 import test from'node:test';
 import assert from'node:assert/strict';
 import * as T from'../vendor/three.module.js';
-import{polishEnvironmentModels}from'../environment-props.js';
+import{polishEnvironmentModels,prepareBatchedSurface,batchedSurfaceMaterial}from'../environment-props.js';
+import{placeTemplate}from'../biome-places.js';
+import{installEnvironmentClusters}from'../environment-clusters.js';
 import{buildWorld}from'../world.js';
 import{boulderRockGeometry}from'../biome-scenery.js?v=143';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
+
+test('batched grain follows the piece axis and curved rope length without changing original geometry',()=>{
+ const board=new T.BoxGeometry(1,.16,.3),beam=new T.CylinderGeometry(.10,.13,3,8),path=new T.CatmullRomCurve3([new T.Vector3(0,0,0),new T.Vector3(1,.2,.4),new T.Vector3(2,1,.5)]);
+ beam.rotateZ(Math.PI/4);
+ const curve=new T.TubeGeometry(path,12,.018,6,false),rope=new T.TorusGeometry(.4,.025,6,16),cloth=new T.SphereGeometry(.5,10,6);
+ for(const [g,kind,scale,style]of[[board,'wood',{sx:4},1],[beam,'wood',{},1],[curve,'wood',{},3],[rope,'cloth',{},3],[cloth,'cloth',{sx:1.5,sz:.6},2]]){
+  const original=Object.fromEntries(Object.entries(g.attributes).map(([key,a])=>[key,a.array.slice()])),index=g.index.array.slice();
+  assert.strictEqual(prepareBatchedSurface(g,kind,scale),g);
+  for(const [key,data]of Object.entries(original))assert.deepEqual(g.attributes[key].array,data,'surface frame changed '+key);
+  assert.deepEqual(g.index.array,index);assert.equal(g.attributes.surfaceCoord.count,g.attributes.position.count);
+  assert.equal(g.attributes.surfaceCoord.itemSize,4);assert([...g.attributes.surfaceCoord.array].every(Number.isFinite));assert([...g.attributes.surfaceKind.array].every(n=>n===style));
+  const coord=g.attributes.surfaceCoord,ys=Array.from({length:coord.count},(_,i)=>coord.getY(i)),span=Math.max(...ys)-Math.min(...ys);
+  if(g===board)assert(Math.abs(span-4)<1e-6,'wood grain follows the unscaled rather than real board length');
+  if(g===beam)assert(Math.abs(span-3)<1e-5,'diagonal cylinder grain became world-vertical');
+  if(g===curve)assert(span>2.3&&span<2.8,'curved line coordinates lost their distance along the rope');
+  const before=coord.array.slice();g.rotateY(1.3);g.translate(40,0,-20);assert.deepEqual(coord.array,before,'world placement rotates the baked surface frame');g.dispose();
+ }
+});
+
+test('wood and textile batches share finite surface data, shaders and unchanged render budgets across five places and instanced clusters',()=>{
+ const source=new T.MeshStandardMaterial({color:0x9b876c,vertexColors:true});source.onBeforeCompile=s=>{s.fragmentShader='// retained author finish\n'+s.fragmentShader;};source.customProgramCacheKey=()=> 'authored-batch';
+ for(const kind of['wood','cloth']){
+  const material=batchedSurfaceMaterial(source,kind),shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};
+  assert.strictEqual(batchedSurfaceMaterial(source,kind),material);assert.strictEqual(batchedSurfaceMaterial(material,kind),material);assert(material.color.equals(source.color));
+  material.onBeforeCompile(shader);assert(shader.fragmentShader.includes('// retained author finish'));assert.deepEqual(shader.uniforms,{});
+  assert(shader.vertexShader.includes('propCoord=surfaceCoord'));assert(shader.vertexShader.includes('propPoint=position'));assert(!shader.vertexShader.includes('instanceMatrix * vec4(surfaceCoord'),'instance placement must not stretch or swim the piece texture');
+  for(const name of['woodRings','woodRelief','clothWeave','ropeTwist','propDamp'])assert(shader.fragmentShader.includes(name));
+  assert(shader.fragmentShader.indexOf('float woodRelief')<shader.fragmentShader.indexOf('dFdx(woodRelief)'));assert(shader.fragmentShader.indexOf('float propDamp')<shader.fragmentShader.indexOf('roughnessFactor=clamp'));
+  assert(shader.fragmentShader.includes('smoothstep(.009,.04,propPixel)'),'weave detail should fade before becoming subpixel noise');assert(!shader.fragmentShader.includes('undefined'));
+ }
+ assert.notEqual(batchedSurfaceMaterial(source,'wood').customProgramCacheKey(),batchedSurfaceMaterial(source,'cloth').customProgramCacheKey());
+ const stone=batchedSurfaceMaterial(source,'stone'),stoneShader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};stone.onBeforeCompile(stoneShader);
+ assert(stoneShader.fragmentShader.includes('stoneFoot'));assert(stoneShader.fragmentShader.indexOf('float stoneFoot')<stoneShader.fragmentShader.indexOf('roughnessFactor=clamp'));assert(!stoneShader.vertexShader.includes('surfaceCoord'),'stone retains its existing triplanar frame');
+ assert.deepEqual(Object.keys(stoneShader.uniforms).sort(),['rockColor','rockHeight','rockReady']);
+ const metal=new T.MeshStandardMaterial({color:0x687b81,metalness:.55}),cue=new T.MeshStandardMaterial({color:0x6ccbde,transparent:true,opacity:.3});
+ assert.strictEqual(batchedSurfaceMaterial(metal,'metal'),metal);assert.strictEqual(batchedSurfaceMaterial(cue,'cue'),cue);metal.dispose();cue.dispose();
+ for(const id of['forest','snow','ash','sand','coast']){
+  const template=placeTemplate(id);assert(template.batches.length<=5);
+  const w=buildWorld(id,522),state=installEnvironmentClusters(w,id);
+  for(const b of[...template.batches,...state.group.children.filter(o=>o.isInstancedMesh)]){
+   const g=b.geometry,material=b.material;if(!['wood-piece','cloth'].includes(material.userData.propSurface))continue;
+   for(const key of['surfaceCoord','surfaceKind']){assert.equal(g.attributes[key].count,g.attributes.position.count);assert(g.attributes[key].array.every(Number.isFinite));}
+   assert(g.attributes.color.array.every(Number.isFinite));assert(!material.transparent&&!material.map&&!material.normalMap);assert(material.roughness>=.89);
+   if(b.isInstancedMesh)assert(b.instanceMatrix&&b.userData.ownedGeometry);
+  }
+  w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
+ }
+ source.dispose();
+});
 
 test('surface finishes follow wooden beam direction, cache variants and preserve authored material behavior',()=>{
  const wood=new T.MeshStandardMaterial({color:0x76614c,roughness:.75,emissiveIntensity:0}),bronze=new T.MeshStandardMaterial({color:0xb19761,metalness:.4,emissiveIntensity:0}),group=new T.Group();

@@ -4,6 +4,7 @@ import * as T from'../vendor/three.module.js';
 import{EnvironmentLighting,CLIMATE_LIGHT,installDistantLandscape}from'../environment-lighting.js';
 import{polishEnvironmentModels}from'../environment-props.js';
 import{buildWorld,clearAt}from'../world.js';
+import{biomeAt}from'../confluence.js';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 
 test('climate transitions reuse lights and interpolate physical colors without flashes',()=>{
@@ -47,8 +48,9 @@ test('distant scenery stays beyond map bounds and scenery finish preserves playa
   const w=buildWorld(id,7),snapshot=JSON.stringify(w.obstacles.map(o=>[o.x,o.z,o.r])),draws=[];
   w.group.traverse(o=>{if(o.isMesh)draws.push(o);});polishEnvironmentModels(w);
   const after=[];w.group.traverse(o=>{if(o.isMesh)after.push(o);});assert.equal(after.length,draws.length);assert.equal(JSON.stringify(w.obstacles.map(o=>[o.x,o.z,o.r])),snapshot);assert(clearAt(w,w.spawn.x,w.spawn.z,1));
-  const ridge=installDistantLandscape(w,id,()=> 'forest'),position=ridge.geometry.attributes.position;
-  assert.equal(ridge.geometry.index.count/3,2304);assert(!ridge.material.transparent&&!ridge.castShadow&&ridge.userData.ownedGeometry);
+  const ridge=installDistantLandscape(w,id,biomeAt),position=ridge.geometry.attributes.position;
+  assert.equal(ridge.geometry.index.count/3,6144);assert(ridge.geometry.index.count/3<6500);assert(!ridge.material.transparent&&!ridge.castShadow&&ridge.userData.ownedGeometry);
+  assert.equal(ridge.geometry.groups.length,0);assert(!Array.isArray(ridge.material));assert(!ridge.material.map&&!ridge.material.normalMap);
   for(let i=0;i<position.count;i++){assert(Math.max(Math.abs(position.getX(i)),Math.abs(position.getZ(i)))>w.half+4);assert(Number.isFinite(position.getY(i)));}
   const scales=after.map(o=>o.scale.toArray());polishEnvironmentModels(w);assert.deepEqual(after.map(o=>o.scale.toArray()),scales,'second finish changed scale');
   w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
@@ -58,20 +60,20 @@ test('distant layers have different ridgelines, softer far colors and a closed l
  let sharedMaterial;
  for(const id of Object.keys(CLIMATE_LIGHT)){
   const world={half:96,group:new T.Group()},mesh=installDistantLandscape(world,id);
-  const {position,color,normal}=mesh.geometry.attributes,segments=144,ringSize=(segments+1)*5;
-  assert.equal(mesh.geometry.index.count/3,2304);assert.equal(position.count,ringSize*2);
+  const {position,color,normal}=mesh.geometry.attributes,segments=192,rows=9,ringSize=(segments+1)*rows;
+  assert.equal(mesh.geometry.index.count/3,6144);assert.equal(position.count,ringSize*2);
   if(sharedMaterial)assert.equal(mesh.material,sharedMaterial);else sharedMaterial=mesh.material;
   const ratios=[],fog=new T.Color(CLIMATE_LIGHT[id].fog),near=new T.Color(),far=new T.Color();
   const distance=c=>Math.hypot(c.r-fog.r,c.g-fog.g,c.b-fog.b);
   for(let i=0;i<segments;i++){
-   const top=i*5+4;ratios.push(position.getY(top+ringSize)/position.getY(top));
+   const top=i*rows+rows-1;ratios.push(position.getY(top+ringSize)/position.getY(top));
    assert(position.getY(top)>0&&position.getY(top+ringSize)>0);
    near.fromBufferAttribute(color,top);far.fromBufferAttribute(color,top+ringSize);
    assert(distance(far)<distance(near),id+' far ridge lost its haze separation');
   }
   assert(Math.max(...ratios)-Math.min(...ratios)>.5,id+' far ridge repeats a scaled near silhouette');
-  for(let ring=0;ring<2;ring++)for(let row=0;row<5;row++){
-   const first=ring*ringSize+row,last=first+segments*5;
+  for(let ring=0;ring<2;ring++)for(let row=0;row<rows;row++){
+   const first=ring*ringSize+row,last=first+segments*rows;
    for(const attribute of [position,color,normal]){
     const a=new T.Vector3().fromBufferAttribute(attribute,first),b=new T.Vector3().fromBufferAttribute(attribute,last);
     assert(a.distanceTo(b)<1e-6,id+' has an open geometry/color/normal seam');
@@ -79,6 +81,32 @@ test('distant layers have different ridgelines, softer far colors and a closed l
    const n=new T.Vector3().fromBufferAttribute(normal,first);assert(Math.abs(n.length()-1)<1e-6);
   }
   for(const index of mesh.geometry.index.array)assert(index>=0&&index<position.count);
-  mesh.geometry.dispose();
+  world.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
  }
+});
+
+test('geology changes the slopes as well as color, with smooth upward normals and irregular alpine snow cover',()=>{
+ const rows=9,segments=192,profiles=new Map();
+ for(const id of Object.keys(CLIMATE_LIGHT)){
+  const world={half:96,group:new T.Group()},mesh=installDistantLandscape(world,id),{position,normal,color}=mesh.geometry.attributes;
+  const profile=Array(rows).fill(0),snowLine=[];let lower=0,upper=0,maxColorJump=0;
+  for(let i=0;i<segments;i++){
+   const top=position.getY(i*rows+rows-1);
+   for(let row=0;row<rows;row++){
+    const index=i*rows+row;profile[row]+=position.getY(index)/top/segments;
+    const n=new T.Vector3().fromBufferAttribute(normal,index);assert(Math.abs(n.length()-1)<1e-6&&n.y>0,'mountain normals must face the sky rather than relying on back-face correction');
+    const a=new T.Color().fromBufferAttribute(color,index),b=new T.Color().fromBufferAttribute(color,index+rows);
+    maxColorJump=Math.max(maxColorJump,Math.hypot(a.r-b.r,a.g-b.g,a.b-b.b));
+   }
+   const light=index=>color.getX(index)*.2126+color.getY(index)*.7152+color.getZ(index)*.0722;
+   lower+=light(i*rows+1)/segments;upper+=light(i*rows+8)/segments;snowLine.push(light(i*rows+5));
+  }
+  assert(maxColorJump<.18,id+' has a hard vertex-color seam instead of a soft weathered surface');
+  if(id==='snow'){
+   assert(upper>lower+.16,'snow-covered upper slopes need to read above the exposed rock');
+   assert(Math.max(...snowLine)-Math.min(...snowLine)>.025,'snow line is a uniform horizontal paint stripe');
+  }
+  profiles.set(id,profile);world.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
+ }
+ for(const [a,first]of profiles)for(const[b,second]of profiles)if(a<b)assert(first.some((y,i)=>Math.abs(y-second[i])>.015),a+' and '+b+' repeat the same normalized mountain profile');
 });

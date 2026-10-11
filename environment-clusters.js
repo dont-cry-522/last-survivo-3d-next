@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {naturalRockGeometry} from './biome-scenery.js?v=143';
-import {stoneSurfaceMaterial,wornStoneBlock} from './environment-props.js?v=143';
+import {batchedSurfaceMaterial,prepareBatchedSurface,wornStoneBlock} from './environment-props.js?v=147';
 import {addTree} from './tree-scenery.js?v=143';
 import {bridgeContains} from './coast.js?v=114';
 import {seeded,segmentDistance} from './rules.js?v=125';
@@ -10,7 +10,7 @@ const templates=new Map(),finishes=new Map(),BIOMES=['forest','snow','ash','sand
 function finish(kind){
  if(finishes.has(kind))return finishes.get(kind);
  let m=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:kind==='ice'?.32:kind==='metal'?.67:.96,metalness:kind==='metal'?.35:0,side:T.DoubleSide});
- if(kind==='stone'){const base=m;m=stoneSurfaceMaterial(base);base.dispose();}
+ const base=m;m=batchedSurfaceMaterial(base,kind);if(m!==base)base.dispose();
  finishes.set(kind,m);return m;
 }
 const bent=(points,radius=.05)=>new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),6,radius,5,false);
@@ -20,6 +20,7 @@ function clusterTemplate(id,variant){
  const parts=new Map(),dummy=new T.Object3D(),tint=new T.Color();
  const add=(g,material,color=0xffffff,pose={})=>{
   const{x=0,y=0,z=0,sx=1,sy=1,sz=1,rx=0,ry=0,rz=0}=pose;
+  if(material.userData.propSurface==='wood-piece')prepareBatchedSurface(g,'wood',pose);
   dummy.position.set(x,y,z);dummy.scale.set(sx,sy,sz);dummy.rotation.set(rx,ry,rz);dummy.updateMatrix();g.applyMatrix4(dummy.matrix);
   const p=g.attributes.position,c=g.attributes.color,colors=[];tint.setHex(color);
   for(let i=0;i<p.count;i++)colors.push(tint.r*(c?.getX(i)??1),tint.g*(c?.getY(i)??1),tint.b*(c?.getZ(i)??1));

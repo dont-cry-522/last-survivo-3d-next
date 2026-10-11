@@ -215,6 +215,12 @@ function positionPlace(mark){
 }
 function positionPreview(mode,place){
  if(place==='landmark')positionPlace(g.world.explorationLandmarks[0]);
+ if(place==='surface'){
+  const p=g.world.biomePlaces?.[0];if(p){
+   const x=p.x-Math.sin(p.angle)*3.4,z=p.z-Math.cos(p.angle)*3.4;
+   g.player.x=x;g.player.z=z;g.adventureCamera.yaw=p.angle-.75;g.adventureCamera.pitch=-.18;g.adventureCamera._ready=false;
+  }
+ }
  if(place==='horizon'&&g.world.harborHorizon){
   const records=[...g.world.harborHorizon.userData.records].sort((a,b)=>Math.hypot(a.x-g.player.x,a.z-g.player.z)-Math.hypot(b.x-g.player.x,b.z-g.player.z));
   outer:for(const p of records)for(const distance of[28,33,38]){
@@ -278,7 +284,7 @@ $('#habitat-run').onclick=async()=>{
    return{instances:layer.userData.records.length,extraDraws:after.calls-before.calls,extraTriangles:after.triangles-before.triangles,...after};
   });
  }
- const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v146-six-environments.png';a.click();$('#status').textContent='环境检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;publish();
+ const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v147-six-environments.png';a.click();$('#status').textContent='环境检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;publish();
  }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
 };
 $('#third').onclick=()=>preview('third');$('#first').onclick=()=>preview('first');$('#air-portrait').onclick=()=>{const kind=AIR_ROSTERS[$('#preview-map').value]||'duskbat',scene=new T.Scene(),camera=new T.PerspectiveCamera(36,1.5,.1,30),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(360,240);renderer.setClearColor(0x213235);const model=makeAirborne(kind);scene.add(model);animateAirborne({kind,mesh:model,id:1,flight:{stage:'orbit'}},.2);scene.add(new T.HemisphereLight(0xe3efff,0x38462e,2.8));const sun=new T.DirectionalLight(0xffedce,3);sun.position.set(-3,5,4);scene.add(sun);camera.position.set(2,2.8,4);camera.lookAt(0,.25,0);renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='next-bestiary-'+kind+'.png';a.click();renderer.dispose();renderer.forceContextLoss();};$('#capture').onclick=()=>{step(1,0);const a=document.createElement('a');a.href=g.renderer.domElement.toDataURL('image/png');a.download='forest-next-'+g.player.weaponId+'-'+g.adventureCamera.mode+'-f'+(previewShot?.frames||previewDodge?.frames||0)+'.png';a.click();};
@@ -449,6 +455,7 @@ $('#environment-closeups').onclick=async()=>{
 };
 $('#preview-place').add(new Option('地标沿路视角','landmark'));
 $('#preview-place').add(new Option('海港远景近看','horizon'));
+$('#preview-place').add(new Option('场景材质近看','surface'));
 const explorationButton=document.createElement('button');explorationButton.textContent='探索路线与地标检查';$('#capture').before(explorationButton);
 explorationButton.onclick=async()=>{
  const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
@@ -463,7 +470,7 @@ explorationButton.onclick=async()=>{
     const route=routes.find(r=>r.site===landmark.site)||routes.find(r=>r.biome===landmark.biome);assert(route,'地标没有对应路线');
     const point=[...route.points].sort((a,b)=>Math.abs(Math.hypot(a.x-landmark.x,a.z-landmark.z)-22)-Math.abs(Math.hypot(b.x-landmark.x,b.z-landmark.z)-22))[0];
     assert(!g.world.obstacles.some(o=>Math.hypot(point.x-o.x,point.z-o.z)<=o.r+.55),'预览点在实体障碍内');
-    const before=g.world.sites.map(s=>[s.claimed,s.completed,s.availableAt]);g.setView(mode);positionPlace(landmark);assert(g.world.biomePlaces.length===(map==='confluence'?10:2),'成片场景数量不足');
+    const before=g.world.sites.map(s=>[s.claimed,s.completed,s.availableAt]);assert(g.world.environmentGrounding&&!g.world.environmentGrounding.disposed,'场景接地层未接入');g.setView(mode);positionPlace(landmark);assert(g.world.biomePlaces.length===(map==='confluence'?10:2),'成片场景数量不足');
     if(g.state==='paused')g.resume();step(20);g.pause();step(1,0);assert(JSON.stringify(before)===JSON.stringify(g.world.sites.map(s=>[s.claimed,s.completed,s.availableAt])),'景观改变奖励领取与时序');
     for(let p=landmark.mesh;p;p=p.parent)assert(p.visible,'远景被隐藏奖励层遮蔽');
     const frame=reportFrame();assert(frame.calls<2000&&frame.textures<64,'环境渲染超预算');if(mobile)assert(frame.pixels<=1800000,'手机像素超预算');
@@ -474,9 +481,32 @@ explorationButton.onclick=async()=>{
    });
   }
  }
- await check('地标重开回收与新局完整',()=>{const owned=[];g.world.group.traverse(o=>{if(o.userData.ownedGeometry)owned.push(o.geometry);});let disposed=0;for(const geo of new Set(owned))geo.addEventListener('dispose',()=>disposed++);g.menu();assert(disposed===new Set(owned).size,'世界自有几何未完全释放');g.start();step();assert(g.world.explorationLandmarks.length===5,'合集重开地标缺失');return{disposed,...reportFrame()};});
- const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v146-exploration.png';a.click();publish();$('#status').textContent='探索环境完成：'+results.filter(r=>r.pass).length+'/'+results.length;
+ await check('地标重开回收与新局完整',()=>{const groundContact=g.world.environmentGrounding;let contactReleased=0;groundContact.texture.addEventListener('dispose',()=>contactReleased++);const owned=[];g.world.group.traverse(o=>{if(o.userData.ownedGeometry)owned.push(o.geometry);});let disposed=0;for(const geo of new Set(owned))geo.addEventListener('dispose',()=>disposed++);g.menu();assert(disposed===new Set(owned).size,'世界自有几何未完全释放');assert(groundContact.disposed&&contactReleased===1,'接地纹理未释放或重复释放');g.start();step();assert(!g.world.environmentGrounding.disposed&&g.world.environmentGrounding.texture!==groundContact.texture,'新一局沿用旧接地资源');assert(g.world.explorationLandmarks.length===5,'合集重开地标缺失');return{disposed,...reportFrame()};});
+ const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v147-exploration.png';a.click();publish();$('#status').textContent='探索环境完成：'+results.filter(r=>r.pass).length+'/'+results.length;
  }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
+};
+// Fixed-clock render/resource checks only; this does not measure real frame rate.
+const fullscreenEnvironmentButton=document.createElement('button');fullscreenEnvironmentButton.id='fullscreen-environment-run';fullscreenEnvironmentButton.textContent='全屏环境预算检查';$('#capture').before(fullscreenEnvironmentButton);
+fullscreenEnvironmentButton.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
+ try{
+  await load(false,1920,1080);
+  for(const map of['forest','snow','ash','sand','coast','confluence']){
+   select('silver',0,map);
+   for(const mode of['first','third'])await check('1920×1080 '+map+' '+mode+' 环境预算（固定帧）',()=>{
+    g.setView(mode);step(24);g.renderer.shadowMap.needsUpdate=true;step();
+    const frame=reportFrame(),contact=g.world.environmentGrounding,texture=contact?.texture,image=texture?.image;
+    assert(win.innerWidth===1920&&win.innerHeight===1080,'测试视口不是 1920×1080');
+    assert(frame.pixels<=3200000,'全屏绘制像素超出 320 万');assert(frame.calls<2000,'全屏绘制批次超预算');
+    assert(contact&&!contact.disposed&&contact.sources>0,'场景接地资源缺失或已经释放');
+    assert(g.world.ground.material===contact.material&&contact.material.isMeshStandardMaterial,'地面没有使用当前接地材质');
+    assert(image?.width===512&&image.height===512&&image.data?.length===512*512,'接地纹理尺寸或像素数据无效');
+    assert(image.data.some(value=>value>0)&&texture.generateMipmaps,'接地纹理内容为空或缺少远距过滤');
+    return{viewport:[win.innerWidth,win.innerHeight],devicePixelRatio:win.devicePixelRatio,quality:g.renderQuality,groundingSources:contact.sources,groundingTexture:[image.width,image.height],measurement:'fixed-frame render budget, not FPS',...frame};
+   });
+  }
+  errors.push(...win.qaErrors);publish();$('#status').textContent='全屏环境预算完成：'+results.filter(r=>r.pass).length+'/'+results.length+'（固定帧，不代表帧率）';
+ }catch(e){errors.push(e.message);publish();$('#status').textContent='全屏环境预算检查中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
 };
 </script>
 </html>

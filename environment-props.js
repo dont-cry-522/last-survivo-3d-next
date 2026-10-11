@@ -45,12 +45,46 @@ function ashColumn(variant){
  geometry.computeVertexNormals();geometry.computeBoundingBox();geometry.computeBoundingSphere();ashColumns[variant]=geometry;return geometry;
 }
 const materials=new Map();
+// Preserve a metric frame per authored piece before its placement is baked into
+// a batch. Only attributes are added: collision and source positions stay intact.
+export function prepareBatchedSurface(geometry,kind,scale={}){
+ if(kind!=='wood'&&kind!=='cloth')return geometry;
+ if(!geometry.attributes.normal)geometry.computeVertexNormals();
+ const p=geometry.attributes.position,n=geometry.attributes.normal,uv=geometry.attributes.uv,params=geometry.parameters||{};
+ const metric=new T.Vector3(scale.sx??1,scale.sy??1,scale.sz??1),point=new T.Vector3(),normal=new T.Vector3(),center=new T.Vector3(),size=new T.Vector3(),across=new T.Vector3(),along=new T.Vector3(),depth=new T.Vector3();
+ const positions=[],styles=[],tube=geometry.type==='TubeGeometry',cylinder=geometry.type==='CylinderGeometry',torus=geometry.type==='TorusGeometry';
+ const style=kind==='cloth'&&(tube||cylinder||torus)||tube&&params.radius<.03?3:kind==='cloth'?2:1;
+ geometry.computeBoundingBox();geometry.boundingBox.getCenter(center).multiply(metric);geometry.boundingBox.getSize(size).multiply(metric);
+ const axis=size.x>size.y&&size.x>size.z?0:size.z>size.y?2:1,other=axis===0?2:0,last=3-axis-other,centers=[],lengths=[0];
+ if(tube||cylinder){
+  const sides=params.radialSegments,rows=tube?params.tubularSegments:params.heightSegments;
+  for(let row=0;row<=rows;row++){
+   const c=new T.Vector3();for(let j=0;j<sides;j++)c.add(point.fromBufferAttribute(p,row*(sides+1)+j).multiply(metric));c.divideScalar(sides);centers.push(c);
+   if(row)lengths.push(lengths[row-1]+c.distanceTo(centers[row-1]));
+  }
+  if(cylinder){center.copy(centers[0]).add(centers.at(-1)).multiplyScalar(.5);along.copy(centers.at(-1)).sub(centers[0]).normalize();across.fromBufferAttribute(p,0).multiply(metric).sub(centers[0]).normalize();depth.crossVectors(across,along).normalize();}
+ }
+ for(let i=0;i<p.count;i++){
+  point.fromBufferAttribute(p,i).multiply(metric);let x,y,z,end=0;
+  if(tube){
+   const row=Math.floor(i/(params.radialSegments+1)),angle=uv.getY(i)*Math.PI*2,r=point.distanceTo(centers[row]);x=Math.cos(angle)*r;y=lengths[row];z=Math.sin(angle)*r;
+  }else if(cylinder){
+   point.sub(center);x=point.dot(across);y=point.dot(along);z=point.dot(depth);end=Math.abs(normal.fromBufferAttribute(n,i).divide(metric).normalize().dot(along));
+  }else if(torus){
+   const angle=uv.getY(i)*Math.PI*2,s=(metric.x+metric.y+metric.z)/3;x=Math.cos(angle)*params.tube*s;y=uv.getX(i)*Math.PI*2*params.radius*s;z=Math.sin(angle)*params.tube*s;
+  }else{
+   point.sub(center);x=point.getComponent(other);y=point.getComponent(axis);z=point.getComponent(last);end=Math.abs(axis===0?n.getX(i):axis===1?n.getY(i):n.getZ(i));
+  }
+  positions.push(x,y,z,end);styles.push(style);
+ }
+ geometry.setAttribute('surfaceCoord',new T.Float32BufferAttribute(positions,4));geometry.setAttribute('surfaceKind',new T.Float32BufferAttribute(styles,1));return geometry;
+}
 // Explicit scene palettes keep bronze, cloth, crystals and gameplay cues out of
 // the wood/stone finish. Original biome colors remain the base of every surface.
 const woodTones=new Set([0x624c3d,0x68503c,0x76614c,0x99724c,0xd6b571,0x806e54,0x998267,0x887454,0x766c55,0x76624e,0x9e8b70,0x746b57,0x8a7a60]);
 const stoneTones=new Set([0x68796b,0x8d9b88,0xabb398,0x9fada3,0x708c97,0x718c89,0xa2b0a1,0xa49173,0xd2bc94,0xb5a183,0xc6b798,0xa6977c,0xc2b89b,0xbcb092,0x847f6b,0x9d8a6b,0xa2987b,0x796253]);
 function surfaceMaterial(source,kind,axis='y',vertexColors=true){
- const key=kind==='wood'?'wood-'+axis:kind,variant=key+(vertexColors?':colored':':plain');
+ const batched=axis==='piece',weatheredStone=axis==='placed',key=kind==='wood'?'wood-'+axis:kind+(weatheredStone?'-placed':''),variant=key+(batched?':batch':'')+(vertexColors?':colored':':plain');
  if(source.userData.propSurface===key&&source.vertexColors===vertexColors)return source;
  if(!materials.has(source))materials.set(source,new Map());const cached=materials.get(source);
  if(cached.has(variant))return cached.get(variant);
@@ -63,6 +97,11 @@ function surfaceMaterial(source,kind,axis='y',vertexColors=true){
    shader.vertexShader='varying vec3 propPoint,propNormal;\n'+shader.vertexShader;
    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\npropPoint=position;propNormal=normal;');
    shader.fragmentShader='varying vec3 propPoint,propNormal;\n'+shader.fragmentShader;
+   if(batched){
+    shader.vertexShader='attribute vec4 surfaceCoord; attribute float surfaceKind; varying vec4 propCoord; varying float propStyle;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\npropCoord=surfaceCoord;propStyle=surfaceKind;');
+    shader.fragmentShader='varying vec4 propCoord; varying float propStyle;\n'+shader.fragmentShader;
+   }
    if(kind==='stone'){
     Object.assign(shader.uniforms,{rockColor:surfaceUniforms.rockColor,rockHeight:surfaceUniforms.rockHeight,rockReady:surfaceUniforms.rockReady});
     shader.fragmentShader='uniform sampler2D rockColor,rockHeight; uniform float rockReady;\n'+shader.fragmentShader;
@@ -72,7 +111,29 @@ function surfaceMaterial(source,kind,axis='y',vertexColors=true){
     float propPixel=max(length(dFdx(propPoint)),length(dFdy(propPoint)));
     float propDetail=1.0-smoothstep(.025,.12,propPixel);
     float propPatch=.5+.25*sin(dot(propPoint,vec3(4.2,2.6,3.1)))+.25*sin(dot(propPoint,vec3(-2.5,3.4,4.8)));
-    ${kind==='wood'?`vec2 propAcross=propPoint.${across};
+    ${batched?`// Piece coordinates stay attached through both merge and instance transforms.
+     float propFine=1.0-smoothstep(.009,.04,propPixel);
+     float propDamp=(1.0-smoothstep(.04,.85,propPoint.y))*(.55+.45*propPatch);
+     float woodRelief=0.0;
+     if(propStyle<1.5){
+      vec2 woodCross=propCoord.xz;float woodLong=propCoord.y;
+      float woodDrift=sin(woodLong*2.1+woodCross.y*5.0)*.55+sin(woodLong*5.9+woodCross.x*9.0)*.21;
+      float woodRun=.35+.65*smoothstep(-.5,.65,sin(woodLong*2.9+woodCross.x*13.0)+sin(woodLong*.73+woodCross.y*9.0)*.48);
+      float woodGrain=.5+.5*sin(woodCross.x*43.0+woodCross.y*27.0+woodDrift);
+      float woodRings=.5+.5*sin(length(woodCross*vec2(1.0,.84)+vec2(.05,-.08))*49.0+propPatch*.8);
+      float woodEnd=pow(clamp(propCoord.w,0.0,1.0),5.0),woodFibre=mix(woodGrain,woodRings,woodEnd);
+      float woodPores=.5+.5*sin(woodCross.x*106.0+woodCross.y*73.0+woodDrift*2.3);
+      diffuseColor.rgb*=.95+propPatch*.10-propDamp*.07+(woodFibre-.5)*.055*woodRun*propDetail-(1.0-woodPores)*.010*propFine+woodEnd*.018;
+      woodRelief=((woodFibre-.5)*.0013*woodRun+(woodPores-.5)*.00025*propFine)*propDetail;
+     }else{
+      // Unequal warp/weft strengths suggest fibres without a raised checkerboard.
+      float clothWeave=sin((propCoord.x+propCoord.z*.35)*153.0+sin(propCoord.y*2.0)*.3)*.55+sin(propCoord.y*165.0+propCoord.x*.7)*.35;
+      float ropeTwist=sin(propCoord.y*72.0+atan(propCoord.z,propCoord.x+.000001)*3.0);
+      float weave=mix(clothWeave,ropeTwist,step(2.5,propStyle));
+      diffuseColor.rgb*=.96+propPatch*.07-propDamp*.065+weave*.014*propFine;
+      woodRelief=weave*mix(.0003,.00045,step(2.5,propStyle))*propFine;
+     }`
+    :kind==='wood'?`vec2 propAcross=propPoint.${across};
      float propGrain=.5+.5*sin(propAcross.x*39.0+propAcross.y*17.0+sin(propPoint.${along}*3.0+propAcross.y*9.0)*.7);
      float woodEnd=pow(abs(normalize(propNormal).${along}),6.0);
      float woodRings=.5+.5*sin(length(propAcross*vec2(1.0,.85)+vec2(.08,-.035))*56.0+propPatch*.8);
@@ -87,15 +148,20 @@ function surfaceMaterial(source,kind,axis='y',vertexColors=true){
      vec3 stoneAlbedo=texture2D(rockColor,propPoint.yz*.78).rgb*propWeights.x+texture2D(rockColor,propPoint.xz*.78).rgb*propWeights.y+texture2D(rockColor,propPoint.xy*.78).rgb*propWeights.z;
      float stoneHeight=texture2D(rockHeight,propPoint.yz*.78).r*propWeights.x+texture2D(rockHeight,propPoint.xz*.78).r*propWeights.y+texture2D(rockHeight,propPoint.xy*.78).r*propWeights.z;
      diffuseColor.rgb*=mix(vec3(1.),clamp(stoneAlbedo*3.0,vec3(.43),vec3(1.48)),rockReady*.77);
-     float stoneRelief=(stoneHeight-.5)*.012*rockReady*propDetail;`}
+     float stoneRelief=(stoneHeight-.5)*.012*rockReady*propDetail;
+     ${weatheredStone?`// Broad contact grime and sun-worn upper faces keep the original rock palette.
+      float stoneFoot=(1.0-smoothstep(.02,1.1,propPoint.y))*(.55+.45*propPatch);
+      float stoneExposure=max(0.0,normalize(propNormal).y);
+      diffuseColor.rgb*=vec3(.98+propPatch*.035+stoneExposure*.035-stoneFoot*.065);
+      diffuseColor.rgb*=mix(vec3(1.),vec3(1.015,1.005,.98),stoneFoot);`:''}`}
    `);
    shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     vec3 stoneDx=dFdx(-vViewPosition),stoneDy=dFdy(-vViewPosition);
     vec3 stoneRx=cross(stoneDy,normal),stoneRy=cross(normal,stoneDx);
     float stoneDet=dot(stoneDx,stoneRx);
-    normal=normalize(abs(stoneDet)*normal-sign(stoneDet)*(dFdx(${kind==='wood'?'woodRelief':'stoneRelief'})*stoneRx+dFdy(${kind==='wood'?'woodRelief':'stoneRelief'})*stoneRy));
+    normal=normalize(abs(stoneDet)*normal-sign(stoneDet)*(dFdx(${kind==='wood'||batched?'woodRelief':'stoneRelief'})*stoneRx+dFdy(${kind==='wood'||batched?'woodRelief':'stoneRelief'})*stoneRy));
    `);
-   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+(propPatch-.5)*.06,.76,1.0);`);
+   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+(propPatch-.5)*.06${batched?'+propDamp*.035+step(1.5,propStyle)*.045':weatheredStone?'+stoneFoot*.025-stoneExposure*.025':''},.76,1.0);`);
   };
   m.customProgramCacheKey=()=>baseKey+'|prop-surface-'+variant;
  }
@@ -103,6 +169,7 @@ function surfaceMaterial(source,kind,axis='y',vertexColors=true){
 }
 // Merged ruin batches use the same cached PBR finish as individual stones.
 export function stoneSurfaceMaterial(source){return surfaceMaterial(source,'stone');}
+export function batchedSurfaceMaterial(source,kind){return kind==='wood'||kind==='cloth'?surfaceMaterial(source,kind,'piece'):kind==='stone'?surfaceMaterial(source,'stone','placed'):source;}
 export function polishEnvironmentModels(world){
  if(world.regions)installGroundSurface(world.ground,'confluence');
  world.group.traverse(o=>{

@@ -1,4 +1,5 @@
 import{test}from'node:test';import assert from'node:assert/strict';
+import * as T from '../vendor/three.module.js';
 import{buildWorld,clearAt}from'../world.js';import{iceMotion,onIce,onFord,damageTerrain,updateTactics}from'../map-tactics.js';import{terrainAt}from'../water.js';import{updateTide}from'../coast.js';import{advanceRoaming,courierDirection}from'../roaming-events.js';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const dispose=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
@@ -15,6 +16,24 @@ test('ice has a bounded footprint and reports the matching terrain type',()=>{co
 test('timber creates temporary solid cover without trapping occupants and clears on expiry',()=>{
  const w=buildWorld('forest',9),o=w.breakables[0],player={x:o.x,z:o.z+1,size:.45},foes=[],context={player,foes,clear:(x,z,r)=>clearAt(w,x,z,r),fx(){}};
  assert(damageTerrain(o,100,{x:o.x,z:o.z-2}));assert.equal(o.state,'falling');updateTactics(w,0,context);assert.equal(o.age,0);for(let i=0;i<46;i++)updateTactics(w,1/60,context);assert.equal(o.state,'fallen');assert(!w.obstacles.includes(o));assert(w.obstacles.filter(b=>b.owner===o).every(b=>Math.hypot(b.x-player.x,b.z-player.z)>.7));assert(!damageTerrain(o,100,player));for(let i=0;i<500;i++)updateTactics(w,1/60,context);assert.equal(o.state,'spent');assert(!w.obstacles.some(b=>b.owner===o));dispose(w);
+});
+test('fallen timber proxies retain their layout and use the real rotated mesh height',()=>{
+ for(const angle of[0,.7,2.5]){
+  const w=buildWorld('forest',9),o=w.breakables[0],player={x:1000,z:1000,size:.45},context={player,foes:[],clear:()=>true,fx(){}};
+  damageTerrain(o,12,{x:o.x,z:o.z-2});
+  damageTerrain(o,100,{x:o.x-Math.sin(angle)*2,z:o.z-Math.cos(angle)*2});
+  updateTactics(w,.75,context);
+  const proxies=w.obstacles.filter(b=>b.owner===o);assert.equal(proxies.length,5);
+  const vertex=new T.Vector3();let top=-Infinity;
+  o.mesh.traverse(mesh=>{if(mesh.isMesh){const positions=mesh.geometry.attributes.position;for(let i=0;i<positions.count;i++)top=Math.max(top,vertex.fromBufferAttribute(positions,i).applyMatrix4(mesh.matrixWorld).y);}});
+  assert(top>.15&&top<1.08,`the real low trunk should be jumpable, got ${top}`);
+  for(const [i,b]of proxies.entries()){
+   assert(Number.isFinite(b.height));assert(Math.abs(b.height-top)<1e-6);assert.equal(b.sceneryHeight,b.height);assert.equal(b.r,.34);
+   const distance=.35+i*.66;assert(Math.abs(b.x-o.x-Math.sin(angle)*distance)<1e-6);assert(Math.abs(b.z-o.z-Math.cos(angle)*distance)<1e-6);
+  }
+  const height=proxies[0].height;updateTactics(w,1,context);assert(proxies.every(b=>b.height===height));
+  updateTactics(w,7,context);assert(!w.obstacles.some(b=>b.owner===o));dispose(w);
+ }
 });
 test('damaged walls remain solid until they collapse and repeated hits do not restart collapse',()=>{
  const w=buildWorld('sand',12),o=w.breakables[0],context={player:w.spawn,foes:[],clear:()=>true,fx(){}};assert(damageTerrain(o,40,w.spawn));assert.equal(o.state,'standing');assert(w.obstacles.includes(o));damageTerrain(o,60,w.spawn);updateTactics(w,.3,context);assert(!damageTerrain(o,10,w.spawn));updateTactics(w,.3,context);assert.equal(o.state,'spent');assert(!w.obstacles.includes(o));dispose(w);

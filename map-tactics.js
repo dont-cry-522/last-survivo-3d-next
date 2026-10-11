@@ -2,13 +2,14 @@ import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
 import{MAP_HALF}from'./map-layout.js?v=114';
 export const TERRAIN_TIPS={
- forest:'浅色裂口的枯木可以打倒。倒木短暂挡路约 8 秒，追来的怪物也会破坏它；从两端绕行，不能永久堵怪。',
+ forest:'浅色裂口的枯木可以打倒。倒木短暂挡路约 8 秒，可跳过低矮树干或从两端绕行；追来的怪物也会破坏它，不能永久堵怪。',
  snow:'浅蓝裂纹冰面会保留一点滑行惯性，人和地面怪物都会滑。提前转向、借冰面拉开距离；离开冰面立即恢复普通移动。',
  ash:'地火喷发前会冒烟并发出低鸣，提前 1.25 秒预告。把怪物引进裂隙后撤开，喷发会同时伤害双方，重型首领受到较少伤害。',
  sand:'有深色裂纹的残墙可以打碎，也能挡住怪物的远程投射。受击后逐渐破损，不能一直躲在墙后；从缺口穿行。',
  coast:'岸边断续石块连成退潮浅滩。退潮时走浅滩更快，涨潮前有 3 秒提示；涨潮淹没石路后恢复深水，附近栈桥始终可通行。'
 };
 const geometries=new Map(),materials=new Map();
+const fallenBounds=new T.Box3();
 export function terrainMesh(parent,kind,args,color,x=0,y=0,z=0){const key=kind+args.join(',');if(!geometries.has(key))geometries.set(key,new T[kind](...args));if(!materials.has(color))materials.set(color,new T.MeshStandardMaterial({color,roughness:.94}));const m=new T.Mesh(geometries.get(key),materials.get(color));m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;parent.add(m);return m;}
 function deadTimber(parent){
  if(!geometries.has('dead-timber')){
@@ -97,8 +98,12 @@ export function updateTactics(w,dt,{player,foes,clear,fx}){
   if(o.state==='falling'){
    o.mesh.rotation.set(Math.min(1,o.age/.75)**2*Math.PI/2,o.angle,0,'YXZ');
    if(o.age>=.75){w.obstacles=w.obstacles.filter(b=>b!==o);o.state='fallen';o.age=0;
+    // Measure the final rotated vertices once; standing-tree heights would make
+    // this low trunk an invisible wall. Every proxy uses the same safe upper bound.
+    o.mesh.updateWorldMatrix(true,true);
+    const height=Math.max(.15,fallenBounds.setFromObject(o.mesh,true).max.y);
     for(let i=0;i<5;i++){const d=.35+i*.66,x=o.x+Math.sin(o.angle)*d,z=o.z+Math.cos(o.angle)*d;
-     if(clear(x,z,.35)&&[player,...foes.filter(e=>e.alive)].every(p=>Math.hypot(p.x-x,p.z-z)>(p.size||.45)+.65))w.obstacles.push({x,z,r:.34,mesh:o.mesh,owner:o});
+     if(clear(x,z,.35)&&[player,...foes.filter(e=>e.alive)].every(p=>Math.hypot(p.x-x,p.z-z)>(p.size||.45)+.65))w.obstacles.push({x,z,r:.34,height,sceneryHeight:height,mesh:o.mesh,owner:o});
     }fx(o,'fall');
    }
   }else if(o.state==='crumbling'){

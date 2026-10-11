@@ -5,7 +5,7 @@ import {buildWorld,clearAt} from '../world.js';
 import {polishEnvironmentModels} from '../environment-props.js';
 import {installForestVista} from '../forest-vista.js';
 import {AdventureCamera} from '../adventure-camera.js';
-import {createOverheadQuery} from '../adventure-overheads.js';
+import {createOverheadQuery,mobilityCeiling,canMoveBelowOverhead} from '../adventure-overheads.js';
 import {installBiomePlaces} from '../biome-places.js';
 
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
@@ -91,4 +91,49 @@ test('hidden or removed roofs stop blocking and moved parents use their current 
  parent.position.x=8;assert.equal(hitAt(0),null,'old matrix must not leave a ghost roof');assert(hitAt(8),'current parent transform must work without a render');
  parent.removeFromParent();assert.equal(hitAt(8),null);group.add(parent);assert(hitAt(8));
  roof.removeFromParent();assert.equal(hitAt(8),null);parent.add(roof);assert(hitAt(8));
+});
+
+function overheadFixture(parts){
+ const group=new T.Group();
+ for(const part of parts){part.userData.placeOverhead=true;group.add(part);}
+ const w={group};w.overhead=createOverheadQuery(w);return w;
+}
+function boxRoof(x,y,z,width,thickness,depth){
+ const mesh=new T.Mesh(new T.BoxGeometry(width,thickness,depth),new T.MeshBasicMaterial());mesh.position.set(x,y,z);return mesh;
+}
+test('mobility ceiling excludes the platform under raised feet and reports world height',()=>{
+ const platform=boxRoof(0,.4,0,4,.8,4),roof=boxRoof(0,2.75,0,4,.2,4),w=overheadFixture([platform,roof]);
+ const p={x:0,y:.8,z:0,standHeight:1.8,size:.45};
+ close(mobilityCeiling(w,p),2.57);close(p.y,.8);
+ roof.visible=false;assert.equal(mobilityCeiling(w,p),Infinity);
+ roof.visible=true;roof.position.x=7;
+ assert.equal(mobilityCeiling(w,p),Infinity);close(mobilityCeiling(w,p,7,0),2.57);
+ for(const m of[platform,roof]){m.geometry.dispose();m.material.dispose();}
+});
+test('airborne side sweeps block passing through a roof even when the destination is clear',()=>{
+ const roof=boxRoof(0,2.2,0,1,.2,2),w=overheadFixture([roof]),p={x:-2,y:.7,z:0,standHeight:1.8,size:.45};
+ assert.equal(mobilityCeiling(w,p,2,0),Infinity);
+ assert.equal(canMoveBelowOverhead(w,p,2,0),false);
+ assert.equal(canMoveBelowOverhead(w,{...p,y:0},2,0),true,'ordinary ground movement is unchanged');
+ assert.equal(canMoveBelowOverhead(w,{...p,crouch:1},2,0),true,'a body entirely below the roof must fit');
+ assert.equal(canMoveBelowOverhead(w,{...p,y:2.3},2,0),true,'a roof below the feet is a support, not a head collision');
+ assert.equal(canMoveBelowOverhead(w,p,p.x,p.z),true);
+ roof.geometry.dispose();roof.material.dispose();
+});
+test('airborne shoulder radius and single-sided overhead faces are included',()=>{
+ const edge=boxRoof(0,2.43,.45,.4,.06,.14),w=overheadFixture([edge]),p={x:-2,y:.65,z:0,standHeight:1.8,size:.45};
+ assert.equal(w.overhead.firstHit({x:-2,y:2.43,z:0},{x:2,y:2.43,z:0}),null);
+ assert.equal(canMoveBelowOverhead(w,p,2,0),false,'the shoulder must not clip a roof missed by the centre ray');
+ edge.visible=false;assert.equal(canMoveBelowOverhead(w,p,2,0),true);
+ const sheet=new T.Mesh(new T.PlaneGeometry(1,.4),new T.MeshBasicMaterial());sheet.rotation.y=Math.PI/2;sheet.position.set(0,2.43,0);
+ const oneSided=overheadFixture([sheet]);assert.equal(canMoveBelowOverhead(oneSided,p,2,0),false);
+ assert.equal(canMoveBelowOverhead({},p,2,0),true);
+ for(const m of[edge,sheet]){m.geometry.dispose();m.material.dispose();}
+});
+test('destination ceiling rejects entering a thin sloped roof between body sweep levels',()=>{
+ const roof=boxRoof(0,1.83,0,1,.04,2);roof.rotation.z=.15;
+ const w=overheadFixture([roof]),p={x:-2,y:.7,z:0,standHeight:1.8,size:.45};
+ assert.equal(canMoveBelowOverhead(w,p,0,0),false);
+ assert.equal(canMoveBelowOverhead(w,p,-1.5,0),true);
+ roof.geometry.dispose();roof.material.dispose();
 });

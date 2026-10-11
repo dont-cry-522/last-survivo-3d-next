@@ -1,8 +1,9 @@
 import{bodyTravel}from'./actor-collision.js?v=136';
-import{buildConfluence,biomeWeights}from'./confluence.js?v=148';
+import{canMoveBelowOverhead}from'./adventure-overheads.js?v=149';
+import{buildConfluence,biomeWeights}from'./confluence.js?v=149';
 import{addTree,updateTreeDetail}from'./tree-scenery.js?v=143';
-import{installTactics}from'./map-tactics.js?v=114';
-import{installRoaming}from'./roaming-events.js?v=143';
+import{installTactics}from'./map-tactics.js?v=149';
+import{installRoaming}from'./roaming-events.js?v=149';
 import{installDiscoveries}from'./map-discoveries.js?v=148';
 import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=114';
 import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=143';
@@ -14,7 +15,7 @@ import{makeBoss,animateBoss,makeSandEnemy,animateSandEnemy}from'./expansion-mode
 import{siteSchedule}from'./site-discovery.js?v=114';
 import{MAP_EVENTS,biomeEvent,eventNodes}from'./map-events.js?v=114';
 import{MAP_HALF,MAP_SCALE}from'./map-layout.js?v=114';
-import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=148';
+import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=149';
 import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=120';
 import{polishEnemyAppearance}from'./enemy-appearance.js?v=120';
 import{REGIONAL_ENEMIES}from'./map-enemies.js?v=114';
@@ -251,9 +252,12 @@ export function animateWorld(world,t,focusX=world.spawn.x,focusZ=world.spawn.z){
  }
  weather.mesh.instanceMatrix.needsUpdate=true;
 }
-export function clearAt(world,x,z,r=.45){
+// The default remains a ground query for spawns, teleports, rewards and AI.
+export function clearAt(world,x,z,r=.45,feet=0){
  if(!(Math.abs(x)<(world.half||MAP_HALF)-r&&Math.abs(z)<(world.half||MAP_HALF)-r))return false;
  return !world.obstacles.some(o=>{
+  const top=o.sceneryHeight??o.height;
+  if(feet>0&&Number.isFinite(top)&&feet>=top-.001)return false;
   const dx=Math.abs(x-o.x),dz=Math.abs(z-o.z),reach=r+o.r;
   if(dx>=reach||dz>=reach)return false;
   const distance2=dx*dx+dz*dz,reach2=reach*reach;
@@ -263,4 +267,24 @@ export function clearAt(world,x,z,r=.45){
   return distance2<reach2;
  });
 }
-export function moveActor(world,p,dx,dz,r=.45){if(p.boss)r=1.6;const travel=bodyTravel(world,p,dx,dz,r);let x=p.x+dx*travel,z=p.z+dz*travel;if(clearAt(world,x,z,r)){p.x=x;p.z=z;if(travel===1)return;dx*=1-travel;dz*=1-travel;}const sx=p.x+dx*bodyTravel(world,p,dx,0,r);if(clearAt(world,sx,p.z,r))p.x=sx;const sz=p.z+dz*bodyTravel(world,p,0,dz,r);if(clearAt(world,p.x,sz,r))p.z=sz;}
+export function supportHeight(world,p,r=.45){
+ let ground=0;
+ for(const o of world.obstacles){
+  const top=o.sceneryHeight??o.height;
+  // Never pull an actor up a side wall. Missing heights remain solid, not platforms.
+  if(!Number.isFinite(top)||top<=ground||top>(p.y||0)+.001)continue;
+  if(Math.abs(p.x-o.x)<r+o.r&&Math.abs(p.z-o.z)<r+o.r&&Math.hypot(p.x-o.x,p.z-o.z)<r+o.r)ground=top;
+ }
+ return ground;
+}
+function actorClearAt(world,p,x,z,r,feet){return clearAt(world,x,z,r,feet)&&(!(feet>0)||canMoveBelowOverhead(world,p,x,z));}
+export function moveActor(world,p,dx,dz,r=.45){
+ if(p.boss)r=1.6;
+ const feet=typeof p.groundHeight==='number'?p.y||0:0,travel=bodyTravel(world,p,dx,dz,r);
+ const x=p.x+dx*travel,z=p.z+dz*travel;
+ if(actorClearAt(world,p,x,z,r,feet)){p.x=x;p.z=z;if(travel===1)return;dx*=1-travel;dz*=1-travel;}
+ const sx=p.x+dx*bodyTravel(world,p,dx,0,r);
+ if(actorClearAt(world,p,sx,p.z,r,feet))p.x=sx;
+ const sz=p.z+dz*bodyTravel(world,p,0,dz,r);
+ if(actorClearAt(world,p,p.x,sz,r,feet))p.z=sz;
+}

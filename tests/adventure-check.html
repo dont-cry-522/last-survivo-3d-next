@@ -2,7 +2,7 @@
 import * as T from '../vendor/three.module.js';
 import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=123';
 import {HERO_LOADOUTS,WEAPONS} from '../rules.js?v=125';
-import {terrainAt,waterDepth} from '../water.js?v=148';
+import {terrainAt,waterDepth} from '../water.js?v=149';
 import {updateTide} from '../coast.js?v=114';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
@@ -547,6 +547,119 @@ harborButton.onclick=async()=>{
  }
  publish();const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v148-harbor.png';a.click();$('#status').textContent='临水海港完成：'+results.filter(r=>r.pass).length+'/'+results.length;
  }catch(e){errors.push(e.message);publish();$('#status').textContent='临水海港检查中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
+};
+
+// Exercise production input and updates, with rendering only at phase boundaries.
+// Fixed 30/60 Hz simulation is a collision check, not an FPS or device benchmark.
+const obstacleButton=document.createElement('button'),obstaclePreview=document.createElement('button');
+obstacleButton.id='obstacle-run';obstacleButton.textContent='低障碍跳跃检查';obstaclePreview.id='obstacle-preview';obstaclePreview.textContent='低障碍跳跃预览';$('#capture').before(obstacleButton,obstaclePreview);
+let obstacleBox=null;
+function releaseObstacleBox(){if(!obstacleBox)return;obstacleBox.removeFromParent();obstacleBox.geometry.dispose();obstacleBox.material.dispose();obstacleBox=null;}
+function quietObstacleTest(){
+ for(const e of g.enemies){e.alive=false;e.mesh.visible=false;}
+ g.world.sites=[];g.world.discoveries=[];g.world.roaming=[];g.player.inv=9999;g.player.attack=9999;g.player.pending=0;
+ win.document.querySelector('[data-attack-mode="manual"]').click();
+}
+function putObstaclePlayer(x,z,yaw=0){
+ for(const k of['w','a','s','d',' ','Shift','Control'])key('keyup',k);
+ Object.assign(g.player,{x,z,y:0,groundHeight:0,jumpVelocity:0,jumpRest:0,landTime:0,crouch:0,dash:0,dashTime:0,iceVX:0,iceVZ:0,vx:0,vz:0});
+ g.hero.position.set(x,0,z);g.adventureCamera.yaw=yaw;g.adventureCamera.pitch=-.22;g.adventureCamera._ready=false;
+ if(g.companion){g.companion.x=x-3;g.companion.z=z-3;}
+}
+function testObstacleBox(height=.6,x=0,z=0){
+ releaseObstacleBox();const geometry=new T.BoxGeometry(.64,height,.64);
+ // The production renderer lives in the iframe and checks its own typed-array
+ // constructors. Keep test-created vertex/index buffers in that same realm.
+ for(const attribute of[...Object.values(geometry.attributes),geometry.index])if(attribute)attribute.array=new win[attribute.array.constructor.name](attribute.array);
+ const mesh=new T.Mesh(geometry,new T.MeshStandardMaterial({color:0x997852,roughness:.92}));
+ mesh.name='SM_QA_JumpBox';mesh.position.set(x,height/2,z);mesh.castShadow=mesh.receiveShadow=true;g.world.group.add(mesh);obstacleBox=mesh;
+ const obstacle={x,z,r:.46,height,mesh};g.world.obstacles=[obstacle];g.world.ponds=[];g.world.patches=[];g.world.ice=[];g.world.overhead={firstHit:()=>null};return obstacle;
+}
+function obstacleJump(touch=false){
+ if(touch){const button=win.document.querySelector('#jump'),r=button.getBoundingClientRect();assert(r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=win.innerWidth&&r.bottom<=win.innerHeight,'手机跳跃按钮不可见或越界');pointer(button,'pointerdown',{pointerType:'touch',pointerId:71,clientX:r.x+r.width/2,clientY:r.y+r.height/2});pointer(button,'pointerup',{pointerType:'touch',pointerId:71});}
+ else{key('keydown',' ');key('keyup',' ');}
+ assert(g.player.jumpVelocity>0,'跳跃输入没有触发真实起跳');
+}
+function obstacleFrames(hz,seconds,inspect=()=>{}){
+ for(let i=0;i<Math.ceil(hz*seconds);i++){g.step(1/hz);assert(g.state==='playing','检查意外进入 '+g.state);assert([g.player.x,g.player.z,g.player.y,g.player.groundHeight].every(Number.isFinite),'位置或支撑高度无效');inspect(i);}
+}
+function obstacleLanding(hz){obstacleFrames(hz,1);assert(Math.abs(g.player.y-.6)<1e-7&&Math.abs(g.player.groundHeight-.6)<1e-7,'未稳定落在 0.6 米测试箱顶');assert(g.player.jumpVelocity===0,'落顶后仍有跳跃速度');}
+function checkObstacleHero(hero,hz,touch=false){
+ releaseObstacleBox();select(hero);arena();quietObstacleTest();g.setView('third');const box=testObstacleBox();putObstaclePlayer(0,-1.9);
+ let crossed=false;obstacleJump(touch);key('keydown','w');
+ obstacleFrames(hz,.78,()=>{const p=g.player;if(Math.hypot(p.x-box.x,p.z-box.z)<box.r+.45-.001){assert(p.y>=.58,'未越过箱顶就穿过侧面 '+hero);crossed=true;}});key('keyup','w');
+ assert(crossed&&g.player.z>1.1,'没有跳过测试箱 '+hero);obstacleFrames(hz,.35);assert(g.player.y===0&&g.player.groundHeight===0,'越障后未回到地面');
+ putObstaclePlayer(0,-1.9);obstacleJump(touch);key('keydown','w');for(let i=0;i<hz&&g.player.z<-.05;i++)g.step(1/hz);key('keyup','w');obstacleLanding(hz);
+ const top=g.player.y;obstacleJump(touch);let peak=top;obstacleFrames(hz,.3,()=>{peak=Math.max(peak,g.player.y);});assert(peak>top+.95,'站上箱顶后不能再次正常起跳');const velocity=g.player.jumpVelocity;key('keydown',' ');key('keyup',' ');assert(g.player.jumpVelocity===velocity,'空中出现二段跳');obstacleLanding(hz);
+ let falling=false;key('keydown','w');obstacleFrames(hz,.6,()=>{if(g.player.z>.91&&g.player.y>0&&g.player.y<.6)falling=true;});key('keyup','w');obstacleFrames(hz,.3);assert(falling&&g.player.y===0&&g.player.groundHeight===0,'走下箱顶没有自然下落');
+ box.height=5;obstacleBox.scale.y=5/.6;obstacleBox.position.y=2.5;putObstaclePlayer(0,-1.9);obstacleJump(touch);key('keydown','w');obstacleFrames(hz,.9);key('keyup','w');assert(g.player.z<=-.91+.001,'跳跃穿过高障碍');
+ box.height=.6;obstacleBox.scale.y=1;obstacleBox.position.y=.3;
+ if(hero==='scout'){putObstaclePlayer(0,-1.9);key('keydown','w');key('keydown','Shift');key('keyup','Shift');assert(g.player.dashTime>0,'Shift 未触发普通翻滚');obstacleFrames(hz,.7);key('keyup','w');assert(g.player.z<=-.91+.001&&g.player.y===0,'普通翻滚穿过矮障碍');}
+ putObstaclePlayer(0,-1.9);obstacleJump(touch);obstacleFrames(hz,.18);g.pause();const frozen=[g.time,g.player.y,g.player.groundHeight,g.player.jumpVelocity];g.step(.5);step(2);assert(JSON.stringify(frozen)===JSON.stringify([g.time,g.player.y,g.player.groundHeight,g.player.jumpVelocity]),'暂停仍推进高度或支撑');g.resume();obstacleFrames(hz,.08);assert(g.player.y!==frozen[1],'继续后跳跃没有恢复');
+ g.player.inv=0;g.damage(999999,g.player.x+2,g.player.z,'poison');assert(g.state==='lost','未触发空中死亡');assert(g.player.y===0&&g.player.groundHeight===0&&g.player.jumpVelocity===0,'结束未清理支撑或跳跃');
+ releaseObstacleBox();g.menu();assert(g.player.groundHeight===0&&g.player.y===0,'大厅残留高处支撑');g.start();assert(g.player.groundHeight===0&&g.player.jumpVelocity===0,'重开残留跳跃状态');step(1,0);
+ return{hero,hz,peak,source:touch?'touch pointer events / simulated viewport':'W + Space keyboard events',...reportFrame()};
+}
+function findLowObstacle(){
+ const world=g.world,low=world.obstacles.filter(o=>Number.isFinite(o.height)&&o.height>=.15&&o.height<=.9&&o.r>=.18&&o.r<=1.8).sort((a,b)=>Math.abs(a.height-.55)-Math.abs(b.height-.55));
+ for(const obstacle of low)for(let i=0;i<16;i++){
+  const yaw=i*Math.PI/8,dx=Math.sin(yaw),dz=Math.cos(yaw),distance=obstacle.r+.45+1.05,start={x:obstacle.x-dx*distance,z:obstacle.z-dz*distance};let safe=true;
+  for(let j=0;j<=20;j++){
+   const d=-distance+(distance+obstacle.r+1)*j/20,x=obstacle.x+dx*d,z=obstacle.z+dz*d;
+   if(Math.abs(x)>=world.half-1||Math.abs(z)>=world.half-1||terrainAt(world,x,z).depth>.06||world.obstacles.some(o=>o!==obstacle&&Math.hypot(x-o.x,z-o.z)<o.r+.5)){safe=false;break;}
+   const hit=world.overhead.firstHit({x,y:.05,z},{x,y:g.player.standHeight+1.2,z});if(hit){safe=false;break;}
+  }
+  if(safe)return{obstacle,yaw,start,dx,dz,distance,candidates:low.length};
+ }
+ return null;
+}
+function landOnActualObstacle(sample,hz=60){
+ const {obstacle:o,start,yaw,dx,dz,distance}=sample;putObstaclePlayer(start.x,start.z,yaw);obstacleJump();key('keydown','w');
+ for(let i=0;i<hz*1.3;i++){g.step(1/hz);if((g.player.x-start.x)*dx+(g.player.z-start.z)*dz>=distance-.07)break;}
+ key('keyup','w');obstacleFrames(hz,1);assert(Math.hypot(g.player.x-o.x,g.player.z-o.z)<o.r+.4,'无法沿真实路径抵达矮物');assert(Math.abs(g.player.y-o.height)<.025&&Math.abs(g.player.groundHeight-o.height)<.025,'真实物件没有提供正确支撑');
+ return{height:o.height,radius:o.r,kind:o.kind||o.mesh?.name||'world.obstacles',position:[o.x,o.z],footHeight:g.player.y,candidates:sample.candidates};
+}
+obstacleButton.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
+ try{
+  await load();
+  for(const hero of Object.keys(HERO_LOADOUTS))for(const hz of[30,60])await check(hero+' '+hz+' Hz 低物越障、落顶、再跳、走下与生命周期',()=>checkObstacleHero(hero,hz));
+  for(const map of['forest','snow','ash','sand','coast','confluence']){
+   releaseObstacleBox();select('scout',0,map);quietObstacleTest();g.setView('third');const sample=findLowObstacle();
+   if(!sample){results.push({name:map+' 真实低物件',pass:null,skipped:true,reason:'当前固定种子没有找到高度 0.15–0.9 米且起落空间、干地与上方净空均合适的实际物件；未验证。'});publish();continue;}
+   await check(map+' 实际 world.obstacles 落顶支撑',()=>{const detail=landOnActualObstacle(sample);step(1,0);return{...detail,...reportFrame()};});
+  }
+  for(const[width,height]of[[844,390],[390,844]]){
+   releaseObstacleBox();await load(true,width,height);
+   await check(width+'×'+height+' 手机跳跃按钮（尺寸与触控事件模拟）',()=>checkObstacleHero('scout',30,true));
+  }
+  errors.push(...win.qaErrors);publish();const skipped=results.filter(r=>r.skipped).length;$('#status').textContent='低障碍检查：'+results.filter(r=>r.pass===true).length+' 通过，'+results.filter(r=>r.pass===false).length+' 失败，'+skipped+' 未验证；手机为模拟，非真机。';
+ }catch(e){errors.push(e.message);publish();$('#status').textContent='低障碍检查中断：'+e.message;}finally{releaseObstacleBox();controls.forEach(c=>c.disabled=false);}
+};
+const elevatedDodgeButton=document.createElement('button');elevatedDodgeButton.textContent='高处闪避净空检查';elevatedDodgeButton.id='elevated-dodge-run';$('#capture').before(elevatedDodgeButton);
+elevatedDodgeButton.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
+ try{await load();
+  for(const hero of['silver','wraith'])await check(hero+' 高台瞬移不进入低屋檐',()=>{
+   select(hero);arena();quietObstacleTest();testObstacleBox();putObstaclePlayer(0,0);g.player.y=g.player.groundHeight=.6;
+   const roof=g.player.standHeight+.3;
+   g.world.overhead={meshes:[{}],firstHit(a,b){if(a.x!==b.x||a.z!==b.z||Math.abs(a.x)>1||a.z<2||a.z>6||Math.min(a.y,b.y)>roof||Math.max(a.y,b.y)<roof)return null;return{point:{x:a.x,y:roof,z:a.z},distance:Math.abs(roof-a.y)};}};
+   g.dash();assert(g.player.dashTime>0,'高台瞬移未触发');assert(g.player.z>.9&&g.player.z<2,'落点进入头部无法容纳的低屋檐');assert(g.player.y===.6,'瞬移强行修改脚高');g.step(1/60);assert(g.player.y>.59,'下一帧把人压入地面');releaseObstacleBox();return{landingZ:g.player.z,footHeight:g.player.y,roof};
+  });
+  for(const hero of['scout','wuling'])await check(hero+' 水上矮石顶部不误用划水闪避',()=>{
+   select(hero,0,'coast');quietObstacleTest();const ponds=g.world.ponds,patches=g.world.patches;let spot=null;for(const pond of ponds)for(let i=0;i<16;i++){const a=i*Math.PI/8,x=pond.x+Math.sin(a)*(pond.rx||pond.r)*.35,z=pond.z+Math.cos(a)*(pond.rz||pond.r)*.35;if(terrainAt(g.world,x,z).depth>.42){spot={x,z};break;}}assert(spot,'没有实际深水位置');testObstacleBox(.6,spot.x,spot.z);g.world.ponds=ponds;g.world.patches=patches;putObstaclePlayer(spot.x,spot.z);assert(terrainAt(g.world,spot.x,spot.z).depth>.42,'对照位置不是深水');g.player.y=g.player.groundHeight=.6;g.dash();assert(g.player.dashTime>0&&!g.player.waterDash,'高处误触发划水');releaseObstacleBox();return{waterDash:g.player.waterDash};
+  });
+  errors.push(...win.qaErrors);publish();$('#status').textContent=results.every(r=>r.pass)?'高处闪避 4 项通过':'高处闪避存在失败';
+ }finally{releaseObstacleBox();controls.forEach(c=>c.disabled=false);}
+};
+obstaclePreview.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);
+ try{
+  releaseObstacleBox();await load();select(previewHero.value,Number(previewWeapon.value),$('#preview-map').value);quietObstacleTest();g.setView('third');let sample=findLowObstacle(),source='真实地图矮物';
+  if(!sample){const {x,z}=g.world.spawn,o=testObstacleBox(.6,x,z+2);sample={obstacle:o,start:{x,z:z+.1},yaw:0,dx:0,dz:1,distance:1.9,candidates:0};source='可见 0.6 米测试箱（该种子没有合适真实矮物）';}
+  const detail=landOnActualObstacle(sample);g.adventureCamera.yaw=sample.yaw+.58;g.adventureCamera.pitch=-.31;g.adventureCamera._ready=false;step(8);g.pause();win.document.querySelector('#dialog').close();step(1,0);
+  $('#status').textContent=source+' · 已真实起跳并落顶，脚高 '+detail.footHeight.toFixed(2)+' 米；画面已暂停，可保存。';reportFrame();
+ }catch(e){$('#status').textContent='低障碍预览失败：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
 };
 </script>
 </html>

@@ -1,4 +1,37 @@
 import * as T from './vendor/three.module.js';
+import {bodyHeight} from './adventure-mobility.js?v=149';
+
+const ceilingOffsets=[[0,0],[.3,0],[-.3,0],[0,.3],[0,-.3]];
+// Return a world height, querying above the feet so a raised support is not a roof.
+export function mobilityCeiling(world,p,x=p.x,z=p.z){
+ if(!world.overhead?.meshes?.length)return Infinity;
+ let ceiling=Infinity;
+ const feet=p.y||0,top=feet+(p.standHeight||1.8)+1.2;
+ for(const [dx,dz]of ceilingOffsets){
+  const low={x:x+dx,y:feet+.05,z:z+dz},high={...low,y:top};
+  const hit=world.overhead.firstHit(low,high)||world.overhead.firstHit(high,low);
+  if(hit)ceiling=Math.min(ceiling,hit.point.y-.08);
+ }
+ return ceiling;
+}
+
+// Airborne movement must meet a roof's side before the next vertical update.
+// Ground movement keeps its existing footprint collision and crouch behaviour.
+export function canMoveBelowOverhead(world,p,x,z){
+ if(!(p.y>0)||!world.overhead?.meshes?.length)return true;
+ const dx=x-p.x,dz=z-p.z,d=Math.hypot(dx,dz);
+ if(d<1e-8)return true;
+ const height=bodyHeight(p),radius=p.size||.45,nx=-dz/d,nz=dx/d;
+ if(mobilityCeiling(world,p,x,z)<p.y+height-.02)return false;
+ for(const fraction of[.5,.8,1])for(const side of[-radius,0,radius]){
+  const y=p.y+height*fraction-.02;
+  const start={x:p.x+nx*side,y,z:p.z+nz*side};
+  const end={x:x+nx*side+dx/d*radius,y,z:z+nz*side+dz/d*radius};
+  // Either winding is valid for single-sided sheets as well as closed roofs.
+  if(world.overhead.firstHit(start,end)||world.overhead.firstHit(end,start))return false;
+ }
+ return true;
+}
 
 /** Static overhead geometry stays separate from the walkable ground footprints.
  * Build once after scenery installation; query only this small mesh collection.

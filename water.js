@@ -1,4 +1,4 @@
-import{onIce,onFord}from'./map-tactics.js?v=114';
+import{onIce,onFord}from'./map-tactics.js?v=149';
 import{onBridge}from'./coast.js?v=114';
 import{MAP_SCALE}from'./map-layout.js?v=114';
 import{coastLayout}from'./coast-layout.js?v=114';

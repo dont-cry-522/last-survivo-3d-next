@@ -165,8 +165,8 @@ export class SkillVFX{
   for(const [x,z]of [[ax,az],[bx,bz]]){this.particle('veil',0x182233,x,.08,z,{life:.32,size:[.70,1.30,1],opacity:.55,additive:false});for(let i=0;i<5;i++){const a=i*Math.PI*2/5;this.particle('crystal',0xc1ccd9,x,.4,z,{life:.28,size:[.055,.28,.055],velocity:[Math.cos(a)*2,1.2,Math.sin(a)*2],gravity:4});}}
   this.segment(new T.Vector3(ax,.8,az),new T.Vector3(bx,.8,bz),0x8190a5,.09,.18,true);
  }
- dust(x,z,r=1){
-  for(let i=0;i<6;i++){const a=Math.random()*Math.PI*2;this.particle('veil',0xb8a287,x+Math.cos(a)*r*.3,.12,z+Math.sin(a)*r*.3,{life:.35+Math.random()*.2,size:[r*.3,r*.23,1],velocity:[Math.cos(a)*r,.12,Math.sin(a)*r],opacity:.24,additive:false});}
+ dust(x,z,r=1,y=0){
+  for(let i=0;i<6;i++){const a=Math.random()*Math.PI*2;this.particle('veil',0xb8a287,x+Math.cos(a)*r*.3,y+.12,z+Math.sin(a)*r*.3,{life:.35+Math.random()*.2,size:[r*.3,r*.23,1],velocity:[Math.cos(a)*r,.12,Math.sin(a)*r],opacity:.24,additive:false});}
  }
  rise(x,z,color,r=1){
   this.particle('veil',color,x,.09,z,{life:.55,size:[r*.65,r*.65,1],opacity:.24});

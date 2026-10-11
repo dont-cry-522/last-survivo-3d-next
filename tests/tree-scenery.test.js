@@ -4,7 +4,7 @@ import{createHash}from'node:crypto';
 import * as T from'../vendor/three.module.js';
 import{addTree,updateTreeDetail,installForestBackdrop}from'../tree-scenery.js';
 import{buildWorld,animateWorld}from'../world.js';
-import{damageTerrain,updateTactics}from'../map-tactics.js?v=92';
+import{damageTerrain,updateTactics}from'../map-tactics.js?v=149';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const dispose=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});

@@ -1,3 +1,4 @@
+import{sceneryRhythmAt}from'./exploration-composition.js?v=144';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
@@ -233,6 +234,12 @@ export function installAdventureGroundDetail(world,mapId){
    const growth=.5+.5*Math.sin(p.x*.23+Math.sin(p.z*.17)*1.7);
    p.size*=.80+growth*.30+h.shade*.08;p.height*=.68+growth*.29;
   }
+ }
+ // Reuse the same instances; open patches stay low while sheltered shoulders
+ // retain their existing growth. This never expands the collision-free footprint.
+ if(world.explorationComposition)for(const p of records){
+  const rhythm=sceneryRhythmAt(world,p.x,p.z);if(p.kind==='tuft'){p.size*=rhythm.cover;p.height*=rhythm.cover;}
+  const tint=new T.Color(p.color);tint.multiplyScalar(1-rhythm.enclosure*.07+rhythm.opening*.045);p.color=tint.getHex();
  }
  if(!records.length)return null;
  const group=new T.Group();group.name='adventure-ground-detail';group.userData.records=records;group.userData.disposed=false;

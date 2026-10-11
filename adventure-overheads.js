@@ -10,7 +10,7 @@ export function createOverheadQuery(world){
   if(!mesh.isMesh)return;
   if(mesh===stone){meshes.push(mesh);return;}
   let parent=mesh,district;
-  while(parent&&parent!==world.group){if(parent.userData.district){district=parent.userData.district;break;}parent=parent.parent;}
+  while(parent&&parent!==world.group){if(parent.userData.explorationLandmark){meshes.push(mesh);return;}if(parent.userData.district){district=parent.userData.district;break;}parent=parent.parent;}
   if(district!=='warehouse'&&district!=='gate'&&district!=='court')return;
   bounds.setFromObject(mesh);
   if(bounds.min.y>(district==='warehouse'?2.4:2.5))meshes.push(mesh);

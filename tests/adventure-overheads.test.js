@@ -6,11 +6,23 @@ import {polishEnvironmentModels} from '../environment-props.js';
 import {installForestVista} from '../forest-vista.js';
 import {AdventureCamera} from '../adventure-camera.js';
 import {createOverheadQuery} from '../adventure-overheads.js';
+import {installExplorationLandmarks} from '../exploration-landmarks.js';
 
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
 const close=(a,b)=>assert(Math.abs(a-b)<1e-6,`${a} differs from ${b}`);
 function world(id){const w=buildWorld(id,42);polishEnvironmentModels(w);installForestVista(w,id);w.group.updateMatrixWorld(true);for(const o of w.obstacles)o.height=Math.max(.15,new T.Box3().setFromObject(o.mesh).max.y);return w;}
 const coast=world('coast');
+
+test('landmark silhouettes join the existing roof query while hidden replaced scenery does not',()=>{
+ for(const id of['snow','ash','sand','coast']){
+  const w=world(id),[landmark]=installExplorationLandmarks(w,id),query=createOverheadQuery(w);
+  const {x,z}=landmark;assert(landmark.mesh.children.every(m=>query.meshes.includes(m)));
+  assert(query.firstHit({x,y:10,z},{x,y:1,z}),'visible landmark has no solid silhouette');
+  assert.equal(query.firstHit({x:x+landmark.obstacle.r+.1,y:1.5,z:z-1},{x:x+landmark.obstacle.r+.1,y:1.5,z:z+1}),null,'new low wall outside root');
+  landmark.mesh.visible=false;assert.equal(query.firstHit({x,y:10,z},{x,y:1,z}),null,'hidden replacement leaves a ghost hit');
+  w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
+ }
+});
 
 test('the real coast warehouse roof stops the formerly clear camera segment',()=>{
  const query=createOverheadQuery(coast),camera=new T.PerspectiveCamera(58,1,.1,200),rig=new AdventureCamera(camera,{yaw:0,pitch:-.75,distance:6,shoulderOffset:0});

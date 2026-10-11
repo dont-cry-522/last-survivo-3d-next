@@ -28,7 +28,7 @@ test('tree canopies clear human height and every tree renders as two shared opaq
    assert(crown.max.x-crown.min.x<(snow?3.9:6.3),'crown became excessively broad');assert(canopy.geometry.attributes.normal&&canopy.geometry.attributes.color);
    assert([...canopy.geometry.attributes.color.array].every(v=>Number.isFinite(v)&&v>=0&&v<=1),'canopy tint contains invalid colors');
    if(!snow){assert(bounds.max.y<7.2,'forest trunk stretched into a pole');assert(crown.max.x-crown.min.x>3.4,'forest crown collapsed into narrow balls');}
-   assert(o.mesh.children.reduce((n,m)=>n+(m.geometry.index?.count??m.geometry.attributes.position.count)/3,0)<=(snow?450:1200),'tree exceeds its shared geometry budget');
+   assert(o.mesh.children.reduce((n,m)=>n+(m.geometry.index?.count??m.geometry.attributes.position.count)/3,0)<=(snow?470:1200),'tree exceeds its shared geometry budget');
    for(const mesh of o.mesh.children){geometries.add(mesh.geometry);materials.add(mesh.material);assert(!mesh.material.transparent);assert(!mesh.userData.ownedGeometry,'shared tree geometry disposed with a single world');assert.equal(mesh.geometry.groups.length,0,'material groups multiply tree draw calls');}
   }
   const f=(w.regions?w.regions.find(r=>r.id==='forest'):w).foliage[0],before=f.leaf.position.x;animateWorld(w,2,w.spawn.x,w.spawn.z);assert.notEqual(f.leaf.position.x,before,'combined canopy stopped swaying');dispose(w);
@@ -75,10 +75,10 @@ test('every terminal forest twig follows its uneven leaf cluster in all three te
  }
 });
 
-test('snow boughs stagger their snow shelves and droop at the tips without extra meshes or triangles',()=>{
+test('snow boughs stagger their snow shelves and droop within the shared far-crown budget',()=>{
  for(const angle of[0,1,1.5]){
   const group=new T.Group(),leaf=addTree(group,'snow',4,{angle}),p=leaf.geometry.attributes.position;
-  assert.equal(group.children.length,2);assert.equal(leaf.geometry.index.count/3,272);
+  assert.equal(group.children.length,2);assert.equal(leaf.geometry.index.count/3,284);
   group.updateMatrixWorld(true);const bounds=new T.Box3().setFromObject(leaf,true),height=5.2+4*.52;
   assert(Math.abs(bounds.max.y-height)<.00001,'fuller snow crown moved the established tree top');
   assert(Math.abs(bounds.min.y-(height*.54-.24))<.00001&&bounds.min.y>3.2,'lower snow shelves invade the fighting plane');
@@ -165,7 +165,52 @@ test('forest canopy LOD preserves the silhouette, shadow material and mesh ident
  }
  for(const cache of caches)assert.equal(cache.size,3,'LOD allocations grow with trees or restarts');
  const counts=caches.map(set=>[...set][0].index.count);assert(counts[0]>counts[1]&&counts[1]>counts[2]);
- const snow=addTree(new T.Group(),'snow',4),geometry=snow.geometry;updateTreeDetail(snow,0,0);assert.strictEqual(snow.geometry,geometry);
+});
+
+test('snow shares three bounded LODs with rounded snow above and dark needles below',()=>{
+ const caches=[new Set(),new Set(),new Set()];
+ for(const angle of[0,1,1.5])for(let repeat=0;repeat<2;repeat++){
+  const parent=new T.Group(),leaf=addTree(parent,'snow',4,{angle}),far=leaf.geometry,material=leaf.material,bounds=far.boundingBox.clone(),trunk=parent.children[0];
+  for(const [distance,level]of[[40,2],[20,1],[5,0],[10,0],[12,1],[30,1],[34,2],[30,2],[27,1]]){
+   updateTreeDetail(leaf,distance,0);assert.equal(leaf.userData.treeLOD,level);assert.strictEqual(leaf.material,material);assert.strictEqual(parent.children[0],trunk);assert.equal(parent.children.length,2);
+   const g=leaf.geometry;assert.deepEqual(g.boundingBox,bounds,'snow detail changed canopy clearance');caches[level].add(g);
+   assert.equal(g.groups.length,0);assert(!leaf.userData.ownedGeometry);assert([...g.attributes.treeSurface.array].every(v=>v===2));
+   for(const a of Object.values(g.attributes))assert([...a.array].every(Number.isFinite));
+   const n=g.attributes.normal;for(let i=0;i<n.count;i++)assert(Math.abs(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))-1)<.00001);
+   const count=g.index.count/3;assert.equal(count,[3704,968,284][level]);
+   if(level!==2){
+    // Trace both sides of a real needle cushion rather than only inspecting its tint.
+    const p=g.attributes.position,ray=new T.Raycaster(),center=new T.Vector3().fromBufferAttribute(p,0),hits=[];
+    for(const direction of[-1,1]){ray.set(new T.Vector3(center.x,direction<0?bounds.max.y+1:bounds.min.y-1,center.z),new T.Vector3(0,direction,0));hits.push(ray.intersectObject(new T.Mesh(g,material)).filter(h=>Math.abs(h.point.y-center.y)<.22));}
+    assert(hits[0].length>=2&&hits[1].length>=2,'close snow cushion has no separate lower needle surface');
+    const color=g.attributes.color,above=[],below=[];
+    for(let i=0;i<n.count;i++){const l=.2126*color.getX(i)+.7152*color.getY(i)+.0722*color.getZ(i);if(n.getY(i)>.9)above.push(l);if(n.getY(i)<-.9)below.push(l);}
+    assert(below.length>=96,'lower needles were replaced by white back faces');assert(above.reduce((a,b)=>a+b,0)/above.length>below.reduce((a,b)=>a+b,0)/below.length*1.7,'snow top and underside lost their material contrast');
+   }
+  }
+ }
+ for(const cache of caches)assert.equal(cache.size,3,'snow detail allocations grow with tree count or restarts');
+ const leaf=addTree(new T.Group(),'snow',4),shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};leaf.material.onBeforeCompile(shader);
+ assert(shader.fragmentShader.includes('if(!gl_FrontFacing)'),'far fir underside no longer has needle shading');assert(!shader.uniforms.treeTexture,'snow detail adds no extra texture');
+});
+
+test('snow leaders taper into a narrow green tip rather than a separate round snow cap',()=>{
+ for(const angle of[0,1,1.5]){
+  const leaf=addTree(new T.Group(),'snow',4,{angle});
+  for(const distance of[40,20,5]){
+   updateTreeDetail(leaf,distance,0);const g=leaf.geometry,p=g.attributes.position,top=g.boundingBox.max.y,peak=new T.Vector3();
+   for(let i=0;i<p.count;i++)if(p.getY(i)===top){peak.fromBufferAttribute(p,i);break;}
+   const mesh=new T.Mesh(g,leaf.material),ray=new T.Raycaster();
+   for(let i=0;i<4;i++){
+    const a=i*Math.PI*.5,dx=Math.cos(a),dz=Math.sin(a);ray.set(new T.Vector3(peak.x+dx,top-.09,peak.z+dz),new T.Vector3(-dx,0,-dz));
+    const hits=ray.intersectObject(mesh);assert(hits.length>0,'leader has a detached or missing tip');
+    assert(hits.every(h=>Math.hypot(h.point.x-peak.x,h.point.z-peak.z)<.065),'leader grew an isolated bulb above its branch group');
+   }
+   const c=g.attributes.color;let green=0;
+   for(let i=0;i<p.count;i++)if(p.getY(i)>top-.1&&c.getY(i)<.25)green++;
+   assert(green>0,'top of the leader became a solid white snow ornament');
+  }
+ }
 });
 
 test('close-up leaves stay small and gently folded before canopy scaling',()=>{

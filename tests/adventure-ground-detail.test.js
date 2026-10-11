@@ -6,6 +6,13 @@ import {waterDepth} from '../water.js';
 import {bridgeContains} from '../coast.js';
 import {segmentDistance} from '../rules.js';
 import {installForestHabitats} from '../forest-habitats.js';
+import {polishEnvironmentModels} from '../environment-props.js';
+import {installForestVista} from '../forest-vista.js';
+import {installBiomePlaces} from '../biome-places.js';
+import {installEnvironmentClusters} from '../environment-clusters.js';
+import {installExplorationRoutes} from '../exploration-routes.js';
+import {installExplorationLandmarks} from '../exploration-landmarks.js';
+import {installExplorationComposition} from '../exploration-composition.js';
 import {installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
@@ -247,4 +254,65 @@ test('fuller forest understory stays inside reserved footprints, under the sight
   }
   assert(triangles<180000);cleanup(w);
  }
+});
+
+const scenicWorld=(id,seed)=>{
+ const w=buildWorld(id,seed);polishEnvironmentModels(w);installForestVista(w,id);installForestHabitats(w,id);installBiomePlaces(w,id);installEnvironmentClusters(w,id);installExplorationRoutes(w);installExplorationLandmarks(w,id);installExplorationComposition(w,id);return w;
+};
+const detailBudget=g=>({count:g.userData.records.length,draws:g.children.length,triangles:g.children.reduce((n,b)=>n+b.count*(b.geometry.index?.count??b.geometry.attributes.position.count)/3,0)});
+const releaseDetail=g=>{g.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});g.removeFromParent();};
+
+test('scenery edges reassign existing cover across six maps, keeping original shoulders, near-spawn cover and exact GPU budgets',()=>{
+ for(const id of maps)for(const seed of[7,522]){
+  const w=scenicWorld(id,seed),clusters=w.environmentClusters,places=w.biomePlaces,before=state(w),obstacles=w.obstacles.slice(),transforms=obstacles.map(o=>o.mesh.matrix.toArray()),routes=JSON.stringify(w.explorationRoutes.map(r=>r.points));
+  // Same real solids and composition, with only new edge-source metadata hidden.
+  // This compares against the original distribution without a second world RNG.
+  w.environmentClusters=null;w.biomePlaces=[];
+  const original=[installAdventureGroundDetail(w,id),installHabitatDetail(w,id)],baseline=original.map(g=>({records:g.userData.records,budget:detailBudget(g)}));
+  original.forEach(releaseDetail);w.environmentClusters=clusters;w.biomePlaces=places;
+  const layers=[installAdventureGroundDetail(w,id),installHabitatDetail(w,id)];
+  assert.equal(state(w),before);assert.deepEqual(w.obstacles,obstacles);assert.deepEqual(obstacles.map(o=>o.mesh.matrix.toArray()),transforms);assert.equal(JSON.stringify(w.explorationRoutes.map(r=>r.points)),routes);
+  for(const [layer,g]of layers.entries()){
+   const records=g.userData.records,old=baseline[layer].records,edge=records.filter(p=>p.edge),footprint=layer?1.15:.55;
+   assert.deepEqual(detailBudget(g),baseline[layer].budget,id+' changed the instance, triangle or draw budget');
+   assert(edge.length>=records.length*.08&&edge.length<=Math.floor(records.length*.22),id+' missing or excessive scenery-edge redistribution');
+   assert(edge.some(p=>p.edge==='cluster')&&edge.some(p=>p.edge==='place'));
+   for(let i=0;i<records.length;i++){
+    const p=records[i],was=old[i];assert.equal(p.kind,was.kind);assert.equal(p.biome,was.biome);
+    assert.equal(Number(p.x>=0)+Number(p.z>=0)*2,Number(was.x>=0)+Number(was.z>=0)*2,'relocation creates an extra culling batch');
+    if(!p.edge){assert.deepEqual(p,was);continue;}
+    assert(!was.shoulder);far(was,w.spawn,20);assert(!(p.biome==='forest'&&['reed','stone'].includes(p.kind)),'wet-bank habitat moved into dry scenery');
+    const source=p.edge==='cluster'?clusters.records[p.edgeIndex]:places[p.edgeIndex];assert(source);assert.equal(p.biome,source.biome);
+    const solids=p.edge==='cluster'?[{...source,r:source.footprint}]:source.solids;
+    assert(Math.min(...solids.map(o=>Math.hypot(p.x-o.x,p.z-o.z)-o.r))<=footprint+2.95,'edge tag refers to distant scenery');
+    if(w.regions)assert(w.regions.find(r=>r.id===p.biome).contains(p.x,p.z));
+    for(const o of w.obstacles)far(p,o,o.r+footprint+.2);
+    for(const route of w.explorationRoutes)for(let j=1;j<route.points.length;j++){const a=route.points[j-1],b=route.points[j];assert(segmentDistance(p.x,p.z,a.x,a.z,b.x,b.z)>=2+footprint-1e-7,'new edge growth fills a traversable route');}
+    for(const place of places){const c=Math.cos(place.angle),s=Math.sin(place.angle),dx=p.x-place.x,dz=p.z-place.z;assert(Math.abs(c*dx-s*dz)>=3.1+footprint||Math.abs(s*dx+c*dz)>=10+footprint,'new growth fills the scene passage');}
+    for(const site of w.sites){far(p,site,(site.event?7:5.5)+footprint);for(const node of site.nodes||[])far(p,node,2+footprint);}
+    for(const find of w.discoveries)far(p,find,3+footprint);for(const event of w.roaming)far(p,event,(event.kind==='camp'?6:3)+footprint);
+    for(const bridge of w.bridges||[])assert(!bridgeContains(bridge,p.x,p.z,footprint+.8));
+    for(const pond of w.ponds){const k=pond.baseRx===undefined?1:1.19,tide={...pond,rx:(pond.baseRx??pond.rx)*k,rz:(pond.baseRz??pond.rz)*k};for(let j=0;j<8;j++)assert.equal(waterDepth(tide,p.x+Math.cos(j*Math.PI/4)*footprint,p.z+Math.sin(j*Math.PI/4)*footprint),0,'edge cover enters high water');}
+   }
+   const nearest=rs=>clusters.records.reduce((n,a)=>n+Math.min(...rs.map(p=>Math.hypot(p.x-a.x,p.z-a.z)-a.footprint)),0)/clusters.records.length;
+   assert(nearest(records)<nearest(old)*.8,id+' did not materially reduce empty ground beside real scenery');
+   assert(new Set(edge.map(p=>p.edge+':'+p.edgeIndex)).size>=(id==='confluence'?30:12),'redistribution only affects a few scenery islands');
+   const distances=edge.filter(p=>p.edge==='cluster').map(p=>{const a=clusters.records[p.edgeIndex];return Math.hypot(p.x-a.x,p.z-a.z)-a.footprint;});
+   assert(Math.max(...distances)-Math.min(...distances)>1.4,'edge cover forms a regular narrow ring');
+   let released=0;for(const batch of g.children)batch.geometry.addEventListener('dispose',()=>released++);
+   releaseDetail(g);assert.equal(released,g.children.length);assert(g.userData.disposed);assert(g.children.every(b=>!b.visible));
+  }
+  cleanup(w);
+ }
+});
+
+test('edge redistribution is deterministic after cleanup and leaves a surviving world untouched',()=>{
+ const first=scenicWorld('confluence',522),other=scenicWorld('forest',7),alive=[installAdventureGroundDetail(other,'forest'),installHabitatDetail(other,'forest')],shared=alive[0].children[0].material,random=Math.random;
+ let disposedMaterial=0;const onDispose=()=>disposedMaterial++;shared.addEventListener('dispose',onDispose);
+ try{
+  Math.random=()=>.03;const initial=[installAdventureGroundDetail(first,'confluence'),installHabitatDetail(first,'confluence')],records=initial.map(g=>g.userData.records),matrices=initial.map(g=>g.children.map(b=>b.instanceMatrix.array.slice()));initial.forEach(releaseDetail);
+  Math.random=()=>.91;const rebuilt=[installAdventureGroundDetail(first,'confluence'),installHabitatDetail(first,'confluence')];
+  for(let i=0;i<rebuilt.length;i++){assert.deepEqual(rebuilt[i].userData.records,records[i]);assert.deepEqual(rebuilt[i].children.map(b=>b.instanceMatrix.array),matrices[i]);}
+  assert.equal(disposedMaterial,0);assert(alive.every(g=>!g.userData.disposed&&g.children.every(b=>b.visible)));
+ }finally{Math.random=random;shared.removeEventListener('dispose',onDispose);cleanup(first);cleanup(other);}
 });

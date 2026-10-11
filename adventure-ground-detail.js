@@ -184,10 +184,10 @@ function placementFilter(world,footprint=FOOTPRINT,shoulder=false){
  // high-tide footprints even if installed during low tide, plus a dry bank margin.
  const shores=(world.ponds||[]).map(p=>{const k=p.baseRx===undefined?1:1.19;return{...p,rx:(p.baseRx??p.rx)*k*1.12+.9,rz:(p.baseRz??p.rz)*k*1.12+.9};});
  const crossings=[...(world.bridges||[]),...(world.fords||[]).map(f=>({...f,width:f.half*2,length:f.width}))];
- return(x,z)=>{
+ return(x,z,obstacles=world.obstacles||[])=>{
   if(Math.abs(x)>(world.half||96)-2-FOOTPRINT||Math.abs(z)>(world.half||96)-2-FOOTPRINT)return false;
   if(clearings.some(p=>near(x,z,p,p.r+FOOTPRINT)))return false;
-  if((world.obstacles||[]).some(o=>near(x,z,o,(o.r||0)+FOOTPRINT+.2)))return false;
+  if(obstacles.some(o=>near(x,z,o,(o.r||0)+FOOTPRINT+.2)))return false;
   if((world.patches||[]).some(p=>p.kind==='vent'&&near(x,z,p,p.r+1+FOOTPRINT)||p.kind==='ice'&&near(x,z,p,p.r*1.2+FOOTPRINT)))return false;
   if(crossings.some(b=>bridgeContains(b,x,z,FOOTPRINT+.8)))return false;
   if(shores.some(p=>{const a=p.angle||0,c=Math.cos(a),s=Math.sin(a),dx=x-p.x,dz=z-p.z;return Math.hypot((c*dx-s*dz)/p.rx,(s*dx+c*dz)/p.rz)<1;}))return false;
@@ -196,6 +196,51 @@ function placementFilter(world,footprint=FOOTPRINT,shoulder=false){
   }
   return true;
  };
+}
+
+// Replant a bounded part of the existing cover beside substantial scenery.
+// Separate randomness leaves the original sampling, kinds and draw counts intact.
+function softenSceneryEdges(world,mapId,records,footprint,allowed){
+ const places=world.biomePlaces||[],sources=[
+  ...(world.environmentClusters?.records||[]).map((p,index)=>({...p,edge:'cluster',index,weight:1,solids:[{x:p.x,z:p.z,r:p.footprint}]})),
+  ...places.map((p,index)=>({...p,edge:'place',index,weight:3}))
+ ].filter(p=>p.solids?.length);
+ if(!sources.length)return;
+ const random=seeded(layoutSeed(world,mapId)^(footprint===FOOTPRINT?0x2ce459:0x7ab913)),budget=Math.floor(records.length*.22),weight=sources.reduce((n,p)=>n+p.weight,0),donors=new Map();
+ const quadrant=p=>Number(p.x>=0)+Number(p.z>=0)*2,key=p=>p.biome+':'+quadrant(p);
+ // Keep road shoulders, near-spawn cover, and existing scenery-edge growth.
+ // Keeping each donor's quadrant also preserves the habitat's culling batches.
+ for(let i=0;i<records.length;i++){
+  const p=records[i];if(p.shoulder||p.biome==='forest'&&['reed','stone'].includes(p.kind)||near(p.x,p.z,world.spawn,20)||sources.some(s=>near(p.x,p.z,s,s.edge==='place'?17:s.footprint+5)))continue;
+  const k=key(p);if(!donors.has(k))donors.set(k,[]);donors.get(k).push(i);
+ }
+ const lanes=[];
+ for(const route of world.explorationRoutes||[])for(let i=1;i<route.points.length;i++){
+  const a=route.points[i-1],b=route.points[i],r=2+footprint;
+  lanes.push({a,b,r,minX:Math.min(a.x,b.x)-r,maxX:Math.max(a.x,b.x)+r,minZ:Math.min(a.z,b.z)-r,maxZ:Math.max(a.z,b.z)+r});
+ }
+ const passages=places.map(p=>({...p,c:Math.cos(p.angle||0),s:Math.sin(p.angle||0)}));
+ let moved=0;
+ for(const source of sources){
+  const quota=Math.floor(budget*source.weight/weight),region=world.regions?.find(r=>r.id===source.biome),axis=(source.angle||0)+Math.sin(source.x*.27+source.z*.19)*.7;
+  // Every candidate lies inside these fixed bounds; prefilter nearby solids
+  // once per scenery source instead of rescanning the whole map per attempt.
+  const reach=footprint+2.94,minX=Math.min(...source.solids.map(p=>p.x-p.r))-reach,maxX=Math.max(...source.solids.map(p=>p.x+p.r))+reach,minZ=Math.min(...source.solids.map(p=>p.z-p.r))-reach,maxZ=Math.max(...source.solids.map(p=>p.z+p.r))+reach;
+  const obstacles=(world.obstacles||[]).filter(o=>{const r=(o.r||0)+footprint+.2;return o.x+r>=minX&&o.x-r<=maxX&&o.z+r>=minZ&&o.z-r<=maxZ;});
+  // Two unequal, loose lobes leave bare intervals instead of forming a ring.
+  // Places use their real outer solid edges, including irregular fallen timber.
+  let planted=0;
+  for(let attempt=0;attempt<Math.min(180,quota*20)&&planted<quota&&moved<budget;attempt++){
+   const solid=source.solids[Math.floor(random()*source.solids.length)];
+   const angle=source.edge==='place'?Math.atan2(solid.x-source.x,solid.z-source.z)+(random()-.5)*1.25:axis+(random()<.78?0:2.3)+(random()-.5)*1.35;
+   const radius=solid.r+footprint+.24+random()**2*2.7,x=solid.x+Math.sin(angle)*radius,z=solid.z+Math.cos(angle)*radius;
+   const list=donors.get(key({x,z,biome:source.biome}));if(!list?.length||region&&!region.contains(x,z))continue;
+   if(passages.some(p=>{const dx=x-p.x,dz=z-p.z;return Math.abs(p.c*dx-p.s*dz)<3.1+footprint&&Math.abs(p.s*dx+p.c*dz)<10+footprint;}))continue;
+   if(lanes.some(l=>x>l.minX&&x<l.maxX&&z>l.minZ&&z<l.maxZ&&segmentDistance(x,z,l.a.x,l.a.z,l.b.x,l.b.z)<l.r))continue;
+   if(!allowed(x,z,obstacles)||records.some(p=>near(x,z,p,footprint===FOOTPRINT?.9:.62)))continue;
+   const record=records[list.pop()];record.x=x;record.z=z;record.edge=source.edge;record.edgeIndex=source.index;planted++;moved++;
+  }
+ }
 }
 
 export function installAdventureGroundDetail(world,mapId){
@@ -225,6 +270,7 @@ export function installAdventureGroundDetail(world,mapId){
   const kind=random()<profile.grass?'tuft':'litter',size=.78+random()*.36,height=(.82+random()*.30)*(kind==='tuft'?profile.height:1),palette=profile[kind];
   records.push({x,z,biome,kind,size,height,angle:random()*Math.PI*2,color:palette[Math.floor(random()*palette.length)],shade:.90+random()*.16});
  }
+ softenSceneryEdges(world,mapId,records,FOOTPRINT,allowed);
  // Blend existing floor colors across districts without adding decal layers.
  for(const p of records)if(p.biome==='forest'){
   const h=forestHabitatAt(world,p.x,p.z),tint=new T.Color(p.color);
@@ -355,6 +401,7 @@ export function installHabitatDetail(world,mapId){
    records.push({x:px,z:pz,biome,kind:plantKind,angle:angle+(random()-.5)*1.2,width:profile.width*size,height:bank&&plantKind==='stone'?.13*size:profile.height*size*(1+habitat.shade*.13-habitat.ruin*.22),color:tint.getHex()});
   }
  }
+ softenSceneryEdges(world,mapId,records,1.15,allowed);
  // Broad patches alternate with quiet gaps; their widths grow into one another
  // below the sight line, staying inside the already-reserved 1.15m footprint.
  for(const p of records)if(p.biome==='forest'&&(p.kind==='fern'||p.kind==='shrub')){

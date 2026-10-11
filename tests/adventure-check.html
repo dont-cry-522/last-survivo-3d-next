@@ -2,7 +2,7 @@
 import * as T from '../vendor/three.module.js';
 import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=123';
 import {HERO_LOADOUTS,WEAPONS} from '../rules.js?v=125';
-import {terrainAt,waterDepth} from '../water.js?v=149';
+import {terrainAt,waterDepth} from '../water.js?v=151';
 import {updateTide} from '../coast.js?v=114';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
@@ -215,7 +215,29 @@ function positionPlace(mark){
  }
  g.player.x=p.x;g.player.z=p.z;g.adventureCamera.yaw=p.angle;g.adventureCamera.pitch=-.06;g.adventureCamera._ready=false;
 }
+function sceneryStandClear(x,z,r=.8){
+ return Math.max(Math.abs(x),Math.abs(z))<g.world.half-r-1&&terrainAt(g.world,x,z).depth<.08&&!g.world.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+r)&&!g.world.patches.some(p=>p.kind==='vent'&&Math.hypot(x-p.x,z-p.z)<p.r+1);
+}
+function positionClusterEdge(mode){
+ const origin={x:g.player.x,z:g.player.z},all=g.world.environmentClusters?.records||[],edgeIndices=new Set([...(g.world.adventureGroundDetail?.userData.records||[]),...(g.world.habitatDetail?.userData.records||[])].filter(p=>p.edge==='cluster').map(p=>p.edgeIndex)),candidates=edgeIndices.size?all.filter((_,i)=>edgeIndices.has(i)):all;
+ const records=[...candidates].sort((a,b)=>Math.hypot(a.x-origin.x,a.z-origin.z)-Math.hypot(b.x-origin.x,b.z-origin.z));
+ for(const record of records){
+  const facing=Math.atan2(origin.x-record.x,origin.z-record.z);
+  for(const offset of[3.2,4.6,6])for(const turn of[0,1,-1,2,-2,3,-3,4,5,-5,6]){
+   const angle=facing+turn*Math.PI/6,s=Math.sin(angle),c=Math.cos(angle),x=record.x+s*(record.footprint+offset),z=record.z+c*(record.footprint+offset);
+   if(!sceneryStandClear(x,z))continue;
+   // Reserve the real third-person boom as well as the actor, without moving any scenery.
+   if(mode==='third'&&[1,2,3,4,5,6].some(d=>!sceneryStandClear(x+s*d+c*.5,z+c*d-s*.5,.5)))continue;
+   const target={x:record.x+s*record.footprint*.8,z:record.z+c*record.footprint*.8},dx=target.x-x,dz=target.z-z,lengthSq=dx*dx+dz*dz;
+   if(g.world.obstacles.some(o=>{if(o===record.obstacle||o.height<.9)return false;const t=((o.x-x)*dx+(o.z-z)*dz)/lengthSq;return t>0&&t<1&&Math.hypot(o.x-x-dx*t,o.z-z-dz*t)<o.r+.2;}))continue;
+   g.player.x=x;g.player.z=z;g.adventureCamera.yaw=Math.atan2(target.x-x,target.z-z);g.adventureCamera.pitch=mode==='first'?-.28:-.22;g.adventureCamera._ready=false;
+   return{record,index:g.world.environmentClusters.records.indexOf(record),x,z,target};
+  }
+ }
+ throw Error('真实景物簇附近没有安全的近景站位');
+}
 function positionPreview(mode,place){
+ if(place==='cluster-edge')positionClusterEdge(mode);
  if(place==='landmark')positionPlace(g.world.explorationLandmarks[0]);
  if(place==='harbor'){const p=g.world.biomePlaces?.find(p=>p.pier);if(p){g.player.x=p.x+Math.sin(p.angle)*4;g.player.z=p.z+Math.cos(p.angle)*4;g.adventureCamera.yaw=p.angle+Math.PI;g.adventureCamera.pitch=-.10;g.adventureCamera._ready=false;}}
  if(place==='surface'){
@@ -662,5 +684,64 @@ obstaclePreview.onclick=async()=>{
  }catch(e){$('#status').textContent='低障碍预览失败：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
 };
 const mobileUIRun=document.createElement('button');mobileUIRun.id='mobile-ui-run';mobileUIRun.textContent='手机界面与图鉴检查';$('#capture').before(mobileUIRun);mobileUIRun.onclick=()=>{location.href=new URL('./mobile-controls-check.html?run=1',location.href).href;};
+$('#preview-place').add(new Option('景物边缘近景','cluster-edge'));
+const sceneryEdgeButton=document.createElement('button');sceneryEdgeButton.id='scenery-edge-run';sceneryEdgeButton.textContent='景物边缘与雪松检查';$('#capture').before(sceneryEdgeButton);
+function edgeLayerReport(layer,label,map){
+ assert(layer&&!layer.userData.disposed&&layer.parent===g.world.group,label+' 未实际安装');
+ const records=layer.userData.records,edges=records.filter(p=>p.edge),batches=layer.children.filter(m=>m.isInstancedMesh);
+ assert(edges.length>0&&edges.length<=Math.floor(records.length*.22),label+' 边缘重分配缺失或超22%预算');
+ assert(batches.reduce((n,m)=>n+m.count,0)===records.length,label+' 实例与记录数量不一致');
+ assert(layer.children.length<=(label==='地表'?10:16),label+' 合批超预算');
+ for(const p of edges){
+  const source=p.edge==='cluster'?g.world.environmentClusters.records[p.edgeIndex]:p.edge==='place'?g.world.biomePlaces[p.edgeIndex]:null;
+  assert(source&&source.biome===p.biome,label+' 边缘记录未关联同地图真实场景');
+  assert(Number.isFinite(p.x)&&Number.isFinite(p.z)&&Number.isFinite(p.color),label+' 边缘坐标或颜色无效');
+  assert(!g.world.obstacles.some(o=>Math.hypot(p.x-o.x,p.z-o.z)<o.r+.1),label+' 边缘实例侵入实体');
+ }
+ if(label==='地表')assert(records.length<={forest:1200,snow:420,ash:380,sand:520,coast:920,confluence:2200}[map],'地表实例超原预算');
+ else assert(layer.userData.centers.length<=(map==='confluence'?500:300),'植物簇中心超原预算');
+ return{instances:records.length,edgeInstances:edges.length,clusterEdges:edges.filter(p=>p.edge==='cluster').length,placeEdges:edges.filter(p=>p.edge==='place').length,batches:batches.length};
+}
+function checkTreeDistances(biome){
+ const leaves=[...new Set([...(g.world.foliage||[]),...(g.world.regions||[]).flatMap(r=>r.foliage||[])].map(f=>f.leaf))],tree=leaves.filter(leaf=>leaf.parent?.userData.treeBiome===biome).sort((a,b)=>a.parent.position.distanceTo(g.hero.position)-b.parent.position.distanceTo(g.hero.position))[0];
+ assert(tree?.userData.treeTemplate,biome+' 缺少真实树冠 LOD');
+ const material=tree.material,root=tree.parent,samples=[];
+ for(const[distance,level]of[[5,0],[20,1],[40,2]]){
+  const base=Math.atan2(g.world.spawn.x-root.position.x,g.world.spawn.z-root.position.z);let point;
+  for(let n=0;n<32;n++){const a=base+n*Math.PI/16,x=root.position.x+Math.sin(a)*distance,z=root.position.z+Math.cos(a)*distance;if(sceneryStandClear(x,z)){point={x,z};break;}}
+  assert(point,'树冠 '+distance+'m 没有安全取景点');
+  g.player.x=point.x;g.player.z=point.z;g.adventureCamera.yaw=Math.atan2(root.position.x-point.x,root.position.z-point.z);const center=new T.Box3().setFromObject(tree,true).getCenter(new T.Vector3());g.adventureCamera.pitch=Math.atan2(center.y-1.55,distance);g.adventureCamera._ready=false;step(2);
+  assert(tree.userData.treeLOD===level,'真实帧未切换 '+biome+' LOD '+level);assert(tree.parent===root&&tree.material===material,'LOD 替换了材质或树对象');
+  const attr=tree.geometry.attributes;assert(attr.treeSurface&&attr.treeSurface.count===attr.position.count,'树冠表面属性丢失');
+  assert(tree.geometry.boundingSphere&&Number.isFinite(tree.geometry.boundingSphere.radius),'树冠包围体无效');samples.push({distance,level,canopyTriangles:(tree.geometry.index?.count||attr.position.count)/3,...reportFrame()});
+ }
+ assert(samples[0].canopyTriangles>samples[1].canopyTriangles&&samples[1].canopyTriangles>samples[2].canopyTriangles,'远近树冠几何未分级');return samples;
+}
+sceneryEdgeButton.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
+ $('#scenery-edge-contact')?.remove();const sheet=document.createElement('canvas'),cellW=540,cellH=348;sheet.id='scenery-edge-contact';sheet.width=cellW*2;sheet.height=cellH*6;sheet.style.cssText='display:block;width:1080px;height:auto;margin:16px 0';sheet.setAttribute('aria-label','六图景物边缘实景：左为桌面，右为手机横屏模拟');$('#report').before(sheet);const paint=sheet.getContext('2d');paint.fillStyle='#17272b';paint.fillRect(0,0,sheet.width,sheet.height);
+ try{for(const mobile of[false,true]){
+  await load(mobile,mobile?844:1180,mobile?390:720);
+  for(const[row,map]of['forest','snow','ash','sand','coast','confluence'].entries()){
+   select('silver',0,map);g.setView('first');
+   await check(map+(mobile?' 手机模拟':' 桌面')+' 景物边缘实景与预算',()=>{
+    const ground=edgeLayerReport(g.world.adventureGroundDetail,'地表',map),habitat=edgeLayerReport(g.world.habitatDetail,'植被',map),view=positionClusterEdge('first');step(2);
+    assert(sceneryStandClear(g.player.x,g.player.z,.55),'预览人物落进实体或水面');assert(g.camera.position.distanceTo(g.hero.position)>.5,'镜头取景异常');
+    const stats=reportFrame();assert(stats.calls<2000&&stats.textures<64,'场景绘制/纹理超预算');assert(stats.pixels<=(mobile?1800000:3200000),'画面像素超预算');
+    const clusters=g.world.environmentClusters;assert(clusters.draws<=30&&clusters.triangles<40000,'景物簇预算改变');
+    const c=g.renderer.domElement,scale=Math.min(cellW/c.width,(cellH-30)/c.height),x=(mobile?cellW:0)+(cellW-c.width*scale)/2,y=row*cellH+(cellH-30-c.height*scale)/2;paint.drawImage(c,x,y,c.width*scale,c.height*scale);paint.fillStyle='#e4eddf';paint.font='16px sans-serif';paint.fillText(map+' · '+(mobile?'手机横屏模拟':'桌面')+' · 簇 '+view.index,(mobile?cellW:0)+12,(row+1)*cellH-9);
+    return{ground,habitat,cluster:view.index,biome:view.record.biome,stand:{x:view.x,z:view.z},...stats};
+   });
+   if(['forest','snow','confluence'].includes(map))for(const biome of map==='confluence'?['forest','snow']:[map])await check(map+' / '+biome+(mobile?' 手机模拟':' 桌面')+' 树冠近中远真实编译',()=>checkTreeDistances(biome));
+  }
+  await check((mobile?'手机模拟':'桌面')+' 边缘细节重开清理',()=>{
+   const old=[g.world.adventureGroundDetail,g.world.habitatDetail],geometries=[...new Set(old.flatMap(group=>group.children.map(m=>m.geometry)))],counts=new Map(geometries.map(geometry=>[geometry,0]));for(const geometry of geometries)geometry.addEventListener('dispose',()=>counts.set(geometry,counts.get(geometry)+1));
+   g.menu();assert(old.every(group=>group.userData.disposed&&group.children.every(m=>!m.visible)),'旧边缘实例未清理');assert([...counts.values()].every(n=>n===1),'旧边缘几何未恰好释放一次');g.start();step(2);
+   assert([...counts.values()].every(n=>n===1),'重开重复释放旧几何');assert(!old.includes(g.world.adventureGroundDetail)&&!old.includes(g.world.habitatDetail),'重开复用已释放层');edgeLayerReport(g.world.adventureGroundDetail,'地表','confluence');edgeLayerReport(g.world.habitatDetail,'植被','confluence');return{released:geometries.length,...reportFrame()};
+  });
+ }
+ errors.push(...win.qaErrors);publish();$('#status').textContent='景物边缘检查完成：'+results.filter(r=>r.pass).length+'/'+results.length+'；下方联系表为真实游戏画面，手机为尺寸/触控模拟，非真机或帧率测试。';
+ }catch(e){errors.push(e.message);publish();$('#status').textContent='景物边缘检查中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
+};
 </script>
 </html>

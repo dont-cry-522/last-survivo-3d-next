@@ -103,23 +103,26 @@ function sprayPose(x,y,z,width,depth,height,phase,spray){
  const center=new T.Vector3(x+Math.cos(angle)*width*.30,y+height*(.19+.38*Math.sin(spray*1.9+phase)),z+Math.sin(angle)*depth*.36);
  return{center,normal,across,along};
 }
+const sprayBow=(u,v)=>.18-.20*(u*u+v*v)/(1.17*1.17);
 function broadFan(x,y,z,width,depth,height,phase){
  // Five small curved sprays sit around a twig, rather than intersecting at one large card.
  // The six-triangle fans keep their alpha silhouette and use 25% fewer canopy triangles.
- const vertices=[],indices=[],colors=[],uvs=[],point=new T.Vector3();
+ const vertices=[],indices=[],colors=[],uvs=[],normals=[],point=new T.Vector3(),shading=new T.Vector3();
  for(let spray=0;spray<5;spray++){
   const first=vertices.length/3,{center,normal,across,along}=sprayPose(x,y,z,width,depth,height,phase,spray);
-  const vertex=(u,v,bow)=>{
-   point.copy(center).addScaledVector(across,u*width*.72).addScaledVector(along,v*depth*.96).addScaledVector(normal,bow*height);
+  const vertex=(u,v)=>{
+   point.copy(center).addScaledVector(across,u*width*.72).addScaledVector(along,v*depth*.96).addScaledVector(normal,sprayBow(u,v)*height);
    vertices.push(point.x,point.y,point.z);uvs.push(.5+u*.5,.5+v*.5);
+   // Continuous dome normals avoid six broad triangular highlights across one leaf cluster.
+   shading.copy(normal).addScaledVector(across,.40*height*u/(1.17*1.17*width*.72)).addScaledVector(along,.40*height*v/(1.17*1.17*depth*.96)).normalize();normals.push(shading.x,shading.y,shading.z);
    const shade=.83+(normal.y+1)*.075+spray*.012,warm=.5+.5*Math.sin(phase*2.7+spray);
    colors.push(Math.min(1,shade*(.97+warm*.06)),Math.min(1,shade),Math.min(1,shade*(.89-warm*.04)));
   };
-  vertex(0,0,.23);
-  for(let i=0;i<6;i++){const a=i*Math.PI/3;vertex(Math.cos(a)*1.17,Math.sin(a)*1.17,-.05+.014*Math.sin(a*2+phase));}
+  vertex(0,0);
+  for(let i=0;i<6;i++){const a=i*Math.PI/3,r=1.17*(.95+.035*Math.sin(a*3+phase+spray*.6)+.015*Math.cos(a*2-phase));vertex(Math.cos(a)*r,Math.sin(a)*r);}
   for(let i=0;i<6;i++)indices.push(first,first+1+i,first+1+(i+1)%6);
  }
- const g=surface(vertices,indices);g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));return g;
+ const g=surface(vertices,indices);g.setAttribute('normal',new T.Float32BufferAttribute(normals,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));return g;
 }
 function rootFlare(angle,snow){
  if(!snow){
@@ -135,14 +138,15 @@ function firFan(angle,height,reach,width,variant){
  // Alternate needle sprays open real gaps along the bough; snow stays on their folded ridges.
  const vertices=[],indices=[],colors=[],c=new T.Color(),cos=Math.cos(angle),sin=Math.sin(angle);
  for(let leaf=0;leaf<7;leaf++){
-  const start=.08+Math.floor(leaf/2)*.24,side=leaf%2?1:-1,tip=start+.34,spread=side*(1-start*.45),first=vertices.length/3;
+  const start=.08+Math.floor(leaf/2)*.24+Math.sin(angle+leaf*1.9+variant)*.026,side=leaf%2?1:-1,tip=start+.31+Math.cos(angle*1.3+leaf+variant)*.035,spread=side*(1-start*.45),first=vertices.length/3,snowLoad=.05+.055*(.5+.5*Math.sin(angle*2+variant+leaf));
   // The final narrow midrib joins all three leaflet pairs back to the trunk.
-  const points=leaf===6?[[0,0,0],[.52,-.052,.025],[1,-.16,0],[.52,-.052,-.025]]:[[start,-start*.10,0],[start+.13,.075-start*.13,spread*.46-.16],[tip,-tip*.16,spread],[start+.20,-.055-start*.12,spread*.52+.16]];
+  const points=leaf===6?[[0,0,0],[.52,-.040,.028],[1,-.24,0],[.52,-.040,-.028]]:[[start,-start*.10,0],[start+.22,snowLoad*.25-start*.16,spread*.43],[tip,-tip*.22-snowLoad*.35,spread*.95],[tip-.13,-tip*.22-snowLoad*.25,spread*.91]];
   for(const [i,[r,h,z]]of points.entries()){
    const x=r*reach,depth=z*width;vertices.push(cos*x-sin*depth,height+h*reach,sin*x+cos*depth);
    c.setHex(leaf===6?0x58685b:i===0?0x486e6b:i===1?0xd5e0d8:i===2?((leaf+variant)%3?0xaec5bd:0x789b95):0x6d9491);colors.push(c.r,c.g,c.b);
   }
-  indices.push(first,first+2,first+1,first,first+3,first+2);
+  if(leaf===6||side<0)indices.push(first,first+1,first+2,first,first+2,first+3);
+  else indices.push(first,first+2,first+1,first,first+3,first+2);
  }
  const g=surface(vertices,indices);
  g.setAttribute('color',new T.Float32BufferAttribute(colors,3));return g;
@@ -158,8 +162,8 @@ function treeTemplate(id,variant){
  const crowns=[],tips=[],sprays=[];
  if(snow){
   for(let layer=0;layer<4;layer++)for(let j=0;j<4;j++){
-   const a=j*Math.PI*.5+layer*.75+variant*.57,reach=(1.42-layer*.23)*(1+Math.sin(j*2.2+variant)*.09);
-   crowns.push(firFan(a,.33+layer*.57,reach,.39-layer*.057,(j+variant)%3));
+   const a=j*Math.PI*.5+layer*.75+variant*.57+Math.sin(j*2.8+layer+variant)*.10,reach=(1.42-layer*.23)*(1+Math.sin(j*2.2+variant+layer*.7)*.09),rise=Math.sin(j*1.8+variant+layer*2.4)*.105;
+   crowns.push(firFan(a,.38+layer*.56+rise,reach,(.42-layer*.061)*1.12*(1+Math.cos(j*1.7+layer)*.08),(j+variant)%3));
   }
   const leader=new T.LatheGeometry([[0,0],[.31,.08],[.22,.34],[.05,.65],[0,.74]].map(([r,h])=>new T.Vector2(r,h)),6);leader.translate(lean*.25,2.02,.025);crowns.push(tint(leader,0xb7cdc1,true));
  }else{
@@ -194,7 +198,8 @@ export function addTree(parent,id,tall,{angle=0,variation=1,bend=0}={}){
  const variant=Math.abs(Math.floor(angle*1.7))%3,template=treeTemplate(id,variant),height=id==='snow'?5.2+tall*.52:5.6+tall*.26,canopyHeight=height*(id==='snow'?.46:.47),width=(.88+variation*.12)*(id==='snow'?1:2.04);
  parent.userData.treeBiome=id;parent.rotation.y=angle;
  const trunk=new T.Mesh(template.trunk,material);trunk.name='tree-trunk';trunk.scale.set(.94+variation*.06,(height-canopyHeight*.32)/template.trunkHeight,.94+variation*.06);trunk.rotation.z=bend*.10;
- const canopy=new T.Mesh(template.canopy,id==='snow'?firMaterial:leafMaterial);canopy.name='tree-canopy';canopy.userData.treeCanopy=true;if(id==='forest'){canopy.userData.treeTemplate=template;canopy.userData.treeLOD=2;}canopy.position.set(bend*.5,height-canopyHeight,0);canopy.scale.set(width,canopyHeight/template.canopyHeight,width*(.94+variant*.035));
+ // Snow hangs slightly lower while its top and the independently scaled trunk stay fixed.
+ const snowDrop=id==='snow'?.24:0,canopy=new T.Mesh(template.canopy,id==='snow'?firMaterial:leafMaterial);canopy.name='tree-canopy';canopy.userData.treeCanopy=true;if(id==='forest'){canopy.userData.treeTemplate=template;canopy.userData.treeLOD=2;}canopy.position.set(bend*.5,height-canopyHeight-snowDrop,0);canopy.scale.set(width,(canopyHeight+snowDrop)/template.canopyHeight,width*(.94+variant*.035));
  for(const mesh of[trunk,canopy]){mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);}return canopy;
 }
 
@@ -212,12 +217,14 @@ function detailedCrown(template,level){
   for(let leaf=0;leaf<count;leaf++){
    const a=leaf*2.399+phase,r=Math.sqrt((leaf+.5)/count),cx=Math.cos(a)*r*width*.68,cy=Math.sin(a)*r*depth*.91;
    const direction=a*.47+spray,co=Math.cos(direction),si=Math.sin(direction),length=.11+.055*(.5+.5*Math.sin(leaf*7+phase)),w=length*.24,first=p.length/3;
+   const leafU=cx/(width*.72),leafV=cy/(depth*.96),leafCenter=center.clone().addScaledVector(across,cx).addScaledVector(along,cy).addScaledVector(normal,height*sprayBow(leafU,leafV));
+   const leafNormal=normal.clone().addScaledVector(across,.40*height*leafU/(1.17*1.17*width*.72)).addScaledVector(along,.40*height*leafV/(1.17*1.17*depth*.96)).normalize();
+   const leafAcross=across.clone().addScaledVector(leafNormal,-across.dot(leafNormal)).normalize(),leafAlong=new T.Vector3().crossVectors(leafNormal,leafAcross);
    // Six vertices, six triangles: raised midrib and drooping tip retain a smooth folded profile.
    const shape=[[0,-length*.5,length*.07],[0,0,length*.12],[-w,0,length*.025],[0,length*.55,-length*.04],[w,0,length*.025],[0,length*.25,length*.065]];
    for(const [i,[lx,ly,bow]]of shape.entries()){
-    // Follow the same domed spray at every LOD; near leaves must not hover over flat cards.
-    const crownBow=.23-.28*r/1.17;
-    point.copy(center).addScaledVector(across,cx+lx*co-ly*si).addScaledVector(along,cy+lx*si+ly*co).addScaledVector(normal,bow+height*crownBow);
+    // The local tangent follows the curved spray without stretching individual leaves.
+    point.copy(leafCenter).addScaledVector(leafAcross,lx*co-ly*si).addScaledVector(leafAlong,lx*si+ly*co).addScaledVector(leafNormal,bow);
     p.push(point.x,point.y-template.bottom,point.z);uv.push(u,v);
     const shade=(i===1||i===5?1:.83)+.08*Math.sin(a*3+spray);colors.push(Math.min(1,shade*.98),Math.min(1,shade),shade*.86);
    }

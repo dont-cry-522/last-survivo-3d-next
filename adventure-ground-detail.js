@@ -3,7 +3,7 @@ import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
 import {forestHabitatAt} from './forest-habitats.js?v=139';
 import {bridgeContains} from './coast.js?v=114';
-import {naturalRockGeometry} from './biome-scenery.js?v=134';
+import {naturalRockGeometry} from './biome-scenery.js?v=143';
 
 const profiles={
  forest:{count:1200,grass:.83,height:1,tuft:[0x566d48,0x829360],litter:[0x827561,0x66685c]},
@@ -47,7 +47,33 @@ material.customProgramCacheKey=()=> 'adventure-ground-wind';
 export function animateAdventureGroundDetail(time){if(Number.isFinite(time))windTime.value=time;}
 const near=(x,z,p,r)=>(x-p.x)**2+(z-p.z)**2<r*r;
 
-function tuftGeometry(){
+function dryTuftGeometry(biome){
+ const positions=[],colors=[],indices=[],flex=[];
+ const count=biome==='sand'?5:4;
+ for(let blade=0;blade<count;blade++){
+  const a=blade*2.399,s=Math.sin(a),c=Math.cos(a),start=positions.length/3;
+  const height=biome==='snow'?.19+blade*.022:biome==='ash'?.13+blade*.026:biome==='sand'?.18+blade*.019:.23+blade*.016;
+  const reach=biome==='snow'?.12:biome==='ash'?.15:biome==='sand'?.25:.17;
+  for(let row=0;row<4;row++){
+   const t=row/3,bend=reach*t*t,width=(biome==='ash'?.014:biome==='snow'?.008:biome==='sand'?.012:.022)*(row===3?.07:row===0?.38:1);
+   const y=-.035+height*t-(biome==='snow'?.09:biome==='ash'?0:biome==='sand'?.075:.045)*t*t*t;
+   for(const side of[-1,1]){
+    positions.push(s*bend+c*width*side,y+width*side*.25,c*bend-s*width*side);
+    const shade=.57+t*.34;colors.push(shade,shade,shade*(biome==='coast'?.87:1));flex.push(biome==='ash'?0:t*t*(biome==='snow'?.4:.85));
+   }
+   if(row<3){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}
+  }
+  if(biome==='ash'){
+   // A brittle fork, not another green leaf recolored black.
+   const n=positions.length/3,t=.54,b=reach*t*t,y=-.035+height*t;
+   positions.push(s*b-c*.008,y,c*b+s*.008,s*b+c*.008,y,c*b-s*.008,s*b+c*.065,y+.055,c*b-s*.065);
+   for(let j=0;j<3;j++){colors.push(.69,.66,.65);flex.push(0);}indices.push(n,n+1,n+2);
+  }
+ }
+ const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
+}
+function tuftGeometry(biome='forest'){
+ if(biome!=='forest')return dryTuftGeometry(biome);
  const positions=[],colors=[],indices=[];
  const vertex=(x,y,z,shade)=>{const index=positions.length/3;positions.push(x,y,z);colors.push(shade*.98,shade,shade*.87);return index;};
  // Four arching ribbon leaves have separate tapered tips, so all 20 triangles contribute.
@@ -74,8 +100,21 @@ function tuftGeometry(){
  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(positions.filter((v,i)=>i%3===1).map(y=>Math.max(0,(y+.035)/.29)**2),1));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
 }
 
-function litterGeometry(forest=false){
- const pieces=[],matrix=new T.Matrix4();
+// Shallow, irregular broken plates share a buried underside. Their inset tops
+// are offset instead of ending at a gemstone point or four square corners.
+function groundShardGeometry(snow,variant){
+ const outline=snow?[[-.96,-.44],[-.20,-.90],[.83,-.51],[.66,.78],[-.61,.63]]:[[-.98,-.23],[-.62,-.78],[.24,-.91],[.89,-.41],[.76,.39],[.20,.78],[-.70,.66]],p=[],ix=[],n=outline.length;
+ for(let row=0;row<2;row++)for(let i=0;i<n;i++){
+  const [x,z]=outline[i],wear=1+Math.sin(i*2.3+variant*1.8)*.09,k=row===1?.68:1;
+  p.push(x*wear*k+(row===1?.10*Math.sin(variant+1):0),row===0?0:((snow?.039:.057)+Math.sin(i*1.8+variant)*.008),z*wear*k+(row===1?-.09:0));
+  if(row===0){const a=i,b=(i+1)%n;ix.push(a,a+n,b,b,a+n,b+n);}
+ }
+ for(let i=1;i<n-1;i++)ix.push(n,n+i+1,n+i);
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setIndex(ix);g.computeVertexNormals();return g;
+}
+
+function litterGeometry(biome){
+ const forest=biome==='forest',pieces=[],matrix=new T.Matrix4();
  const add=(geometry,position,scale,rotation,color)=>{
   if(geometry.index){const flat=geometry.toNonIndexed();geometry.dispose();geometry=flat;}
   matrix.compose(new T.Vector3(...position),new T.Quaternion().setFromEuler(new T.Euler(...rotation)),new T.Vector3(...scale));geometry.applyMatrix4(matrix);geometry.deleteAttribute('uv');
@@ -93,9 +132,22 @@ function litterGeometry(forest=false){
   }
   add(new T.CylinderGeometry(.010,.014,.07,4,1,true),[.06,.016,.055],[1,1,1],[0,0,-.15],0xd2c8b5);
   add(new T.SphereGeometry(1,6,2,0,Math.PI*2,0,Math.PI/2),[.064,.046,.055],[.060,.028,.050],[.09,.5,-.12],0xc7b28c);
- }else for(const [i,[x,z]]of[[-.19,.04],[.16,-.14],[.02,.19]].entries())add(new T.OctahedronGeometry(1,0),[x,.006,z],[.13-i*.015,.044+i*.009,.105+i*.012],[0,i*1.2,.06],i===1?0xdbdedb:0xf0efeb);
- add(new T.CylinderGeometry(.009,.016,.48,3,1,forest),[-.04,-.025,-.025],[1,1,1],[Math.PI/2,.65,0],0x76654e);
- add(new T.CylinderGeometry(.006,.011,.21,3,1,forest),[.065,-.025,.025],[1,1,1],[Math.PI/2,-.55,0],0x8c795c);
+ }else if(biome==='snow'){
+  for(const [i,[x,z]]of[[-.16,.04],[.14,-.13],[.04,.18]].entries())add(groundShardGeometry(true,i),[x,0,z],[.14-i*.018,1,.11],[0,i*1.3,0],i===1?0xabc0c8:0xd4e1e1); }else if(biome==='ash'){
+  for(const [i,[x,z]]of[[-.18,-.04],[.16,-.1],[.05,.19]].entries())add(new T.TetrahedronGeometry(1),[x,-.005,z],[.14,.064,.11],[.1,i*1.7,.2],i===1?0x877d76:0x514c4d);
+ }else if(biome==='sand'){
+  for(const [i,[x,z]]of[[-.19,-.04],[.14,-.13],[.03,.17]].entries())add(groundShardGeometry(false,i),[x,0,z],[.12-i*.016,1,.105+i*.009],[0,i*1.6,0],i===1?0xd9c7a8:0xbba98d); }else if(biome==='coast'){
+  add(new T.CylinderGeometry(.019,.029,.42,5),[-.035,.006,-.03],[1,1,1],[Math.PI/2,.65,.035],0x8d8779);
+  for(const [i,[x,z]]of[[.16,-.13],[-.13,.17]].entries()){
+   const shell=new T.BufferGeometry(),p=[0,.023,0],ix=[];
+   for(let j=0;j<=6;j++){const a=-Math.PI*.75+j*Math.PI*1.5/6;p.push(Math.sin(a)*.076,.006+(j%2)*.003,Math.cos(a)*.095);if(j<6)ix.push(0,j+1,j+2);}
+   shell.setAttribute('position',new T.Float32BufferAttribute(p,3));shell.setIndex(ix);shell.computeVertexNormals();add(shell,[x,-.014,z],[1,1,1],[0,i*1.7,0],i?0xf0e4cd:0xc5cfcc);
+  }
+ }
+ if(forest||biome==='ash'){
+  add(new T.CylinderGeometry(.009,.016,.48,3,1,forest),[-.04,-.025,-.025],[1,1,1],[Math.PI/2,.65,0],forest?0x76654e:0x4c4543);
+  add(new T.CylinderGeometry(.006,.011,.21,3,1,forest),[.065,-.025,.025],[1,1,1],[Math.PI/2,-.55,0],forest?0x8c795c:0x746860);
+ }
  const geometry=mergeGeometries(pieces);for(const piece of pieces)piece.dispose();geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count),1));return geometry;
 }
 
@@ -185,9 +237,11 @@ export function installAdventureGroundDetail(world,mapId){
  if(!records.length)return null;
  const group=new T.Group();group.name='adventure-ground-detail';group.userData.records=records;group.userData.disposed=false;
  const matrix=new T.Matrix4(),position=new T.Vector3(),scale=new T.Vector3(),rotation=new T.Quaternion(),up=new T.Vector3(0,1,0),color=new T.Color();
- for(const kind of['tuft','litter','forest-litter']){
-  const instances=records.filter(p=>p.kind==='tuft'?kind==='tuft':kind===(p.biome==='forest'?'forest-litter':'litter'));if(!instances.length)continue;
-  const geometry=kind==='tuft'?tuftGeometry():litterGeometry(kind==='forest-litter'),batch=new T.InstancedMesh(geometry,material,instances.length);batch.name='adventure-ground-'+kind;
+ // Two batches per present biome retain every existing placement. The joined
+ // map needs at most ten draws so each region can have its own actual silhouette.
+ for(const biome of Object.keys(profiles))for(const kind of['tuft','litter']){
+  const instances=records.filter(p=>p.biome===biome&&p.kind===kind);if(!instances.length)continue;
+  const geometry=kind==='tuft'?tuftGeometry(biome):litterGeometry(biome),batch=new T.InstancedMesh(geometry,material,instances.length);batch.name='adventure-ground-'+(biome==='forest'&&kind==='tuft'?'tuft':biome+'-'+kind);batch.userData.biome=biome;batch.userData.kind=kind;
   geometry.computeBoundingBox();
   batch.userData.ownedGeometry=true;batch.receiveShadow=true;batch.castShadow=false;
   for(const [i,p]of instances.entries()){

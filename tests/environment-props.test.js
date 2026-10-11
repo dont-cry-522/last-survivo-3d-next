@@ -3,6 +3,7 @@ import assert from'node:assert/strict';
 import * as T from'../vendor/three.module.js';
 import{polishEnvironmentModels}from'../environment-props.js';
 import{buildWorld}from'../world.js';
+import{boulderRockGeometry}from'../biome-scenery.js?v=143';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 
 test('surface finishes follow wooden beam direction, cache variants and preserve authored material behavior',()=>{
@@ -18,6 +19,7 @@ test('surface finishes follow wooden beam direction, cache variants and preserve
   assert(shader.vertexShader.includes('// authored-surface'));assert.equal(shader.vertexShader.match(/varying vec3 propPoint/g).length,1);
   assert(shader.fragmentShader.indexOf('float propPatch')<shader.fragmentShader.indexOf('roughnessFactor=clamp'));
   assert(!shader.fragmentShader.includes('undefined'));assert.deepEqual(shader.uniforms,{},'surface adds texture/uniform allocations');
+  assert(shader.fragmentShader.includes('woodRings')&&shader.fragmentShader.includes('dFdx(woodRelief)'));assert(shader.fragmentShader.indexOf('float woodRelief')<shader.fragmentShader.indexOf('dFdx(woodRelief)'),'wood relief must be defined before its surface normal');
  }
  assert.notEqual(horizontal.material.customProgramCacheKey(),upright.material.customProgramCacheKey());
  const assigned=group.children.map(o=>o.material);polishEnvironmentModels({group,obstacles:[]});assert.deepEqual(group.children.map(o=>o.material),assigned);
@@ -71,4 +73,30 @@ test('eroded stone silhouettes stay inside their authored bounds and reuse geome
   assert(Math.max(...top)-Math.min(...top)>.025,'stone crown remained perfectly level');
  }
  const geometries=group.children.map(o=>o.geometry);polishEnvironmentModels({group,obstacles:[]});assert.deepEqual(group.children.map(o=>o.geometry),geometries);
+});
+
+test('ash columns have shared broken crowns and inward seams without moving their base or other biomes',()=>{
+ const originals=boulderRockGeometry.attributes.position.array.slice(),shared=new Set(),reference=boulderRockGeometry.attributes.position;
+ for(const id of ['ash','ash','forest','snow','sand','coast','confluence']){
+  const w=buildWorld(id,43837033),before=new Map();w.group.traverse(o=>{if(o.isMesh)before.set(o,[o.position.toArray(),o.scale.toArray(),o.quaternion.toArray()]);});
+  const collision=JSON.stringify(w.obstacles.map(o=>[o.x,o.z,o.r]));polishEnvironmentModels(w);let count=0;
+  w.group.traverse(o=>{
+   if(!o.geometry?.name.startsWith('SM_Rock_AshColumn_'))return;count++;
+   assert(['ash','confluence'].includes(id),'ash silhouette leaked into another biome');
+   assert.deepEqual([o.position.toArray(),o.scale.toArray(),o.quaternion.toArray()],before.get(o),'ash shape adjustment moves an existing obstacle');
+   assert(o.geometry.index.count/3<=480);assert(!o.userData.ownedGeometry,'persistent ash shapes must be reused, not disposed with a world');
+   shared.add(o.geometry);const p=o.geometry.attributes.position,tops=[];
+   for(let i=0;i<p.count;i++){
+    assert(Math.hypot(p.getX(i),p.getZ(i))<=Math.hypot(reference.getX(i),reference.getZ(i))+1e-6,'an ash ridge enlarges the stone footprint');
+    if(reference.getY(i)<=-.42)assert.deepEqual([p.getX(i),p.getY(i),p.getZ(i)],[reference.getX(i),reference.getY(i),reference.getZ(i)],'the grounded lower bole changed');
+    if(reference.getY(i)>.75)tops.push(p.getY(i));
+   }
+   assert(Math.max(...tops)-Math.min(...tops)>.035,'the broken crown became level');assert(Math.max(...tops)<.85,'the ash column retained its rounded high tip');
+  });
+  if(id==='ash')assert(count>30,'ash obstacles were not identified');assert.equal(JSON.stringify(w.obstacles.map(o=>[o.x,o.z,o.r])),collision);
+  const models=[];w.group.traverse(o=>{if(o.isMesh)models.push(o);});assert.equal(models.length,before.size,'ash silhouette introduced extra meshes');
+  const assigned=models.map(o=>o.geometry);polishEnvironmentModels(w);assert.deepEqual(models.map(o=>o.geometry),assigned,'a second polish changes shared ash shapes');
+  w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
+ }
+ assert.equal(shared.size,3);assert.deepEqual(boulderRockGeometry.attributes.position.array,originals,'ash carving polluted the common boulder geometry');
 });

@@ -75,6 +75,25 @@ test('every terminal forest twig follows its uneven leaf cluster in all three te
  }
 });
 
+test('snow boughs stagger their snow shelves and droop at the tips without extra meshes or triangles',()=>{
+ for(const angle of[0,1,1.5]){
+  const group=new T.Group(),leaf=addTree(group,'snow',4,{angle}),p=leaf.geometry.attributes.position;
+  assert.equal(group.children.length,2);assert.equal(leaf.geometry.index.count/3,272);
+  group.updateMatrixWorld(true);const bounds=new T.Box3().setFromObject(leaf,true),height=5.2+4*.52;
+  assert(Math.abs(bounds.max.y-height)<.00001,'fuller snow crown moved the established tree top');
+  assert(Math.abs(bounds.min.y-(height*.54-.24))<.00001&&bounds.min.y>3.2,'lower snow shelves invade the fighting plane');
+  assert.equal(group.children[0].scale.y,(height-height*.46*.32)/5,'hanging snow stretched the trunk');
+  for(let layer=0;layer<4;layer++){
+   const heights=[];
+   for(let branch=0;branch<4;branch++){
+    const start=(layer*4+branch)*28,root=start+24,tip=root+2;heights.push(p.getY(root));
+    assert(p.getY(root)-p.getY(tip)>.12,'snow bough tip lost its weighted droop');
+   }
+   assert(Math.max(...heights)-Math.min(...heights)>.07,'snow canopy returned to identical horizontal shelves');
+  }
+ }
+});
+
 test('full leaf sprays use one mipmapped cutout atlas without per-tree allocations',()=>{
  const maps=new Set(),materials=new Set(),geometries=new Set();
  for(const angle of[0,1,1.5])for(let repeat=0;repeat<3;repeat++){
@@ -152,10 +171,14 @@ test('forest canopy LOD preserves the silhouette, shadow material and mesh ident
 test('close-up leaves stay small and gently folded before canopy scaling',()=>{
  for(const angle of[0,1,1.5]){
   const leaf=addTree(new T.Group(),'forest',4,{angle}),baseCount=leaf.geometry.attributes.position.count;
-  updateTreeDetail(leaf,5,0);const p=leaf.geometry.attributes.position,a=new T.Vector3(),b=new T.Vector3();
+  updateTreeDetail(leaf,5,0);const p=leaf.geometry.attributes.position,uv=leaf.geometry.attributes.uv,image=leaf.material.map.image,a=new T.Vector3(),b=new T.Vector3();
   for(let i=baseCount;i<p.count;i+=6){
    a.fromBufferAttribute(p,i);b.fromBufferAttribute(p,i+3);assert(a.distanceTo(b)<.185,'one near leaf becomes a large pointed sheet');
    const box=new T.Box3();for(let j=0;j<6;j++)box.expandByPoint(a.fromBufferAttribute(p,i+j));assert(box.getSize(b).length()<.22);
+   for(let j=0;j<6;j++){
+    const u=uv.getX(i+j),v=uv.getY(i+j);assert(u>=0&&u<1&&v>=0&&v<1,'leaf tangent coordinates leaked into its atlas UV');
+    assert.equal(image.data[(Math.floor(v*image.height)*image.width+Math.floor(u*image.width))*4+3],255,'small solid leaf samples a transparent atlas texel');
+   }
   }
  }
 });

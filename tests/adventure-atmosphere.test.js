@@ -55,6 +55,20 @@ test('dispose is idempotent and leaves another atmosphere and scene resources in
  two.update(10,camera);assert.equal(two.mesh.visible,true);assert.equal(two.mesh.parent,scene);two.dispose();assert.equal(scene.children.length,0);
 });
 
+test('biome cloud shapes differ, blend at the same rate and freeze with the game clock',()=>{
+ const camera=new T.PerspectiveCamera(),shapes=new Set();
+ for(const mapId of Object.keys(CLIMATE_LIGHT)){
+  const sky=new AdventureAtmosphere(new T.Scene());sky.update(0,camera,{mapId});const p=sky.mesh.material.uniforms.cloudProfile.value;
+  shapes.add(p.toArray().join(','));assert(p.x>0&&p.y>0&&p.z<p.w);sky.dispose();
+ }
+ assert.equal(shapes.size,5);
+ const slow=new AdventureAtmosphere(new T.Scene()),fast=new AdventureAtmosphere(new T.Scene());slow.update(0,camera);fast.update(0,camera);
+ for(let i=1;i<=60;i++){slow.update(i/30,camera,{mapId:'snow'});fast.update((i*2-1)/60,camera,{mapId:'snow'});fast.update(i/30,camera,{mapId:'snow'});}
+ const a=slow.mesh.material.uniforms,b=fast.mesh.material.uniforms;assert(a.cloudProfile.value.clone().sub(b.cloudProfile.value).length()<1e-10);assert(Math.abs(a.cloudAmount.value-b.cloudAmount.value)<1e-10);
+ const frozen=a.cloudProfile.value.clone();slow.update(2,camera,{mapId:'ash'});assert(a.cloudProfile.value.equals(frozen),'pause changed cloud shape');
+ slow.update(0,camera,{mapId:'forest'});assert.deepEqual(a.cloudProfile.value.toArray(),[4.3,2.7,.47,.73]);slow.dispose();fast.dispose();
+});
+
 test('the sky tracks gradual mixed-biome lighting without resetting its geometry, sun or time',()=>{
  const scene=new T.Scene(),camera=new T.PerspectiveCamera(),hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();
  scene.fog=new T.FogExp2();scene.background=new T.Color();scene.add(hemi,sun,rim);

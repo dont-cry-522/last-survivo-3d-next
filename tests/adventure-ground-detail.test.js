@@ -14,11 +14,11 @@ const cleanup=world=>world.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();i
 const state=world=>JSON.stringify({spawn:world.spawn,obstacles:world.obstacles.map(o=>[o.x,o.z,o.r,o.state]),patches:world.patches.map(p=>[p.x,p.z,p.rx,p.rz,p.kind]),sites:world.sites.map(s=>[s.x,s.z,s.claimed,s.discovered]),finds:world.discoveries.map(d=>[d.x,d.z,d.discovered,d.claimed]),roaming:world.roaming.map(r=>[r.x,r.z,r.state])});
 const far=(p,q,r)=>assert(Math.hypot(p.x-q.x,p.z-q.z)>=r-1e-7,`${p.biome} ${p.kind} encroaches on protected ground`);
 
-test('local maps use at most two bounded batches and the joined map three without moving gameplay data or raising the floor',()=>{
+test('local maps use at most two bounded batches and the joined map ten without moving gameplay data or raising the floor',()=>{
  for(const map of maps){
   const world=buildWorld(map,7),before=state(world),ground=world.ground.geometry.attributes.position.array.slice(),group=installAdventureGroundDetail(world,map);
   assert(group,map);assert.equal(group.parent,world.group);assert.equal(installAdventureGroundDetail(world,map),group);
-  assert(group.children.length>0&&group.children.length<=(map==='confluence'?3:2));const records=group.userData.records;
+  assert(group.children.length>0&&group.children.length<=(map==='confluence'?10:2));const records=group.userData.records;
   assert(records.length>100&&records.length<=(map==='confluence'?2200:1200));assert.equal(group.children.reduce((n,b)=>n+b.count,0),records.length);
   const shoulderCount=records.filter(p=>p.shoulder).length;assert(shoulderCount>0&&shoulderCount<=Math.ceil(records.length*.22),'roadside detail exceeds the reallocated budget');
   assert.equal(state(world),before);assert.deepEqual(world.ground.geometry.attributes.position.array,ground);
@@ -37,9 +37,9 @@ test('local maps use at most two bounded batches and the joined map three withou
 });
 
 test('forest leaf litter replaces its old stones within the same placement and footprint budget',()=>{
- const matrix=new T.Matrix4(),point=new T.Vector3(),center=new T.Vector3();let stonePositions;
+ const matrix=new T.Matrix4(),point=new T.Vector3(),center=new T.Vector3(),litterShapes=new Map();
  for(const map of maps){
-  const world=buildWorld(map,43837033),group=installAdventureGroundDetail(world,map),forest=group.getObjectByName('adventure-ground-forest-litter'),stone=group.getObjectByName('adventure-ground-litter');
+  const world=buildWorld(map,43837033),group=installAdventureGroundDetail(world,map),forest=group.getObjectByName('adventure-ground-forest-litter');
   const leaves=group.userData.records.filter(p=>p.biome==='forest'&&p.kind==='litter');
   assert.equal(forest?.count||0,leaves.length);
   if(forest){
@@ -50,11 +50,31 @@ test('forest leaf litter replaces its old stones within the same placement and f
     for(let j=0;j<p.count;j++){point.fromBufferAttribute(p,j).applyMatrix4(matrix);assert(point.y<.11,'dry litter or fungus reaches above ankle height');}
    }
   }else assert(!['forest','confluence'].includes(map));
-  if(stone){
-   assert.equal(stone.count,group.userData.records.filter(p=>p.biome!=='forest'&&p.kind==='litter').length);
-   if(stonePositions)assert.deepEqual(stone.geometry.attributes.position.array,stonePositions);else stonePositions=stone.geometry.attributes.position.array.slice();
-   if(forest)assert.notDeepEqual(forest.geometry.attributes.position.array,stonePositions);
-  }else assert.equal(map,'forest');
+  for(const batch of group.children.filter(m=>m.userData.kind==='litter'&&m.userData.biome!=='forest')){
+   const biome=batch.userData.biome,p=batch.geometry.attributes.position;
+   assert.equal(batch.count,group.userData.records.filter(r=>r.biome===biome&&r.kind==='litter').length);
+   if(litterShapes.has(biome))assert.deepEqual(p.array,litterShapes.get(biome));else litterShapes.set(biome,p.array.slice());
+   for(let i=0;i<p.count;i++){assert.equal(batch.geometry.attributes.groundFlex.getX(i),0);assert(Math.hypot(p.getX(i),p.getZ(i))*1.14<.55);}
+  }
+  cleanup(world);
+ }
+ assert.equal(new Set([...litterShapes.values()].map(a=>Array.from(a).join(','))).size,4,'biome litter is still the same stones in four colors');
+});
+
+test('snow and sand fragments have irregular low tops and every separate piece enters the actual ground plane',()=>{
+ const matrix=new T.Matrix4(),point=new T.Vector3();
+ for(const map of ['snow','sand'])for(const seed of [7,43837033]){
+  const world=buildWorld(map,seed),group=installAdventureGroundDetail(world,map),mesh=group.children.find(m=>m.userData.kind==='litter'),p=mesh.geometry.attributes.position;
+  // Three equal-sized pieces; inspect each underside after the complete instance transform.
+  const part=p.count/3;assert(Number.isInteger(part));assert(p.count/3<=90);
+  for(let i=0;i<mesh.count;i++){
+   mesh.getMatrixAt(i,matrix);
+   for(let piece=0;piece<3;piece++){
+    let bottom=Infinity,top=-Infinity;
+    for(let j=piece*part;j<(piece+1)*part;j++){point.fromBufferAttribute(p,j).applyMatrix4(matrix);bottom=Math.min(bottom,point.y);top=Math.max(top,point.y);}
+    assert(bottom<-.031,'fragment floats above the ground at y=-.03');assert(top>-.025&&top<.055,'fragment vanished or became a tall geometric obstacle');
+   }
+  }
   cleanup(world);
  }
 });
@@ -87,6 +107,21 @@ test('curved low leaves use their triangle budget and stay inside the reserved w
   if(radius>.25&&p.getY(i)<.17)lowerOuter++;
  }
  assert(raised>0&&lowerOuter>0,'low cover lost its high inner blades and drooping outer leaves');cleanup(world);
+});
+
+test('non-forest low plants use their own geometry within the same footprint and triangle budget',()=>{
+ const silhouettes=new Set(),point=new T.Vector3(),center=new T.Vector3(),matrix=new T.Matrix4();
+ for(const map of ['snow','ash','sand','coast']){
+  const world=buildWorld(map,43837033),group=installAdventureGroundDetail(world,map),mesh=group.children.find(m=>m.userData.kind==='tuft'),g=mesh.geometry,p=g.attributes.position;
+  silhouettes.add(Array.from(p.array).join(','));assert(g.index.count/3<=35);
+  if(map==='ash')assert(Array.from(g.attributes.groundFlex.array).every(v=>v===0),'charred branches sway like living grass');
+  for(let i=0;i<mesh.count;i++){
+   mesh.getMatrixAt(i,matrix);center.setFromMatrixPosition(matrix);
+   for(let j=0;j<p.count;j++){point.fromBufferAttribute(p,j).applyMatrix4(matrix);assert(Math.hypot(point.x-center.x,point.z-center.z)+.035<.55);assert(point.y<.30);}
+  }
+  cleanup(world);
+ }
+ assert.equal(silhouettes.size,4,'biome plants still share a recolored silhouette');
 });
 
 test('footprints avoid maximum tide, irregular shores, trails, main roads and all hidden interaction clearings',()=>{

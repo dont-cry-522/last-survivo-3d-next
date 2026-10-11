@@ -1,7 +1,7 @@
 import{test}from'node:test';import assert from'node:assert/strict';import * as T from'../vendor/three.module.js';
 import{buildWorld,clearAt,animateWorld}from'../world.js';import{sceneryAllowed}from'../biome-scenery.js';
 import{bridgeContains,updateTide}from'../coast.js';import{waterDepth}from'../water.js';
-import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=134';
+import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=143';
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
 function dispose(w){w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});}
 test('worn rocks reuse a bounded smooth mesh and preserve placed obstacle transforms',()=>{
@@ -18,10 +18,34 @@ test('all ground finishes share one filtered detail texture without changing ter
   const detail=shader.uniforms.groundDetail.value;if(texture)assert.strictEqual(detail,texture);texture=detail;
   assert(detail.generateMipmaps);assert.equal(detail.wrapS,T.RepeatWrapping);assert.equal(detail.image.width,128);assert.equal(detail.image.height,128);assert(!w.ground.material.transparent);
   assert.equal((shader.fragmentShader.match(/texture2D\(groundDetail,/g)||[]).length,3,'ground added another texture fetch');
+  assert.equal((shader.fragmentShader.match(/texture2D\(/g)||[]).length,['forest','coast','confluence'].includes(id)?5:3,'biome finish exceeds the existing texture-sampling budget');
   assert.equal(w.ground.material.roughness,1,'ground detail introduced glossy flecks');
+  assert(shader.fragmentShader.indexOf('float soilWet=')<shader.fragmentShader.indexOf('roughnessFactor=clamp'),'wetness is used before the shared material masks exist');
+  assert(shader.fragmentShader.includes('roughnessFactor-soilWet*.28-snowPacked*.10+ashCrust*.04,.70,1.0'),'wet ground lost its bounded broad sheen');
   const positions=w.ground.geometry.attributes.position;for(let i=0;i<positions.count;i++)assert.equal(positions.getZ(i),0,'visual relief moved the playable terrain');
   dispose(w);
  }
+});
+
+test('cooled ash fragments use grounded asymmetric plates without more faces or altering other chips',()=>{
+ const ash=buildWorld('ash',7),again=buildWorld('ash',19),joined=buildWorld('confluence',7),sand=buildWorld('sand',7),forest=buildWorld('forest',7);
+ const chip=w=>w.scenery.batches.find(m=>m.userData.biomeDetail==='chip'),slate=chip(ash),other=chip(sand),p=slate.geometry.attributes.position;
+ assert.strictEqual(slate.geometry,chip(again).geometry);assert.strictEqual(other.geometry,chip(forest).geometry);assert.notStrictEqual(slate.geometry,other.geometry);
+ assert.equal((slate.geometry.index?.count??p.count)/3,8);assert.equal(p.count,other.geometry.attributes.position.count);
+ slate.geometry.computeBoundingBox();const bounds=slate.geometry.boundingBox;
+ assert(bounds.max.y<.36&&bounds.min.y<=-2,'ash chips lost their low plate silhouette or buried underside');
+ const matrix=new T.Matrix4(),point=new T.Vector3();
+ for(const w of [ash,again,joined]){
+  w.group.updateMatrixWorld(true);const groundY=w.ground.getWorldPosition(point).y;
+  for(const batch of w.scenery.batches.filter(m=>m.userData.sceneryBiome==='ash'&&m.userData.biomeDetail==='chip'))for(let i=0;i<batch.count;i++){
+   batch.getMatrixAt(i,matrix);matrix.premultiply(batch.matrixWorld);let bottom=Infinity,top=-Infinity;
+   for(let j=0;j<p.count;j++){point.fromBufferAttribute(p,j).applyMatrix4(matrix);bottom=Math.min(bottom,point.y);top=Math.max(top,point.y);}
+   assert(top<.09&&bottom<top,'cooled fragments became a tall uncollidable obstacle');
+   assert(bottom<groundY-.0005,'transformed ash fragment floats above the actual terrain surface');
+  }
+ }
+ const n=slate.geometry.attributes.normal;for(let i=0;i<n.count;i++)assert(Math.abs(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))-1)<1e-5);
+ for(const w of[ash,again,joined,sand,forest])dispose(w);
 });
 test('the shared detail texture packs sparse filtered litter without replacing the water noise channels',()=>{
  const texture=environmentDetailTexture(),data=texture.image.data,channels=[[],[],[],[]];

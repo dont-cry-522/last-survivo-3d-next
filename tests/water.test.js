@@ -51,7 +51,7 @@ test('water depth finish keeps a single surface pass and the existing two-layer 
  }
 });
 test('flow and wet banks share filtered detail and a simulation clock without moving water bounds',()=>{
- let texture;for(const id of['forest','snow','coast']){
+ let texture;for(const id of['forest','snow','coast','sand']){
   const group=new T.Group(),ponds=buildPonds(group,id,seeded(3),{x:-30,z:-30},[],[{x:2,z:4,rx:6,rz:5,angle:.3}]),p=ponds[0];
   const compile=(material,kind)=>{const shader={uniforms:{},vertexShader:T.ShaderLib[kind].vertexShader,fragmentShader:T.ShaderLib[kind].fragmentShader};material.onBeforeCompile(shader);return shader;};
   const surface=compile(p.mesh.material,'standard'),bank=compile(p.bank.material,'lambert'),detail=surface.uniforms.waterDetail.value;
@@ -64,7 +64,7 @@ test('flow and wet banks share filtered detail and a simulation clock without mo
 });
 test('low-angle water uses biome sky colors within the existing surface pass and texture budget',()=>{
  const palettes=[];
- for(const id of['forest','snow','coast']){
+ for(const id of['forest','snow','coast','sand']){
   const group=new T.Group(),ponds=buildPonds(group,id,seeded(31),{x:-30,z:-30},[],[{x:2,z:4,rx:6,rz:5,angle:.3}]),p=ponds[0];
   const compile=()=>{const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};p.mesh.material.onBeforeCompile(shader);return shader;};
   const shader=compile(),again=compile(),source=shader.fragmentShader;
@@ -74,7 +74,7 @@ test('low-angle water uses biome sky colors within the existing surface pass and
   assert.strictEqual(shader.uniforms.waterDetail,again.uniforms.waterDetail);
   palettes.push(shader.uniforms.waterSky.value.getHex());
   assert.equal((source.match(/texture2D\(waterDetail,/g)||[]).length,2,'the moving flow and stationary shore share two detail samples');
-  assert.equal((source.match(/texture2D\(waterBed,/g)||[]).length,id==='forest'?1:0,'forest replaces its old third noise sample with one gravel-bed sample');
+  assert.equal((source.match(/texture2D\(waterBed,/g)||[]).length,1,'each climate uses the same single gravel-bed sample');
   assert(source.indexOf('dFdx(waveHeight)')<source.indexOf('vec3 waterReflection='),'reflection must see the final animated normal');
   assert(source.indexOf('outgoingLight=mix(outgoingLight,reflectedSky')<source.indexOf('#include <opaque_fragment>'),'reflection must precede alpha output');
   assert(source.includes('#include <tonemapping_fragment>')&&source.includes('#include <fog_fragment>'),'water reflection must retain scene tone mapping and distance fog');
@@ -83,23 +83,19 @@ test('low-angle water uses biome sky colors within the existing surface pass and
   assert.equal(group.children.length,4,'one pond still uses two surface meshes and two shared shore batches');
   group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
  }
- assert.equal(new Set(palettes).size,3,'forest, snow and coast keep their own reflection palettes');
+ assert.equal(new Set(palettes).size,4,'forest, snow, sand and coast keep their own reflection palettes');
 });
-test('forest gravel bed is one bounded filtered texture shared by water, wet banks and rebuilds',()=>{
- let texture,uniform;
+test('all climate beds share one bounded filtered texture across water, wet banks and rebuilds',()=>{
+ let texture;const uniforms=new Map();
  for(const id of['forest','forest','snow','coast','sand']){
   const group=new T.Group(),ponds=buildPonds(group,id,seeded(12),{x:-30,z:-30},[],[{x:2,z:4,rx:6,rz:5,angle:.3},{x:20,z:18,rx:5,rz:4,angle:-.6}]);
   for(const pond of ponds)for(const [material,kind]of[[pond.mesh.material,'standard'],[pond.bank.material,'lambert']]){
    const shader={uniforms:{},vertexShader:T.ShaderLib[kind].vertexShader,fragmentShader:T.ShaderLib[kind].fragmentShader};material.onBeforeCompile(shader);
    assert.equal((shader.fragmentShader.match(/texture2D\(waterDetail,/g)||[]).length,2,'water and wet banks keep their two existing detail samples');
-   assert.equal((shader.fragmentShader.match(/texture2D\(waterBed,/g)||[]).length,id==='forest'?1:0,'only forest water and wet banks add a single shared gravel sample');
-   if(id!=='forest'){
-    assert.equal(shader.uniforms.waterBed,undefined,'non-forest water or wet banks allocated a gravel sampler');
-    assert(!shader.fragmentShader.includes('uniform sampler2D waterBed;'));continue;
-   }
+   assert.equal((shader.fragmentShader.match(/texture2D\(waterBed,/g)||[]).length,1,'water and its continuous wet bank use one existing gravel sample');
    const bed=shader.uniforms.waterBed.value;
-   if(texture){assert.strictEqual(bed,texture,'pond rebuild allocated another gravel texture');assert.strictEqual(shader.uniforms.waterBed,uniform);}
-   else{texture=bed;uniform=shader.uniforms.waterBed;}
+   if(texture)assert.strictEqual(bed,texture,'another climate or rebuild allocated a new gravel texture');else texture=bed;
+   if(uniforms.has(id))assert.strictEqual(shader.uniforms.waterBed,uniforms.get(id),'one climate lost its shared water/bank uniform');else uniforms.set(id,shader.uniforms.waterBed);
    assert(bed.isDataTexture);assert.equal(bed.image.width,256);assert.equal(bed.image.height,256);assert.equal(bed.image.data.length,256*256*4);
    assert.equal(bed.colorSpace,T.NoColorSpace,'gravel RGB stores linear reflectance');assert.equal(bed.format,T.RGBAFormat);assert.equal(bed.type,T.UnsignedByteType);
    assert.equal(bed.wrapS,T.RepeatWrapping);assert.equal(bed.wrapT,T.RepeatWrapping);assert(bed.generateMipmaps);assert.equal(bed.minFilter,T.LinearMipmapLinearFilter);assert.equal(bed.magFilter,T.LinearFilter);
@@ -158,18 +154,28 @@ test('forest shore plants and stones form uneven small clusters without adding g
   group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
  }
 });
-test('forest wet sediment stays dark and neutral while other shore palettes retain their identity',()=>{
- const banks={};
+test('continuous wet sediment keeps forest neutral, snow blue-gray, sand warm and coast cool',()=>{
+ const banks={},bedTints=new Set();
  for(const id of['forest','snow','coast','sand']){
   const group=new T.Group(),[pond]=buildPonds(group,id,seeded(31),{x:-30,z:-30},[],[{x:2,z:4,rx:6,rz:5,angle:.3}]);
   banks[id]=pond.bank.material;
   assert.equal(pond.bank.scale.x,pond.rx*1.12);assert.equal(pond.mesh.scale.x,pond.rx);
+  const compile=(material,type)=>{const shader={uniforms:{},vertexShader:T.ShaderLib[type].vertexShader,fragmentShader:T.ShaderLib[type].fragmentShader};material.onBeforeCompile(shader);return shader.fragmentShader;};
+  const water=compile(pond.mesh.material,'standard'),bank=compile(pond.bank.material,'lambert');
+  const tint=water.match(/bedGravel.rgb\*vec3\(([^)]+)\)/)[1],bankTint=bank.match(/bankGravel.rgb\*vec3\(([^)]+)\)/)[1];
+  assert.equal(tint,bankTint,'riverbed changes color at the waterline');bedTints.add(tint);
+  const scale=water.match(/rippleDetail\)\*(\.[0-9]+);/)[1];assert(bank.includes('bankWorld*'+scale),'bed texture changes scale at the shoreline');
+  assert(bank.includes('smoothstep(.887,.960,dryEdge)'),'wet ground lost its continuous dry transition');
+  assert(water.includes('waterFresnel')&&!water.includes('waterFresnel*.43)*(.48+depth*.52)'),'low-angle reflection becomes a depth-based ring');
   group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
  }
  const forest=banks.forest.color,luminance=c=>c.r*.2126+c.g*.7152+c.b*.0722;
  assert(luminance(forest)<.08&&luminance(forest)<luminance(banks.coast.color)*.5,'forest bank became a bright sandy outline');
  assert(forest.g>forest.r&&forest.b>forest.r*.9,'forest sediment became yellow rather than damp neutral soil');assert.equal(banks.forest.opacity,.82,'forest wet bank uses local shader fading at its outer edge');
- for(const[id,[color,opacity]]of Object.entries({snow:[0x798480,.34],coast:[0x82785d,.23],sand:[0x97845e,.34]})){assert.equal(banks[id].color.getHex(),color);assert.equal(banks[id].opacity,opacity,'non-forest shore opacity changed');}
+ assert.equal(bedTints.size,4,'climate beds all use the same tint');
+ assert(banks.snow.color.b>banks.snow.color.r&&banks.coast.color.b>banks.coast.color.r,'cold/tidal banks became green or yellow');
+ assert(banks.sand.color.r>banks.sand.color.g&&banks.sand.color.g>banks.sand.color.b,'sand bank lost its warm mineral palette');
+ for(const[id,opacity]of Object.entries({snow:.66,coast:.62,sand:.70}))assert.equal(banks[id].opacity,opacity,'shore opacity lost its bounded wet-to-dry fade');
 });
 test('water pose does not accumulate and returns to land for heroes and ground creatures',()=>{
  for(const kind of ['silver','scout','wraith','wolf','golem','mushroom']){const g=actor(kind),d=g.userData;d.waterDepth=1;

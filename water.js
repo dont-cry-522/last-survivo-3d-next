@@ -4,8 +4,8 @@ import{MAP_SCALE}from'./map-layout.js?v=114';
 import{coastLayout}from'./coast-layout.js?v=114';
 import{swimStroke,swimLimb,HERO_SWIM,heroSwimPose,swimTravel}from'./swim-motion.js?v=114';
 import{newHeroAttack}from'./new-hero-motion.js?v=114';
-import{naturalRockGeometry,environmentDetailTexture}from'./biome-scenery.js?v=134';
-import{CLIMATE_LIGHT}from'./environment-lighting.js?v=141';
+import{naturalRockGeometry,environmentDetailTexture}from'./biome-scenery.js?v=143';
+import{CLIMATE_LIGHT}from'./environment-lighting.js?v=143';
 import * as T from './vendor/three.module.js';
 const clamp=T.MathUtils.clamp;
 const shore=a=>1+.07*Math.sin(a*3)+.045*Math.cos(a*5);
@@ -83,7 +83,14 @@ function waterSurface(id){
  if(!surfaces.has(id)){
   const clock={value:0},detail={value:environmentDetailTexture()},climate=CLIMATE_LIGHT[id]||CLIMATE_LIGHT.forest,reflection={waterSky:{value:new T.Color(climate.sky)},waterHorizon:{value:new T.Color(climate.fog)}},coast=id==='coast'?{coastPonds:{value:Array.from({length:8},()=>new T.Vector4())},coastTurns:{value:Array.from({length:8},()=>new T.Vector2())},coastCount:{value:0}}:null,material=new T.MeshStandardMaterial({color:id==='snow'?0x71bdcf:0x398f91,vertexColors:true,roughness:.38,metalness:0,side:T.DoubleSide,transparent:true,depthWrite:false});
   material.forceSinglePass=true;
-  const bed=id==='forest'?{value:pondBedTexture()}:null;
+  // One stationary bed continues through each wet shoreline. Each climate tints
+  // the same small texture; sand exposes less gravel than the colder rocky banks.
+  const bed={value:pondBedTexture()},bedStyle={
+   forest:{sediment:'.043,.052,.038',dry:'.057,.055,.040',tint:'.72,.91,.88',mix:'.28+.56',scale:'.36'},
+   snow:{sediment:'.115,.145,.162',dry:'.36,.44,.47',tint:'1.04,1.24,1.36',mix:'.32+.42',scale:'.32'},
+   sand:{sediment:'.20,.153,.083',dry:'.32,.254,.16',tint:'1.70,1.45,.92',mix:'.12+.25',scale:'.31'},
+   coast:{sediment:'.085,.113,.114',dry:'.14,.18,.173',tint:'.88,1.12,1.20',mix:'.24+.44',scale:'.30'}
+  }[id]||{sediment:'.043,.052,.038',dry:'.057,.055,.040',tint:'.72,.91,.88',mix:'.28+.56',scale:'.36'};
   material.onBeforeCompile=shader=>{shader.uniforms.waterTime=clock;shader.uniforms.waterDetail=detail;Object.assign(shader.uniforms,reflection);if(coast)Object.assign(shader.uniforms,coast);shader.vertexShader='varying vec3 waterWorld; varying vec2 waterLocal;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nwaterWorld=(modelMatrix*vec4(position,1.0)).xyz;waterLocal=position.xz;');shader.fragmentShader=(coast?coastUnionShader:'')+'\nuniform float waterTime; uniform sampler2D waterDetail; uniform vec3 waterSky; uniform vec3 waterHorizon; varying vec3 waterWorld; varying vec2 waterLocal;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
     float angle=atan(waterLocal.y,waterLocal.x);
     float radial=length(waterLocal)/(1.0+.07*sin(angle*3.0)+.045*cos(angle*5.0));
@@ -104,28 +111,28 @@ function waterSurface(id){
     float lapPhase=swellA*1.35+waterFlow.y*2.0;
     float shoreLap=pow(max(0.0,sin(lapPhase)),5.0)*smoothstep(.72,.88,radial)*(1.0-smoothstep(.95,1.0,radial))*(.3+waterFlow.y*.7)*shoreBreak;
     float waveHeight=(sin(swellA)*${id==='coast'?'.045':id==='forest'?'.016':'.033'}+sin(swellB)*${id==='coast'?'.026':id==='forest'?'.011':'.020'}+(rippleA+rippleB)*${id==='forest'?'.008':'.0025'}*rippleDetail)*(1.0-edge*${id==='forest'?'.30':'.72'})+shoreLap*.003;
-    vec3 deepWater=vec3(${id==='coast'?'.021,.098,.129':id==='snow'?'.029,.086,.126':'.012,.050,.048'});
-    vec3 shallowWater=vec3(${id==='coast'?'.080,.170,.170':id==='snow'?'.090,.170,.200':id==='forest'?'.021,.064,.055':'.071,.132,.112'});
-    vec3 sediment=vec3(${id==='coast'?'.160,.135,.085':id==='snow'?'.115,.137,.125':id==='sand'?'.290,.220,.120':'.043,.052,.038'});
+    vec3 deepWater=vec3(${id==='coast'?'.021,.098,.129':id==='snow'?'.029,.086,.126':id==='sand'?'.035,.076,.086':'.012,.050,.048'});
+    vec3 shallowWater=vec3(${id==='coast'?'.070,.139,.153':id==='snow'?'.090,.170,.200':id==='forest'?'.021,.064,.055':'.126,.143,.106'});
+    vec3 sediment=vec3(${bedStyle.sediment});
     float bedDetail=mix(.5,shoreGrain.b,rippleDetail);
     // Stationary sediment shelves break the radial color bands without changing water depth.
     float bedDepth=clamp(depth+(shoreGrain.x-.5)*.28+(shoreGrain.y-.5)*.12,0.0,1.0);
-    float bedVisibility=${id==='forest'?'exp(-bedDepth*4.8)*(.82+shoreGrain.y*.18)':'(1.0-smoothstep(.04,.66,bedDepth))*.66'};
+    float bedVisibility=exp(-bedDepth*${id==='forest'?'4.8':id==='coast'?'5.2':id==='snow'?'4.2':'4.6'})*(.82+shoreGrain.y*.18);
     vec3 riverbed=sediment*(.76+shoreGrain.x*.22+bedDetail*.25);
-    ${id==='forest'?`// The bed stays in world space; only a centimetre-scale refraction sways it.
-    vec2 bedUV=(waterWorld.xz+vec2(rippleA,rippleB)*.018*rippleDetail)*.36;
+    // The bed stays in world space; only a centimetre-scale refraction sways it.
+    vec2 bedUV=(waterWorld.xz+vec2(rippleA,rippleB)*.018*rippleDetail)*${bedStyle.scale};
     vec4 bedGravel=texture2D(waterBed,bedUV);
-    riverbed=mix(sediment*.90,bedGravel.rgb*vec3(.72,.91,.88),.28+.56*smoothstep(.30,.68,shoreGrain.y))*(.82+shoreGrain.x*.18)*(.88+bedGravel.a*.12);`:''}
+    riverbed=mix(sediment*.90,bedGravel.rgb*vec3(${bedStyle.tint}),${bedStyle.mix}*smoothstep(.30,.68,shoreGrain.y))*(.82+shoreGrain.x*.18)*(.88+bedGravel.a*.12);
     float caustic=smoothstep(.80,1.02,rippleA*.55+rippleB*.45+waterFlow.y*.12)*bedVisibility*rippleDetail;
     diffuseColor.rgb=mix(deepWater*(.90+shoreGrain.x*.10+waterFlow.y*.06),shallowWater,1.0-smoothstep(.07,.92,bedDepth));
     diffuseColor.rgb=mix(diffuseColor.rgb,riverbed,bedVisibility)+vec3(.48,.68,.61)*caustic*.06;
     diffuseColor.rgb+=vec3(.56,.73,.70)*light*(1.0-edge*.35)+vec3(.017,.023,.018)*shoreLap;
     // Lapping shifts only the inner fade: the visible shore never exceeds the gameplay boundary.
-    // The forest's partly transparent shallows reveal the continuous damp bed below.
-    diffuseColor.a*=(${id==='forest'?'.94+depth*.04':'.64+depth*.30'})*(1.0-smoothstep(${id==='forest'?'.91+shoreGrain.y*.035':'.80+shoreGrain.y*.12'}+shoreLap*.012,1.0,radial));
+    // Partly transparent shallows reveal the same continuous damp bed below.
+    diffuseColor.a*=(${id==='forest'?'.94+depth*.04':'.84+depth*.12'})*(1.0-smoothstep(${id==='forest'?'.91+shoreGrain.y*.035':'.90+shoreGrain.y*.045'}+shoreLap*.012,1.0,radial));
 `);
    if(bed){shader.uniforms.waterBed=bed;shader.fragmentShader='uniform sampler2D waterBed;\n'+shader.fragmentShader;}
-   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor=${id==='forest'?'.13+edge*.065':'.23+edge*.29'}+(.5-waterFlow.y)*.065;`);
+   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor=${id==='forest'?'.13+edge*.065':id==='snow'?'.17+edge*.095':id==='sand'?'.19+edge*.13':'.17+edge*.14'}+(.5-waterFlow.y)*.065;`);
    shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     vec3 waveDx=dFdx(-vViewPosition),waveDy=dFdy(-vViewPosition);
     vec3 waveRx=cross(waveDy,normal),waveRy=cross(normal,waveDx);
@@ -143,7 +150,7 @@ function waterSurface(id){
     reflectedSky*=.88+waterFlow.y*.12+shoreGrain.x*.05;
     float reflectionBreak=.78+waterFlow.x*.22;
     ${id==='forest'?'outgoingLight-=totalSpecular*edge*.24;':''}
-    outgoingLight=mix(outgoingLight,reflectedSky,${id==='forest'?'(.028+waterFresnel*.70)':'(.035+waterFresnel*.43)*(.48+depth*.52)'}*reflectionBreak);
+    outgoingLight=mix(outgoingLight,reflectedSky,${id==='forest'?'(.028+waterFresnel*.70)':id==='snow'?'(.032+waterFresnel*.61)':id==='sand'?'(.026+waterFresnel*.56)':'(.035+waterFresnel*.58)'}*reflectionBreak);
     #include <opaque_fragment>
    `);
    // Keep derivative helpers alive through the normal calculation at overlap boundaries.
@@ -151,7 +158,7 @@ function waterSurface(id){
   };
   material.customProgramCacheKey=()=> 'pond-depth-reflection-'+id+(coast?'-union':'');
   // Matte sediment receives the existing lights/shadows instead of sitting above them as a dark decal.
-  const bank=new T.MeshLambertMaterial({color:id==='snow'?0x798480:id==='coast'?0x82785d:id==='sand'?0x97845e:0x414c43,transparent:true,opacity:id==='coast'?.23:id==='forest'?.82:.34,depthWrite:false});
+  const bank=new T.MeshLambertMaterial({color:id==='snow'?0x9daeb5:id==='coast'?0x667d80:id==='sand'?0xa8956b:0x414c43,transparent:true,opacity:id==='coast'?.62:id==='snow'?.66:id==='sand'?.70:.82,depthWrite:false});
   bank.onBeforeCompile=shader=>{shader.uniforms.waterTime=clock;shader.uniforms.waterDetail=detail;if(coast)Object.assign(shader.uniforms,coast);shader.vertexShader='varying vec2 bankLocal;varying vec2 bankWorld;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nbankLocal=position.xz;bankWorld=(modelMatrix*vec4(position,1.0)).xz;');shader.fragmentShader=(coast?coastUnionShader:'')+'\nuniform float waterTime; uniform sampler2D waterDetail; varying vec2 bankLocal;varying vec2 bankWorld;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
    float a=atan(bankLocal.y,bankLocal.x);float r=length(bankLocal)/(1.0+.07*sin(a*3.0)+.045*cos(a*5.0));${coast?'float ownRadial=r;r=coastRadial(bankWorld,1.12,r);':''}
    vec2 bankGrain=texture2D(waterDetail,bankWorld*.035+vec2(waterTime*.0012,-waterTime*.0008)).rg;
@@ -160,15 +167,14 @@ function waterSurface(id){
    float wetSwell=bankWorld.x*.65+bankWorld.y*.95-waterTime*.55+bankGrain.x*2.6;
    float wetLap=pow(max(0.0,sin(wetSwell*1.35+bankGrain.y*2.0)),5.0);
    float sedimentPatch=smoothstep(${id==='forest'?'.38,.72,shoreGrain.y+shoreGrain.x*.10':'.24,.78,shoreGrain.y+shoreGrain.x*.18'});
-   ${id==='forest'?`// Water ends at bank radius 1/1.12. The same gravel continues through it.
+   // Water ends at bank radius 1/1.12. The same gravel continues through it.
    // Irregular wet soil gives way to dry ground outside; no full circular outline.
-   vec4 bankGravel=texture2D(waterBed,bankWorld*.36);
+   vec4 bankGravel=texture2D(waterBed,bankWorld*${bedStyle.scale});
    float dryEdge=r+(shoreGrain.x-.5)*.065+(shoreGrain.z-.5)*.022;
    float damp=1.0-smoothstep(.887,.960,dryEdge);
-   vec3 gravel=mix(vec3(.043,.052,.038)*.90,bankGravel.rgb*vec3(.72,.91,.88),.28+.56*smoothstep(.30,.68,shoreGrain.y))*(.82+shoreGrain.x*.18)*(.88+bankGravel.a*.12);
-   diffuseColor.rgb=mix(vec3(.057,.055,.040)*(.85+shoreGrain.b*.3),gravel,damp);
-   diffuseColor.a*=(1.0-smoothstep(.89,.998,dryEdge))*(.55+sedimentPatch*.45);`:`diffuseColor.rgb*=(.72+shoreGrain.x*.22+shoreGrain.b*.09)*mix(.73,1.0,smoothstep(.72,.98,r));
-   diffuseColor.a*=(1.0-smoothstep(.72+shoreGrain.x*.16,1.0,r))*(.34+sedimentPatch*.66)+wetContact*wetLap*.07*smoothstep(.23,.76,shoreGrain.y);`}
+   vec3 gravel=mix(vec3(${bedStyle.sediment})*.90,bankGravel.rgb*vec3(${bedStyle.tint}),${bedStyle.mix}*smoothstep(.30,.68,shoreGrain.y))*(.82+shoreGrain.x*.18)*(.88+bankGravel.a*.12);
+   diffuseColor.rgb=mix(vec3(${bedStyle.dry})*(.85+shoreGrain.b*.3),gravel,damp);
+   diffuseColor.a*=(1.0-smoothstep(.89,.998,dryEdge))*(.55+sedimentPatch*.45);
    ${coast?'if(ownRadial>r+.0001)discard;':''}
   `);if(bed){shader.uniforms.waterBed=bed;shader.fragmentShader='uniform sampler2D waterBed;\n'+shader.fragmentShader;}};
   bank.customProgramCacheKey=()=> 'pond-broken-wet-bank-'+id+(coast?'-union':'');

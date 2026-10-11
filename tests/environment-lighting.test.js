@@ -48,7 +48,7 @@ test('distant scenery stays beyond map bounds and scenery finish preserves playa
   w.group.traverse(o=>{if(o.isMesh)draws.push(o);});polishEnvironmentModels(w);
   const after=[];w.group.traverse(o=>{if(o.isMesh)after.push(o);});assert.equal(after.length,draws.length);assert.equal(JSON.stringify(w.obstacles.map(o=>[o.x,o.z,o.r])),snapshot);assert(clearAt(w,w.spawn.x,w.spawn.z,1));
   const ridge=installDistantLandscape(w,id,()=> 'forest'),position=ridge.geometry.attributes.position;
-  assert.equal(ridge.geometry.index.count/3,1152);assert(!ridge.material.transparent&&!ridge.castShadow&&ridge.userData.ownedGeometry);
+  assert.equal(ridge.geometry.index.count/3,2304);assert(!ridge.material.transparent&&!ridge.castShadow&&ridge.userData.ownedGeometry);
   for(let i=0;i<position.count;i++){assert(Math.max(Math.abs(position.getX(i)),Math.abs(position.getZ(i)))>w.half+4);assert(Number.isFinite(position.getY(i)));}
   const scales=after.map(o=>o.scale.toArray());polishEnvironmentModels(w);assert.deepEqual(after.map(o=>o.scale.toArray()),scales,'second finish changed scale');
   w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
@@ -58,20 +58,20 @@ test('distant layers have different ridgelines, softer far colors and a closed l
  let sharedMaterial;
  for(const id of Object.keys(CLIMATE_LIGHT)){
   const world={half:96,group:new T.Group()},mesh=installDistantLandscape(world,id);
-  const {position,color,normal}=mesh.geometry.attributes,segments=144,ringSize=(segments+1)*3;
-  assert.equal(mesh.geometry.index.count/3,1152);assert.equal(position.count,ringSize*2);
+  const {position,color,normal}=mesh.geometry.attributes,segments=144,ringSize=(segments+1)*5;
+  assert.equal(mesh.geometry.index.count/3,2304);assert.equal(position.count,ringSize*2);
   if(sharedMaterial)assert.equal(mesh.material,sharedMaterial);else sharedMaterial=mesh.material;
   const ratios=[],fog=new T.Color(CLIMATE_LIGHT[id].fog),near=new T.Color(),far=new T.Color();
   const distance=c=>Math.hypot(c.r-fog.r,c.g-fog.g,c.b-fog.b);
   for(let i=0;i<segments;i++){
-   const top=i*3+2;ratios.push(position.getY(top+ringSize)/position.getY(top));
+   const top=i*5+4;ratios.push(position.getY(top+ringSize)/position.getY(top));
    assert(position.getY(top)>0&&position.getY(top+ringSize)>0);
    near.fromBufferAttribute(color,top);far.fromBufferAttribute(color,top+ringSize);
    assert(distance(far)<distance(near),id+' far ridge lost its haze separation');
   }
   assert(Math.max(...ratios)-Math.min(...ratios)>.5,id+' far ridge repeats a scaled near silhouette');
-  for(let ring=0;ring<2;ring++)for(let row=0;row<3;row++){
-   const first=ring*ringSize+row,last=first+segments*3;
+  for(let ring=0;ring<2;ring++)for(let row=0;row<5;row++){
+   const first=ring*ringSize+row,last=first+segments*5;
    for(const attribute of [position,color,normal]){
     const a=new T.Vector3().fromBufferAttribute(attribute,first),b=new T.Vector3().fromBufferAttribute(attribute,last);
     assert(a.distanceTo(b)<1e-6,id+' has an open geometry/color/normal seam');

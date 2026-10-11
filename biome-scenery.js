@@ -70,6 +70,8 @@ export function installGroundSurface(ground,id='confluence'){
    float soilSnow=${id==='snow'?'1.0':id==='confluence'?'smoothstep(.23,.48,min(diffuseColor.r,min(diffuseColor.g,diffuseColor.b)))':'0.0'};
    float soilSand=${id==='sand'?'1.0':id==='confluence'?'smoothstep(.025,.10,diffuseColor.r-diffuseColor.b)*smoothstep(.14,.30,diffuseColor.r)*(1.0-soilSnow)':'0.0'};
    float soilOrganic=${id==='forest'?'1.0':id==='coast'?'.55':id==='confluence'?'smoothstep(.01,.06,diffuseColor.g-diffuseColor.r)*(1.0-soilSnow)':'0.0'};
+   float soilCoast=${id==='coast'?'1.0':id==='confluence'?'smoothstep(.15,.24,diffuseColor.g)*(1.0-soilSnow)*(1.0-soilSand)*soilOrganic':'0.0'};
+   float soilAsh=${id==='ash'?'1.0':id==='confluence'?'(1.0-smoothstep(.11,.18,max(diffuseColor.r,max(diffuseColor.g,diffuseColor.b))))*(1.0-soilOrganic)*(1.0-soilSnow)*(1.0-soilSand)':'0.0'};
    diffuseColor.rgb*=.94+soilClump*.10+(soilGrain-.5)*.14;
    ${id==='forest'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.073,.057,.031),soilPatch*.36);`
     :id==='ash'?`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.075,.071,.075),soilPatch*.40);diffuseColor.rgb*=1.0-smoothstep(.62,.85,soilFine.g)*.12*soilGrainDetail;`
@@ -81,14 +83,27 @@ export function installGroundSurface(ground,id='confluence'){
    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.105,.069,.028)*(.75+soilFine.a*.65),litter*.68);
    float snowPacked=smoothstep(.32,.76,soilClump+soilPatch*.17)*soilSnow;
    diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.83,.91,.98),snowPacked*.42);
-   // Wind ripples are about 45 cm apart; only their few-millimetre relief catches light.
-   float sandRidge=sin((soilPoint.x*.765+soilPoint.y*.644)*14.0+soilField*8.0+soilClump*2.0)*(1.0-smoothstep(.03,.18,soilPixel))*soilSand;
+   // Broad snow ridges soften into the packed layer instead of reading as blue stains.
+   float windRun=dot(soilPoint,vec2(.765,.644));
+   float snowDrift=pow(.5+.5*sin(windRun*1.7+soilField*6.0+soilClump),3.0)*soilSnow*(1.0-snowPacked*.78);
+   diffuseColor.rgb*=1.0+snowDrift*.045;
+   // Ripple spacing bends with the shared low-frequency field. Narrow crests and
+   // broad troughs catch light differently, without a displaced walking surface.
+   float sandPhase=windRun*14.0+soilField*8.0+soilClump*2.0+sin(windRun*1.35+soilField*4.0)*1.2;
+   float sandRidge=(sin(sandPhase)+sin(sandPhase*2.0+.8)*.24)*(1.0-smoothstep(.03,.18,soilPixel))*soilSand;
    diffuseColor.rgb*=1.0+sandRidge*.035;
    diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.94,.88,.77),soilPatch*soilSand*.23);
+   // Coarse cooled crust and fine char share the same samples; their relief is
+   // distinct from soft soil, and fades before distant fragments can shimmer.
+   float ashCrust=smoothstep(.38,.66,soilClump+soilFine.r*.13)*soilAsh;
+   float ashFissure=(1.0-smoothstep(.02,.08,abs(soilFine.g-.48)))*soilGrainDetail*soilAsh;
+   diffuseColor.rgb*=1.0+ashCrust*.08-ashFissure*.16;
+   float soilWet=smoothstep(.48,.78,soilField+soilClump*.18)*max(soilOrganic,soilCoast)*mix(.50,.90,soilCoast)*(1.0-moss*.60);
+   diffuseColor.rgb*=1.0-soilWet*.13;
    // Millimetre grain replaces the coarse pebble bumps; no specular glitter is added.
    // No displaced terrain: feet, swimming, collision and hazards keep their baseline.
-   float soilRelief=soilClump*.014+(soilGrain-.5)*mix(.0018,.0010,soilSnow)+litter*.0012+sandRidge*.003;
-   ${['forest','coast','confluence'].includes(id)?`vec2 litterUV=soilPoint/2.1;
+   float soilRelief=soilClump*.014+(soilGrain-.5)*mix(.0018,.0010,soilSnow)*(1.0-soilWet*.65)+litter*.0012+sandRidge*.004+snowDrift*.022+ashCrust*.009-ashFissure*.0015;
+   ${['forest','coast','confluence'].includes(id)?`vec2 litterUV=soilPoint/2.1+vec2(soilClump-.5,soilField-.5)*.34;
     vec3 photographedSoil=texture2D(soilColor,litterUV).rgb;
     float photographedHeight=texture2D(soilHeight,litterUV).r;
     float soilLuma=dot(photographedSoil,vec3(.2126,.7152,.0722));
@@ -97,7 +112,12 @@ export function installGroundSurface(ground,id='confluence'){
     photographedSoil=mix(photographedSoil,soilLuma*vec3(.25,.37,.19),moss*${id==='forest'?'.95':'.82'});
     float realSoilMix=soilReady*soilOrganic*(${id==='forest'?'.28+soilPatch*.18':'.40+soilPatch*.22'})*(1.0-moss*.32);
     diffuseColor.rgb=mix(diffuseColor.rgb,photographedSoil,realSoilMix);
-    soilRelief+=(photographedHeight-.5)*.018*realSoilMix*soilGrainDetail;`:''}
+    soilRelief+=(photographedHeight-.5)*.018*realSoilMix*soilGrainDetail*(1.0-soilWet*.55);`:''}
+  `);
+  shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+   // A broad, restrained sheen joins damp soil patches. Never turn the floor
+   // into a mirror or put fine grain into roughness, which causes distant glitter.
+   roughnessFactor=clamp(roughnessFactor-soilWet*.28-snowPacked*.10+ashCrust*.04,.70,1.0);
   `);
   shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
    vec3 soilDx=dFdx(-vViewPosition),soilDy=dFdy(-vViewPosition);
@@ -110,6 +130,16 @@ export function installGroundSurface(ground,id='confluence'){
 }
 // Shared geometry and instanced details: decoration stays low, leaving combat and collision legible.
 const geometries={stone:naturalRockGeometry,snow:null,chip:new T.OctahedronGeometry(1,0),wood:new T.CylinderGeometry(.10,.15,1,7),leaf:null,ice:new T.ConeGeometry(1,1,5),frond:null},materials=new Map();
+// Eight faces still: cooled shale fractures into low offset plates, not the
+// symmetrical pointed chips used for sand gravel and tiny forest leaf litter.
+const ashChip=geometries.chip.clone(),ashPositions=ashChip.attributes.position;
+for(let i=0;i<ashPositions.count;i++){
+ const x=ashPositions.getX(i),y=ashPositions.getY(i),z=ashPositions.getZ(i);
+ // The thinnest existing shoulder instance is centered at .025 and scaled .028;
+ // bury its hidden tip below the actual -.03 terrain, without moving any instance.
+ ashPositions.setXYZ(i,x*.94+y*.12-z*.07,y*(y>0?.35:2)+x*.05+z*.03,z*.93-y*.10+x*.04);
+}
+ashChip.computeVertexNormals();
 const windAngle=-.7,windX=Math.sin(windAngle),windZ=Math.cos(windAngle);
 // The low cap ends below the terrain, so no underside or hard raised rim is exposed.
 function snowGeometry(){
@@ -242,5 +272,5 @@ export function installScenery(w,id,rnd){
   else if(id==='forest'){if(o.mesh.userData.treeBiome)for(let j=0;j<3;j++){const turn=a+j*1.47+Math.sin(a+j)*.35,reach=.63+Math.sin(a*2+j)*.23;add('wood',0x595c43,o.x+Math.sin(turn)*.35,.035,o.z+Math.cos(turn)*.35,1.12,reach,.25,turn,Math.PI/2);add('wood',0x4c5942,o.x+Math.sin(turn)*(.55+reach*.25),.016,o.z+Math.cos(turn)*(.55+reach*.25),.52,reach*.54,.12,turn+.32,Math.PI/2);}}
   else{const direction=id==='coast'?bankFrame(w,o.x,o.z).angle:id==='sand'?windAngle:a;for(let j=0;j<3;j++){const turn=direction+(j-1)*.72,reach=.45+j*.25;add('stone',id==='ash'?0x463e40:id==='sand'?0xa89773:0x7d918a,o.x+Math.sin(turn)*reach,.035,o.z+Math.cos(turn)*reach,.42-j*.11,.17-j*.045,.54-j*.12,turn);}}
  }
- w.scenery={records,batches:[]};for(const[key,parts]of batches){const kind=key.split(':')[0],m=new T.InstancedMesh(geometries[kind],material(kind,id),parts.length);parts.forEach((p,i)=>{m.setMatrixAt(i,p.matrix);m.setColorAt(i,p.color);});m.receiveShadow=true;m.castShadow=false;m.userData.biomeDetail=kind;m.userData.sceneryBiome=id;w.group.add(m);w.scenery.batches.push(m);}
+ w.scenery={records,batches:[]};for(const[key,parts]of batches){const kind=key.split(':')[0],m=new T.InstancedMesh(id==='ash'&&kind==='chip'?ashChip:geometries[kind],material(kind,id),parts.length);parts.forEach((p,i)=>{m.setMatrixAt(i,p.matrix);m.setColorAt(i,p.color);});m.receiveShadow=true;m.castShadow=false;m.userData.biomeDetail=kind;m.userData.sceneryBiome=id;w.group.add(m);w.scenery.batches.push(m);}
 }

@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import{finishRock,installGroundSurface}from'./biome-scenery.js?v=134';
+import{finishRock,installGroundSurface,boulderRockGeometry}from'./biome-scenery.js?v=143';
 import{surfaceUniforms}from'./surface-textures.js?v=120';
 
 // Shared rounded edges catch side light without adding meshes or changing collision footprints.
@@ -27,6 +27,22 @@ function stoneColumn(source){
   p.setXYZ(i,x*inset,y-t*h*(.020+.011*Math.sin(a*2+.4)+.007*Math.cos(a*5)),z*inset);
  }
  geometry.computeVertexNormals();wornColumns.set(source,geometry);return geometry;
+}
+// Three shared basalt silhouettes replace only tall ash obstacles. Their lower
+// bole is untouched and upper vertices move inward, never enlarging a collider.
+const ashColumns=[];
+function ashColumn(variant){
+ if(ashColumns[variant])return ashColumns[variant];
+ const geometry=boulderRockGeometry.clone(),p=geometry.attributes.position,c=geometry.attributes.color,phase=variant*1.83;
+ geometry.name='SM_Rock_AshColumn_'+['A','B','C'][variant];
+ for(let i=0;i<p.count;i++){
+  const x=p.getX(i),y=p.getY(i),z=p.getZ(i),a=Math.atan2(z,x),upper=T.MathUtils.smoothstep(y,-.42,.28);
+  const seam=(.5+.5*Math.cos(a*(6+variant)+phase+y*.22))**4,inset=1-upper*(.035+seam*.17);
+  const cut=[.61,.72,.55][variant]+x*Math.cos(phase)*.16+z*Math.sin(phase)*.19+.025*Math.sin(a*3+phase);
+  p.setXYZ(i,x*inset,Math.min(y,cut),z*inset);
+  const shade=1-upper*seam*.095;c.setXYZ(i,c.getX(i)*shade,c.getY(i)*shade,c.getZ(i)*shade);
+ }
+ geometry.computeVertexNormals();geometry.computeBoundingBox();geometry.computeBoundingSphere();ashColumns[variant]=geometry;return geometry;
 }
 const materials=new Map();
 // Explicit scene palettes keep bronze, cloth, crystals and gameplay cues out of
@@ -58,7 +74,11 @@ function surfaceMaterial(source,kind,axis='y',vertexColors=true){
     float propPatch=.5+.25*sin(dot(propPoint,vec3(4.2,2.6,3.1)))+.25*sin(dot(propPoint,vec3(-2.5,3.4,4.8)));
     ${kind==='wood'?`vec2 propAcross=propPoint.${across};
      float propGrain=.5+.5*sin(propAcross.x*39.0+propAcross.y*17.0+sin(propPoint.${along}*3.0+propAcross.y*9.0)*.7);
-     diffuseColor.rgb*=.94+propPatch*.07-(1.0-propGrain)*(1.0-propGrain)*.12*propDetail;`
+     float woodEnd=pow(abs(normalize(propNormal).${along}),6.0);
+     float woodRings=.5+.5*sin(length(propAcross*vec2(1.0,.85)+vec2(.08,-.035))*56.0+propPatch*.8);
+     float woodFibre=mix(propGrain,woodRings,woodEnd);
+     diffuseColor.rgb*=.94+propPatch*.07-pow(1.0-woodFibre,2.0)*.12*propDetail;
+     float woodRelief=(woodFibre-.5)*.0025*propDetail;`
     :`float propDamp=1.0-smoothstep(-.5,.3,propPoint.y);
      diffuseColor.rgb*=.92+propPatch*.14-propDamp*.035;
      // Triplanar samples avoid stretched poles on boulders and seams on ruin blocks.
@@ -69,11 +89,11 @@ function surfaceMaterial(source,kind,axis='y',vertexColors=true){
      diffuseColor.rgb*=mix(vec3(1.),clamp(stoneAlbedo*3.0,vec3(.43),vec3(1.48)),rockReady*.77);
      float stoneRelief=(stoneHeight-.5)*.012*rockReady*propDetail;`}
    `);
-   if(kind==='stone')shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+   shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     vec3 stoneDx=dFdx(-vViewPosition),stoneDy=dFdy(-vViewPosition);
     vec3 stoneRx=cross(stoneDy,normal),stoneRy=cross(normal,stoneDx);
     float stoneDet=dot(stoneDx,stoneRx);
-    normal=normalize(abs(stoneDet)*normal-sign(stoneDet)*(dFdx(stoneRelief)*stoneRx+dFdy(stoneRelief)*stoneRy));
+    normal=normalize(abs(stoneDet)*normal-sign(stoneDet)*(dFdx(${kind==='wood'?'woodRelief':'stoneRelief'})*stoneRx+dFdy(${kind==='wood'?'woodRelief':'stoneRelief'})*stoneRy));
    `);
    shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+(propPatch-.5)*.06,.76,1.0);`);
   };
@@ -101,6 +121,11 @@ export function polishEnvironmentModels(world){
  });
  // Only obstacle stones, never relic crystals or enemy models, receive the worn rock silhouette.
  for(const obstacle of world.obstacles)obstacle.mesh.traverse(o=>{
-  if(o.isMesh&&o.geometry.type==='DodecahedronGeometry'&&o.material?.emissiveIntensity===0){finishRock(o);o.material=surfaceMaterial(o.material,'stone');}
+  if(o.isMesh&&o.geometry.type==='DodecahedronGeometry'&&o.material?.emissiveIntensity===0){
+   const color=o.material.color.getHex(),ash=color===0x66565c||obstacle.biome==='ash'&&color===0x645650;
+   finishRock(o);
+   if(ash&&o.scale.y>Math.max(o.scale.x,o.scale.z)*1.4)o.geometry=ashColumn(Math.abs(Math.floor(obstacle.x*1.7+obstacle.z*2.3))%3);
+   o.material=surfaceMaterial(o.material,'stone');
+  }
  });
 }

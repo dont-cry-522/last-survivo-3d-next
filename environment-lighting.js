@@ -1,4 +1,4 @@
-import{installForestBackdrop}from'./tree-scenery.js?v=141';
+import{installForestBackdrop}from'./tree-scenery.js?v=143';
 import * as T from './vendor/three.module.js';
 
 // The same three lights serve every climate; transitions do not allocate lights or shadow maps.
@@ -71,7 +71,7 @@ export class EnvironmentLighting{
 const ridgeMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:1,side:T.DoubleSide});
 // Opaque foothill silhouettes live beyond the playable square. No new collision or rewards.
 export function installDistantLandscape(world,id,biomeAt=()=>id){
- const positions=[],colors=[],indices=[],segments=144,half=world.half;
+ const positions=[],colors=[],indices=[],segments=144,rows=5,half=world.half;
  for(let ring=0;ring<2;ring++){
   const offset=positions.length/3;
   for(let i=0;i<=segments;i++){
@@ -85,20 +85,27 @@ export function installDistantLandscape(world,id,biomeAt=()=>id){
    const contour=biome==='sand'?.78+.22*Math.sin(angle*3+ring*1.8):biome==='coast'?.28+.72*Math.pow(.5+.5*Math.sin(angle*3+ring),2):biome==='snow'?1+Math.abs(Math.sin(angle*17+ring))*.28:biome==='ash'?1+Math.sin(angle*9+ring)*.14:1;
    const top=(ring?1.3:1)*p.height*rhythm*contour,base=edge+7+ring*16;
    const color=new T.Color(p.ridge),haze=new T.Color(p.fog);
-   for(let row=0;row<3;row++){
-    const radius=base+row*9,y=row===0?-.13:row===1?top*.28:top;
+   const slope=biome==='coast'?[0,.12,.68,.91,1]:biome==='sand'?[0,.40,.73,.93,1]:biome==='ash'?[0,.16,.42,.80,1]:[0,.10,.35,.69,1];
+   for(let row=0;row<rows;row++){
+    const t=row/(rows-1),spur=Math.sin(angle*29+ring*1.3)*Math.sin(t*Math.PI)*.055;
+    const radius=base+row*5.25,y=row===0?-.13:top*(slope[row]+spur);
     positions.push(s*radius,y,c*radius);
-    const shade=color.clone().lerp(haze,(ring?.42:.04)+row*.10).multiplyScalar(.88+row*.065);
+    const shade=color.clone();
+    if(biome==='snow')shade.lerp(new T.Color(0xaac1ca),T.MathUtils.smoothstep(t+Math.sin(angle*11+ring)*.09,.60,.96)*.78);
+    if(biome==='coast')shade.lerp(new T.Color(0x879188),T.MathUtils.smoothstep(t,.32,.82)*.22);
+    if(biome==='ash')shade.multiplyScalar(.91+.09*Math.sin(angle*9+t*13+ring));
+    // Softer distant colors separate the two silhouettes; relief lives outside playable terrain.
+    shade.lerp(haze,(ring?.50:.04)+t*.17).multiplyScalar(.90+t*.11);
     colors.push(shade.r,shade.g,shade.b);
    }
-   if(i<segments)for(let row=0;row<2;row++){const n=offset+i*3+row;indices.push(n,n+3,n+1,n+1,n+3,n+4);}
+   if(i<segments)for(let row=0;row<rows-1;row++){const n=offset+i*rows+row;indices.push(n,n+rows,n+1,n+1,n+rows,n+rows+1);}
   }
  }
  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();
  // The duplicated closing vertices need the same normal as the opening seam.
  const normal=geometry.attributes.normal,seam=new T.Vector3(),last=new T.Vector3();
- for(let ring=0;ring<2;ring++)for(let row=0;row<3;row++){
-  const first=ring*(segments+1)*3+row,end=first+segments*3;
+ for(let ring=0;ring<2;ring++)for(let row=0;row<rows;row++){
+  const first=ring*(segments+1)*rows+row,end=first+segments*rows;
   seam.fromBufferAttribute(normal,first).add(last.fromBufferAttribute(normal,end)).normalize();
   normal.setXYZ(first,seam.x,seam.y,seam.z);normal.setXYZ(end,seam.x,seam.y,seam.z);
  }

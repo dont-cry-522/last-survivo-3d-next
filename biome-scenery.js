@@ -1,4 +1,4 @@
-import {applyFernSurface} from './fern-surfaces.js?v=154';
+import {applyFernSurface} from './fern-surfaces.js?v=156';
 import * as T from './vendor/three.module.js';
 import{MAP_HALF}from'./map-layout.js?v=114';
 import{bridgeContains}from'./coast.js?v=114';
@@ -166,26 +166,26 @@ function leafGeometry(){
  for(let i=0;i<=4;i++){
   const t=i/4,w=Math.sin(Math.PI*t)*.125,y=Math.sin(t*Math.PI*.72)*.43,z=t*t*.72,shade=.72+t*.27;
   for(const side of[-1,0,1]){pos.push(side*w+t*t*.035,y-Math.abs(side)*w*.25,z);colors.push(shade*.98,shade,shade*.94);}
-  if(i<4){const a=i*3;for(let strip=0;strip<2;strip++)idx.push(a+strip,a+strip+1,a+strip+3,a+strip+1,a+strip+4,a+strip+3);}
+  if(i<4){const a=i*3;for(let strip=0;strip<2;strip++)idx.push(a+strip,a+strip+3,a+strip+1,a+strip+1,a+strip+3,a+strip+4);}
  }
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(idx);g.computeVertexNormals();return g;
 }geometries.leaf=leafGeometry();
 function frondGeometry(){
- const p=[],colors=[],uv=[],ix=[],stalk=[];
+ const p=[],colors=[],uv=[],ix=[],stalk=[],progress=[];
  // One gently drooping scanned frond replaces six large solid diamonds. The
  // isolated atlas column includes transparent margins on both sides of the stem.
  for(let row=0;row<=6;row++){
   const t=row/6,width=.17*(row===0?.72:1),z=t*.88,y=Math.sin(t*Math.PI*.86)*.31;
-  for(const side of[-1,0,1]){p.push(side*width,y-Math.abs(side)*Math.sin(t*Math.PI)*.025,z);const shade=.70+t*.26;colors.push(shade,shade,shade);stalk.push(0);uv.push(.307+(side+1)*.5*(.458-.307),1-(.786+(.021-.786)*t));}
-  if(row<6){const n=row*3;for(let k=0;k<2;k++)ix.push(n+k,n+k+1,n+k+3,n+k+1,n+k+4,n+k+3);}
+  for(const side of[-1,0,1]){p.push(side*width,y-Math.abs(side)*Math.sin(t*Math.PI)*.025,z);const shade=.70+t*.26;colors.push(shade,shade,shade);stalk.push(0);progress.push(t);uv.push(.307+(side+1)*.5*(.458-.307),1-(.786+(.021-.786)*t));}
+  if(row<6){const n=row*3;for(let k=0;k<2;k++)ix.push(n+k,n+k+3,n+k+1,n+k+1,n+k+3,n+k+4);}
  }
  const root=p.length/3;
  for(let row=0;row<3;row++){
   const t=row*.12;
-  for(const side of[-1,1]){p.push(side*.0045,Math.sin(t*Math.PI*.86)*.31,t*.88);colors.push(.70,.70,.70);uv.push(.3825,1-(.786+(.021-.786)*t));stalk.push(1);}
-  if(row<2){const n=root+row*2;ix.push(n,n+1,n+2,n+1,n+3,n+2);}
+  for(const side of[-1,1]){p.push(side*.0045,Math.sin(t*Math.PI*.86)*.31,t*.88);colors.push(.70,.70,.70);uv.push(.3825,1-(.786+(.021-.786)*t));stalk.push(1);progress.push(t);}
+  if(row<2){const n=root+row*2;ix.push(n,n+2,n+1,n+1,n+2,n+3);}
  }
- const g=new T.BufferGeometry();g.setAttribute('fernStem',new T.Float32BufferAttribute(stalk,1));g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(ix);g.computeVertexNormals();return g;
+ const g=new T.BufferGeometry();g.setAttribute('fernStem',new T.Float32BufferAttribute(stalk,1));g.setAttribute('fernProgress',new T.Float32BufferAttribute(progress,1));g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(ix);g.computeVertexNormals();return g;
 }geometries.frond=frondGeometry();
 function material(kind,id){const key=['leaf','frond','ice'].includes(kind)?kind+':'+id:kind;if(!materials.has(key)){
  const m=new T.MeshStandardMaterial({color:0xffffff,roughness:1,vertexColors:['snow','stone','leaf','frond'].includes(kind),side:['leaf','frond'].includes(kind)?T.DoubleSide:T.FrontSide});

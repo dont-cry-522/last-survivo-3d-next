@@ -1,4 +1,4 @@
-import {applyFernSurface} from './fern-surfaces.js?v=154';
+import {applyFernSurface} from './fern-surfaces.js?v=156';
 import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=153';
 import{sceneryRhythmAt}from'./exploration-composition.js?v=144';
 import * as T from './vendor/three.module.js';
@@ -6,11 +6,11 @@ import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
 import {forestHabitatAt} from './forest-habitats.js?v=139';
 import {bridgeContains} from './coast.js?v=114';
-import {naturalRockGeometry} from './biome-scenery.js?v=154';
+import {naturalRockGeometry} from './biome-scenery.js?v=156';
 import {surfaceUniforms} from './surface-textures.js?v=120';
 
 const profiles={
- forest:{count:1200,grass:.83,height:1,tuft:[0x566d48,0x829360],litter:[0x827561,0x66685c]},
+ forest:{count:1200,grass:.83,height:1,tuft:[0x6e8650,0x87985a],litter:[0x827561,0x66685c]},
  snow:{count:420,grass:.24,height:.62,tuft:[0x7b8275,0x9aa9a5],litter:[0x9cafb5,0x72858b]},
  ash:{count:380,grass:.16,height:.55,tuft:[0x51494a,0x675a50],litter:[0x595455,0x7d7067]},
  sand:{count:520,grass:.32,height:.76,tuft:[0x92815d,0xb19c73],litter:[0x9d886b,0xb9a786]},
@@ -49,6 +49,20 @@ material.onBeforeCompile=shader=>{
  `);
 };
 material.customProgramCacheKey=()=> 'adventure-ground-wind';
+const grassMaterial=material.clone();grassMaterial.name='M_Forest_FineGrass_A';
+grassMaterial.onBeforeCompile=shader=>{
+ material.onBeforeCompile(shader);
+ shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+  float grassRoot=1.0-smoothstep(0.0,.11,groundLeaf);
+  diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.092,.084,.041),grassRoot*.68);
+ `);
+ shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
+  #if NUM_HEMI_LIGHTS > 0
+   reflectedLight.indirectDiffuse+=diffuseColor.rgb*hemisphereLights[0].skyColor*.10*groundLeaf;
+  #endif
+ `);
+};
+grassMaterial.customProgramCacheKey=()=> 'forest-fine-grass-wind';
 const fernTint=new T.Color(0xffffff),fernMaterial=material.clone();
 fernMaterial.name='M_Fern_Scanned_A';fernMaterial.onBeforeCompile=material.onBeforeCompile;fernMaterial.customProgramCacheKey=material.customProgramCacheKey;
 applyFernSurface(fernMaterial);
@@ -116,30 +130,37 @@ function dryTuftGeometry(biome){
 }
 function tuftGeometry(biome='forest'){
  if(biome!=='forest')return dryTuftGeometry(biome);
- const positions=[],colors=[],indices=[];
- const vertex=(x,y,z,shade)=>{const index=positions.length/3;positions.push(x,y,z);colors.push(shade*.98,shade,shade*.87);return index;};
- // Four arching ribbon leaves have separate tapered tips, so all 20 triangles contribute.
- // The lower leaves curl back down instead of forming the same straight spike silhouette.
- for(let blade=0;blade<4;blade++){
-  const angle=blade*2.399+.18*Math.sin(blade*1.8),s=Math.sin(angle),c=Math.cos(angle),height=[.22,.28,.18,.25][blade],reach=[.19,.15,.27,.23][blade],base=.024+blade*.008,start=positions.length/3;
-  for(const [row,t]of[0,.38,.72].entries()){
-   const bend=base+reach*t*t,width=[.007,.026,.015][row]*(1+blade*.10),fold=Math.sin(t*Math.PI)*.009;
-   for(const side of[-1,1])vertex(s*bend+c*width*side,-.035+Math.sin(t*Math.PI*.78)*height+side*fold,c*bend-s*width*side,.56+t*.40+side*.025);
-   if(row<2){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}
+ const positions=[],colors=[],indices=[],flex=[];
+ // Three offset root clusters make fine grass, rather than four wide ribbon
+ // leaves and a repeated miniature fern. Every tip tapers to a separate point.
+ const roots=[[-.15,.075],[.105,.145],[.075,-.175]];
+ for(let blade=0;blade<12;blade++){
+  const cluster=Math.floor(blade/4),[rx,rz]=roots[cluster],a=blade*2.399+.24*Math.sin(blade*1.7),sn=Math.sin(a),cs=Math.cos(a);
+  const height=.13+(.5+.5*Math.sin(blade*1.87))*.16,reach=.085+(.5+.5*Math.cos(blade*2.41))*.085,width=.006+(.5+.5*Math.sin(blade*2.73))*.006;
+  const x=rx+Math.sin(blade*1.9)*.026,z=rz+Math.cos(blade*2.3)*.026,start=positions.length/3;
+  const vertex=(t,side)=>{
+   const bend=reach*t*t,twist=a+t*(.35+Math.sin(blade)*.3),w=width*(t<.4?.52:1-(t-.4)*.9),curl=height*.28*t*t*t;
+   positions.push(x+sn*bend+Math.cos(twist)*w*side,-.035+height*t-curl+side*w*.17,z+cs*bend-Math.sin(twist)*w*side);
+   const shade=.69+t*.34+(blade%4)*.015;colors.push(shade*.99,shade,shade*.89);flex.push(t*t*.85);
+  };
+  for(const [row,t]of[0,.38,.73].entries()){
+   vertex(t,-1);vertex(t,1);
+   if(row<2){const n=start+row*2;indices.push(n,n+2,n+1,n+1,n+2,n+3);}
   }
-  const tip=vertex(s*(base+reach),-.035+Math.sin(Math.PI*.78)*height,c*(base+reach),.91);indices.push(start+4,start+5,tip);
+  vertex(1,0);indices.push(start+4,start+6,start+5);
  }
- // One low feathered frond adds paired leaflets and real gaps, with no alpha cards or texture.
- const angle=1.35,s=Math.sin(angle),c=Math.cos(angle),point=(t,side,lift,shade)=>{
-  const reach=.035+t*.29,arch=t<.5?t*.30:.15-(t-.5)*.11;
-  return vertex(s*reach+c*side,-.035+arch+lift,c*reach-s*side,shade);
- };
- const stem=positions.length/3;point(0,-.004,0,.53);point(0,.004,0,.57);point(.5,-.003,0,.74);point(.5,.003,0,.77);point(1,0,0,.90);indices.push(stem,stem+1,stem+2,stem+1,stem+3,stem+2,stem+2,stem+3,stem+4);
- for(let pair=0;pair<3;pair++)for(const side of[-1,1]){
-  const t=.15+pair*.22,width=(.080-pair*.017)*side,a=point(t,0,0,.61+pair*.08),b=point(t+.11,width*.47,.012,.76+pair*.055),tip=point(t+.22,width,-.009,.83+pair*.04),d=point(t+.18,width*.37,-.009,.66+pair*.075);
-  indices.push(a,b,tip,a,tip,d);
+ // Short seedlings feather the base into the duff between the three taller
+ // clusters. Their roots occupy an irregular area, never an opaque grass card.
+ for(let blade=0;blade<8;blade++){
+  const a=blade*2.399+.7,sn=Math.sin(a),cs=Math.cos(a),radius=.19+(blade%3)*.046,x=sn*radius,z=cs*radius,start=positions.length/3;
+  const height=.065+(blade%3)*.024,reach=.045+(blade%2)*.028,w=.0055+(blade%2)*.0015;
+  for(const t of[0,.6,1])for(const side of t===1?[0]:[-1,1]){
+   positions.push(x+sn*reach*t*t+cs*w*side,-.035+height*Math.sin(t*Math.PI*.76),z+cs*reach*t*t-sn*w*side);
+   const shade=.69+t*.28;colors.push(shade,shade,shade*.83);flex.push(t*t*.45);
+  }
+  indices.push(start,start+2,start+1,start+1,start+2,start+3,start+2,start+4,start+3);
  }
- const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(positions.filter((v,i)=>i%3===1).map(y=>Math.max(0,(y+.035)/.29)**2),1));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
+ const g=new T.BufferGeometry();g.name='SM_Forest_FineGrass_A';g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(indices);g.computeVertexNormals();return g;
 }
 
 // Shallow, irregular broken plates share a buried underside. Their inset tops
@@ -329,7 +350,7 @@ function connectForestCover(world,mapId,records,footprint,allowed){
    if(source.zone==='shade'&&h.shade<.2||source.zone==='bank'&&h.bank<.22||rhythm.opening>.78)continue;
    if(lanes.some(({a,b})=>segmentDistance(x,z,a.x,a.z,b.x,b.z)<2+footprint))continue;
    if(passages.some(p=>{const dx=x-p.x,dz=z-p.z;return Math.abs(p.c*dx-p.s*dz)<3.1+footprint&&Math.abs(p.s*dx+p.c*dz)<10+footprint;}))continue;
-   if(!(source.zone==='shoulder'?shoulderAllowed:allowed)(x,z)||records.some(p=>near(x,z,p,floor?.9:.62)))continue;
+   if(!(source.zone==='shoulder'?shoulderAllowed:allowed)(x,z)||records.some(p=>near(x,z,p,floor?(source.zone==='shade'||source.zone==='bank'?.64:.9):.62)))continue;
    const kind=kinds[Math.floor(random()*kinds.length)],list=donors.get(kind+':'+quadrant({x,z}));if(!list?.length)continue;
    const record=records[list.pop()];record.x=x;record.z=z;record.transition=source.zone;record.transitionIndex=sourceIndex;
    if(floor&&source.zone==='shoulder')record.shoulder=true;
@@ -395,7 +416,7 @@ export function installAdventureGroundDetail(world,mapId){
  // map needs at most ten draws so each region can have its own actual silhouette.
  for(const biome of Object.keys(profiles))for(const kind of['tuft','litter']){
   const instances=records.filter(p=>p.biome===biome&&p.kind===kind);if(!instances.length)continue;
-  const geometry=kind==='tuft'?tuftGeometry(biome):litterGeometry(biome),batch=new T.InstancedMesh(geometry,material,instances.length);batch.name='adventure-ground-'+(biome==='forest'&&kind==='tuft'?'tuft':biome+'-'+kind);batch.userData.biome=biome;batch.userData.kind=kind;
+  const geometry=kind==='tuft'?tuftGeometry(biome):litterGeometry(biome),batch=new T.InstancedMesh(geometry,biome==='forest'&&kind==='tuft'?grassMaterial:material,instances.length);batch.name='adventure-ground-'+(biome==='forest'&&kind==='tuft'?'tuft':biome+'-'+kind);batch.userData.biome=biome;batch.userData.kind=kind;
   geometry.computeBoundingBox();
   batch.userData.ownedGeometry=true;batch.receiveShadow=true;batch.castShadow=false;
   for(const [i,p]of instances.entries()){
@@ -421,7 +442,7 @@ const habitatProfiles={
 // Bent fronds use three scanned atlas regions; alpha cuts the individual leaflets,
 // while the curved midrib/cross-fold remain real geometry (132 triangles per plant).
 function fernGeometry(){
- const p=[],c=[],uv=[],ix=[],flex=[],stalk=[];
+ const p=[],c=[],uv=[],ix=[],flex=[],stalk=[],progress=[];
  const regions=[[.078,.240,.948,.109],[.307,.458,.786,.021],[.718,.839,.903,.107]];
  for(let frond=0;frond<6;frond++){
   const a=frond*2.399+.14*Math.sin(frond*1.6),s=Math.sin(a),co=Math.cos(a),reach=.57+(frond%3)*.065,h=.36+(frond%2)*.18;
@@ -429,7 +450,7 @@ function fernGeometry(){
   const vertex=(t,side,stem=false)=>{
    const curl=.025*Math.sin(t*Math.PI)*Math.sin(a),width=stem?.0045:.078+(frond%3)*.009;
    p.push(s*t*reach+co*(side*width+curl),Math.sin(t*Math.PI*(.78+frond*.013))*h-.025+(1-Math.abs(side))*.018*Math.sin(t*Math.PI),co*t*reach-s*(side*width+curl));
-   const shade=.80+t*.22+(side===0?-.025:0);c.push(shade,shade,shade);flex.push(t*t*.75);stalk.push(stem?1:0);
+   const shade=.80+t*.22+(side===0?-.025:0);c.push(shade,shade,shade);flex.push(t*t*.75);stalk.push(stem?1:0);progress.push(t);
    uv.push(u0+(side+1)*.5*(u1-u0),1-(base+(tip-base)*t));
   };
   for(let row=0;row<=4;row++){
@@ -440,7 +461,7 @@ function fernGeometry(){
   const root=p.length/3;
   for(let row=0;row<3;row++){for(const side of[-1,1])vertex(row*.12,side,true);if(row<2){const n=root+row*2;ix.push(n,n+2,n+1,n+1,n+2,n+3);}}
  }
- const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setAttribute('fernStem',new T.Float32BufferAttribute(stalk,1));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;
+ const g=new T.BufferGeometry();g.setAttribute('fernProgress',new T.Float32BufferAttribute(progress,1));g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setAttribute('fernStem',new T.Float32BufferAttribute(stalk,1));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;
 }
 // Each small leaf bends across a raised midrib. The scan supplies the irregular
 // outline, so the geometry does not taper it a second time into a pointed arrow.

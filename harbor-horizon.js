@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
-import{groundWindTime}from'./adventure-ground-detail.js?v=155';
+import{groundWindTime}from'./adventure-ground-detail.js?v=156';
 
 // A real basin outside the walking boundary, aligned with the existing lagoon.
 // No pond/collision records are added: this water is background scenery only.

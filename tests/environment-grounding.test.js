@@ -69,11 +69,17 @@ test('all maps reuse one fixed mask and unchanged plant records, with only fores
   const records=[...world.adventureGroundDetail.userData.records,...world.habitatDetail.userData.records],before=JSON.stringify(records),children=world.group.children.length,positions=world.ground.geometry.attributes.position.array.slice();
   const state=installEnvironmentGrounding(world),expected=records.filter(p=>p.biome==='forest'&&['tuft','fern','shrub'].includes(p.kind)).length;
   assert.equal(state.plants,expected);assert.equal(state.texture.image.data.length,512*512*4);assert.equal(world.group.children.length,children);assert.deepEqual(world.ground.geometry.attributes.position.array,positions);assert.equal(JSON.stringify(records),before);
-  const green=channel(state,1);assert.equal(green.some(v=>v>0),id==='forest'||id==='confluence');assert(green.filter(v=>v>0).length/green.length<.12,'forest root transitions became a scene-wide carpet');
+  const green=channel(state,1);assert.equal(green.some(v=>v>0),id==='forest'||id==='confluence');
+  assert(green.filter(v=>v>0).length/green.length<.17,'faint forest root transitions spread across the scene');
+  assert(green.filter(v=>v>8).length/green.length<.10,'visible forest root transitions became a scene-wide carpet');
   assert.strictEqual(installEnvironmentGrounding(world).texture,state.texture);assert.strictEqual(world.ground.material,state.material);
-  if(id==='confluence')for(const p of records.filter(p=>p.biome!=='forest')){
-   if(records.some(q=>q.biome==='forest'&&Math.hypot(p.x-q.x,p.z-q.z)<2))continue;
-   const x=Math.floor((p.x+world.half+8)/(2*(world.half+8))*512),z=Math.floor((p.z+world.half+8)/(2*(world.half+8))*512);assert.equal(green[z*512+x],0,'non-forest roots acquired a green stain');
+  if(id==='confluence'){
+   const region=world.regions.find(r=>r.id==='forest'),extent=world.half+8,pixel=2*extent/512;
+   for(let z=0;z<512;z++)for(let x=0;x<512;x++)if(!region.contains((x+.5)*pixel-extent,(z+.5)*pixel-extent))assert.equal(green[z*512+x],0,'root blur crossed the forest biome boundary');
+   for(const p of records.filter(p=>p.biome!=='forest')){
+    if(records.some(q=>q.biome==='forest'&&Math.hypot(p.x-q.x,p.z-q.z)<2))continue;
+    const x=Math.floor((p.x+world.half+8)/(2*(world.half+8))*512),z=Math.floor((p.z+world.half+8)/(2*(world.half+8))*512);assert.equal(green[z*512+x],0,'non-forest roots acquired a green stain');
+   }
   }
   let disposed=0;state.texture.addEventListener('dispose',()=>disposed++);cleanup(world);assert.equal(disposed,1);assert(state.disposed);
  }
@@ -92,6 +98,34 @@ const floorWorld=()=>{
  const ground=new T.Mesh(new T.PlaneGeometry(48,48),new T.MeshStandardMaterial());ground.userData.ownedGeometry=true;
  return{half:16,ground,obstacles:[],sites:[],forestHabitats:{region:null,relic:null,groves:[],ponds:[]}};
 };
+
+test('nearby roots share a feathered bed without changing obstacle, path or shoreline channels',()=>{
+ const a=floorWorld(),b=floorWorld(),isolated=floorWorld();
+ for(const world of[a,b,isolated]){world.obstacles=[{x:6,z:6,r:1,place:true}];world.road=[{x:-15,z:6},{x:15,z:6}];world.forestHabitats.ponds=[{x:-9,z:-6,rx:3,rz:2,angle:.4}];}
+ const roots=[-.8,.8].map(x=>({x,z:0,biome:'forest',kind:'tuft',size:1,angle:0}));
+ a.adventureGroundDetail={userData:{records:[...roots,{...roots[0],x:0,z:6}]}};
+ isolated.adventureGroundDetail={userData:{records:[roots[0]]}};
+ const first=installEnvironmentGrounding(a),bare=installEnvironmentGrounding(b),single=installEnvironmentGrounding(isolated);
+ for(const c of[0,2,3])assert.deepEqual(channel(first,c),channel(bare,c),'root-bed filtering modified a non-plant channel');
+ assert(sample(first,a,0,0,1)>8,'the gap between nearby roots has no connecting floor transition');
+ assert(sample(first,a,0,0,1)>sample(single,isolated,0,0,1),'a neighbour does not contribute to the shared bed');
+ assert(sample(first,a,0,.4,1)>0&&sample(first,a,0,.4,1)<sample(first,a,0,0,1),'the shared bed has a hard or flat edge');
+ assert.equal(sample(first,a,0,1.4,1),0,'the shared bed has spread beyond its root neighbourhood');
+ assert.equal(sample(first,a,0,6,1),0,'plant blur filled the worn centre of the trail');
+ assert.equal(sample(first,a,8,-8,1),0);assert(channel(first,1).every(v=>v<=220));
+ for(const world of[a,b,isolated])world.ground.geometry.dispose();
+});
+
+test('root-bed colour reuses existing fine soil samples and plain materials need no soil shader variables',()=>{
+ const plain=floorWorld();plain.adventureGroundDetail={userData:{records:[{x:0,z:0,biome:'forest',kind:'tuft',size:1}]}};
+ const plainState=installEnvironmentGrounding(plain),shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};plainState.material.onBeforeCompile(shader);
+ assert(shader.fragmentShader.includes('float forestRootGrain=.5;'));assert(!shader.fragmentShader.includes('soilFine'));assert(!shader.fragmentShader.includes('soilPixel'));assert.equal(shader.fragmentShader.match(/texture2D\(sceneryContact/g).length,1);
+ const forest=buildWorld('forest',522);installAdventureGroundDetail(forest,'forest');const state=installEnvironmentGrounding(forest),detailed={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};state.material.onBeforeCompile(detailed);
+ assert(detailed.fragmentShader.includes('float forestRootLitter'));assert(detailed.fragmentShader.includes('groundContacts.g*forestRootLitter*.13'));
+ assert(detailed.fragmentShader.indexOf('vec4 soilFine')<detailed.fragmentShader.indexOf('float forestRootGrain'));
+ assert.equal(detailed.fragmentShader.match(/texture2D\(sceneryContact/g).length,1);assert(!detailed.fragmentShader.includes('undefined'));
+ plain.ground.geometry.dispose();cleanup(forest);
+});
 test('forest floor has continuous dirt shoulders, shaded duff and a narrow damp irregular bank',()=>{
  const world=floorWorld();world.road=[{x:-15,z:5},{x:15,z:5}];
  world.forestHabitats.groves=[{x:9,z:-8}];world.forestHabitats.ponds=[{x:-9,z:-6,rx:3,rz:2,angle:0}];

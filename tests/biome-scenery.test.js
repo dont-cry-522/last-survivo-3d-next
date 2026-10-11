@@ -1,7 +1,7 @@
 import{test}from'node:test';import assert from'node:assert/strict';import * as T from'../vendor/three.module.js';
 import{buildWorld,clearAt,animateWorld}from'../world.js';import{sceneryAllowed}from'../biome-scenery.js';
 import{bridgeContains,updateTide}from'../coast.js';import{waterDepth}from'../water.js';
-import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=154';
+import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=156';
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
 function dispose(w){w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});}
 test('worn rocks reuse a bounded smooth mesh and preserve placed obstacle transforms',()=>{
@@ -196,4 +196,19 @@ test('scanned forest fronds retain folded ribs, curved tips, original footprint 
  for(let row=1;row<6;row++)assert(p.getY(row*3+1)>p.getY(row*3),'midrib lost its fold');assert(p.getY(19)<p.getY(10),'tip no longer droops');
  const material=batch.material;assert(material.alphaMap&&material.map&&material.alphaTest>.3);assert(material.userData.motion);assert(material.userData.fernSurface);assert(!material.transparent);
  const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};material.onBeforeCompile(shader);assert(shader.vertexShader.includes('sceneryTime'));assert(shader.fragmentShader.includes('hemisphereLights[0].skyColor'));dispose(w);
+});
+
+test('legacy fronds and bank leaves consistently expose their upper face without changing their two-sided material',()=>{
+ const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
+ for(const id of['forest','sand','coast']){
+  const w=buildWorld(id,522),batch=w.scenery.batches.find(m=>m.userData.biomeDetail===(id==='forest'?'frond':'leaf')),g=batch.geometry,{position:p,normal:n}=g.attributes,index=g.index;
+  assert.equal(batch.material.side,T.DoubleSide);let faces=0;
+  for(let i=0;i<index.count;i+=3){
+   a.fromBufferAttribute(p,index.getX(i));b.fromBufferAttribute(p,index.getX(i+1)).sub(a);c.fromBufferAttribute(p,index.getX(i+2)).sub(a);const face=b.cross(c);
+   if(face.lengthSq()<1e-14)continue;
+   assert(face.y>0,id+' leaf winding exposes its underside to the sky');faces++;
+  }
+  assert(faces>=12);for(let i=0;i<n.count;i++)assert(n.getY(i)>=0,id+' upper leaf normal points underground');
+  dispose(w);
+ }
 });

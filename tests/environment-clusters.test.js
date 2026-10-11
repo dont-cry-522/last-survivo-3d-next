@@ -11,7 +11,7 @@ import {installExplorationRoutes} from '../exploration-routes.js';
 import {bridgeContains} from '../coast.js';
 import {waterDepth} from '../water.js';
 import {segmentDistance} from '../rules.js';
-import {naturalRockGeometry} from '../biome-scenery.js?v=154';
+import {naturalRockGeometry} from '../biome-scenery.js?v=156';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const maps=['forest','snow','ash','sand','coast','confluence'];

@@ -154,3 +154,33 @@ test('both fern layers keep opaque narrow stalks connected below the actual grou
  }
  release(world);
 });
+
+test('fern root shading follows each frond progress so small and low plants retain readable leaf tips',async()=>{
+ const module=await fresh(),world=buildWorld('forest',522),habitat=module.installHabitatDetail(world,'forest'),matrix=new T.Matrix4(),point=new T.Vector3();
+ const legacy=world.scenery.batches.find(m=>m.userData.biomeDetail==='frond'),meshes=[legacy,...habitat.children.filter(m=>m.name==='habitat-fern')];let formerlyDarkPlants=0;
+ for(const mesh of meshes){
+  const {position:p,fernProgress:progress,fernStem:stem}=mesh.geometry.attributes;
+  assert(progress&&progress.count===p.count,'every surface and stalk vertex needs normalized frond progress');
+  assert([...progress.array].every(t=>Number.isFinite(t)&&t>=0&&t<=1));
+  const roots=[],tips=[];
+  for(let i=0;i<p.count;i++){
+   const t=progress.getX(i),weight=1-T.MathUtils.smoothstep(t,.02,.25);
+   if(t===0){roots.push(i);assert.equal(weight,1);}
+   if(stem.getX(i)===0&&t>=.95){tips.push(i);assert.equal(weight,0,'leaf tip is tinted as a root');}
+   if(t>=.25)assert.equal(weight,0,'root tint spreads beyond the first quarter of a frond');
+  }
+  assert(roots.length>=3&&tips.length>=3);
+  const shader=shaderFor(mesh.material);
+  assert(shader.vertexShader.includes('attribute float fernProgress;'));
+  assert(shader.vertexShader.includes('fernLeafProgress=fernProgress;'));
+  assert(shader.fragmentShader.includes('float fernRoot=1.0-smoothstep(.02,.25,fernLeafProgress);'));
+  assert(!shader.vertexShader.includes('fernHeight')&&!shader.fragmentShader.includes('fernHeight'),'absolute world height returned to root shading');
+  assert(shader.fragmentShader.includes('*(1.0-fernRoot)'),'leaf transmission no longer shares the local root mask');
+  if(mesh===legacy)for(let i=0;i<mesh.count;i++){
+   mesh.getMatrixAt(i,matrix);let top=-Infinity;
+   for(let j=0;j<p.count;j++)top=Math.max(top,point.fromBufferAttribute(p,j).applyMatrix4(matrix).y);
+   if(top<.16){formerlyDarkPlants++;for(const j of tips)assert.equal(1-T.MathUtils.smoothstep(progress.getX(j),.02,.25),0);}
+  }
+ }
+ assert(formerlyDarkPlants>20,'fixture no longer exercises real plants fully below the old world-height cutoff');release(world);
+});

@@ -4,9 +4,9 @@ import * as T from'../vendor/three.module.js';
 import{polishEnvironmentModels,prepareBatchedSurface,batchedSurfaceMaterial}from'../environment-props.js';
 import{placeTemplate}from'../biome-places.js';
 import{installEnvironmentClusters}from'../environment-clusters.js';
-import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=155';
+import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=156';
 import{buildWorld}from'../world.js';
-import{boulderRockGeometry}from'../biome-scenery.js?v=154';
+import{boulderRockGeometry}from'../biome-scenery.js?v=156';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 
 test('batched grain follows the piece axis and curved rope length without changing original geometry',()=>{

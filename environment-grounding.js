@@ -59,6 +59,27 @@ function bakeForestFloor(world,data,size,extent){
  return pixels;
 }
 
+// A one-time separable tent filter joins nearby roots into a faint shared bed.
+// Only G changes: solids, tracks and wet-bank data remain byte-for-byte intact.
+function blendForestRoots(world,data,size,pixel,extent){
+ const radius=T.MathUtils.clamp(Math.round(.65/pixel),1,7),weight=(radius+1)**2,horizontal=new Float32Array(size*size);
+ const region=world.forestHabitats?.region||world.regions?.find(r=>r.id==='forest');
+ for(let z=0;z<size;z++)for(let x=0;x<size;x++){
+  let sum=0;for(let dx=-radius;dx<=radius;dx++){const sx=x+dx;if(sx>=0&&sx<size)sum+=data[(z*size+sx)*4+1]*(radius+1-Math.abs(dx));}
+  horizontal[z*size+x]=sum/weight;
+ }
+ for(let z=0;z<size;z++)for(let x=0;x<size;x++){
+  let sum=0;for(let dz=-radius;dz<=radius;dz++){const sz=z+dz;if(sz>=0&&sz<size)sum+=horizontal[sz*size+x]*(radius+1-Math.abs(dz));}
+  if(!sum)continue;
+  const k=(z*size+x)*4,wx=(x+.5)*pixel-extent,wz=(z+.5)*pixel-extent;
+  if(region&&!region.contains(wx,wz)){data[k+1]=0;continue;}
+  const grain=.89+.11*Math.sin(wx*3.7+wz*1.9)*Math.sin(wz*2.6-wx*.7),track=1-T.MathUtils.smoothstep(data[k+2]/255,.30,.85);
+  // Keep stronger irregular root centres; never sum overlapping plants. The
+  // softer low contribution between them follows the scanned floor grain.
+  data[k+1]=Math.round(Math.min(220,Math.max(data[k+1]*.80,sum/weight*1.65))*grain*track);
+ }
+}
+
 // Static contact staining joins the existing ground pass. R retains the scenery
 // shadow; G softens forest plant roots; B/A join paths, duff and wet banks.
 // This is a bounded build-time mask, not screen-space or real-time AO.
@@ -103,6 +124,7 @@ export function installEnvironmentGrounding(world){
   }
  }
  const forestPixels=bakeForestFloor(world,data,size,extent);
+ if(plants.length)blendForestRoots(world,data,size,pixel,extent);
  const texture=new T.DataTexture(data,size,size,T.RGBAFormat);texture.name='TX_Scenery_GroundContact_A';
  texture.magFilter=T.LinearFilter;texture.minFilter=T.LinearMipmapLinearFilter;texture.generateMipmaps=true;texture.needsUpdate=true;
  // Ground materials are shared by the original world builders. Keep their
@@ -124,12 +146,16 @@ export function installEnvironmentGrounding(world){
    diffuseColor.rgb*=mix(vec3(1.0),vec3(1.05,.83,.64),forestDuff*.52);
    diffuseColor.rgb*=mix(vec3(1.0),vec3(.67,.73,.69),forestDamp*.65);
    diffuseColor.rgb*=1.0-groundContact*.22;
-   diffuseColor.rgb*=mix(vec3(1.0),vec3(.78,.94,.74),groundContacts.g*.55);
+   float forestRootGrain=${source.userData.groundSurface?'smoothstep(.28,.70,soilFine.g)*soilGrainDetail':'.5'};
+   vec3 forestRootTone=mix(vec3(.84,.96,.78),vec3(1.04,.91,.76),forestRootGrain);
+   diffuseColor.rgb*=mix(vec3(1.0),forestRootTone,groundContacts.g*.62);
+   ${source.userData.groundSurface?`float forestRootLitter=smoothstep(.14,.50,soilFine.a)*(1.0-smoothstep(.025,.09,soilPixel));
+   diffuseColor.rgb*=mix(vec3(1.0),vec3(1.10,.87,.65),groundContacts.g*forestRootLitter*.13);`:''}
   `);
   shader.fragmentShader=shader.fragmentShader.replace('#include <metalnessmap_fragment>','if(max(forestTrack,max(forestDuff,forestDamp))>0.0){\nroughnessFactor=clamp(roughnessFactor+forestDuff*.07-forestTrack*.025-forestDamp*.21,.66,1.0);\n}\n#include <metalnessmap_fragment>');
   shader.fragmentShader=shader.fragmentShader.replace('#include <aomap_fragment>','#include <aomap_fragment>\nreflectedLight.indirectDiffuse*=1.0-groundContact*.16;\nreflectedLight.indirectDiffuse*=1.0-groundContacts.g*.06;');
  };
- material.customProgramCacheKey=()=>baseKey+'|scenery-ground-contact-forest-floor';ground.material=material;
+ material.customProgramCacheKey=()=>baseKey+'|scenery-ground-contact-forest-root-bed';ground.material=material;
  const state={texture,material,sources:sources.length,plants:plants.length,forestPixels,disposed:false};world.environmentGrounding=state;
  const release=()=>{if(state.disposed)return;state.disposed=true;texture.dispose();material.dispose();ground.material=source;ground.geometry.removeEventListener('dispose',release);};
  ground.geometry.addEventListener('dispose',release);

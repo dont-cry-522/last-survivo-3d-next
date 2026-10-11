@@ -14,7 +14,7 @@ import {installExplorationRoutes} from '../exploration-routes.js';
 import {installExplorationLandmarks} from '../exploration-landmarks.js';
 import {installExplorationComposition} from '../exploration-composition.js';
 import {installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
-import {naturalRockGeometry} from '../biome-scenery.js?v=154';
+import {naturalRockGeometry} from '../biome-scenery.js?v=156';
 import {surfaceUniforms} from '../surface-textures.js?v=120';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
@@ -39,7 +39,7 @@ test('local maps use at most two bounded batches and the joined map ten without 
    for(let i=0;i<batch.count;i++){batch.getMatrixAt(i,matrix);box.copy(batch.geometry.boundingBox).applyMatrix4(matrix);assert(box.max.y<.30&&box.min.y<-.03,'detail floats or becomes an uncollidable obstacle');}
   }
   const triangles=group.children.reduce((n,b)=>n+b.count*(b.geometry.index?.count??b.geometry.attributes.position.count)/3,0);
-  assert(triangles<=(map==='confluence'?95000:55000),'low cover exceeded the fixed geometry budget');
+  assert(triangles<=(map==='confluence'?130000:map==='forest'?115000:55000),'low cover exceeded the fixed geometry budget');
   if(map==='forest'||map==='coast')assert(records.filter(p=>Math.hypot(p.x-world.spawn.x,p.z-world.spawn.z)<20).length>=80,'near view is missing low ground cover');
   cleanup(world);
  }
@@ -102,7 +102,7 @@ test('wind moves only flexible blade tips, with one shared game-time uniform and
 test('curved low leaves use their triangle budget and stay inside the reserved wind footprint',()=>{
  const world=buildWorld('forest',7),group=installAdventureGroundDetail(world,'forest'),geometry=group.getObjectByName('adventure-ground-tuft').geometry,p=geometry.attributes.position,n=geometry.attributes.normal,index=geometry.index;
  const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
- assert(index.count/3<=36,'leaf detail exceeds its per-instance budget');
+ assert(index.count/3<=84,'leaf detail exceeds its per-instance budget');
  for(let i=0;i<index.count;i+=3){
   a.fromBufferAttribute(p,index.getX(i));b.fromBufferAttribute(p,index.getX(i+1));c.fromBufferAttribute(p,index.getX(i+2));
   assert(b.sub(a).cross(c.sub(a)).lengthSq()>1e-12,'collapsed leaf-tip triangles waste geometry and give unstable normals');
@@ -112,7 +112,7 @@ test('curved low leaves use their triangle budget and stay inside the reserved w
   assert(Math.abs(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))-1)<1e-5,'leaf normal is invalid');
   const radius=Math.hypot(p.getX(i),p.getZ(i));
   assert(radius*1.14+.035<.55,'curled leaves cross the reserved placement footprint in the wind');
-  if(p.getY(i)>.21)raised++;
+  if(p.getY(i)>.165)raised++;
   if(radius>.25&&p.getY(i)<.17)lowerOuter++;
  }
  assert(raised>0&&lowerOuter>0,'low cover lost its high inner blades and drooping outer leaves');cleanup(world);
@@ -281,7 +281,7 @@ test('fuller forest understory stays inside reserved footprints, under the sight
     }
    }
   }
-  assert(triangles<180000);cleanup(w);
+  assert(triangles<235000);cleanup(w);
  }
 });
 

@@ -8,7 +8,7 @@ export function createOverheadQuery(world){
  const meshes=[],bounds=new T.Box3(),stone=world.forestVista?.group.getObjectByName('forest-vista-stone');
  world.group.traverse(mesh=>{
   if(!mesh.isMesh)return;
-  if(mesh===stone){meshes.push(mesh);return;}
+  if(mesh===stone||mesh.userData.placeOverhead){meshes.push(mesh);return;}
   let parent=mesh,district;
   while(parent&&parent!==world.group){if(parent.userData.explorationLandmark){meshes.push(mesh);return;}if(parent.userData.district){district=parent.userData.district;break;}parent=parent.parent;}
   if(district!=='warehouse'&&district!=='gate'&&district!=='court')return;

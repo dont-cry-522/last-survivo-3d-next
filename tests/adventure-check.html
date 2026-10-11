@@ -202,13 +202,17 @@ $('#run').onclick=async()=>{
  await check('全部浏览器日志',()=>{errors.push(...win.qaErrors);assert(!errors.length,errors.join('\n'));return{errors};});
  publish();$('#status').textContent=results.every(r=>r.pass)?'全部 '+results.length+' 项通过（手机为尺寸与触控模拟，非真机）':'存在失败，请查看报告';for(const b of document.querySelectorAll('button'))b.disabled=false;
 };
-function positionPreview(mode,place){
- if(place==='landmark'){
-  const mark=g.world.explorationLandmarks[0],route=g.world.explorationRoutes.find(r=>r.site===mark.site);
-  const p=[...route.points].sort((a,b)=>Math.abs(Math.hypot(a.x-mark.x,a.z-mark.z)-22)-Math.abs(Math.hypot(b.x-mark.x,b.z-mark.z)-22))[0];
-  g.player.x=p.x;g.player.z=p.z;g.adventureCamera.yaw=Math.atan2(mark.x-p.x,mark.z-p.z);g.adventureCamera.pitch=.10;g.adventureCamera._ready=false;
+function positionPlace(mark){
+ const p=mark.place;if(!p)return;
+ for(const distance of[13,15,18,21]){
+  const x=p.x-Math.sin(p.angle)*distance,z=p.z-Math.cos(p.angle)*distance;
+  if(g.world.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+.6))continue;
+  g.player.x=x;g.player.z=z;g.adventureCamera.yaw=p.angle;g.adventureCamera.pitch=-.045;g.adventureCamera._ready=false;return;
  }
-
+ g.player.x=p.x;g.player.z=p.z;g.adventureCamera.yaw=p.angle;g.adventureCamera.pitch=-.06;g.adventureCamera._ready=false;
+}
+function positionPreview(mode,place){
+ if(place==='landmark')positionPlace(g.world.explorationLandmarks[0]);
  if(place==='water'){const p=g.world.ponds[0];if(p){g.player.x=p.x+p.rx+2;g.player.z=p.z;g.adventureCamera.yaw=-Math.PI/2;g.adventureCamera.pitch=mode==='first'?-.23:-.32;}}
  if(['waterbed','watercenter'].includes(place)){const p=g.world.ponds[0];if(p){const distance=place==='waterbed'?.91:0;g.player.x=p.x+Math.cos(p.angle)*p.rx*distance;g.player.z=p.z-Math.sin(p.angle)*p.rx*distance;g.adventureCamera.yaw=p.angle-Math.PI/2;g.adventureCamera.pitch=mode==='first'?-.65:-.50;}}
  if(place==='trees'){const trees=g.world.obstacles.filter(o=>o.mesh.getObjectByName('tree-canopy')),p=trees.find(o=>g.world.obstacles.every(q=>Math.hypot(o.x-q.x,o.z+5-q.z)>q.r+1));if(p){g.player.x=p.x;g.player.z=p.z+5;g.adventureCamera.yaw=Math.PI;g.adventureCamera.pitch=mode==='first'?.15:.05;}}
@@ -263,7 +267,7 @@ $('#habitat-run').onclick=async()=>{
    return{instances:layer.userData.records.length,extraDraws:after.calls-before.calls,extraTriangles:after.triangles-before.triangles,...after};
   });
  }
- const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v144-six-environments.png';a.click();$('#status').textContent='环境检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;publish();
+ const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v145-six-environments.png';a.click();$('#status').textContent='环境检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;publish();
  }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
 };
 $('#third').onclick=()=>preview('third');$('#first').onclick=()=>preview('first');$('#air-portrait').onclick=()=>{const kind=AIR_ROSTERS[$('#preview-map').value]||'duskbat',scene=new T.Scene(),camera=new T.PerspectiveCamera(36,1.5,.1,30),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(360,240);renderer.setClearColor(0x213235);const model=makeAirborne(kind);scene.add(model);animateAirborne({kind,mesh:model,id:1,flight:{stage:'orbit'}},.2);scene.add(new T.HemisphereLight(0xe3efff,0x38462e,2.8));const sun=new T.DirectionalLight(0xffedce,3);sun.position.set(-3,5,4);scene.add(sun);camera.position.set(2,2.8,4);camera.lookAt(0,.25,0);renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='next-bestiary-'+kind+'.png';a.click();renderer.dispose();renderer.forceContextLoss();};$('#capture').onclick=()=>{step(1,0);const a=document.createElement('a');a.href=g.renderer.domElement.toDataURL('image/png');a.download='forest-next-'+g.player.weaponId+'-'+g.adventureCamera.mode+'-f'+(previewShot?.frames||previewDodge?.frames||0)+'.png';a.click();};
@@ -429,7 +433,7 @@ $('#environment-closeups').onclick=async()=>{
    const frame=reportFrame();assert(frame.calls<2000,'绘制批次超预算');assert(frame.textures<64,'环境纹理异常增长');
    paint.drawImage(g.renderer.domElement,(i%2)*w,Math.floor(i/2)*(h+32),w,h);paint.fillStyle='#e4eddf';paint.font='20px sans-serif';paint.fillText(label+' · '+map,(i%2)*w+12,Math.floor(i/2)*(h+32)+h+24);return frame;
   });
-  const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v144-environment-closeups.png';a.click();publish();$('#status').textContent='环境近景完成：'+results.filter(r=>r.pass).length+'/'+results.length;
+  const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v145-environment-closeups.png';a.click();publish();$('#status').textContent='环境近景完成：'+results.filter(r=>r.pass).length+'/'+results.length;
  }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
 };
 $('#preview-place').add(new Option('地标沿路视角','landmark'));
@@ -447,7 +451,7 @@ explorationButton.onclick=async()=>{
     const route=routes.find(r=>r.site===landmark.site)||routes.find(r=>r.biome===landmark.biome);assert(route,'地标没有对应路线');
     const point=[...route.points].sort((a,b)=>Math.abs(Math.hypot(a.x-landmark.x,a.z-landmark.z)-22)-Math.abs(Math.hypot(b.x-landmark.x,b.z-landmark.z)-22))[0];
     assert(!g.world.obstacles.some(o=>Math.hypot(point.x-o.x,point.z-o.z)<=o.r+.55),'预览点在实体障碍内');
-    const before=g.world.sites.map(s=>[s.claimed,s.completed,s.availableAt]);g.player.x=point.x;g.player.z=point.z;g.setView(mode);g.adventureCamera.yaw=Math.atan2(landmark.x-point.x,landmark.z-point.z);g.adventureCamera.pitch=.10;g.adventureCamera._ready=false;
+    const before=g.world.sites.map(s=>[s.claimed,s.completed,s.availableAt]);g.setView(mode);positionPlace(landmark);assert(g.world.biomePlaces.length===(map==='confluence'?10:2),'成片场景数量不足');
     if(g.state==='paused')g.resume();step(20);g.pause();step(1,0);assert(JSON.stringify(before)===JSON.stringify(g.world.sites.map(s=>[s.claimed,s.completed,s.availableAt])),'景观改变奖励领取与时序');
     for(let p=landmark.mesh;p;p=p.parent)assert(p.visible,'远景被隐藏奖励层遮蔽');
     const frame=reportFrame();assert(frame.calls<2000&&frame.textures<64,'环境渲染超预算');if(mobile)assert(frame.pixels<=1800000,'手机像素超预算');
@@ -459,7 +463,7 @@ explorationButton.onclick=async()=>{
   }
  }
  await check('地标重开回收与新局完整',()=>{const owned=[];g.world.group.traverse(o=>{if(o.userData.ownedGeometry)owned.push(o.geometry);});let disposed=0;for(const geo of new Set(owned))geo.addEventListener('dispose',()=>disposed++);g.menu();assert(disposed===new Set(owned).size,'世界自有几何未完全释放');g.start();step();assert(g.world.explorationLandmarks.length===5,'合集重开地标缺失');return{disposed,...reportFrame()};});
- const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v144-exploration.png';a.click();publish();$('#status').textContent='探索环境完成：'+results.filter(r=>r.pass).length+'/'+results.length;
+ const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v145-exploration.png';a.click();publish();$('#status').textContent='探索环境完成：'+results.filter(r=>r.pass).length+'/'+results.length;
  }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
 };
 </script>

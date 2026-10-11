@@ -251,5 +251,16 @@ export function animateWorld(world,t,focusX=world.spawn.x,focusZ=world.spawn.z){
  }
  weather.mesh.instanceMatrix.needsUpdate=true;
 }
-export function clearAt(world,x,z,r=.45){return Math.abs(x)<(world.half||MAP_HALF)-r&&Math.abs(z)<(world.half||MAP_HALF)-r&&!world.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<r+o.r);}
+export function clearAt(world,x,z,r=.45){
+ if(!(Math.abs(x)<(world.half||MAP_HALF)-r&&Math.abs(z)<(world.half||MAP_HALF)-r))return false;
+ return !world.obstacles.some(o=>{
+  const dx=Math.abs(x-o.x),dz=Math.abs(z-o.z),reach=r+o.r;
+  if(dx>=reach||dz>=reach)return false;
+  const distance2=dx*dx+dz*dz,reach2=reach*reach;
+  // Preserve the old strict boundary and unusual numeric inputs. Only values
+  // within rounding distance of a tangent need the original scaled norm.
+  if(!Number.isFinite(reach2)||reach2<1e-300||Math.abs(distance2-reach2)<=reach2*Number.EPSILON*4)return Math.hypot(dx,dz)<reach;
+  return distance2<reach2;
+ });
+}
 export function moveActor(world,p,dx,dz,r=.45){if(p.boss)r=1.6;const travel=bodyTravel(world,p,dx,dz,r);let x=p.x+dx*travel,z=p.z+dz*travel;if(clearAt(world,x,z,r)){p.x=x;p.z=z;if(travel===1)return;dx*=1-travel;dz*=1-travel;}const sx=p.x+dx*bodyTravel(world,p,dx,0,r);if(clearAt(world,sx,p.z,r))p.x=sx;const sz=p.z+dz*bodyTravel(world,p,0,dz,r);if(clearAt(world,p.x,sz,r))p.z=sz;}

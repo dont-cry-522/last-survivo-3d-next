@@ -103,6 +103,39 @@ function ribbonPoints(points){
  return out;
 }
 
+const routeLength=points=>points.reduce((sum,p,i)=>sum+(i?Math.hypot(p.x-points[i-1].x,p.z-points[i-1].z):0),0);
+function throughPlace(navigation,world,site,start,end,direct){
+ if(direct.length<2)return{points:direct,place:null};
+ const distance=routeLength(direct),limit=Math.min(distance+35,distance*1.7+12);let best=Infinity,points=direct,place=null;
+ for(const candidate of world.biomePlaces||[]){
+  if(candidate.site!==site)continue;
+  const center={x:candidate.x,z:candidate.z};
+  // Cheap lower bound avoids searching routes that already exceed the detour
+  // budget, particularly across the large joined map or a distant harbour bay.
+  if(Math.hypot(center.x-start.x,center.z-start.z)+Math.hypot(end.x-center.x,end.z-center.z)>Math.min(limit,best))continue;
+  let passages=[[center]];
+  if(candidate.entrance&&candidate.exit){
+   const dx=candidate.exit.x-candidate.entrance.x,dz=candidate.exit.z-candidate.entrance.z,d=Math.hypot(dx,dz);
+   if(d>.01){
+    const a={x:center.x-dx/d*3.6,z:center.z-dz/d*3.6},b={x:center.x+dx/d*3.6,z:center.z+dz/d*3.6};
+    // Cross the middle of the authored passage rather than visiting its centre
+    // and immediately retracing the same ribbon. Both travel directions are valid.
+    if(!navigation.segment(a,b))continue;passages=[[a,center,b],[b,center,a]];
+   }
+  }
+  for(const passage of passages){
+   const a=passage[0],b=passage.at(-1);
+   if(Math.hypot(a.x-start.x,a.z-start.z)+routeLength(passage)+Math.hypot(end.x-b.x,end.z-b.z)>Math.min(limit,best))continue;
+   const first=navigation.route(start,a);if(first.length<2)continue;
+   const second=navigation.route(b,end);if(second.length<2)continue;
+   const joined=[...first,...passage.slice(1,-1),...second].filter((p,i,list)=>!i||Math.hypot(p.x-list[i-1].x,p.z-list[i-1].z)>.000001),length=routeLength(joined);
+   if(joined.length>MAX_POINTS||length>limit||length>=best)continue;
+   points=joined;place=candidate;best=length;
+  }
+ }
+ return{points,place};
+}
+
 /** Replace only the owned visual ribbon. Discovery still controls the same mesh;
  * empty geometry means no misleading guide when no complete safe route exists. */
 export function installExplorationRoutes(world){
@@ -110,9 +143,10 @@ export function installExplorationRoutes(world){
  const navigation=navigator(world),routes=[];
  for(const site of world.sites||[]){
   if(!site.trail?.isMesh||!site.trail.userData.ownedGeometry)continue;
-  const region=world.regions?.find(r=>r.id===site.biome),start={x:region?.x??world.spawn.x,z:region?.z??world.spawn.z},end={x:site.x,z:site.z},points=ribbonPoints(navigation.route(start,end));
+  const region=world.regions?.find(r=>r.id===site.biome),start={x:region?.x??world.spawn.x,z:region?.z??world.spawn.z},end={x:site.x,z:site.z};
+  const selected=throughPlace(navigation,world,site,start,end,navigation.route(start,end)),points=ribbonPoints(selected.points);
   const old=site.trail.geometry;site.trail.geometry=ribbon(points,world);old.dispose();
-  routes.push({site,biome:site.biome||world.weather?.kind||'forest',points,start,end});
+  routes.push({site,biome:site.biome||world.weather?.kind||'forest',points,start,end,place:selected.place});
  }
  world.explorationRoutes=routes;return routes;
 }

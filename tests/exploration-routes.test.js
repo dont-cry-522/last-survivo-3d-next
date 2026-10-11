@@ -5,6 +5,7 @@ import {buildWorld} from '../world.js';
 import {installForestVista} from '../forest-vista.js';
 import {installForestHabitats} from '../forest-habitats.js';
 import {installExplorationRoutes} from '../exploration-routes.js';
+import {installBiomePlaces} from '../biome-places.js';
 import {segmentDistance} from '../rules.js';
 import {waterDepth} from '../water.js';
 import {bridgeContains} from '../coast.js';
@@ -78,4 +79,46 @@ test('route placement stays stable across unrelated Three geometry UUID randomne
   assert.deepEqual(first.map(r=>r.points),second.map(r=>r.points));
   assert.deepEqual(first[0].site.trail.geometry.attributes.position.array,second[0].site.trail.geometry.attributes.position.array);
  }finally{Math.random=random;cleanup(a);cleanup(b);}
+});
+
+const length=points=>points.reduce((sum,p,i)=>sum+(i?Math.hypot(p.x-points[i-1].x,p.z-points[i-1].z):0),0);
+test('associated places join safe reward trails in all six maps without changing rewards or exceeding detour budgets',()=>{
+ for(const map of['forest','snow','ash','sand','coast','confluence']){
+  let linked=0;
+  for(const seed of[7,19,522,43837033]){
+   const w=buildWorld(map,seed);installForestVista(w,map);installForestHabitats(w,map);installBiomePlaces(w,map);
+   const before=state(w),base=installExplorationRoutes({...w,biomePlaces:[]});
+   const routes=installExplorationRoutes(w);assert.equal(state(w),before);
+   for(const [i,r]of routes.entries()){
+    assert(r.points.length>=2);checkRoute(w,r);
+    if(!r.place){assert.deepEqual(r.points,base[i].points);continue;}
+    linked++;assert(w.biomePlaces.includes(r.place));assert.equal(r.place.site,r.site);
+    const center=r.points.findIndex(p=>Math.hypot(p.x-r.place.x,p.z-r.place.z)<.000001);assert(center>0&&center<r.points.length-1,'connected route misses the actual central passage');
+    const a=r.points[center-1],p=r.points[center],b=r.points[center+1];
+    assert((p.x-a.x)*(b.x-p.x)+(p.z-a.z)*(b.z-p.z)>0,'route turns back at the place centre');
+    const distance=length(base[i].points);assert(length(r.points)<=distance+35+.000001);assert(length(r.points)<=distance*1.7+12+.000001);
+   }
+   cleanup(w);
+  }
+  assert(linked>0,map+' has no place connected to an actual exploration trail');
+ }
+});
+
+test('the shortest permitted same-site place is used, while blocked, distant and unrelated places keep the original complete trail',()=>{
+ const w=smallWorld(),near={x:0,z:4,site:w.sites[0]},far={x:0,z:8,site:w.sites[0]};
+ w.biomePlaces=[far,{x:0,z:0,site:{}},near];const selected=installExplorationRoutes(w)[0];assert.equal(selected.place,near);checkRoute(w,selected);cleanup(w);
+ for(const invalid of['blocked','far','underwater','unrelated']){
+  const obstacles=invalid==='blocked'?[{x:0,z:5,r:2}]:[],ponds=invalid==='underwater'?[{x:0,z:5,rx:2,rz:2}]:[];
+  const world=smallWorld(obstacles,[],ponds),base=installExplorationRoutes({...world,biomePlaces:[]})[0];
+  world.biomePlaces=[{x:invalid==='far'?-17:0,z:invalid==='far'?18:5,site:invalid==='unrelated'?{}:world.sites[0]}];
+  const actual=installExplorationRoutes(world)[0];assert.equal(actual.place,null,invalid);assert.deepEqual(actual.points,base.points,invalid);checkRoute(world,actual);cleanup(world);
+ }
+ const bare=smallWorld(),empty=smallWorld();empty.biomePlaces=[];
+ assert.deepEqual(installExplorationRoutes(bare)[0].points,installExplorationRoutes(empty)[0].points);cleanup(bare);cleanup(empty);
+});
+
+test('a place reached over a narrow bridge retains high-water safety and the same reward endpoint',()=>{
+ const angle=.37,c=Math.cos(angle),s=Math.sin(angle),w=smallWorld([],[],[{x:0,z:0,rx:3,rz:24,baseRx:3,baseRz:24,angle}],[{x:0,z:0,width:13,length:2.8,angle}]);
+ w.spawn={x:-8*c,z:8*s};Object.assign(w.sites[0],{x:8*c,z:-8*s});w.biomePlaces=[{x:0,z:0,site:w.sites[0]}];
+ const r=installExplorationRoutes(w)[0];assert.equal(r.place,w.biomePlaces[0]);checkRoute(w,r);cleanup(w);
 });

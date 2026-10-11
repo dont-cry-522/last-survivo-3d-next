@@ -5,7 +5,7 @@ import{coastLayout}from'./coast-layout.js?v=114';
 import{swimStroke,swimLimb,HERO_SWIM,heroSwimPose,swimTravel}from'./swim-motion.js?v=114';
 import{newHeroAttack}from'./new-hero-motion.js?v=114';
 import{naturalRockGeometry,environmentDetailTexture}from'./biome-scenery.js?v=134';
-import{CLIMATE_LIGHT}from'./environment-lighting.js?v=139';
+import{CLIMATE_LIGHT}from'./environment-lighting.js?v=141';
 import * as T from './vendor/three.module.js';
 const clamp=T.MathUtils.clamp;
 const shore=a=>1+.07*Math.sin(a*3)+.045*Math.cos(a*5);
@@ -88,9 +88,12 @@ function waterSurface(id){
     vec3 shallowWater=vec3(${id==='coast'?'.080,.170,.170':id==='snow'?'.090,.170,.200':id==='forest'?'.021,.064,.055':'.071,.132,.112'});
     vec3 sediment=vec3(${id==='coast'?'.160,.135,.085':id==='snow'?'.115,.137,.125':id==='sand'?'.290,.220,.120':'.043,.052,.038'});
     float bedDetail=mix(.5,shoreGrain.b,rippleDetail);
+    ${id==='forest'?`// Fine, stationary bed grain seen through a slight wave distortion.
+    vec3 bedGrain=texture2D(waterDetail,waterWorld.xz*.72+vec2(rippleA,rippleB)*.003*rippleDetail).rgb;
+    bedDetail=mix(.5,smoothstep(.19,.81,bedGrain.b*.65+bedGrain.r*.35),rippleDetail);`:''}
     // Stationary sediment shelves break the radial color bands without changing water depth.
     float bedDepth=clamp(depth+(shoreGrain.x-.5)*.28+(shoreGrain.y-.5)*.12,0.0,1.0);
-    float bedVisibility=(1.0-smoothstep(.04,${id==='forest'?'.30':'.66'},bedDepth))*${id==='forest'?'.42*(.18+.82*smoothstep(.38,.72,shoreGrain.y+shoreGrain.x*.10))':'.66'};
+    float bedVisibility=(1.0-smoothstep(.04,${id==='forest'?'.36':'.66'},bedDepth))*${id==='forest'?'.46*(.18+.82*smoothstep(.38,.72,shoreGrain.y+shoreGrain.x*.10))':'.66'};
     vec3 riverbed=sediment*(.76+shoreGrain.x*.22+bedDetail*.25);
     float caustic=smoothstep(.80,1.02,rippleA*.55+rippleB*.45+waterFlow.y*.12)*bedVisibility*rippleDetail;
     diffuseColor.rgb=mix(deepWater*(.90+shoreGrain.x*.10+waterFlow.y*.06),shallowWater,1.0-smoothstep(.07,.92,bedDepth));
@@ -100,7 +103,7 @@ function waterSurface(id){
     // Forest shallows use the shaded bed above, not a broad window onto sunlit yellow ground.
     diffuseColor.a*=(${id==='forest'?'.92+depth*.04':'.64+depth*.30'})*(1.0-smoothstep(${id==='forest'?'.955+shoreGrain.y*.025':'.80+shoreGrain.y*.12'}+shoreLap*.012,1.0,radial));
 `);
-   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=.23+edge*.29+(.5-waterFlow.y)*.065;');
+   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor=${id==='forest'?'.16+edge*.36':'.23+edge*.29'}+(.5-waterFlow.y)*.065;`);
    shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     vec3 waveDx=dFdx(-vViewPosition),waveDy=dFdy(-vViewPosition);
     vec3 waveRx=cross(waveDy,normal),waveRy=cross(normal,waveDx);
@@ -161,7 +164,7 @@ function waterSurface(id){
    };
    reeds.customProgramCacheKey=()=> 'forest-bank-reed-wind';
   }
-  surfaces.set(id,{material,bank,reeds,stones,clock,coast});
+  surfaces.set(id,{material,bank,reeds,stones,clock,coast,reflection});
  }
  return surfaces.get(id);
 }
@@ -220,6 +223,16 @@ export function buildPonds(group,id,rnd,spawn,sites,locations=null){
  return ponds;
 }
 export function animateWater(id,t){if(surfaces.has(id))surfaces.get(id).clock.value=t;}
+// The forest's existing day/night lighting also drives its sky approximation.
+// Shared uniforms are copied in place; no second scene render or per-pond work.
+export function updateWaterLighting(id,lighting){
+ if(id!=='forest'&&id!=='confluence')return;
+ const reflection=surfaces.get('forest')?.reflection;if(!reflection)return;
+ const strength=.55+.45*lighting.day;
+ reflection.waterSky.value.copy(lighting.hemi.color).multiplyScalar(strength);
+ reflection.waterHorizon.value.copy(lighting.scene.fog.color).multiplyScalar(strength);
+}
+
 
 // Restore the unmodified pose before the next mixer update, so paddling never accumulates.
 export function restoreWaterPose(g){for(const p of g.userData.waterPose||[]){p.node.quaternion.copy(p.q);p.node.position.copy(p.p);}g.userData.waterPose=[];}

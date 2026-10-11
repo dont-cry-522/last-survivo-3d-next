@@ -1,5 +1,5 @@
 import{test}from'node:test';import assert from'node:assert/strict';
-import{waterDepth,terrainAt,buildPonds,animateWater}from'../water.js';
+import{waterDepth,terrainAt,buildPonds,animateWater,updateWaterLighting}from'../water.js';
 import{buildWorld,actor,animateActor}from'../world.js';
 import{CLIMATE_LIGHT}from'../environment-lighting.js';
 import * as T from'../vendor/three.module.js';import{seeded}from'../rules.js';
@@ -57,7 +57,7 @@ test('low-angle water uses biome sky colors within the existing surface pass and
   assert.strictEqual(shader.uniforms.waterSky,again.uniforms.waterSky,'recompilation must reuse cached reflection uniforms');
   assert.strictEqual(shader.uniforms.waterDetail,again.uniforms.waterDetail);
   palettes.push(shader.uniforms.waterSky.value.getHex());
-  assert.equal((source.match(/texture2D\(waterDetail,/g)||[]).length,2,'shallow detail must reuse the two existing texture reads');
+  assert.equal((source.match(/texture2D\(waterDetail,/g)||[]).length,id==='forest'?3:2,'only forest adds one filtered bed sample to the shared detail map');
   assert(source.indexOf('dFdx(waveHeight)')<source.indexOf('vec3 waterReflection='),'reflection must see the final animated normal');
   assert(source.indexOf('outgoingLight=mix(outgoingLight,reflectedSky')<source.indexOf('#include <opaque_fragment>'),'reflection must precede alpha output');
   assert(source.includes('#include <tonemapping_fragment>')&&source.includes('#include <fog_fragment>'),'water reflection must retain scene tone mapping and distance fog');
@@ -131,4 +131,15 @@ test('water pose does not accumulate and returns to land for heroes and ground c
   assert(d.waterBlend>.99);assert(d.rig.position.y<0);
   d.waterDepth=0;for(let i=600;i<720;i++)animateActor(g,i/60,0,0,0);assert(d.waterBlend<.001);assert(d.rig.position.y>-.1);
  }
+});
+
+test('forest reflection follows the rendered day/night sky and resets without altering other biomes',()=>{
+ const materialFor=id=>{const group=new T.Group(),[pond]=buildPonds(group,id,seeded(5),{x:-30,z:-30},[],[{x:2,z:4,rx:6,rz:5,angle:0}]);const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};pond.mesh.material.onBeforeCompile(shader);group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});return shader.uniforms;};
+ const forest=materialFor('forest'),snow=materialFor('snow'),oldSnow=snow.waterSky.value.clone(),sky=forest.waterSky.value;
+ const lighting={day:1,hemi:{color:new T.Color(0x9bbbd2)},scene:{fog:{color:new T.Color(0x829b91)}}};
+ updateWaterLighting('forest',lighting);assert(sky.equals(lighting.hemi.color));
+ lighting.day=0;lighting.hemi.color.setHex(0x8eafc2);lighting.scene.fog.color.setHex(0x3e5962);
+ updateWaterLighting('confluence',lighting);assert.strictEqual(forest.waterSky.value,sky);assert(sky.equals(lighting.hemi.color.clone().multiplyScalar(.55)));assert(forest.waterHorizon.value.equals(lighting.scene.fog.color.clone().multiplyScalar(.55)));assert(snow.waterSky.value.equals(oldSnow));
+ const night=sky.clone();updateWaterLighting('snow',{...lighting,day:1});assert(sky.equals(night));
+ lighting.day=1;lighting.hemi.color.setHex(0x9bbbd2);updateWaterLighting('forest',lighting);assert(sky.equals(lighting.hemi.color));
 });

@@ -80,7 +80,7 @@ function leafAtlas(){
    const outline=half*Math.pow(Math.sin(t*Math.PI),.80)*(1+.055*Math.sin(t*31+leaf)),distance=(outline-Math.abs(across))*size,alpha=Math.round(T.MathUtils.clamp(distance+.5,0,1)*255);
    if(!alpha)continue;
    const fold=across>0?.95:1.04,vein=Math.abs(across)<.0015?1.03:1,light=(.84+t*.21)*fold*vein,index=(y*size+x)*4;
-   data[index]=Math.round((82+warm*27)*light);data[index+1]=Math.round((113+warm*26)*light);data[index+2]=Math.round((51+warm*16)*light);data[index+3]=Math.max(data[index+3],alpha);
+   data[index]=Math.round((91+warm*24)*light);data[index+1]=Math.round((118+warm*24)*light);data[index+2]=Math.round((68+warm*20)*light);data[index+3]=Math.max(data[index+3],alpha);
   }
  }
  const texture=new T.DataTexture(data,size,size,T.RGBAFormat);texture.name='shared-tree-leaf-atlas';texture.colorSpace=T.SRGBColorSpace;texture.generateMipmaps=true;texture.minFilter=T.LinearMipmapLinearFilter;texture.magFilter=T.LinearFilter;texture.needsUpdate=true;return texture;
@@ -97,21 +97,26 @@ leafMaterial.onBeforeCompile=shader=>{
  `);
 };
 leafMaterial.customProgramCacheKey=()=> 'tree-soft-transmitted-sprays';
+function sprayPose(x,y,z,width,depth,height,phase,spray){
+ const angle=phase+spray*2.399,tilt=[.30,.92,-.32,.54,.14][spray],normal=new T.Vector3(Math.cos(angle)*.72,tilt,Math.sin(angle)*.72).normalize();
+ const across=new T.Vector3().crossVectors(new T.Vector3(0,1,0),normal).normalize(),along=new T.Vector3().crossVectors(normal,across);
+ const center=new T.Vector3(x+Math.cos(angle)*width*.30,y+height*(.19+.38*Math.sin(spray*1.9+phase)),z+Math.sin(angle)*depth*.36);
+ return{center,normal,across,along};
+}
 function broadFan(x,y,z,width,depth,height,phase){
  // Five small curved sprays sit around a twig, rather than intersecting at one large card.
  // The six-triangle fans keep their alpha silhouette and use 25% fewer canopy triangles.
- const vertices=[],indices=[],colors=[],uvs=[],normal=new T.Vector3(),across=new T.Vector3(),along=new T.Vector3(),point=new T.Vector3(),up=new T.Vector3(0,1,0);
+ const vertices=[],indices=[],colors=[],uvs=[],point=new T.Vector3();
  for(let spray=0;spray<5;spray++){
-  const angle=phase+spray*2.399,first=vertices.length/3,tilt=[.25,.82,-.18,.45,.65][spray],cx=x+Math.cos(angle)*width*.34,cy=y+height*(.24+.22*Math.sin(spray*1.9+phase)),cz=z+Math.sin(angle)*depth*.40;
-  normal.set(Math.cos(angle)*.72,tilt,Math.sin(angle)*.72).normalize();across.crossVectors(up,normal).normalize();along.crossVectors(normal,across);
+  const first=vertices.length/3,{center,normal,across,along}=sprayPose(x,y,z,width,depth,height,phase,spray);
   const vertex=(u,v,bow)=>{
-   point.set(cx,cy,cz).addScaledVector(across,u*width*.72).addScaledVector(along,v*depth*.96).addScaledVector(normal,bow*height);
+   point.copy(center).addScaledVector(across,u*width*.72).addScaledVector(along,v*depth*.96).addScaledVector(normal,bow*height);
    vertices.push(point.x,point.y,point.z);uvs.push(.5+u*.5,.5+v*.5);
    const shade=.83+(normal.y+1)*.075+spray*.012,warm=.5+.5*Math.sin(phase*2.7+spray);
    colors.push(Math.min(1,shade*(.97+warm*.06)),Math.min(1,shade),Math.min(1,shade*(.89-warm*.04)));
   };
-  vertex(0,0,.14);
-  for(let i=0;i<6;i++){const a=i*Math.PI/3;vertex(Math.cos(a)*1.17,Math.sin(a)*1.17,-.025+.025*Math.sin(a*2+phase));}
+  vertex(0,0,.23);
+  for(let i=0;i<6;i++){const a=i*Math.PI/3;vertex(Math.cos(a)*1.17,Math.sin(a)*1.17,-.05+.014*Math.sin(a*2+phase));}
   for(let i=0;i<6;i++)indices.push(first,first+1+i,first+1+(i+1)%6);
  }
  const g=surface(vertices,indices);g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));return g;
@@ -160,17 +165,17 @@ function treeTemplate(id,variant){
  }else{
   // Each fork carries three uneven terminal sprays. Their offsets expose branches between them.
   for(let branch=0;branch<4;branch++){
-   const a=branch*2.15+variant*.71,y=.08+branch*.32,r=.80+(branch%2)*.06;
+   const a=branch*2.15+variant*.71,y=[.09,.57,.36,.94][branch]+Math.sin(a*1.7+variant)*.13,r=.77+(branch%2)*.09;
    for(let twig=0;twig<3;twig++){
-    const side=twig-1,angle=a+side*.53,reach=r+(twig===1?.18:-.06),rise=y+(twig===1?.17:side*.11);
+    const side=twig-1,angle=a+side*(.48+variant*.07),reach=r+(twig===1?.16:-.09)+Math.sin(branch*2.7+twig+variant)*.045,rise=y+(twig===1?.25:side*.19)+Math.cos(twig*2.1+a)*.075;
     const spread=variant===1?.86:1,depth=variant===2?.81:1;
-    const x=Math.cos(angle)*reach*spread,z=Math.sin(angle)*reach*depth,h=(.51+(branch%2)*.06)*(variant===1?1.12:1);
-    sprays.push([x,rise+(variant===2?Math.sin(a)*.19:0),z,(twig===1?.66:.57)*spread,(twig===1?.45:.39)*depth,h,angle+.16*side]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:rise+h*.24,z,branch});
+    const x=Math.cos(angle)*reach*spread,z=Math.sin(angle)*reach*depth,leafY=rise+(variant===2?Math.sin(a)*.19:0),h=(.64+(branch%2)*.09)*(variant===1?1.12:1);
+    sprays.push([x,leafY,z,(twig===1?.66:.57)*spread,(twig===1?.45:.39)*depth,h,angle+.16*side]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:leafY+h*.24,z,branch});
    }
   }
   for(let j=0;j<3;j++){
    const a=j*2.3+variant*.8,r=j===2?.14:.36;
-   const x=Math.cos(a)*r,z=Math.sin(a)*r,y=1.36+j*.22;sprays.push([x,y,z,.59-j*.07,.42-j*.025,.49,a]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:y+.49*.24,z,branch:4});
+   const x=Math.cos(a)*r,z=Math.sin(a)*r,y=1.29+j*.23+Math.sin(a)*.12;sprays.push([x,y,z,.59-j*.07,.42-j*.025,.65,a]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:y+.65*.24,z,branch:4});
   }
  }
  const canopy=merge(crowns),bottom=canopy.boundingBox.min.y;canopy.translate(0,-bottom,0);canopy.computeBoundingBox();
@@ -198,21 +203,21 @@ export function addTree(parent,id,tall,{angle=0,variation=1,bend=0}={}){
 // The constant UV samples one opaque leaf texel; vertex tint supplies leaf veins.
 function detailedCrown(template,level){
  if(template.lods[level])return template.lods[level];
- const p=[],ix=[],uv=[],colors=[],point=new T.Vector3(),normal=new T.Vector3(),across=new T.Vector3(),along=new T.Vector3(),up=new T.Vector3(0,1,0);
+ const p=[],ix=[],uv=[],colors=[],point=new T.Vector3();
  const image=leafMaterial.map.image;let pixel=0;
  for(let i=0;i<image.data.length;i+=4)if(image.data[i+3]===255){pixel=i/4;break;}
  const u=(pixel%image.width+.5)/image.width,v=(Math.floor(pixel/image.width)+.5)/image.height,count=level===0?16:6;
  for(const [x,y,z,width,depth,height,phase]of template.sprays)for(let spray=0;spray<5;spray++){
-  const angle=phase+spray*2.399,tilt=[.25,.82,-.18,.45,.65][spray];
-  normal.set(Math.cos(angle)*.72,tilt,Math.sin(angle)*.72).normalize();across.crossVectors(up,normal).normalize();along.crossVectors(normal,across);
-  const center=new T.Vector3(x+Math.cos(angle)*width*.34,y+height*(.24+.22*Math.sin(spray*1.9+phase)),z+Math.sin(angle)*depth*.40);
+  const {center,normal,across,along}=sprayPose(x,y,z,width,depth,height,phase,spray);
   for(let leaf=0;leaf<count;leaf++){
    const a=leaf*2.399+phase,r=Math.sqrt((leaf+.5)/count),cx=Math.cos(a)*r*width*.68,cy=Math.sin(a)*r*depth*.91;
    const direction=a*.47+spray,co=Math.cos(direction),si=Math.sin(direction),length=.11+.055*(.5+.5*Math.sin(leaf*7+phase)),w=length*.24,first=p.length/3;
    // Six vertices, six triangles: raised midrib and drooping tip retain a smooth folded profile.
    const shape=[[0,-length*.5,length*.07],[0,0,length*.12],[-w,0,length*.025],[0,length*.55,-length*.04],[w,0,length*.025],[0,length*.25,length*.065]];
    for(const [i,[lx,ly,bow]]of shape.entries()){
-    point.copy(center).addScaledVector(across,cx+lx*co-ly*si).addScaledVector(along,cy+lx*si+ly*co).addScaledVector(normal,bow+height*.065);
+    // Follow the same domed spray at every LOD; near leaves must not hover over flat cards.
+    const crownBow=.23-.28*r/1.17;
+    point.copy(center).addScaledVector(across,cx+lx*co-ly*si).addScaledVector(along,cy+lx*si+ly*co).addScaledVector(normal,bow+height*crownBow);
     p.push(point.x,point.y-template.bottom,point.z);uv.push(u,v);
     const shade=(i===1||i===5?1:.83)+.08*Math.sin(a*3+spray);colors.push(Math.min(1,shade*.98),Math.min(1,shade),shade*.86);
    }

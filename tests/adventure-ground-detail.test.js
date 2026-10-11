@@ -5,6 +5,7 @@ import {buildWorld} from '../world.js';
 import {waterDepth} from '../water.js';
 import {bridgeContains} from '../coast.js';
 import {segmentDistance} from '../rules.js';
+import {installForestHabitats} from '../forest-habitats.js';
 import {installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
@@ -183,5 +184,32 @@ test('forest shrubs replace fern patches within the same count and sightline bud
   for(const p of shrubs)assert.equal(p.biome,'forest');
   for(const mesh of g.children.filter(m=>m.name==='habitat-shrub')){const geo=mesh.geometry;assert(geo.index.count/3<=132);assert(geo.boundingBox.max.y<.65);const p=geo.attributes.position;for(let i=0;i<p.count;i++)assert(Math.hypot(p.getX(i),p.getZ(i))+.035<1.15);}
   cleanup(w);
+ }
+});
+
+test('fuller forest understory stays inside reserved footprints, under the sight line and within its original batch budget',()=>{
+ const matrix=new T.Matrix4(),point=new T.Vector3(),center=new T.Vector3();
+ for(const map of ['forest','confluence'])for(const seed of [7,522,43837033]){
+  const w=buildWorld(map,seed);installForestHabitats(w,map);
+  const floor=installAdventureGroundDetail(w,map),habitat=installHabitatDetail(w,map);
+  assert.equal(floor.userData.records.length,map==='forest'?1200:2200);
+  assert(habitat.userData.centers.length<=(map==='forest'?300:500));assert(habitat.children.length<=16);
+  const plants=habitat.userData.records.filter(p=>p.biome==='forest'&&['fern','shrub'].includes(p.kind));
+  assert(Math.max(...plants.map(p=>p.width))-Math.min(...plants.map(p=>p.width))>.4,'understory becomes uniformly sized');
+  let triangles=0;
+  for(const mesh of [...floor.children,...habitat.children]){
+   const p=mesh.geometry.attributes.position,n=mesh.geometry.attributes.normal,index=mesh.geometry.index;
+   if(mesh.parent===habitat)triangles+=mesh.count*index.count/3;
+   for(let i=0;i<p.count;i++)assert(Math.abs(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))-1)<1e-5);
+   for(let i=0;i<mesh.count;i++){
+    mesh.getMatrixAt(i,matrix);center.setFromMatrixPosition(matrix);
+    for(let j=0;j<p.count;j++){
+     point.fromBufferAttribute(p,j).applyMatrix4(matrix);
+     assert(Math.hypot(point.x-center.x,point.z-center.z)+.035<(mesh.parent===floor?.55:1.15),'wind-swept vegetation exceeds its reserved collision-free footprint');
+     assert(point.y<(mesh.parent===floor?.30:.7),'vegetation blocks combat sight lines');
+    }
+   }
+  }
+  assert(triangles<180000);cleanup(w);
  }
 });

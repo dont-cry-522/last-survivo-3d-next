@@ -172,9 +172,15 @@ export function installAdventureGroundDetail(world,mapId){
   records.push({x,z,biome,kind,size,height,angle:random()*Math.PI*2,color:palette[Math.floor(random()*palette.length)],shade:.90+random()*.16});
  }
  // Blend existing floor colors across districts without adding decal layers.
- for(const p of records)if(p.biome==='forest'&&world.forestHabitats){
+ for(const p of records)if(p.biome==='forest'){
   const h=forestHabitatAt(world,p.x,p.z),tint=new T.Color(p.color);
   tint.lerp(new T.Color(p.kind==='tuft'?0x456b57:0x4b574b),h.shade*.65).lerp(new T.Color(p.kind==='tuft'?0x64866e:0x657a70),h.bank*.7).lerp(new T.Color(p.kind==='tuft'?0x8b9861:0x99866a),h.ruin*.6);p.color=tint.getHex();
+  // Smooth patches vary the same existing plants: fuller growth in shelter,
+  // low sparse blades between it. Placement and the seeded stream stay intact.
+  if(p.kind==='tuft'){
+   const growth=.5+.5*Math.sin(p.x*.23+Math.sin(p.z*.17)*1.7);
+   p.size*=.80+growth*.30+h.shade*.08;p.height*=.68+growth*.29;
+  }
  }
  if(!records.length)return null;
  const group=new T.Group();group.name='adventure-ground-detail';group.userData.records=records;group.userData.disposed=false;
@@ -208,7 +214,7 @@ function fernGeometry(){
  const p=[],c=[],ix=[],flex=[];
  const vertex=(x,y,z,shade)=>{const n=p.length/3;p.push(x,y,z);c.push(shade*.94,shade,shade*.80);flex.push(Math.max(0,y/.65)**2);return n;};
  for(let frond=0;frond<6;frond++){
-  const a=frond*2.399,s=Math.sin(a),co=Math.cos(a),reach=.55+(frond%3)*.075,h=.38+(frond%2)*.20;
+  const a=frond*2.399+.14*Math.sin(frond*1.6),s=Math.sin(a),co=Math.cos(a),reach=.57+(frond%3)*.065,h=.36+(frond%2)*.18;
   const point=(t,side,shade,fold=0)=>{const curl=.06*Math.sin(t*Math.PI)*Math.sin(a);return vertex(s*t*reach+co*(side+curl),Math.sin(t*Math.PI*(.78+frond*.013))*h-.025+fold,co*t*reach-s*(side+curl),shade);};
   // A bent stem is a narrow ribbon along the arc. Connecting base/middle/tip
   // as one fan filled the entire space under the arc with a solid green wedge.
@@ -218,7 +224,7 @@ function fernGeometry(){
    if(row<3){const n=stem+row*2;ix.push(n,n+1,n+2,n+1,n+3,n+2);}
   }
   for(let pair=0;pair<4;pair++)for(const side of[-1,1]){
-   const t=.18+pair*.18,w=(.13-pair*.025)*side,n=point(t,0,.53+pair*.05),b=point(t+.07,w*.5,.81,.025),end=point(t+.19,w,.92,-.025-pair*.002),d=point(t+.13,w*.34,.65,.009);ix.push(n,b,end,n,end,d);
+   const t=.18+pair*.18,w=(.15-pair*.028)*side,n=point(t,0,.56+pair*.05),b=point(t+.055,w*.72,.79,.018),end=point(t+.15,w,.87,-.027-pair*.002),d=point(t+.17,w*.38,.69,.004);ix.push(n,b,end,n,end,d);
   }
  }
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;
@@ -229,14 +235,16 @@ function shrubGeometry(){
  const positions=[],colors=[],flex=[],indices=[];
  const vertex=(x,y,z,shade)=>{const i=positions.length/3;positions.push(x,y,z);colors.push(shade*.91,shade,shade*.78);flex.push(Math.max(0,Math.min(1,y/.65))**2);return i;};
  for(let branch=0;branch<4;branch++){
-  const a=branch*2.399,s=Math.sin(a),c=Math.cos(a),height=.42+(branch%3)*.08,reach=.15+branch*.035,start=positions.length/3;
-  const stem=t=>({x:s*reach*t*t,y:height*t-.035,z:c*reach*t*t});
+  const a=branch*2.399+.20*Math.sin(branch),s=Math.sin(a),c=Math.cos(a),height=.39+(branch%3)*.075,reach=.18+branch*.036,start=positions.length/3;
+  const stem=t=>({x:s*reach*t*t,y:height*t-.035-.055*t*t*t,z:c*reach*t*t});
   for(let row=0;row<=3;row++){const t=row/3,p=stem(t),w=.012*(1-t*.7);vertex(p.x+c*w,p.y,p.z-s*w,.43+t*.27);vertex(p.x-c*w,p.y,p.z+s*w,.48+t*.27);if(row<3){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}}
   for(let tier=0;tier<2;tier++)for(const side of[-1,1]){
-   const base=stem(.47+tier*.33),angle=a+side*(.9+tier*.3),sx=Math.sin(angle),cz=Math.cos(angle),length=.29-tier*.035,n=positions.length/3;
-   const leaf=(t,width,shade)=>vertex(base.x+sx*length*t+cz*width,base.y+.08*Math.sin(t*Math.PI)-.075*t*t+width*.16,base.z+cz*length*t-sx*width,shade);
-   leaf(0,0,.60);for(const t of[.32,.68]){const w=Math.sin(t*Math.PI)*(.083-tier*.009);leaf(t,-w,.66+t*.16);leaf(t,w,.82+t*.14);}leaf(1,0,.90);
-   indices.push(n,n+1,n+2,n+1,n+3,n+2,n+2,n+3,n+4,n+3,n+5,n+4);
+   const base=stem(.47+tier*.33),angle=a+side*(.9+tier*.3),sx=Math.sin(angle),cz=Math.cos(angle),length=.32-tier*.035,n=positions.length/3;
+   const leaf=(t,width,shade)=>vertex(base.x+sx*length*t+cz*width,base.y+.08*Math.sin(t*Math.PI)-.09*t*t+width*.18,base.z+cz*length*t-sx*width,shade);
+   // Three rounded sections soften the former spear-shaped silhouette while
+   // retaining a folded, drooping surface and gaps between individual leaves.
+   leaf(0,0,.61);for(const t of[.28,.61,.88]){const w=Math.sin(t*Math.PI)*(.112-tier*.012);leaf(t,-w,.67+t*.15);leaf(t,w,.78+t*.13);}leaf(1,0,.87);
+   indices.push(n,n+1,n+2,n+1,n+3,n+2,n+2,n+3,n+4,n+3,n+5,n+4,n+4,n+5,n+6,n+5,n+7,n+6);
   }
  }
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(indices);g.computeVertexNormals();return g;
@@ -284,6 +292,12 @@ export function installHabitatDetail(world,mapId){
    if(biome==='forest')tint.lerp(new T.Color(0x3e6653),habitat.shade*.55).lerp(new T.Color(plantKind==='stone'?0x72877d:0x5e8671),habitat.bank*.85).lerp(new T.Color(0x91995f),habitat.ruin*.5);
    records.push({x:px,z:pz,biome,kind:plantKind,angle:angle+(random()-.5)*1.2,width:profile.width*size,height:bank&&plantKind==='stone'?.13*size:profile.height*size*(1+habitat.shade*.13-habitat.ruin*.22),color:tint.getHex()});
   }
+ }
+ // Broad patches alternate with quiet gaps; their widths grow into one another
+ // below the sight line, staying inside the already-reserved 1.15m footprint.
+ for(const p of records)if(p.biome==='forest'&&(p.kind==='fern'||p.kind==='shrub')){
+  const habitat=forestHabitatAt(world,p.x,p.z),growth=.5+.5*Math.sin(p.x*.23+Math.sin(p.z*.17)*1.7);
+  p.width*=.84+growth*.40+habitat.shade*.12;p.height*=.76+growth*.22;
  }
  const group=new T.Group();group.name='habitat-detail';group.userData={records,centers,disposed:false};
  const dummy=new T.Object3D(),color=new T.Color();

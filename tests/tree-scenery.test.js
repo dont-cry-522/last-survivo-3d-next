@@ -60,6 +60,21 @@ test('tree variants have outward foliage, curved tapering forks and visible bran
  }
 });
 
+test('every terminal forest twig follows its uneven leaf cluster in all three templates',()=>{
+ for(const angle of[0,1,1.5]){
+  const group=new T.Group(),leaf=addTree(group,'forest',4,{angle}),trunk=group.children[0],template=leaf.userData.treeTemplate;
+  group.updateMatrixWorld(true);const p=trunk.geometry.attributes.position,end=new T.Vector3(),target=new T.Vector3();
+  // A three-sided terminal twig has three rings plus two cap centers; the final cap is its endpoint.
+  const start=p.count-template.sprays.length*11;
+  for(const [i,[x,y,z,,,height]]of template.sprays.entries()){
+   end.fromBufferAttribute(p,start+i*11+10).applyMatrix4(trunk.matrixWorld);
+   target.set(x,y+height*.24-template.bottom,z).applyMatrix4(leaf.matrixWorld);
+   assert(end.distanceTo(target)<.00001,'branch is detached from its repositioned foliage');
+  }
+  assert.equal(leaf.geometry.index.count/3,450,'rounded crowns added extra far-LOD triangles');
+ }
+});
+
 test('full leaf sprays use one mipmapped cutout atlas without per-tree allocations',()=>{
  const maps=new Set(),materials=new Set(),geometries=new Set();
  for(const angle of[0,1,1.5])for(let repeat=0;repeat<3;repeat++){

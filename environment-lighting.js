@@ -1,4 +1,4 @@
-import{installHarborHorizon}from'./harbor-horizon.js?v=146';
+import{installHarborHorizon,harborBayLayout,harborBayCut}from'./harbor-horizon.js?v=148';
 import{installForestBackdrop}from'./tree-scenery.js?v=143';
 import * as T from './vendor/three.module.js';
 
@@ -73,6 +73,7 @@ const ridgeMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:1,si
 // Opaque foothill silhouettes live beyond the playable square. No new collision or rewards.
 export function installDistantLandscape(world,id,biomeAt=()=>id){
  const positions=[],colors=[],indices=[],segments=192,rows=9,half=world.half;
+ const bay=harborBayLayout(world,id,biomeAt);
  const stone=new T.Color(0x6c776d),snow=new T.Color(0xb8cbd0),basalt=new T.Color(0x746960),sand=new T.Color(0xb59c78),cliff=new T.Color(0x879188);
  const sample=(biome,angle,ring,t)=>{
   const p=CLIMATE_LIGHT[biome]||CLIMATE_LIGHT.forest,fade=Math.sin(t*Math.PI),phase=ring*1.7;
@@ -127,6 +128,7 @@ export function installDistantLandscape(world,id,biomeAt=()=>id){
    for(let row=0;row<rows;row++){
     const t=row/(rows-1),radius=base+t*21,shade=new T.Color(0);let y=0;
     for(const[biome,weight]of weights){const value=sample(biome,angle,ring,t);y+=value.y*weight;shade.r+=value.shade.r*weight;shade.g+=value.shade.g*weight;shade.b+=value.shade.b*weight;}
+    if(bay){const cut=harborBayCut(bay,s*radius,c*radius);y=T.MathUtils.lerp(y,-.48,cut);shade.lerp(new T.Color(0x48666a),cut*.7);}
     positions.push(s*radius,y,c*radius);
     colors.push(shade.r,shade.g,shade.b);
    }

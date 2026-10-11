@@ -4,6 +4,7 @@ import * as T from'../vendor/three.module.js';
 import{polishEnvironmentModels,prepareBatchedSurface,batchedSurfaceMaterial}from'../environment-props.js';
 import{placeTemplate}from'../biome-places.js';
 import{installEnvironmentClusters}from'../environment-clusters.js';
+import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=148';
 import{buildWorld}from'../world.js';
 import{boulderRockGeometry}from'../biome-scenery.js?v=143';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
@@ -31,7 +32,15 @@ test('wood and textile batches share finite surface data, shaders and unchanged 
  for(const kind of['wood','cloth']){
   const material=batchedSurfaceMaterial(source,kind),shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};
   assert.strictEqual(batchedSurfaceMaterial(source,kind),material);assert.strictEqual(batchedSurfaceMaterial(material,kind),material);assert(material.color.equals(source.color));
-  material.onBeforeCompile(shader);assert(shader.fragmentShader.includes('// retained author finish'));assert.deepEqual(shader.uniforms,{});
+  material.onBeforeCompile(shader);assert(shader.fragmentShader.includes('// retained author finish'));
+  assert.deepEqual(Object.keys(shader.uniforms),kind==='cloth'?['harborWindTime']:[]);
+  if(kind==='cloth'){
+   assert.strictEqual(shader.uniforms.harborWindTime,groundWindTime);
+   animateAdventureGroundDetail(4.25);assert.equal(shader.uniforms.harborWindTime.value,4.25);
+   animateAdventureGroundDetail(4.25);animateAdventureGroundDetail(NaN);assert.equal(shader.uniforms.harborWindTime.value,4.25,'an unchanged or invalid scenery clock must not advance cloth');
+   animateAdventureGroundDetail(4.5);assert.equal(shader.uniforms.harborWindTime.value,4.5);animateAdventureGroundDetail(0);
+   assert(shader.vertexShader.includes('harborFlex*.028'));assert(shader.vertexShader.includes('modelMatrix*harborPoint'));assert(shader.vertexShader.includes('instanceMatrix*harborPoint'));
+  }
   assert(shader.vertexShader.includes('propCoord=surfaceCoord'));assert(shader.vertexShader.includes('propPoint=position'));assert(!shader.vertexShader.includes('instanceMatrix * vec4(surfaceCoord'),'instance placement must not stretch or swim the piece texture');
   for(const name of['woodRings','woodRelief','clothWeave','ropeTwist','propDamp'])assert(shader.fragmentShader.includes(name));
   assert(shader.fragmentShader.indexOf('float woodRelief')<shader.fragmentShader.indexOf('dFdx(woodRelief)'));assert(shader.fragmentShader.indexOf('float propDamp')<shader.fragmentShader.indexOf('roughnessFactor=clamp'));
@@ -49,6 +58,10 @@ test('wood and textile batches share finite surface data, shaders and unchanged 
   for(const b of[...template.batches,...state.group.children.filter(o=>o.isInstancedMesh)]){
    const g=b.geometry,material=b.material;if(!['wood-piece','cloth'].includes(material.userData.propSurface))continue;
    for(const key of['surfaceCoord','surfaceKind']){assert.equal(g.attributes[key].count,g.attributes.position.count);assert(g.attributes[key].array.every(Number.isFinite));}
+   if(material.userData.propSurface==='cloth'){
+    assert.equal(g.attributes.harborFlex.count,g.attributes.position.count);assert(g.attributes.harborFlex.array.every(n=>Number.isFinite(n)&&n>=0&&n<=1));
+    if(id!=='coast')assert(g.attributes.harborFlex.array.every(n=>n===0),'harbor wind moved another map\'s resting cloth');
+   }
    assert(g.attributes.color.array.every(Number.isFinite));assert(!material.transparent&&!material.map&&!material.normalMap);assert(material.roughness>=.89);
    if(b.isInstancedMesh)assert(b.instanceMatrix&&b.userData.ownedGeometry);
   }

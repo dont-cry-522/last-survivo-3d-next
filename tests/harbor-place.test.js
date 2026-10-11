@@ -76,6 +76,30 @@ test('both sides of the closed hull have outward winding for consistent wood lig
  b.dispose();
 });
 
+test('only loose canvas and net move, with pinned attachments and the entire wind envelope inside existing solids',()=>{
+ const b=build(),moving=b.pieces.filter(p=>p.geometry.attributes.harborFlex);assert(moving.length>20);
+ const allowed=new Set(['SM_Harbor_GatheredSail_A','SM_Harbor_RepairSail_A','SM_Harbor_DryingNet_A']);
+ for(const piece of moving){
+  const g=piece.geometry,p=g.attributes.position,n=g.attributes.normal,w=g.attributes.harborFlex;
+  assert.equal(piece.category,'cloth');assert(!piece.overhead);assert(allowed.has(g.name),'load-bearing rope or packed cargo gained wind');
+  assert.equal(w.count,p.count);assert(w.array.every(v=>Number.isFinite(v)&&v>=0&&v<=1));
+  if(g.name!=='SM_Harbor_DryingNet_A'){
+   assert(Math.max(...w.array)>.5);
+   for(let row=0;row<=5;row++)for(let col=0;col<=12;col++)if(row===0||col===0||col===12||g.name==='SM_Harbor_RepairSail_A'&&row===5)assert(w.getX(row*13+col)<1e-8,'sewn/pinned cloth edge moves');
+  }
+  for(let i=0;i<p.count;i++){
+   if(g.name==='SM_Harbor_DryingNet_A'&&(p.getY(i)>=2.19||p.getX(i)<=4.44||p.getX(i)>=7.36))assert.equal(w.getX(i),0,'net support moves');
+   for(const sign of[-1,1]){
+    const amount=.028*w.getX(i)*sign,net=g.name==='SM_Harbor_DryingNet_A',x=p.getX(i)+(net?0:n.getX(i)*amount),y=p.getY(i)+(net?0:n.getY(i)*amount),z=p.getZ(i)+(net?amount:n.getZ(i)*amount);
+    assert(Math.abs(x)>=3.1&&Math.abs(x)<=9&&Math.abs(z)<=8,'wind enters the clear route or leaves the place');
+    assert(b.solids.some(s=>contains(s,x,y,z)),'wind crosses the existing collision envelope');
+   }
+  }
+ }
+ for(const piece of b.pieces)if(!allowed.has(piece.geometry.name))assert(!piece.geometry.attributes.harborFlex,'static rigging unexpectedly moves');
+ b.dispose();
+});
+
 test('repair hoist, suspended cargo and layered sailcloth provide a connected middle and upper silhouette',()=>{
  const b=build(),named=new Map(b.pieces.filter(p=>p.geometry.name).map(p=>[p.geometry.name,p]));
  for(const name of['SM_Harbor_WinchDrum_A','SM_Harbor_HoistSheave_A','SM_Harbor_SuspendedSling_A','SM_Harbor_RepairSail_A','SM_Harbor_GatheredSail_A','SM_Harbor_FurledSail_A','SM_Harbor_TiedCargo_1'])assert(named.has(name),name+' is absent');

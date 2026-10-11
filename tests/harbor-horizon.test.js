@@ -2,7 +2,8 @@ import{test}from'node:test';
 import assert from'node:assert/strict';
 import * as T from'../vendor/three.module.js';
 import{installDistantLandscape}from'../environment-lighting.js';
-import{installHarborHorizon}from'../harbor-horizon.js';
+import{installHarborHorizon,harborBayCut}from'../harbor-horizon.js';
+import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=148';
 import{biomeAt}from'../confluence.js';
 import{buildWorld}from'../world.js';
 
@@ -53,9 +54,30 @@ test('installing distant harbor does not change generated obstacles, rewards or 
   let randomCalls=0;for(const scope of world.regions||[world]){const random=scope.weather.random;scope.weather.random=()=>{randomCalls++;return random();};}
   const ridge=installDistantLandscape(world,id,biomeAt),group=installHarborHorizon(world,id,biomeAt,ridge);
   assert(group&&group.userData.records.length>=6);assert.deepEqual(world.obstacles,obstacles);assert.deepEqual(world.sites,sites);assert.deepEqual(world.roaming,roaming);assert.deepEqual(world.discoveries,discoveries);assert.equal(randomCalls,0);
+  const bay=world.harborBay;assert(bay?.source&&world.ponds.includes(bay.source),'offshore direction must come from a real coastal lagoon');
+  assert.equal(bay.boats.length,2);assert.equal(bay.mesh.children.length,2);assert(bay.mesh.children.reduce((n,m)=>n+m.geometry.index.count/3,0)<=800,'offshore water and sails exceeded their 2-draw low-poly budget');
+  const ray=new T.Raycaster(new T.Vector3(),new T.Vector3(0,-1,0),0,400);ridge.updateMatrixWorld(true);
+  for(const boat of bay.boats)for(let i=0;i<32;i++){
+   const a=i/32*Math.PI*2,c=Math.cos(boat.angle),s=Math.sin(boat.angle),u=Math.cos(a)*5.4,v=Math.sin(a)*3.3,x=boat.x+c*u+s*v,z=boat.z-s*u+c*v;
+   ray.ray.origin.set(x,200,z);assert(ray.intersectObject(ridge,false)[0].point.y<bay.y-.13,'boat orbit crosses exposed land');
+   const angle=Math.atan2(x,z),delta=Math.abs(Math.atan2(Math.sin(angle-bay.angle),Math.cos(angle-bay.angle))),edge=world.half/Math.max(Math.abs(Math.sin(angle)),Math.abs(Math.cos(angle))),offset=Math.hypot(x,z)-edge;
+   assert(delta<bay.halfAngle&&offset>bay.inner&&offset<bay.outer,'boat orbit leaves actual water geometry');assert(Math.max(Math.abs(x),Math.abs(z))>world.half+2);
+  }
+  for(const mesh of bay.mesh.children){assert(mesh.userData.ownedGeometry&&!mesh.material.map&&!mesh.castShadow);const p=mesh.geometry.attributes.position;for(let i=0;i<p.count;i++)assert(Math.max(Math.abs(p.getX(i)),Math.abs(p.getZ(i)))>world.half+2);}
+  const outside=bay.angle+bay.halfAngle*1.4,s=Math.sin(outside),c=Math.cos(outside),edge=world.half/Math.max(Math.abs(s),Math.abs(c));assert.equal(harborBayCut(bay,s*(edge+25),c*(edge+25)),0,'headlands outside the bay were lowered');
   assert.strictEqual(installHarborHorizon(world,id,biomeAt,ridge),group);
-  assert.equal(world.group.children.filter(o=>o.name==='SM_Harbor_Horizon_A').length,1);release(world);
+  assert.equal(world.group.children.filter(o=>o.name==='SM_Harbor_Horizon_A').length,1);assert.equal(world.group.children.filter(o=>o.name==='SM_Harbor_Bay_A').length,1);let released=0;for(const m of bay.mesh.children)m.geometry.addEventListener('dispose',()=>released++);release(world);assert.equal(released,2);assert(bay.disposed&&!bay.mesh.visible);
  }
+});
+
+test('offshore animation shares the pause-aware scenery clock and keeps motion bounds on the GPU',()=>{
+ const world=buildWorld('coast',522);installDistantLandscape(world,'coast',biomeAt);const bay=world.harborBay,compiled=[];
+ for(const mesh of bay.mesh.children){const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};mesh.material.onBeforeCompile(shader);assert.strictEqual(shader.uniforms.harborTime,groundWindTime);assert(mesh.material.fog);compiled.push(shader);}
+ const old=groundWindTime.value;animateAdventureGroundDetail(37.5);assert(compiled.every(s=>s.uniforms.harborTime.value===37.5));animateAdventureGroundDetail(37.5);assert(compiled.every(s=>s.uniforms.harborTime.value===37.5),'unchanged game time advanced the offshore scene');
+ animateAdventureGroundDetail(38);assert(compiled.every(s=>s.uniforms.harborTime.value===38));animateAdventureGroundDetail(old);
+ assert(compiled[1].vertexShader.includes('objectNormal.xz=harborRotation()'),'turning ships leave lighting normals behind');assert(compiled[1].vertexShader.includes('harborPivot.xz'),'moving ships do not retain their fixed offshore anchor');
+ assert(bay.sails.geometry.boundingSphere.radius>5.5,'shader orbit is absent from culling bounds');
+ release(world);
 });
 
 test('other biomes and missing coast sectors do not install a harbor',()=>{

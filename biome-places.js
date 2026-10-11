@@ -1,12 +1,14 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
-import{batchedSurfaceMaterial,prepareBatchedSurface}from'./environment-props.js?v=147';
-import{waterDepth}from'./water.js?v=147';
+import{batchedSurfaceMaterial,prepareBatchedSurface}from'./environment-props.js?v=148';
+import{waterDepth}from'./water.js?v=148';
 import{bridgeContains}from'./coast.js?v=114';
 import{segmentDistance}from'./rules.js?v=125';
 import{buildWoodlandPlace}from'./woodland-places.js?v=145';
-import{buildRuinPlace}from'./ruin-places.js?v=147';
-import{buildHarborPlace}from'./harbor-place.js?v=146';
+import{buildRuinPlace}from'./ruin-places.js?v=148';
+import{buildHarborPlace}from'./harbor-place.js?v=148';
+import{coastPlaceCandidates,harborPierPlan}from'./harbor-bank-layout.js?v=148';
+import{installHarborBank}from'./harbor-bank.js?v=148';
 
 const templates=new Map(),materials=new Map(),HALF_X=9.4,HALF_Z=8.4;
 function finish(category){
@@ -29,7 +31,7 @@ export function placeTemplate(id){
   const p=geometry.attributes.position,c=geometry.attributes.color,colors=[];tint.setHex(color);
   for(let i=0;i<p.count;i++){const shade=c?(c.getX(i)+c.getY(i)+c.getZ(i))/3:1;colors.push(tint.r*shade,tint.g*shade,tint.b*shade);}
   geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));if(!geometry.attributes.normal)geometry.computeVertexNormals();
-  for(const name of Object.keys(geometry.attributes))if(!['position','normal','color','surfaceCoord','surfaceKind'].includes(name))geometry.deleteAttribute(name);
+  for(const name of Object.keys(geometry.attributes))if(!['position','normal','color','surfaceCoord','surfaceKind','harborFlex'].includes(name))geometry.deleteAttribute(name);
   if(!geometry.index)geometry.setIndex(Array.from({length:p.count},(_,i)=>i));
   const key=category+(overhead?':roof':'');if(!parts.has(key))parts.set(key,{category,overhead,geometries:[]});parts.get(key).geometries.push(geometry);
  },solid(x,z,r,height){solids.push({x,z,r,height});},solidBox(x,z,w,d,height,angle=0){
@@ -38,7 +40,7 @@ export function placeTemplate(id){
   for(let i=0;i<steps;i++){const q=-length/2+(i+.5)*span,dx=alongX?q:0,dz=alongX?0:q;solids.push({x:x+c*dx+s*dz,z:z-s*dx+c*dz,r,height});}
  }};
  const info=id==='forest'||id==='snow'?buildWoodlandPlace(id,kit):id==='ash'||id==='sand'?buildRuinPlace(id,kit):buildHarborPlace(kit),batches=[];
- for(const part of parts.values()){const geometry=mergeGeometries(part.geometries);for(const g of part.geometries)g.dispose();geometry.computeBoundingBox();geometry.computeBoundingSphere();batches.push({geometry,material:finish(part.category),overhead:part.overhead});}
+ for(const part of parts.values()){const geometry=mergeGeometries(part.geometries);for(const g of part.geometries)g.dispose();geometry.computeBoundingBox();geometry.computeBoundingSphere();if(geometry.attributes.harborFlex?.array.some(v=>v>0))geometry.boundingSphere.radius+=.03;batches.push({geometry,material:finish(part.category),overhead:part.overhead});}
  const result={...info,batches,solids};templates.set(id,result);return result;
 }
 
@@ -50,7 +52,7 @@ function protectedRoot(world,o){
 }
 export function installBiomePlaces(world,mapId){
  if(world.biomePlaces)return world.biomePlaces;
- const places=[],skips=[],protectedObjects=world.obstacles.filter(o=>protectedRoot(world,o)),ponds=world.ponds.map(p=>{const k=p.baseRx===undefined?1:1.19;return{...p,rx:(p.baseRx??p.rx)*k+1,rz:(p.baseRz??p.rz)*k+1};});
+ const places=[],skips=[],protectedObjects=world.obstacles.filter(o=>protectedRoot(world,o)),ponds=world.ponds.map(p=>{const k=p.baseRx===undefined?1:1.19,rx=(p.baseRx??p.rx)*k+1,rz=(p.baseRz??p.rz)*k+1;return{...p,rx,rz,r:Math.max(rx,rz)*1.12};});
  const clearings=[{...world.spawn,r:7},...world.sites.map(s=>({...s,r:s.event?8:4.5})),...world.discoveries.flatMap(d=>[{...d,r:3.8},...(d.nodes||[]).map(n=>({...n,r:2}))]),...world.roaming.map(r=>({...r,r:4}))];
  const safe=(p,scope)=>{
   if(places.some(q=>Math.hypot(p.x-q.x,p.z-q.z)<28))return false;
@@ -67,6 +69,7 @@ export function installBiomePlaces(world,mapId){
  };
  for(const scope of world.regions||[{id:mapId,...world.spawn}]){
   const id=scope.id,sites=world.sites.filter(s=>(!world.regions||s.biome===id)&&(s.type==='relic'||s.event)),start=world.regions?{x:scope.x,z:scope.z}:world.spawn,template=placeTemplate(id);
+  const shoreCandidates=id==='coast'?coastPlaceCandidates(world,scope):[];
   for(let n=0;n<2;n++){
    const anchor=n===0?start:sites.find(s=>s.event)||sites[0]||start,candidates=[];
    for(const radius of[n===0?24:22,32,42,54,66])for(let i=0;i<24;i++){
@@ -76,17 +79,24 @@ export function installBiomePlaces(world,mapId){
     const routeDistance=segmentDistance(p.x,p.z,start.x,start.z,near.x,near.z),viewPenalty=n===0?Math.abs(Math.atan2(Math.sin(a+.75),Math.cos(a+.75)))*3:0;
     candidates.push({...p,site:near,score:radius+routeDistance*.25+viewPenalty+(id==='coast'&&ponds.length?Math.min(...ponds.map(w=>Math.max(0,Math.hypot(p.x-w.x,p.z-w.z)-Math.max(w.rx,w.rz))))*.25:0)+Math.max(0,16-d)*3});
    }
+   if(id==='coast')for(const candidate of shoreCandidates){
+    if(!safe(candidate,scope))continue;const pier=harborPierPlan(world,candidate);if(!pier)continue;
+    const near=sites.reduce((best,s)=>Math.hypot(candidate.x-s.x,candidate.z-s.z)<Math.hypot(candidate.x-best.x,candidate.z-best.z)?s:best,sites[0]||anchor);
+    const detour=Math.hypot(candidate.x-start.x,candidate.z-start.z)+Math.hypot(candidate.x-near.x,candidate.z-near.z)-Math.hypot(start.x-near.x,start.z-near.z);
+    candidates.push({...candidate,pier,site:near,score:-1000+Math.hypot(candidate.x-anchor.x,candidate.z-anchor.z)*.25+detour*2+segmentDistance(candidate.x,candidate.z,start.x,start.z,near.x,near.z)+pier.width*.35});
+   }
    candidates.sort((a,b)=>a.score-b.score);const p=candidates[0];if(!p){skips.push({biome:id,reason:'no-clear-footprint',index:n});continue;}
    // Trade sparse ordinary props for a connected place. Tactical objects and
    // interactive clearings were rejected above, never moved or consumed.
-   const removed=world.obstacles.filter(o=>inFootprint(p,o.x,o.z,o.r+.6)),roots=new Set(removed.map(o=>o.mesh));
+   const removed=world.obstacles.filter(o=>!protectedRoot(world,o)&&!o.place&&!o.environmentCluster&&(inFootprint(p,o.x,o.z,o.r+.6)||p.pier&&bridgeContains(p.pier,o.x,o.z,o.r+.7))),roots=new Set(removed.map(o=>o.mesh));
    for(const root of roots){root.removeFromParent();root.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});}
    world.obstacles=world.obstacles.filter(o=>!roots.has(o.mesh));
    for(const region of[world,...world.regions||[]]){region.foliage=region.foliage.filter(f=>{let parent=f.leaf;while(parent&&parent!==world.group)parent=parent.parent;return parent===world.group;});if(region!==world)region.obstacles=region.obstacles.filter(o=>!roots.has(o.mesh));}
    const group=new T.Group();group.name='SM_Place_'+id+'_'+n;group.position.set(p.x,0,p.z);group.rotation.y=p.angle;world.group.add(group);
    for(const b of template.batches){const mesh=new T.Mesh(b.geometry.clone(),b.material);mesh.name=group.name+'_'+group.children.length;mesh.castShadow=mesh.receiveShadow=true;mesh.userData.ownedGeometry=true;mesh.userData.placeOverhead=b.overhead;group.add(mesh);}
    const solids=[];for(const s of template.solids){const q=at(p,s.x,s.z),root=new T.Object3D();root.position.set(s.x,0,s.z);root.name='COL_'+id;group.add(root);const obstacle={...q,r:s.r,height:s.height,sceneryHeight:s.height,mesh:root,biome:id,place:true};world.obstacles.push(obstacle);if(world.regions)scope.obstacles.push(obstacle);solids.push(obstacle);}
-   places.push({...p,biome:id,index:n,kind:template.kind,name:template.name,focus:{...at(p,template.focus.x,template.focus.z),y:template.focus.y},mesh:group,solids,removed:removed.length,entrance:at(p,0,-9),exit:at(p,0,9)});
+   const place={...p,biome:id,index:n,kind:template.kind,name:template.name,focus:{...at(p,template.focus.x,template.focus.z),y:template.focus.y},mesh:group,solids,removed:removed.length,entrance:at(p,0,-9),exit:at(p,0,9)};
+   if(place.pier)place.solids.push(...installHarborBank(world,place));places.push(place);
   }
  }
  world.biomePlaces=places;world.biomePlaceSkips=skips;return places;

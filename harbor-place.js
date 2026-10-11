@@ -6,21 +6,23 @@ export function buildHarborPlace(kit){
  const timber=0x817b65,dark=0x4b5752,cut=0xa59b7d,rope=0x96937b,iron=0x4d6260;
  const add=(geometry,color,transform={},category='wood')=>kit.piece(category,geometry,color,transform);
  const plank=(color,x,y,z,w,h,d,ry=0,rz=0,overhead=false)=>add(new T.BoxGeometry(w,h,d),color,{x,y,z,ry,rz,overhead});
- const bar=(color,a,b,r=.06,category='wood',overhead=false)=>{
+ const bar=(color,a,b,r=.06,category='wood',overhead=false,flex=null)=>{
   const from=new T.Vector3(...a),to=new T.Vector3(...b),delta=to.clone().sub(from),g=new T.CylinderGeometry(r*.83,r,delta.length(),6);
   g.applyQuaternion(new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),delta.normalize()));
-  const mid=from.add(to).multiplyScalar(.5);add(g,color,{x:mid.x,y:mid.y,z:mid.z,overhead},category);
+  const mid=from.add(to).multiplyScalar(.5);
+  if(flex){const p=g.attributes.position;g.name='SM_Harbor_DryingNet_A';g.setAttribute('harborFlex',new T.Float32BufferAttribute(Array.from({length:p.count},(_,i)=>flex(p.getX(i)+mid.x,p.getY(i)+mid.y,p.getZ(i)+mid.z)),1));}
+  add(g,color,{x:mid.x,y:mid.y,z:mid.z,overhead},category);
  };
- const curve=(points,color,r=.045,category='wood',overhead=false)=>{
-  for(let i=1;i<points.length;i++)bar(color,points[i-1],points[i],r,category,overhead);
+ const curve=(points,color,r=.045,category='wood',overhead=false,flex=null)=>{
+  for(let i=1;i<points.length;i++)bar(color,points[i-1],points[i],r,category,overhead,flex);
  };
- const canvas=(name,color,point,overhead=false)=>{
-  const positions=[],indices=[],cols=12,rows=5;
+ const canvas=(name,color,point,flex)=>{
+  const positions=[],indices=[],weights=[],cols=12,rows=5;
   for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++){
-   positions.push(...point(i/cols,j/rows));
+   positions.push(...point(i/cols,j/rows));weights.push(flex(i/cols,j/rows));
    if(i<cols&&j<rows){const n=j*(cols+1)+i;indices.push(n,n+1,n+cols+1,n+1,n+cols+2,n+cols+1);}
   }
-  const g=new T.BufferGeometry();g.name=name;g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setIndex(indices);g.computeVertexNormals();add(g,color,{overhead},'cloth');
+  const g=new T.BufferGeometry();g.name=name;g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('harborFlex',new T.Float32BufferAttribute(weights,1));g.setIndex(indices);g.computeVertexNormals();add(g,color,{},'cloth');
  };
  const cx=-6.30,cz=-.35,half=6.65;
  const hull=(t,u,side)=>{
@@ -91,7 +93,7 @@ export function buildHarborPlace(kit){
  for(const side of[-1,1])curve([[-4.62+side*.48,1.75,-3.04],[-4.62+side*.36,2.11,-3.04],[-4.62,2.33,-3.04]],rope,.034,'cloth');
  kit.solid(-4.62,-3.04,.61,3.30);
  // A folded sail and fitted repair planks break the broad empty bow deck.
- canvas('SM_Harbor_RepairSail_A',0x7b8b85,(u,v)=>[cx+(u-.5)*1.62,1.43+.20*Math.sin(u*Math.PI)+.07*Math.sin(u*19+v),-5.03+v*1.20]);
+ canvas('SM_Harbor_RepairSail_A',0x7b8b85,(u,v)=>[cx+(u-.5)*1.62,1.43+.20*Math.sin(u*Math.PI)+.07*Math.sin(u*19+v),-5.03+v*1.20],(u,v)=>Math.sin(u*Math.PI)**2*Math.sin(v*Math.PI)**2*.65);
  for(let i=0;i<4;i++)plank(i%2?cut:timber,cx-.54+i*.24,1.47,-4.62,.15,.065,1.44,.025*(i-1));
  // Low boards are visual ground cover, not a raised walkable platform.
  for(let i=0;i<31;i++){
@@ -121,11 +123,12 @@ export function buildHarborPlace(kit){
  kit.solidBox(6.11,5.9,4.30,.62,3.20);
  // Sagging fishing net against the back wall: visible knots and open diamonds,
  // not a solid translucent sheet that competes with targets.
- for(let i=0;i<11;i++)curve([[4.40+i*.30,2.23,5.86],[4.37+i*.30,1.37,5.75],[4.40+i*.30,.56,5.81]],rope,.014,'cloth');
- for(let i=0;i<7;i++)curve([[4.40,.60+i*.26,5.81],[5.88,.52+i*.26,5.70],[7.40,.60+i*.26,5.81]],rope,.014,'cloth');
+ const netFlex=(x,y)=>(1-T.MathUtils.smoothstep(y,.80,2.19))*T.MathUtils.smoothstep(x,4.44,4.95)*(1-T.MathUtils.smoothstep(x,6.94,7.36))*.55;
+ for(let i=0;i<11;i++)curve([[4.40+i*.30,2.23,5.86],[4.37+i*.30,1.37,5.75],[4.40+i*.30,.56,5.81]],rope,.014,'cloth',false,netFlex);
+ for(let i=0;i<7;i++)curve([[4.40,.60+i*.26,5.81],[5.88,.52+i*.26,5.70],[7.40,.60+i*.26,5.81]],rope,.014,'cloth',false,netFlex);
  // Gathered sailcloth hangs above the drying net. Its uneven folds have depth
  // and an open lower edge rather than filling the shed with an opaque wall.
- canvas('SM_Harbor_GatheredSail_A',0x88968e,(u,v)=>[4.66+u*2.65,3.10-v*(.54+.22*Math.sin(u*Math.PI))+.018*Math.sin(u*28),5.79-.066*Math.sin(u*31)*(v*.45+.55)]);
+ canvas('SM_Harbor_GatheredSail_A',0x88968e,(u,v)=>[4.66+u*2.65,3.10-v*(.54+.22*Math.sin(u*Math.PI))+.018*Math.sin(u*28),5.79-.066*Math.sin(u*31)*(v*.45+.55)],(u,v)=>Math.sin(u*Math.PI)**2*v*v);
  for(const x of[4.71,7.24])bar(rope,[x,3.15,5.81],[x,2.42,5.77],.024,'cloth');
  const roll=new T.CylinderGeometry(.135,.135,2.52,14,4);roll.name='SM_Harbor_FurledSail_A';
  const rollPoints=roll.attributes.position;for(let i=0;i<rollPoints.count;i++){const y=rollPoints.getY(i),r=1+.08*Math.sin(y*12);rollPoints.setX(i,rollPoints.getX(i)*r);rollPoints.setZ(i,rollPoints.getZ(i)*r);}roll.computeVertexNormals();

@@ -1,5 +1,107 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
+import{groundWindTime}from'./adventure-ground-detail.js?v=148';
+
+// A real basin outside the walking boundary, aligned with the existing lagoon.
+// No pond/collision records are added: this water is background scenery only.
+export function harborBayLayout(world,id,biomeAt=()=>id){
+ if(id!=='coast'&&id!=='confluence')return null;
+ if(world.harborBay&&!world.harborBay.disposed)return world.harborBay;
+ const ponds=(world.ponds||[]).filter(p=>p.biome==='coast'),candidates=[],half=world.half;
+ for(const pond of ponds)for(let i=0;i<32;i++){
+  const a=i/32*Math.PI*2,u=Math.cos(a)*pond.rx,v=Math.sin(a)*pond.rz,c=Math.cos(pond.angle||0),s=Math.sin(pond.angle||0),x=pond.x+c*u+s*v,z=pond.z-s*u+c*v;
+  candidates.push({angle:Math.atan2(x,z),extent:Math.max(Math.abs(x),Math.abs(z)),source:pond});
+ }
+ candidates.sort((a,b)=>b.extent-a.extent);
+ // Among the outermost channel tips, favor the side closer to the normal of
+ // the square shore, leaving room for the existing headland settlements.
+ const extent=candidates[0]?.extent,crossAngle=a=>Math.abs(Math.atan2(Math.sin(a*4),Math.cos(a*4)))/4;
+ const tips=candidates.filter(p=>p.extent>=extent-3).sort((a,b)=>crossAngle(a.angle)-crossAngle(b.angle));
+ const halfAngle=15/(half+24);
+ for(const candidate of tips){
+  let valid=true;
+  if(id==='confluence')for(const d of[-1.4,-1,0,1,1.4]){
+   const angle=candidate.angle+d*halfAngle,s=Math.sin(angle),c=Math.cos(angle),edge=half/Math.max(Math.abs(s),Math.abs(c));
+   if(biomeAt(s*edge,c*edge)!=='coast'||biomeAt(s*(edge+44),c*(edge+44))!=='coast')valid=false;
+  }
+  if(valid){const layout={...candidate,half,halfAngle,inner:12.2,outer:42,y:.055,disposed:false};world.harborBay=layout;return layout;}
+ }
+ return null;
+}
+export function harborBayCut(bay,x,z){
+ if(!bay)return 0;
+ const angle=Math.atan2(x,z),delta=Math.abs(Math.atan2(Math.sin(angle-bay.angle),Math.cos(angle-bay.angle))),edge=bay.half/Math.max(Math.abs(Math.sin(angle)),Math.abs(Math.cos(angle))),offset=Math.hypot(x,z)-edge;
+ return(1-T.MathUtils.smoothstep(delta,bay.halfAngle*.52,bay.halfAngle*1.10))*T.MathUtils.smoothstep(offset,10,17)*(1-T.MathUtils.smoothstep(offset,34,44));
+}
+
+let bayWaterMaterial,boatMaterial,boatGeometry;
+function installHarborBay(world,bay,ridge){
+ if(!bay||bay.mesh&&!bay.disposed)return;
+ const group=new T.Group();group.name='SM_Harbor_Bay_A';bay.mesh=group;world.group.add(group);
+ if(!bayWaterMaterial){
+  bayWaterMaterial=new T.MeshStandardMaterial({color:0x385f69,roughness:.34,metalness:.12});
+  bayWaterMaterial.onBeforeCompile=shader=>{
+   shader.uniforms.harborTime=groundWindTime;
+   shader.vertexShader='varying vec2 harborWaterPoint;\n'+shader.vertexShader;
+   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nharborWaterPoint=(modelMatrix*vec4(position,1.0)).xz;');
+   shader.fragmentShader='uniform float harborTime; varying vec2 harborWaterPoint;\n'+shader.fragmentShader;
+   shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_begin>',`#include <normal_fragment_begin>
+    normal=normalize(normal+vec3(sin(harborWaterPoint.x*.38+harborWaterPoint.y*.19+harborTime*.38)*.045,sin(harborWaterPoint.y*.45-harborTime*.27)*.035,0.0));`);
+   shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+    float ripple=sin(harborWaterPoint.x*.54+harborWaterPoint.y*.11+harborTime*.30)*sin(harborWaterPoint.y*.67-harborTime*.21);
+    diffuseColor.rgb*=.97+ripple*.035;`);
+  };
+  bayWaterMaterial.customProgramCacheKey=()=> 'harbor-bay-water-v1';
+ }
+ const positions=[],indices=[],segments=32,rows=8;
+ for(let i=0;i<=segments;i++){
+  const a=bay.angle+(i/segments*2-1)*bay.halfAngle,s=Math.sin(a),c=Math.cos(a),edge=bay.half/Math.max(Math.abs(s),Math.abs(c));
+  for(let j=0;j<=rows;j++){const r=edge+T.MathUtils.lerp(bay.inner,bay.outer,j/rows);positions.push(s*r,bay.y,c*r);if(i<segments&&j<rows){const n=i*(rows+1)+j;indices.push(n,n+1,n+rows+1,n+1,n+rows+2,n+rows+1);}}
+ }
+ const surface=new T.BufferGeometry();surface.setAttribute('position',new T.Float32BufferAttribute(positions,3));surface.setIndex(indices);surface.computeVertexNormals();
+ const water=new T.Mesh(surface,bayWaterMaterial);water.name='SM_Harbor_OffshoreWater_A';water.userData.ownedGeometry=true;group.add(water);bay.water=water;
+ // Leave the enclosing mountain geometry in place below the water. This makes
+ // actual headlands and banks occlude the surface, rather than painting blue on land.
+ ridge.updateWorldMatrix(true,false);const ray=new T.Raycaster(new T.Vector3(),new T.Vector3(0,-1,0),0,400),boats=[];
+ for(const [index,offset]of[22,29].entries()){
+  const s=Math.sin(bay.angle),c=Math.cos(bay.angle),edge=bay.half/Math.max(Math.abs(s),Math.abs(c)),x=s*(edge+offset),z=c*(edge+offset);
+  let wet=true;
+  // Full possible orbit and hull footprint must remain below this waterline.
+  for(let i=0;i<32;i++){const a=i/32*Math.PI*2,tx=Math.cos(a)*5.4,tz=Math.sin(a)*3.3,px=x+c*tx+s*tz,pz=z-s*tx+c*tz;ray.ray.origin.set(px,200,pz);const hits=ray.intersectObject(ridge,false);if(!hits.length||hits[0].point.y>bay.y-.13)wet=false;}
+  if(wet)boats.push({x,z,y:bay.y,angle:bay.angle,phase:index*Math.PI,offset});
+ }
+ bay.boats=boats;
+ if(boats.length){
+  if(!boatGeometry){
+   const pieces=[],tint=new T.Color();
+   const add=(g,color)=>{tint.setHex(color);const colors=[];for(let i=0;i<g.attributes.position.count;i++)colors.push(tint.r,tint.g,tint.b);g.setAttribute('color',new T.Float32BufferAttribute(colors,3));for(const name of Object.keys(g.attributes))if(!['position','normal','color'].includes(name))g.deleteAttribute(name);if(!g.index)g.setIndex(Array.from({length:g.attributes.position.count},(_,i)=>i));pieces.push(g);};
+   const hull=new T.Shape();hull.moveTo(-1.75,.30);hull.lineTo(-1.25,-.19);hull.lineTo(1.20,-.19);hull.lineTo(1.90,.42);hull.closePath();const shell=new T.ExtrudeGeometry(hull,{depth:.88,steps:1,bevelEnabled:true,bevelSize:.07,bevelThickness:.07,bevelSegments:1});shell.translate(0,0,-.44);add(shell,0x48605d);
+   const mast=new T.CylinderGeometry(.043,.067,3.75,6);mast.translate(-.3,1.74,0);add(mast,0x62766b);
+   const spar=new T.CylinderGeometry(.037,.045,2.4,6);spar.rotateZ(Math.PI/2);spar.translate(.45,3.01,0);add(spar,0x62766b);
+   const p=[],ix=[];for(let row=0;row<=4;row++)for(let col=0;col<=4;col++){const u=col/4,v=row/4;p.push(-.68+u*(2.35-v*.48),2.91-v*2.03,.04+Math.sin(u*Math.PI)*Math.sin(v*Math.PI)*.22);if(row<4&&col<4){const n=row*5+col;ix.push(n,n+1,n+5,n+1,n+6,n+5);}}
+   const sail=new T.BufferGeometry();sail.setAttribute('position',new T.Float32BufferAttribute(p,3));sail.setIndex(ix);sail.computeVertexNormals();add(sail,0x9daea5);boatGeometry=mergeGeometries(pieces);for(const g of pieces)g.dispose();
+   boatMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:.95,side:T.DoubleSide});
+   boatMaterial.onBeforeCompile=shader=>{
+    shader.uniforms.harborTime=groundWindTime;
+    shader.vertexShader=`uniform float harborTime; attribute vec3 harborPivot; attribute vec2 harborCourse;
+     float harborPhase(){return harborTime*.014+harborCourse.y;}
+     float harborHeading(){float p=harborPhase();return harborCourse.x-atan(1.10*cos(p),-3.30*sin(p));}
+     mat2 harborRotation(){float a=harborHeading();return mat2(cos(a),-sin(a),sin(a),cos(a));}
+    `+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nobjectNormal.xz=harborRotation()*objectNormal.xz;');
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+     float phase=harborPhase(); vec2 tangent=vec2(cos(harborCourse.x),-sin(harborCourse.x)),outward=vec2(sin(harborCourse.x),cos(harborCourse.x));
+     transformed.xz=harborRotation()*(transformed.xz-harborPivot.xz)+harborPivot.xz+tangent*(3.30*cos(phase))+outward*(1.10*sin(phase));
+     transformed.y+=sin(harborTime*.62+harborCourse.y)*.018;`);
+   };
+   boatMaterial.customProgramCacheKey=()=> 'harbor-bay-boat-v1';
+  }
+  const parts=[];for(const boat of boats){const g=boatGeometry.clone();g.translate(boat.x,boat.y,boat.z);const pivot=[],course=[];for(let i=0;i<g.attributes.position.count;i++){pivot.push(boat.x,boat.y,boat.z);course.push(boat.angle,boat.phase);}g.setAttribute('harborPivot',new T.Float32BufferAttribute(pivot,3));g.setAttribute('harborCourse',new T.Float32BufferAttribute(course,2));parts.push(g);}
+  const geometry=mergeGeometries(parts);for(const g of parts)g.dispose();geometry.computeBoundingBox();geometry.boundingBox.expandByScalar(5.5);geometry.computeBoundingSphere();geometry.boundingSphere.radius+=5.5;
+  const mesh=new T.Mesh(geometry,boatMaterial);mesh.name='SM_Harbor_DistantSails_A';mesh.userData.ownedGeometry=true;group.add(mesh);bay.sails=mesh;
+ }
+ for(const mesh of group.children)mesh.geometry.addEventListener('dispose',()=>{bay.disposed=true;group.visible=false;});
+}
 
 // Small, permanent source library. Only the world-space merged copies belong to
 // a run; materials and these three silhouettes survive world cleanup.
@@ -83,6 +185,7 @@ export function installHarborHorizon(world,id,biomeAt=()=>id,ridge){
  if(id!=='coast'&&id!=='confluence')return null;
  if(world.harborHorizon&&!world.harborHorizon.userData.disposed)return world.harborHorizon;
  if(!ridge?.isMesh)return null;
+ const bay=harborBayLayout(world,id,biomeAt);installHarborBay(world,bay,ridge);
  const half=world.half,candidates=[],sources=templates(),dummy=new T.Object3D();
  ridge.updateWorldMatrix(true,false);
  const ray=new T.Raycaster(new T.Vector3(),new T.Vector3(0,-1,0),0,400),parts=[[],[],[]],records=[];
@@ -99,6 +202,7 @@ export function installHarborHorizon(world,id,biomeAt=()=>id,ridge){
   for(const dx of[-9.4,0,9.4])for(const dz of[-4,0,4]){
    const px=x+ca*dx+sa*dz,pz=z-sa*dx+ca*dz;
    if(Math.max(Math.abs(px),Math.abs(pz))<half+2||(id==='confluence'&&biomeAt(px,pz)!=='coast'))safe=false;
+   if(harborBayCut(bay,px,pz)>.01)safe=false;
    // Project the whole footprint back onto the playable edge as well: curved
    // regional borders outside the map must not leak into adjacent inland regions.
    const scale=half/Math.max(Math.abs(px),Math.abs(pz));

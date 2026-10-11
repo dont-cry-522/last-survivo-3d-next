@@ -1,6 +1,7 @@
 import * as T from './vendor/three.module.js';
 import{finishRock,installGroundSurface,boulderRockGeometry}from'./biome-scenery.js?v=143';
 import{surfaceUniforms}from'./surface-textures.js?v=120';
+import{groundWindTime}from'./adventure-ground-detail.js?v=148';
 
 // Shared rounded edges catch side light without adding meshes or changing collision footprints.
 const block=new T.BoxGeometry(1,1,1,3,3,3),p=block.attributes.position,colors=[],v=new T.Vector3(),core=new T.Vector3();
@@ -77,7 +78,8 @@ export function prepareBatchedSurface(geometry,kind,scale={}){
   }
   positions.push(x,y,z,end);styles.push(style);
  }
- geometry.setAttribute('surfaceCoord',new T.Float32BufferAttribute(positions,4));geometry.setAttribute('surfaceKind',new T.Float32BufferAttribute(styles,1));return geometry;
+ geometry.setAttribute('surfaceCoord',new T.Float32BufferAttribute(positions,4));geometry.setAttribute('surfaceKind',new T.Float32BufferAttribute(styles,1));
+ if(kind==='cloth'&&!geometry.attributes.harborFlex)geometry.setAttribute('harborFlex',new T.Float32BufferAttribute(new Float32Array(p.count),1));return geometry;
 }
 // Explicit scene palettes keep bronze, cloth, crystals and gameplay cues out of
 // the wood/stone finish. Original biome colors remain the base of every surface.
@@ -101,6 +103,23 @@ function surfaceMaterial(source,kind,axis='y',vertexColors=true){
     shader.vertexShader='attribute vec4 surfaceCoord; attribute float surfaceKind; varying vec4 propCoord; varying float propStyle;\n'+shader.vertexShader;
     shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\npropCoord=surfaceCoord;propStyle=surfaceKind;');
     shader.fragmentShader='varying vec4 propCoord; varying float propStyle;\n'+shader.fragmentShader;
+    if(kind==='cloth'){
+     shader.uniforms.harborWindTime=groundWindTime;
+     shader.vertexShader='attribute float harborFlex; uniform float harborWindTime;\n'+shader.vertexShader;
+     shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+      vec4 harborPoint=vec4(position,1.0);
+      #ifdef USE_INSTANCING
+       harborPoint=instanceMatrix*harborPoint;
+      #endif
+      harborPoint=modelMatrix*harborPoint;
+      float harborPhase=dot(harborPoint.xyz,vec3(.71,.39,.24));
+      float harborWave=sin(harborWindTime*.85+harborPhase)*.68+sin(harborWindTime*1.43+harborPhase*1.31+.6)*.32;
+      // Canvas breathes along its face; a loose net moves together, not radially
+      // along each cord normal. Tied edges and load-bearing lines carry zero flex.
+      vec3 harborDirection=surfaceKind>2.5?vec3(0.,0.,1.):normal;
+      transformed+=harborDirection*harborWave*harborFlex*.028;
+     `);
+    }
    }
    if(kind==='stone'){
     Object.assign(shader.uniforms,{rockColor:surfaceUniforms.rockColor,rockHeight:surfaceUniforms.rockHeight,rockReady:surfaceUniforms.rockReady});

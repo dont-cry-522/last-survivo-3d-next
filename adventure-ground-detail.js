@@ -16,7 +16,8 @@ const profiles={
 const FOOTPRINT=.55;
 // One bounded shared material survives world rebuilds. Each batch owns its geometry.
 const material=new T.MeshStandardMaterial({vertexColors:true,roughness:1,side:T.DoubleSide});
-const windTime={value:0};
+export const groundWindTime={value:0};
+const windTime=groundWindTime;
 material.onBeforeCompile=shader=>{
  shader.uniforms.groundWindTime=windTime;
  shader.vertexShader='uniform float groundWindTime; attribute float groundFlex; varying float groundLeaf;\n'+shader.vertexShader;

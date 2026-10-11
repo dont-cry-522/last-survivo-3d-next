@@ -112,7 +112,14 @@ export function installGroundSurface(ground,id='confluence'){
     photographedSoil=mix(photographedSoil,soilLuma*vec3(.25,.37,.19),moss*${id==='forest'?'.95':'.82'});
     float realSoilMix=soilReady*soilOrganic*(${id==='forest'?'.28+soilPatch*.18':'.40+soilPatch*.22'})*(1.0-moss*.32);
     diffuseColor.rgb=mix(diffuseColor.rgb,photographedSoil,realSoilMix);
-    soilRelief+=(photographedHeight-.5)*.018*realSoilMix*soilGrainDetail*(1.0-soilWet*.55);`:''}
+    soilRelief+=(photographedHeight-.5)*.018*realSoilMix*soilGrainDetail*(1.0-soilWet*.55);
+    ${['forest','confluence'].includes(id)?`// Reuse the photographed leaf edges and existing clump sample. A small
+    // amount of dark soil in their recesses anchors the litter without an AO pass.
+    float forestClose=soilReady*${id==='forest'?'1.0':'soilOrganic*(1.0-soilCoast)'}*(1.0-smoothstep(.025,.10,soilPixel));
+    float duffClump=smoothstep(.30,.74,soilFine.g)*(.40+soilPatch*.60);
+    float duffRecess=(1.0-smoothstep(.22,.50,photographedHeight))*(.45+soilPatch*.55);
+    diffuseColor.rgb*=1.0-duffRecess*forestClose*.12;
+    soilRelief+=((photographedHeight-.5)*.019*realSoilMix+duffClump*.009)*forestClose*(1.0-soilWet*.55);`:''}`:''}
   `);
   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
    // A broad, restrained sheen joins damp soil patches. Never turn the floor
@@ -163,11 +170,22 @@ function leafGeometry(){
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(idx);g.computeVertexNormals();return g;
 }geometries.leaf=leafGeometry();
 function frondGeometry(){
- const p=[],colors=[],ix=[],height=t=>Math.sin(t*Math.PI*.82)*.34,vertex=(x,y,z,shade)=>{p.push(x,y,z);colors.push(shade*.96,shade,shade*.91);};
- for(let i=0;i<=5;i++){const t=i/5;vertex(-.008,height(t),t*.92,.69+t*.27);vertex(.008,height(t),t*.92,.69+t*.27);if(i<5){const n=i*2;ix.push(n,n+1,n+2,n+1,n+3,n+2);}}
- for(let i=0;i<5;i++){
-  const t=.13+i*.16,y=height(t),z=t*.92,w=Math.sin(Math.PI*t)*.22,shade=.77+t*.20;
-  for(const side of[-1,1]){const n=p.length/3,reach=w*(side<0?.95:1.04);vertex(0,y,z,shade*.85);vertex(side*reach*.43,y-.020,z+.025,shade*.91);vertex(side*reach,y-.006-i*.009,z+.16,shade*1.06);vertex(side*reach*.40,y-.043,z+.105,shade);ix.push(n,n+1,n+2,n,n+2,n+3);}
+ const p=[],colors=[],ix=[],height=t=>{const i=Math.min(2,Math.floor(t*3)),u=t*3-i;return T.MathUtils.lerp(Math.sin(i/3*Math.PI*.86),Math.sin((i+1)/3*Math.PI*.86),u)*.31;};
+ const vertex=(x,y,z,shade)=>{p.push(x,y,z);colors.push(shade*.96,shade,shade*.96);};
+ // Six stem faces plus six four-face leaflets spend the same 30 triangles on
+ // raised midribs and curling edges, instead of ten broad flat diamond leaves.
+ for(let i=0;i<=3;i++){const t=i/3,w=.008*(1-t*.7);vertex(-w,height(t),t*.92,.60+t*.27);vertex(w,height(t),t*.92,.60+t*.27);if(i<3){const n=i*2;ix.push(n,n+1,n+2,n+1,n+3,n+2);}}
+ for(let i=0;i<3;i++){
+  const t=.23+i*.25,y=height(t),z=t*.92,reach=[.18,.195,.13][i],forward=.17+i*.012,width=.038-i*.006;
+  for(const side of[-1,1]){
+   const n=p.length/3,dx=side*reach*(side<0?.95:1.04),length=Math.hypot(dx,forward),nx=-forward/length,nz=dx/length;
+   vertex(0,y,z,.66+i*.045);
+   vertex(dx*.48+nx*width,y+.002,z+forward*.48+nz*width,.84+i*.015);
+   vertex(dx,y-.035-i*.01,z+forward,.91-i*.02);
+   vertex(dx*.55-nx*width,y-.012,z+forward*.55-nz*width,.76+i*.025);
+   vertex(dx*.53,y+.028,z+forward*.53,.73+i*.035);
+   for(let j=0;j<4;j++)ix.push(n+4,n+j,n+(j+1)%4);
+  }
  }
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(ix);g.computeVertexNormals();return g;
 }geometries.frond=frondGeometry();

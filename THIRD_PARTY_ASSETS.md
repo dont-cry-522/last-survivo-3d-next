@@ -93,3 +93,10 @@ The v94 edit shortens handheld weapon reports and recovery cues, separates pull/
 The four files in `assets/environment/` are unmodified 1K JPG maps from Poly Haven: [Forest Floor](https://polyhaven.com/a/forest_floor) (eye-candy.xyz) and [Rock 01](https://polyhaven.com/a/rock_01), distributed under [CC0](https://polyhaven.com/license). Source pages and file checksums were checked on 2026-10-10 and recorded in `assets/environment/sources.json`.
 
 Each set supplies its diffuse and displacement map. Runtime shaders mix the diffuse map into the existing biome palette and use the displacement map only for surface-normal relief: playable terrain is not displaced. Forest litter is limited to forest/organic coastal and confluence ground; stone uses blended projections on obstacle boulders and selected ruin stones. These are real surface textures, not scanned environment models. Files are served locally, shared across maps and included in the offline bundle; failed image loading retains the previous procedural surface. Total delivered images: 2,880,466 bytes.
+
+## 林下蕨草叶面（v152）
+
+- 使用 [Poly Haven Fern 02](https://polyhaven.com/a/fern_02) 的 1K 漫反射、透明遮罩和 OpenGL 法线，作者 Rico Cilliers（建模）、Rob Tuytel（扫描），[CC0](https://polyhaven.com/license)。
+- 3 张原始贴图共 797,516 字节；保留原始文件，来源和 SHA256 见 `assets/environment/fern-sources.json`。
+- 运行时全部本地加载并包含在离线包中，不请求外部网站。复用共享材质和实例化绘制，配合项目自制的弯曲叶轴几何；没有导入该资源的完整高精度模型。
+- 贴图缺失时保留轻量蕨形回退，不阻塞游戏。其他植物、幼树及场景仍主要采用程序化几何。

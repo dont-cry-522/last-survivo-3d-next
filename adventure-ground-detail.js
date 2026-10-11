@@ -4,7 +4,7 @@ import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
 import {forestHabitatAt} from './forest-habitats.js?v=139';
 import {bridgeContains} from './coast.js?v=114';
-import {naturalRockGeometry} from './biome-scenery.js?v=143';
+import {naturalRockGeometry} from './biome-scenery.js?v=152';
 
 const profiles={
  forest:{count:1200,grass:.83,height:1,tuft:[0x566d48,0x829360],litter:[0x827561,0x66685c]},
@@ -46,6 +46,43 @@ material.onBeforeCompile=shader=>{
  `);
 };
 material.customProgramCacheKey=()=> 'adventure-ground-wind';
+// A small cutout fallback keeps leaves readable if an offline texture is missing.
+// Real 1K scans replace it atomically, once, and are shared across world rebuilds.
+export const FERN_FILES={map:'fern_02_diff_1k.jpg',alphaMap:'fern_02_alpha_1k.png',normalMap:'fern_02_nor_gl_1k.jpg'};
+const fernTint=new T.Color(0xffffff),fallbackColor=new T.DataTexture(new Uint8Array([115,140,83,255]),1,1);
+fallbackColor.colorSpace=T.SRGBColorSpace;fallbackColor.needsUpdate=true;
+const fernFallbackData=new Uint8Array(128*256*4);
+for(let y=0;y<256;y++)for(let x=0;x<128;x++){
+ const u=x/127,v=y/255;let fill=false;
+ for(const [left,right,base,tip] of [[.078,.240,.948,.109],[.307,.458,.786,.021],[.718,.839,.903,.107]]){
+  const t=(1-v-base)/(tip-base),side=Math.abs((u-(left+right)*.5)/(right-left));
+  if(t>=0&&t<=1&&side<Math.max(.008,Math.sin(t*Math.PI)*(.24+.16*Math.max(0,Math.sin(t*120)))))fill=true;
+ }
+ const i=(y*128+x)*4;fernFallbackData[i]=fernFallbackData[i+1]=fernFallbackData[i+2]=fill?255:0;fernFallbackData[i+3]=255;
+}
+const fallbackAlpha=new T.DataTexture(fernFallbackData,128,256);fallbackAlpha.minFilter=T.LinearFilter;fallbackAlpha.magFilter=T.LinearFilter;fallbackAlpha.needsUpdate=true;
+const fernMaterial=material.clone();fernMaterial.name='M_Fern_Scanned_A';fernMaterial.map=fallbackColor;fernMaterial.alphaMap=fallbackAlpha;fernMaterial.alphaTest=.42;fernMaterial.roughness=.88;fernMaterial.normalScale.set(.32,.32);fernMaterial.onBeforeCompile=shader=>{
+ material.onBeforeCompile(shader);
+ shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
+  #if NUM_HEMI_LIGHTS > 0
+   // A thin leaflet transmits some sky light even when its underside faces the
+   // camera. Use the actual sky light so this fill follows the day/night cycle.
+   reflectedLight.indirectDiffuse+=diffuseColor.rgb*hemisphereLights[0].skyColor*.30;
+  #endif
+ `);
+};fernMaterial.customProgramCacheKey=()=> 'adventure-fern-wind';
+let fernLoading;
+export function loadFernTextures(){
+ if(fernLoading)return fernLoading;
+ const loader=new T.TextureLoader();
+ fernLoading=Promise.all(Object.entries(FERN_FILES).map(async([key,file])=>{
+  try{const texture=await loader.loadAsync(new URL('./assets/environment/'+file,import.meta.url).href);texture.name=file;texture.colorSpace=key==='map'?T.SRGBColorSpace:T.NoColorSpace;texture.anisotropy=4;return[key,texture];}catch{return[key,null];}
+ })).then(entries=>{
+  if(entries.some(([,texture])=>!texture)){for(const[,texture]of entries)texture?.dispose();return false;}
+  for(const[key,texture]of entries)fernMaterial[key]=texture;
+  fernMaterial.needsUpdate=true;fallbackColor.dispose();fallbackAlpha.dispose();return true;
+ });return fernLoading;
+}
 export function animateAdventureGroundDetail(time){if(Number.isFinite(time))windTime.value=time;}
 const near=(x,z,p,r)=>(x-p.x)**2+(z-p.z)**2<r*r;
 
@@ -318,41 +355,42 @@ const habitatProfiles={
  sand:{kind:'reed',color:[0xa19063,0x88784f,0xb3a175],height:.65,width:.75},
  coast:{kind:'reed',color:[0x567460,0x789071,0x8c986e],height:1.0,width:.9}
 };
+// Bent fronds use three scanned atlas regions; alpha cuts the individual leaflets,
+// while the curved midrib/cross-fold remain real geometry (132 triangles per plant).
 function fernGeometry(){
- const p=[],c=[],ix=[],flex=[];
- const vertex=(x,y,z,shade)=>{const n=p.length/3;p.push(x,y,z);c.push(shade*.94,shade,shade*.80);flex.push(Math.max(0,y/.65)**2);return n;};
+ const p=[],c=[],uv=[],ix=[],flex=[];
+ const regions=[[.078,.240,.948,.109],[.307,.458,.786,.021],[.718,.839,.903,.107]];
  for(let frond=0;frond<6;frond++){
   const a=frond*2.399+.14*Math.sin(frond*1.6),s=Math.sin(a),co=Math.cos(a),reach=.57+(frond%3)*.065,h=.36+(frond%2)*.18;
-  const point=(t,side,shade,fold=0)=>{const curl=.06*Math.sin(t*Math.PI)*Math.sin(a);return vertex(s*t*reach+co*(side+curl),Math.sin(t*Math.PI*(.78+frond*.013))*h-.025+fold,co*t*reach-s*(side+curl),shade);};
-  // A bent stem is a narrow ribbon along the arc. Connecting base/middle/tip
-  // as one fan filled the entire space under the arc with a solid green wedge.
-  const stem=p.length/3;
-  for(let row=0;row<=3;row++){
-   const t=row/3,w=.006*(1-t*.8);point(t,-w,.46+t*.40);point(t,w,.49+t*.40);
-   if(row<3){const n=stem+row*2;ix.push(n,n+1,n+2,n+1,n+3,n+2);}
+  const [u0,u1,base,tip]=regions[frond%3],start=p.length/3;
+  const vertex=(t,side)=>{
+   const curl=.025*Math.sin(t*Math.PI)*Math.sin(a),width=.080+(frond%3)*.009;
+   p.push(s*t*reach+co*(side*width+curl),Math.sin(t*Math.PI*(.78+frond*.013))*h-.025+(1-Math.abs(side))*.018*Math.sin(t*Math.PI),co*t*reach-s*(side*width+curl));
+   const shade=.80+t*.22+(side===0?-.025:0);c.push(shade,shade,shade);flex.push(t*t*.75);
+   uv.push(u0+(side+1)*.5*(u1-u0),1-(base+(tip-base)*t));
+  };
+  for(let row=0;row<=5;row++){
+   for(const side of[-1,0,1])vertex(row*.19,side);
+   if(row<5){const n=start+row*3;ix.push(n,n+3,n+1,n+1,n+3,n+4,n+1,n+4,n+2,n+2,n+4,n+5);}
   }
-  for(let pair=0;pair<4;pair++)for(const side of[-1,1]){
-   const t=.18+pair*.18,w=(.15-pair*.028)*side,n=point(t,0,.56+pair*.05),b=point(t+.055,w*.72,.79,.018),end=point(t+.15,w,.87,-.027-pair*.002),d=point(t+.17,w*.38,.69,.004);ix.push(n,b,end,n,end,d);
-  }
+  vertex(1,0);ix.push(start+15,start+18,start+16,start+16,start+18,start+17);
  }
- const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;
 }
-// A low woodland shrub with curved stems and broad, drooping leaves. It shares
-// the ground wind material and replaces part of the fern budget, not extra cover.
+// Leaves fold around a raised midrib, twist away from their branch and droop at
+// the tip. Fewer, smaller leaves reveal the stems instead of a solid green fan.
 function shrubGeometry(){
  const positions=[],colors=[],flex=[],indices=[];
- const vertex=(x,y,z,shade)=>{const i=positions.length/3;positions.push(x,y,z);colors.push(shade*.91,shade,shade*.78);flex.push(Math.max(0,Math.min(1,y/.65))**2);return i;};
- for(let branch=0;branch<4;branch++){
+ const vertex=(x,y,z,shade)=>{const i=positions.length/3;positions.push(x,y,z);colors.push(shade*.92,shade,shade*.88);flex.push(Math.max(0,Math.min(1,y/.65))**2);return i;};
+ for(let branch=0;branch<3;branch++){
   const a=branch*2.399+.20*Math.sin(branch),s=Math.sin(a),c=Math.cos(a),height=.39+(branch%3)*.075,reach=.18+branch*.036,start=positions.length/3;
   const stem=t=>({x:s*reach*t*t,y:height*t-.035-.055*t*t*t,z:c*reach*t*t});
-  for(let row=0;row<=3;row++){const t=row/3,p=stem(t),w=.012*(1-t*.7);vertex(p.x+c*w,p.y,p.z-s*w,.43+t*.27);vertex(p.x-c*w,p.y,p.z+s*w,.48+t*.27);if(row<3){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}}
+  for(let row=0;row<=4;row++){const t=row/4,p=stem(t),w=.008*(1-t*.7);vertex(p.x+c*w,p.y,p.z-s*w,.43+t*.27);vertex(p.x-c*w,p.y,p.z+s*w,.48+t*.27);if(row<4){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}}
   for(let tier=0;tier<2;tier++)for(const side of[-1,1]){
-   const base=stem(.47+tier*.33),angle=a+side*(.9+tier*.3),sx=Math.sin(angle),cz=Math.cos(angle),length=.32-tier*.035,n=positions.length/3;
-   const leaf=(t,width,shade)=>vertex(base.x+sx*length*t+cz*width,base.y+.08*Math.sin(t*Math.PI)-.09*t*t+width*.18,base.z+cz*length*t-sx*width,shade);
-   // Three rounded sections soften the former spear-shaped silhouette while
-   // retaining a folded, drooping surface and gaps between individual leaves.
-   leaf(0,0,.61);for(const t of[.28,.61,.88]){const w=Math.sin(t*Math.PI)*(.112-tier*.012);leaf(t,-w,.67+t*.15);leaf(t,w,.78+t*.13);}leaf(1,0,.87);
-   indices.push(n,n+1,n+2,n+1,n+3,n+2,n+2,n+3,n+4,n+3,n+5,n+4,n+4,n+5,n+6,n+5,n+7,n+6);
+   const base=stem(.43+tier*.37+(side===1?.055:0)),angle=a+side*(.9+tier*.3),sx=Math.sin(angle),cz=Math.cos(angle),length=.28-tier*.025,n=positions.length/3;
+   const leaf=(t,cross,shade)=>{const w=Math.sin(t*Math.PI)*(.071-tier*.009)*cross,fold=Math.sin(t*Math.PI)*(1-Math.abs(cross))*.023;return vertex(base.x+sx*length*t+cz*w,base.y+.075*Math.sin(t*Math.PI)-.105*t*t+fold+w*side*.35,base.z+cz*length*t-sx*w,shade);};
+   leaf(0,0,.54);for(const t of[.30,.70]){leaf(t,-1,.68);leaf(t,0,.63);leaf(t,1,.83);}leaf(1,0,.79);
+   indices.push(n,n+1,n+2,n,n+2,n+3,n+1,n+4,n+2,n+2,n+4,n+5,n+2,n+5,n+3,n+3,n+5,n+6,n+4,n+7,n+5,n+5,n+7,n+6);
   }
  }
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(indices);g.computeVertexNormals();return g;
@@ -415,8 +453,8 @@ export function installHabitatDetail(world,mapId){
   const list=records.filter(p=>p.kind===kind&&(Number(p.x>=0)+Number(p.z>=0)*2)===quadrant);if(!list.length)continue;
   const geometry=kind==='fern'?fernGeometry():kind==='shrub'?shrubGeometry():kind==='reed'?reedGeometry():naturalRockGeometry.clone();
   if(kind==='stone')geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count),1));
-  geometry.computeBoundingBox();const batch=new T.InstancedMesh(geometry,material,list.length);batch.name='habitat-'+kind;batch.receiveShadow=true;batch.userData.ownedGeometry=true;
-  list.forEach((p,i)=>{dummy.position.set(p.x,kind==='stone'?-.055:-.042-geometry.boundingBox.min.y*p.height,p.z);dummy.scale.set(p.width,p.height,p.width);dummy.rotation.set(0,p.angle,0);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);batch.setColorAt(i,color.set(p.color));});
+  geometry.computeBoundingBox();const batch=new T.InstancedMesh(geometry,kind==='fern'?fernMaterial:material,list.length);batch.name='habitat-'+kind;batch.receiveShadow=true;batch.userData.ownedGeometry=true;
+  list.forEach((p,i)=>{dummy.position.set(p.x,kind==='stone'?-.055:-.042-geometry.boundingBox.min.y*p.height,p.z);dummy.scale.set(p.width,p.height,p.width);dummy.rotation.set(0,p.angle,0);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);color.set(p.color);if(kind==='fern')color.lerp(fernTint,.92);batch.setColorAt(i,color);});
   batch.computeBoundingSphere();batch.addEventListener('dispose',()=>{batch.visible=false;group.userData.disposed=true;});group.add(batch);
  }
  world.group.add(group);world.habitatDetail=group;return group;

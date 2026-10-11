@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {naturalRockGeometry} from './biome-scenery.js?v=143';
-import {batchedSurfaceMaterial,prepareBatchedSurface,wornStoneBlock} from './environment-props.js?v=151';
+import {naturalRockGeometry} from './biome-scenery.js?v=152';
+import {batchedSurfaceMaterial,prepareBatchedSurface,wornStoneBlock} from './environment-props.js?v=152';
 import {addTree} from './tree-scenery.js?v=151';
 import {bridgeContains} from './coast.js?v=114';
 import {seeded,segmentDistance} from './rules.js?v=125';
@@ -14,6 +14,65 @@ function finish(kind){
  finishes.set(kind,m);return m;
 }
 const bent=(points,radius=.05)=>new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),6,radius,5,false);
+
+// Preserve the established placement/collision envelope, independently of leaf silhouettes.
+const forestEnvelope=[
+ {footprint:1.7924601726519591,height:2.384399890899658},
+ {footprint:1.7380870700551916,height:2.384399890899658}
+];
+function forestUndergrowth(variant){
+ const source=new T.Group();addTree(source,'forest',3,{angle:variant*.7});
+ const stems=[],vertices=[],indices=[],colors=[],uvs=[],up=new T.Vector3(0,1,0),point=new T.Vector3();
+ const map=source.children[1].material.map.image;let pixel=0;
+ for(let i=0;i<map.data.length;i+=4)if(map.data[i+3]===255){pixel=i/4;break;}
+ const u=(pixel%map.width+.5)/map.width,v=(Math.floor(pixel/map.width)+.5)/map.height;
+ const branch=(points,radius,sides=3,steps=2)=>{
+  const curve=new T.CatmullRomCurve3(points),g=new T.TubeGeometry(curve,steps,radius,sides,false),p=g.attributes.position;
+  for(let i=0;i<=steps;i++){
+   const center=curve.getPointAt(i/steps),taper=1-.88*i/steps;
+   for(let j=0;j<=sides;j++){const n=i*(sides+1)+j;point.fromBufferAttribute(p,n).sub(center).multiplyScalar(taper).add(center);p.setXYZ(n,point.x,point.y,point.z);}
+  }
+  g.deleteAttribute('uv');g.computeVertexNormals();stems.push(g);return curve;
+ };
+ const leafyTwig=(start,end,phase,count=6)=>{
+  const middle=start.clone().lerp(end,.52);middle.y+=.045;
+  const curve=branch([start,middle,end],.0065),heading=Math.atan2(end.z-start.z,end.x-start.x);
+  for(let i=0;i<count;i++){
+   const t=.22+i*.73/(count-1),base=curve.getPointAt(t),angle=heading+(i%2?1:-1)*(.62+.21*Math.sin(phase+i*1.7));
+   const along=new T.Vector3(Math.cos(angle),.12+.21*Math.sin(phase+i*.9),Math.sin(angle)).normalize(),across=new T.Vector3().crossVectors(up,along).normalize().applyAxisAngle(along,.35*Math.sin(phase+i*2.3)),normal=new T.Vector3().crossVectors(along,across);
+   const length=.095+.048*(.5+.5*Math.sin(phase+i*2.1)),width=length*(.22+.035*Math.sin(phase+i)),first=vertices.length/3;
+   // Each blade starts on its twig, with a raised midrib and gently drooping tip.
+   // Real gaps replace the opaque, adult-sized spray underneath the old small leaves.
+   const shape=[[0,0,0],[0,length*.38,length*.07],[-width,length*.34,0],[0,length,-length*.10],[width,length*.43,-length*.005],[0,length*.73,length*.035]];
+   for(const [j,[x,y,z]]of shape.entries()){
+    point.copy(base).addScaledVector(across,x).addScaledVector(along,y).addScaledVector(normal,z);vertices.push(point.x,point.y,point.z);uvs.push(u,v);
+    const shade=(j===1||j===5?.97:.83)+.055*Math.sin(phase+i*1.3);colors.push(shade*.91,shade,shade*.87);
+   }
+   indices.push(first,first+1,first+2,first+2,first+1,first+5,first+2,first+5,first+3,first,first+4,first+1,first+4,first+5,first+1,first+4,first+3,first+5);
+  }
+ };
+ const trunk=branch([new T.Vector3(-.32,-.015,-.32),new T.Vector3(-.37,.70,-.30),new T.Vector3(-.24,1.46,-.39),new T.Vector3(-.20+(variant?.08:-.06),2.26,-.25)],.056,6,5);
+ for(let i=0;i<7;i++){
+  const t=.34+i*.087,start=trunk.getPointAt(t),a=i*2.399+variant*.61,reach=.60-i*.043+Math.sin(i*1.8+variant)*.05;
+  const end=start.clone().add(new T.Vector3(Math.cos(a)*reach,.14+Math.sin(i*2.2)*.06,Math.sin(a)*reach)),middle=start.clone().lerp(end,.50);middle.y+=.10;
+  const fork=branch([start,middle,end],.017,4,3);
+  for(let j=0;j<3;j++){
+   const base=fork.getPointAt(.38+j*.28),angle=a+(j-1)*(.67+variant*.09),length=.23+.07*Math.sin(i*2.8+j)**2;
+   leafyTwig(base,base.clone().add(new T.Vector3(Math.cos(angle)*length,.045+(j===1?.045:0),Math.sin(angle)*length)),i*1.7+j+variant);
+  }
+ }
+ const tip=trunk.getPointAt(.88);leafyTwig(tip,trunk.getPointAt(1),variant+.6);
+ for(const [b,x,z,h]of[[0,.55,.25,.59],[1,-.70,.48,.43]]){
+  const stem=branch([new T.Vector3(x,-.01,z),new T.Vector3(x+.04,.24,z-.04),new T.Vector3(x+.10,h,z+.03)],.022,4,3);
+  for(let i=0;i<5;i++){
+   const base=stem.getPointAt(.28+i*.16),a=i*2.399+b*.9+variant*.57,r=.33+.13*Math.sin(i*2.1+b+variant)**2;
+   leafyTwig(base,base.clone().add(new T.Vector3(Math.cos(a)*r,.11+Math.sin(i*1.7)*.055,Math.sin(a)*r)),b*3+i*1.3+variant,5);
+  }
+ }
+ const wood=mergeGeometries(stems);for(const g of stems)g.dispose();wood.setAttribute('treeSurface',new T.Float32BufferAttribute(new Float32Array(wood.attributes.position.count),1));
+ const leaves=new T.BufferGeometry();leaves.setAttribute('position',new T.Float32BufferAttribute(vertices,3));leaves.setAttribute('color',new T.Float32BufferAttribute(colors,3));leaves.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));leaves.setAttribute('treeSurface',new T.Float32BufferAttribute(new Float32Array(vertices.length/3).fill(1),1));leaves.setIndex(indices);leaves.computeVertexNormals();
+ return[{geometry:wood,material:source.children[0].material,color:0x70634a},{geometry:leaves,material:source.children[1].material,color:0xffffff}];
+}
 
 function clusterTemplate(id,variant){
  const key=id+variant;if(templates.has(key))return templates.get(key);
@@ -37,8 +96,7 @@ function clusterTemplate(id,variant){
   return root;
  };
  if(id==='forest'){
-  const root=tree('forest',-.32,-.32,.34,.38),canopy=root.getObjectByName('tree-canopy');
-  for(const [x,z,w,h]of[[.49,.20,.42,.22],[-.62,.35,.34,.19]])add(canopy.geometry.clone(),canopy.material,variant?0xcad7b7:0xffffff,{x,y:.12,z,sx:w*2.04,sy:h,sz:w*2.04,ry:x*2});
+  for(const part of forestUndergrowth(variant))add(part.geometry,part.material,part.color);
   rock(0x637655,-.42,.21,.27,.78,.35,.69);rock(0x788367,.65,.16,-.24,.59,.27,.50);
  }else if(id==='snow'){
   tree('snow',-.48,-.30,.48,.34);tree('snow',.57,.38,.34,.26);
@@ -76,7 +134,7 @@ function clusterTemplate(id,variant){
   const p=geometry.attributes.position;for(let i=0;i<p.count;i++){point.fromBufferAttribute(p,i);footprint=Math.max(footprint,Math.hypot(point.x,point.z));height=Math.max(height,point.y);}
   triangles+=geometry.index.count/3;batches.push({geometry,material});
  }
- const template={batches,footprint:footprint+.04,height,triangles};templates.set(key,template);return template;
+ const template={batches,footprint:footprint+.04,height,triangles,...(id==='forest'?forestEnvelope[variant]:{})};templates.set(key,template);return template;
 }
 
 function corridors(world){

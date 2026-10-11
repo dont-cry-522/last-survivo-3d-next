@@ -1,7 +1,7 @@
 import{test}from'node:test';import assert from'node:assert/strict';import * as T from'../vendor/three.module.js';
 import{buildWorld,clearAt,animateWorld}from'../world.js';import{sceneryAllowed}from'../biome-scenery.js';
 import{bridgeContains,updateTide}from'../coast.js';import{waterDepth}from'../water.js';
-import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=143';
+import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=152';
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
 function dispose(w){w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});}
 test('worn rocks reuse a bounded smooth mesh and preserve placed obstacle transforms',()=>{
@@ -187,4 +187,25 @@ test('bank leaves and forest fronds have rooted color gradients and folded, curv
   }
   dispose(w);
  }
+});
+
+test('forest frond leaflets have a raised midrib, curled tip and real surface normals within thirty triangles',()=>{
+ const w=buildWorld('forest',7),batch=w.scenery.batches.find(m=>m.userData.biomeDetail==='frond'),g=batch.geometry,p=g.attributes.position,c=g.attributes.color,n=g.attributes.normal;
+ const root=new T.Vector3(),edgeA=new T.Vector3(),edgeB=new T.Vector3(),tip=new T.Vector3(),rib=new T.Vector3(),plane=new T.Plane(),a=new T.Vector3(),b=new T.Vector3(),d=new T.Vector3();
+ assert.equal(g.index.count/3,30);assert.equal(p.count,38);g.computeBoundingBox();
+ assert.equal(g.boundingBox.min.y,0);assert(g.boundingBox.max.y<.34&&g.boundingBox.max.z<=.920001,'frond exceeds its previous height or reach');
+ assert(g.boundingBox.max.x-g.boundingBox.min.x<.433,'new leaves enlarge the existing clearance footprint');
+ for(let i=0;i<p.count;i++)assert(Math.abs(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))-1)<1e-5,'curved leaf has an invalid normal');
+ for(let i=0;i<g.index.count;i+=3){a.fromBufferAttribute(p,g.index.getX(i));b.fromBufferAttribute(p,g.index.getX(i+1));d.fromBufferAttribute(p,g.index.getX(i+2));const area=b.sub(a).cross(d.sub(a)).length()*.5;assert(area>1e-7&&area<.004,'leaf retains a broad sheet or wastes a collapsed face');}
+ // Eight vertices form the shared stem; each following five-vertex leaflet
+ // must meet its actual linear stem segment, fold across its rib and curl down.
+ for(let i=8;i<p.count;i+=5){
+  root.fromBufferAttribute(p,i);edgeA.fromBufferAttribute(p,i+1);tip.fromBufferAttribute(p,i+2);edgeB.fromBufferAttribute(p,i+3);rib.fromBufferAttribute(p,i+4);
+  plane.setFromCoplanarPoints(root,edgeA,edgeB);assert(Math.abs(plane.distanceToPoint(rib))>.02,'leaf midrib is coplanar with its edges');
+  assert(tip.y<root.y-.03&&rib.y>root.y+.025,'leaf lost its arch and drooping tip');
+  assert(c.getY(i+4)<c.getY(i+1)&&c.getY(i)<c.getY(i+1),'midrib and root became uniformly bright');
+  const segment=Math.min(2,Math.floor(root.z/.92*3)),t=(root.z-p.getZ(segment*2))/(p.getZ(segment*2+2)-p.getZ(segment*2));
+  assert(Math.abs(root.y-T.MathUtils.lerp(p.getY(segment*2),p.getY(segment*2+2),t))<1e-7,'leaf floats off the bent stem');
+ }
+ dispose(w);
 });

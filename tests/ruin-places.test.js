@@ -2,8 +2,8 @@ import test from'node:test';
 import assert from'node:assert/strict';
 import * as T from'../vendor/three.module.js';
 import{buildRuinPlace}from'../ruin-places.js';
-import{naturalRockGeometry}from'../biome-scenery.js?v=143';
-import{wornStoneBlock}from'../environment-props.js?v=151';
+import{naturalRockGeometry}from'../biome-scenery.js?v=152';
+import{wornStoneBlock}from'../environment-props.js?v=152';
 
 function build(id){
  const parts=[],solids=[],dummy=new T.Object3D();

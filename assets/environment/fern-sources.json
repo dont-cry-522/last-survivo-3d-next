@@ -1,0 +1,29 @@
+{
+  "asset": "Fern 02",
+  "page": "https://polyhaven.com/a/fern_02",
+  "license": "CC0-1.0",
+  "authors": [
+    "Rico Cilliers",
+    "Rob Tuytel"
+  ],
+  "files": [
+    {
+      "file": "fern_02_diff_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/fern_02/fern_02_diff_1k.jpg",
+      "bytes": 315705,
+      "sha256": "a828a6e7b4c01c826911e2eac4b3afc7457dab7b3b392a31c681ed88b7d50029"
+    },
+    {
+      "file": "fern_02_alpha_1k.png",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/fern_02/fern_02_alpha_1k.png",
+      "bytes": 114589,
+      "sha256": "ea3c64284c7ebdeedf484d2d816eae92825ec526140c3bb83859ddc7a64001f9"
+    },
+    {
+      "file": "fern_02_nor_gl_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/fern_02/fern_02_nor_gl_1k.jpg",
+      "bytes": 367222,
+      "sha256": "45bce132c6e96a0864bc89ab5da51361ab3f4afa83a6669ae499ab5ca811f621"
+    }
+  ]
+}

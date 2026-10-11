@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import * as T from '../vendor/three.module.js';
 import {buildWorld} from '../world.js';
 import {installForestVista} from '../forest-vista.js';
@@ -10,7 +11,7 @@ import {installExplorationRoutes} from '../exploration-routes.js';
 import {bridgeContains} from '../coast.js';
 import {waterDepth} from '../water.js';
 import {segmentDistance} from '../rules.js';
-import {naturalRockGeometry} from '../biome-scenery.js?v=143';
+import {naturalRockGeometry} from '../biome-scenery.js?v=152';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const maps=['forest','snow','ash','sand','coast','confluence'];
@@ -18,6 +19,45 @@ const create=(id,seed)=>{const w=buildWorld(id,seed);installForestVista(w,id);in
 const cleanup=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
 const gameplay=w=>JSON.stringify({spawn:w.spawn,sites:w.sites.map(s=>[s.x,s.z,s.type,s.event,s.availableAt,s.claimed,s.discovered,s.mesh.visible,s.trail.visible]),patches:w.patches.map(p=>[p.x,p.z,p.rx,p.rz,p.r,p.kind]),breakables:w.breakables.map(p=>[p.x,p.z,p.state]),roads:w.road,places:w.biomePlaces.map(p=>[p.x,p.z,p.angle,p.entrance,p.exit])});
 const records=s=>s.records.map(({obstacle,...p})=>p);
+
+test('new forest undergrowth keeps the original seeded positions, angles and collision envelopes',()=>{
+ const before={
+  forest:['bdcbe1e3c9839397c7173ea5707d0a91fa9d89942aea2b7c01bacb805625f73a','102bf6391930903c934fd59b21ba9302a7a1819d062c7c427a40531b01aa5097','77ab1299c3672429370c45de6cace3174b383e597deed937b34b3c5204e609d6'],
+  confluence:['b5fa5741aa240c9af5188454845b3e7cbc0ed3484612e90932a099970b5df3a4','0878d98e1062b3978bae6c0060c72a3942ca9f4e7131493eb8d2e23e167518b1','8278904825103767dd97c8948c2bcd7f954dd2b4b8bc66c36d5569d7a1ae78d9']
+ };
+ for(const id of Object.keys(before))for(const [i,seed]of[7,522,43837033].entries()){
+  const w=create(id,seed),state=installEnvironmentClusters(w,id);
+  assert.equal(createHash('sha256').update(JSON.stringify(records(state))).digest('hex'),before[id][i],id+' seed '+seed+' changed gameplay placement');cleanup(w);
+ }
+});
+
+test('forest saplings and shrubs use small attached leaves instead of flattened adult crowns',()=>{
+ const w=create('forest',7),state=installEnvironmentClusters(w,'forest'),point=new T.Vector3(),base=new T.Vector3(),closest=new T.Vector3(),tip=new T.Vector3(),box=new T.Box3(),size=new T.Vector3();
+ assert.equal(state.draws,6);assert(state.triangles<=2244*14);
+ for(const variant of[0,1]){
+  const parts=state.group.children.filter(o=>o.isInstancedMesh&&o.name.startsWith('SM_Cluster_forest_'+variant+'_'));
+  assert.equal(parts.length,3);assert(parts.reduce((n,o)=>n+o.geometry.index.count/3,0)<=2244);
+  const leaves=parts.find(o=>o.material.map),wood=parts.find(o=>o.geometry.attributes.treeSurface?.getX(0)===0),g=leaves.geometry,p=g.attributes.position,uv=g.attributes.uv,image=leaves.material.map.image;
+  assert.strictEqual(leaves.material,w.foliage[0].leaf.material,'undergrowth allocated a separate tree material/atlas');
+  assert.equal(p.count%6,0);assert(p.count/6>=140&&p.count/6<=200);assert.equal(g.index.count/3,p.count,'large spray sheets remain underneath the individual leaves');
+  const wp=wood.geometry.attributes.position,wi=wood.geometry.index,triangles=[];
+  for(let i=0;i<wi.count;i+=3)triangles.push(new T.Triangle(new T.Vector3().fromBufferAttribute(wp,wi.getX(i)),new T.Vector3().fromBufferAttribute(wp,wi.getX(i+1)),new T.Vector3().fromBufferAttribute(wp,wi.getX(i+2))));
+  let low=0,high=0;
+  for(let i=0;i<p.count;i+=6){
+   base.fromBufferAttribute(p,i);tip.fromBufferAttribute(p,i+3);assert(base.distanceTo(tip)>.08&&base.distanceTo(tip)<.16,'leaf lost its centimetre-scale blade');
+   box.makeEmpty();for(let j=0;j<6;j++)box.expandByPoint(point.fromBufferAttribute(p,i+j));assert(box.getSize(size).length()<.18,'leaf returned to a broad canopy card');
+   let distance=Infinity;for(const triangle of triangles){triangle.closestPointToPoint(base,closest);distance=Math.min(distance,base.distanceTo(closest));}
+   assert(distance<.045,'leaf floats away from its supporting twig');
+   low+=Number(base.y<.8);high+=Number(base.y>1);
+   for(let j=0;j<6;j++){
+    const x=Math.floor(uv.getX(i+j)*image.width),y=Math.floor(uv.getY(i+j)*image.height);assert.equal(image.data[(y*image.width+x)*4+3],255,'leaf samples a transparent atlas pixel');
+   }
+  }
+  assert(low>=40&&high>=100,'two low shrubs or the taller sapling disappeared');
+  assert(g.boundingBox.max.y-g.boundingBox.min.y>1.9,'foliage has been flattened into a ground sheet');
+ }
+ cleanup(w);
+});
 
 test('six maps add broad, distinct midground groups within one-pass rendering and collision budgets',()=>{
  for(const id of maps)for(const seed of[7,522,43837033]){

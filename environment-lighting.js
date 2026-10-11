@@ -1,4 +1,4 @@
-import{installHarborHorizon,harborBayLayout,harborBayCut}from'./harbor-horizon.js?v=151';
+import{installHarborHorizon,harborBayLayout,harborBayCut}from'./harbor-horizon.js?v=152';
 import{installForestBackdrop}from'./tree-scenery.js?v=151';
 import * as T from './vendor/three.module.js';
 

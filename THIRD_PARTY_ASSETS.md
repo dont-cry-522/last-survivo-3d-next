@@ -100,3 +100,9 @@ Each set supplies its diffuse and displacement map. Runtime shaders mix the diff
 - 3 张原始贴图共 797,516 字节；保留原始文件，来源和 SHA256 见 `assets/environment/fern-sources.json`。
 - 运行时全部本地加载并包含在离线包中，不请求外部网站。复用共享材质和实例化绘制，配合项目自制的弯曲叶轴几何；没有导入该资源的完整高精度模型。
 - 贴图缺失时保留轻量蕨形回退，不阻塞游戏。其他植物、幼树及场景仍主要采用程序化几何。
+
+## 树冠与林下灌木叶面（v153）
+
+- 使用 [Poly Haven Island Tree 01](https://polyhaven.com/a/island_tree_01) 的原始 1K 叶片漫反射与透明遮罩，作者 Rico Cilliers、Rob Tuytel，[CC0](https://polyhaven.com/license)。2 张文件共 249,324 字节；来源、许可和 SHA256 见 `assets/environment/tree-leaf-sources.json`。
+- 只取叶片贴图，未导入完整树模型。运行时将独立叶片拼成共享枝叶簇供树冠使用，灌木使用单叶 UV；几何、弯曲与摆动由本项目制作。图片在本地加载，包含在离线包中；失败时保留程序化回退。
+- 蕨叶透明、法线和漫反射纹理现在由两层林下植被共享，不重复下载。倒木树皮、码头木箱板缝和桶身鼓腹仍为程序化几何/材质。

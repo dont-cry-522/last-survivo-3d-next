@@ -65,27 +65,108 @@ function limb(points,radii,sides=7){
  for(const end of[0,radii.length-1]){const p=curve.getPoint(end/(radii.length-1)),center=vertices.length/3;vertices.push(p.x,p.y,p.z);for(let j=0;j<sides;j++){const a=end*sides+j,b=end*sides+(j+1)%sides;indices.push(...(end?[center,b,a]:[center,a,b]));}}
  return surface(vertices,indices);
 }
-// One bounded, canvas-free atlas is shared by all forest crowns. Its real alpha gaps
-// are also consumed by Three's standard shadow depth pass; there is no blended layer.
-function leafAtlas(){
- const size=256,data=new Uint8Array(size*size*4),random=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
- for(let i=0;i<data.length;i+=4){data[i]=66;data[i+1]=91;data[i+2]=46;}
- for(let leaf=0;leaf<240;leaf++){
-  const angle=leaf*2.399963,rad=.398*Math.sqrt((leaf+.5)/240),cx=.5+Math.cos(angle)*rad,cy=.5+Math.sin(angle)*rad;
-  const direction=angle*.47+random(leaf+100)*4,cos=Math.cos(direction),sin=Math.sin(direction),length=.085+random(leaf+200)*.060,half=.023+random(leaf+300)*.016,warm=random(leaf+400);
-  const extent=(length*.5+half)*size,x0=Math.max(0,Math.floor(cx*size-extent)),x1=Math.min(size-1,Math.ceil(cx*size+extent)),y0=Math.max(0,Math.floor(cy*size-extent)),y1=Math.min(size-1,Math.ceil(cy*size+extent));
-  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
-   const dx=(x+.5)/size-cx,dy=(y+.5)/size-cy,t=(dx*cos+dy*sin)/length+.5,across=-dx*sin+dy*cos;
-   if(t<=0||t>=1)continue;
-   const outline=half*Math.pow(Math.sin(t*Math.PI),.80)*(1+.055*Math.sin(t*31+leaf)),distance=(outline-Math.abs(across))*size,alpha=Math.round(T.MathUtils.clamp(distance+.5,0,1)*255);
-   if(!alpha)continue;
-   const fold=across>0?.95:1.04,vein=Math.abs(across)<.0015?1.03:1,light=(.84+t*.21)*fold*vein,index=(y*size+x)*4;
-   data[index]=Math.round((91+warm*24)*light);data[index+1]=Math.round((118+warm*24)*light);data[index+2]=Math.round((68+warm*20)*light);data[index+3]=Math.max(data[index+3],alpha);
+// The same asymmetric branching pattern drives scanned and offline foliage.
+// Leaves grow from six tapering side twigs, with open channels between the twigs.
+const leafSpray=(()=>{
+ const root=[.48,.86],tip=[.56,.13],stems=[[root,tip]],leaves=[];
+ const ends=[[.14,.55],[.82,.51],[.17,.28],[.82,.23],[.32,.12],[.67,.07]];
+ for(let twig=0;twig<6;twig++){
+  const t=.15+twig*.145,start=[T.MathUtils.lerp(root[0],tip[0],t),T.MathUtils.lerp(root[1],tip[1],t)],end=ends[twig],dx=end[0]-start[0],dy=end[1]-start[1],heading=Math.atan2(dx,-dy);stems.push([start,end]);
+  for(let i=0;i<9;i++){
+   const along=.12+i*.093,length=.102+.038*(.5+.5*Math.sin(twig*2.8+i*1.7));
+   leaves.push({x:start[0]+dx*along,y:start[1]+dy*along,angle:heading+(i%2?1:-1)*(.70+.20*Math.sin(i*1.3+twig)),length,index:twig*9+i});
   }
  }
- const texture=new T.DataTexture(data,size,size,T.RGBAFormat);texture.name='shared-tree-leaf-atlas';texture.colorSpace=T.SRGBColorSpace;texture.generateMipmaps=true;texture.minFilter=T.LinearMipmapLinearFilter;texture.magFilter=T.LinearFilter;texture.needsUpdate=true;return texture;
+ return{stems,leaves};
+})();
+function leafTexture(data,size,name,flipY=false){
+ const texture=new T.DataTexture(data,size,size,T.RGBAFormat);texture.name=name;texture.flipY=flipY;texture.colorSpace=T.SRGBColorSpace;texture.generateMipmaps=true;texture.minFilter=T.LinearMipmapLinearFilter;texture.magFilter=T.LinearFilter;texture.anisotropy=4;texture.needsUpdate=true;return texture;
+}
+function fallbackBlade(data,size,{x:cx,y:cy,angle,length,index,width=length*.42}){
+ const cos=Math.cos(angle),sin=Math.sin(angle),extent=length+width,warm=.5+.5*Math.sin(index*2.17);
+ for(let y=Math.max(1,Math.floor((cy-extent)*size));y<Math.min(size-1,(cy+extent)*size);y++)for(let x=Math.max(1,Math.floor((cx-extent)*size));x<Math.min(size-1,(cx+extent)*size);x++){
+  const dx=(x+.5)/size-cx,dy=(y+.5)/size-cy,t=(dx*sin-dy*cos)/length,across=dx*cos+dy*sin;if(t<=0||t>=1)continue;
+  const outline=width*.5*Math.pow(Math.sin(t*Math.PI),.78)*(1+.035*Math.sin(t*29+index)),alpha=Math.round(T.MathUtils.clamp((outline-Math.abs(across))*size+.5,0,1)*255);if(!alpha)continue;
+  const light=(.85+t*.17)*(across>0?.94:1.03),at=(y*size+x)*4;
+  data[at]=Math.round((93+warm*18)*light);data[at+1]=Math.round((121+warm*18)*light);data[at+2]=Math.round((69+warm*13)*light);data[at+3]=Math.max(data[at+3],alpha);
+ }
+}
+function leafAtlas(){
+ const size=256,data=new Uint8Array(size*size*4);
+ for(const [n,[a,b]]of leafSpray.stems.entries()){
+  const dx=b[0]-a[0],dy=b[1]-a[1],length=dx*dx+dy*dy,width=n?.0019:.0034;
+  for(let y=1;y<size-1;y++)for(let x=1;x<size-1;x++){
+   const px=(x+.5)/size-a[0],py=(y+.5)/size-a[1],t=T.MathUtils.clamp((px*dx+py*dy)/length,0,1);
+   if(Math.hypot(px-dx*t,py-dy*t)>width*(1-t*.75))continue;const at=(y*size+x)*4;data.set([111,101,69,255],at);
+  }
+ }
+ for(const leaf of leafSpray.leaves)fallbackBlade(data,size,leaf);
+ for(let y=126;y<130;y++)for(let x=126;x<130;x++)data.set([109,132,73,255],(y*size+x)*4);
+ return leafTexture(data,size,'shared-tree-leaf-atlas');
 }
 const leafMaterial=new T.MeshStandardMaterial({name:'shared-cutout-leaves',map:leafAtlas(),vertexColors:true,roughness:.96,side:T.DoubleSide,alphaTest:.30,transparent:false});
+// Assemble the scanned leaves once into the same small curved sprays. This
+// changes foliage detail without extra tree meshes, draw calls or runtime URLs.
+export const TREE_LEAF_FILES={map:'island_tree_01_leaves_diff_1k.jpg',alphaMap:'island_tree_01_leaves_alpha_1k.png'};
+// [u minimum, v minimum, width, height], with v=0 at the leaf's stem.
+export const TREE_LEAF_UVS=[[.005,.48,.155,.52],[.160,.59,.185,.41],[.357,.63,.132,.35],[.505,.63,.155,.34],[.671,.56,.152,.44],[.00,.00,.18,.40],[.174,.00,.18,.43],[.413,.00,.165,.40]];
+const leafSurfaces=new Set(),leafHooks=new WeakSet();let rawLeafMap;
+function rawLeafFallback(){
+ const size=256,data=new Uint8Array(size*size*4);
+ for(const [index,[u,v,w,h]]of TREE_LEAF_UVS.entries())fallbackBlade(data,size,{x:u+w*.5,y:1-v-h*.015,angle:0,length:h*.97,width:w*.86,index});
+ // Stems in small plant meshes use this stable, opaque point on the first leaf.
+ for(let y=55;y<59;y++)for(let x=20;x<24;x++)data.set([103,129,77,255],(y*size+x)*4);
+ return leafTexture(data,size,'shared-raw-leaf-fallback',true);
+}
+function thinLeafLight(shader){
+ shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
+  #if NUM_HEMI_LIGHTS > 0
+   reflectedLight.indirectDiffuse+=diffuseColor.rgb*hemisphereLights[0].skyColor*(gl_FrontFacing?.045:.19);
+  #endif
+  #if NUM_DIR_LIGHTS > 0
+   float leafTransmission=pow(max(0.0,dot(-normal,directionalLights[0].direction)),2.0);
+   reflectedLight.indirectDiffuse+=diffuseColor.rgb*directionalLights[0].color*vec3(.085,.12,.045)*leafTransmission;
+  #endif
+ `);
+}
+// Raw scanned leaves for small plants, not the composed crown atlas. Retain wind hooks.
+export function applyTreeLeafSurface(target){
+ if(leafSurfaces.has(target))return target;
+ target.map=rawLeafMap??=rawLeafFallback();target.alphaMap=null;target.side=T.DoubleSide;target.alphaTest=.34;target.roughness=.92;target.transparent=false;target.depthWrite=true;target.needsUpdate=true;
+ if(!leafHooks.has(target)){
+  const before=target.onBeforeCompile,key=target.customProgramCacheKey();
+  target.onBeforeCompile=(shader,renderer)=>{before.call(target,shader,renderer);thinLeafLight(shader);};
+  target.customProgramCacheKey=()=>key+'|scanned-thin-tree-leaf';leafHooks.add(target);target.addEventListener('dispose',()=>leafSurfaces.delete(target));
+ }
+ leafSurfaces.add(target);return target;
+}
+let treeLoading;
+export function loadTreeTextures(){
+ if(treeLoading)return treeLoading;
+ const loader=new T.ImageLoader();
+ treeLoading=Promise.all(Object.values(TREE_LEAF_FILES).map(file=>loader.loadAsync(new URL('./assets/environment/'+file,import.meta.url).href))).then(([color,mask])=>{
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=1024;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(color,0,0,1024,1024);const pixels=ctx.getImageData(0,0,1024,1024);
+  ctx.clearRect(0,0,1024,1024);ctx.drawImage(mask,0,0,1024,1024);const alpha=ctx.getImageData(0,0,1024,1024).data;
+  for(let i=0;i<alpha.length;i+=4)pixels.data[i+3]=alpha[i+1];ctx.putImageData(pixels,0,0);
+  const atlas=document.createElement('canvas');atlas.width=atlas.height=1024;const paint=atlas.getContext('2d');
+  paint.strokeStyle='#716549';paint.lineCap='round';
+  for(const [i,[a,b]]of leafSpray.stems.entries()){
+   paint.lineWidth=i?2.2:3.8;paint.beginPath();paint.moveTo(a[0]*1024,a[1]*1024);paint.lineTo(b[0]*1024,b[1]*1024);paint.stroke();
+  }
+  for(const {x,y,angle,length,index}of leafSpray.leaves){
+   const [sx,v,sw,sh]=TREE_LEAF_UVS[index%TREE_LEAF_UVS.length],sy=1-v-sh,width=length*sw/sh;
+   paint.save();paint.translate(x*1024,y*1024);paint.rotate(angle);
+   paint.drawImage(canvas,sx*1024,sy*1024,sw*1024,sh*1024,-width*512,-length*1024,width*1024,length*1024);paint.restore();
+  }
+  // Extra geometric leaves sample this small opaque texel, at every LOD and load order.
+  paint.fillStyle='#6d8449';paint.fillRect(510,510,4,4);
+  const rgba=paint.getImageData(0,0,1024,1024).data,texture=leafTexture(new Uint8Array(rgba),1024,'M_Tree_ScannedLeafSprays_A'),raw=leafTexture(new Uint8Array(pixels.data),1024,'M_Tree_ScannedLeaves_Raw',true);
+  const previous=leafMaterial.map,previousRaw=rawLeafMap;leafMaterial.map=texture;leafMaterial.needsUpdate=true;rawLeafMap=raw;
+  for(const target of leafSurfaces){target.map=raw;target.needsUpdate=true;}previous.dispose();previousRaw?.dispose();return true;
+ }).catch(()=>false);return treeLoading;
+}
 const firMaterial=material.clone();firMaterial.side=T.DoubleSide;
 firMaterial.onBeforeCompile=shader=>{
  material.onBeforeCompile(shader);
@@ -95,14 +176,9 @@ firMaterial.onBeforeCompile=shader=>{
 firMaterial.customProgramCacheKey=()=> 'tree-rounded-snow-sprays';
 leafMaterial.onBeforeCompile=shader=>{
  shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n diffuseColor.rgb*=vec3(1.13,1.10,1.02);');
- shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
-  #if NUM_DIR_LIGHTS > 0
-   float leafTransmission=pow(max(0.0,dot(-normal,directionalLights[0].direction)),2.0);
-   reflectedLight.indirectDiffuse+=diffuseColor.rgb*directionalLights[0].color*vec3(.085,.12,.045)*leafTransmission;
-  #endif
- `);
+ thinLeafLight(shader);
 };
-leafMaterial.customProgramCacheKey=()=> 'tree-soft-transmitted-sprays';
+leafMaterial.customProgramCacheKey=()=> 'tree-branched-thin-leaves';
 function sprayPose(x,y,z,width,depth,height,phase,spray){
  const angle=phase+spray*2.399,tilt=[.30,.92,-.32,.54,.14][spray],normal=new T.Vector3(Math.cos(angle)*.72,tilt,Math.sin(angle)*.72).normalize();
  const across=new T.Vector3().crossVectors(new T.Vector3(0,1,0),normal).normalize(),along=new T.Vector3().crossVectors(normal,across);
@@ -252,9 +328,7 @@ function detailedCrown(template,level){
   g.setAttribute('treeSurface',new T.Float32BufferAttribute(new Float32Array(p.count).fill(2),1));g.computeBoundingBox();g.computeBoundingSphere();return template.lods[level]=g;
  }
  const p=[],ix=[],uv=[],colors=[],point=new T.Vector3();
- const image=leafMaterial.map.image;let pixel=0;
- for(let i=0;i<image.data.length;i+=4)if(image.data[i+3]===255){pixel=i/4;break;}
- const u=(pixel%image.width+.5)/image.width,v=(Math.floor(pixel/image.width)+.5)/image.height,count=level===0?16:6;
+ const u=.5,v=.5,count=level===0?16:6;
  for(const [x,y,z,width,depth,height,phase]of template.sprays)for(let spray=0;spray<5;spray++){
   const {center,normal,across,along}=sprayPose(x,y,z,width,depth,height,phase,spray);
   for(let leaf=0;leaf<count;leaf++){

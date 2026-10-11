@@ -7,6 +7,7 @@ import * as T from '../vendor/three.module.js';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 let serial=0;
 const fresh=()=>import('../adventure-ground-detail.js?fern-texture-test='+ ++serial);
+const freshSurface=()=>import('../fern-surfaces.js?fern-texture-test='+ ++serial);
 const createWorld=()=>({group:new T.Group(),half:48,seed:522,spawn:{x:0,z:0},obstacles:[],patches:[],sites:[],ponds:[]});
 const release=world=>world.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
 function habitat(module){const world=createWorld(),group=module.installHabitatDetail(world,'forest');return{world,group,fern:group.children.find(m=>m.name==='habitat-fern'),shrub:group.children.find(m=>m.name==='habitat-shrub')};}
@@ -25,7 +26,7 @@ function imageDimensions(data,file){
 }
 
 test('fern assets have a local CC0 manifest, exact hashes, 1K dimensions and a sub-0.85 MB budget',async()=>{
- const module=await fresh(),root=new URL('../assets/environment/',import.meta.url),source=JSON.parse(readFileSync(new URL('fern-sources.json',root)));
+ const module=await freshSurface(),root=new URL('../assets/environment/',import.meta.url),source=JSON.parse(readFileSync(new URL('fern-sources.json',root)));
  assert.equal(source.license,'CC0-1.0');assert.equal(new URL(source.page).hostname,'polyhaven.com');assert(source.authors.length>0&&source.authors.every(name=>typeof name==='string'&&name.trim()));
  assert.deepEqual(Object.values(module.FERN_FILES).sort(),source.files.map(f=>f.file).sort());assert.equal(new Set(source.files.map(f=>f.file)).size,3);
  let bytes=0;for(const file of source.files){
@@ -35,32 +36,29 @@ test('fern assets have a local CC0 manifest, exact hashes, 1K dimensions and a s
  assert(bytes<850000,'fern textures exceed their complete download budget');
 });
 
-test('all textures commit together once and remain shared across world disposal/rebuilds',async t=>{
- const module=await fresh(),a=habitat(module),b=habitat(module),material=a.fern.material,old={map:material.map,alphaMap:material.alphaMap,normalMap:material.normalMap};
- assert.strictEqual(b.fern.material,material);const fallbackDisposals=new Map([[old.map,0],[old.alphaMap,0]]);
- for(const texture of fallbackDisposals.keys())texture.addEventListener('dispose',()=>fallbackDisposals.set(texture,fallbackDisposals.get(texture)+1));
+test('all textures commit together once and are shared by existing and later plant materials',async t=>{
+ const module=await freshSurface(),material=module.applyFernSurface(new T.MeshStandardMaterial()),b=module.applyFernSurface(new T.MeshStandardMaterial()),old={map:material.map,alphaMap:material.alphaMap,normalMap:material.normalMap};
+ assert.strictEqual(b.map,material.map);let fallbackDisposals=0;for(const texture of[old.map,old.alphaMap])texture.addEventListener('dispose',()=>fallbackDisposals++);
  const requests=[],textures=[],disposed=new Map();
  t.mock.method(T.TextureLoader.prototype,'loadAsync',url=>new Promise(resolve=>{const texture=new T.Texture();textures.push(texture);disposed.set(texture,0);texture.addEventListener('dispose',()=>disposed.set(texture,disposed.get(texture)+1));requests.push({url,resolve:()=>resolve(texture)});}));
  const pending=module.loadFernTextures();assert.strictEqual(module.loadFernTextures(),pending);assert.equal(requests.length,3);
  for(const {url}of requests){const parsed=new URL(url);assert(parsed.pathname.includes('/assets/environment/'));assert(!parsed.hostname||parsed.hostname==='localhost');}
  requests[0].resolve();requests[1].resolve();await new Promise(setImmediate);
- for(const key of Object.keys(old))assert.strictEqual(material[key],old[key],'partially loaded atlas became visible');assert([...fallbackDisposals.values()].every(n=>n===0));
- requests[2].resolve();assert.equal(await pending,true);assert.strictEqual(module.loadFernTextures(),pending);assert.equal(requests.length,3);assert([...fallbackDisposals.values()].every(n=>n===1));
- for(const[key,file]of Object.entries(module.FERN_FILES)){const texture=material[key];assert(textures.includes(texture));assert.equal(texture.name,file);assert.equal(texture.colorSpace,key==='map'?T.SRGBColorSpace:T.NoColorSpace);assert.equal(texture.anisotropy,4);assert.equal(texture.wrapS,T.ClampToEdgeWrapping);assert.equal(texture.wrapT,T.ClampToEdgeWrapping);assert.equal(texture.generateMipmaps,true);}
- const geometries=[...a.group.children,...b.group.children].map(m=>m.geometry),released=new Map(geometries.map(g=>[g,0]));for(const geometry of geometries)geometry.addEventListener('dispose',()=>released.set(geometry,released.get(geometry)+1));
- release(a.world);assert(a.group.userData.disposed);assert(!b.group.userData.disposed);release(b.world);assert([...released.values()].every(n=>n===1));assert([...disposed.values()].every(n=>n===0),'world cleanup disposed a shared texture');
- const c=habitat(module);assert.strictEqual(c.fern.material,material);assert.strictEqual(c.fern.material.map,textures[0]);assert(!geometries.includes(c.fern.geometry));assert.equal(requests.length,3);release(c.world);assert([...disposed.values()].every(n=>n===0));
+ for(const key of Object.keys(old))assert.strictEqual(material[key],old[key]);assert.equal(fallbackDisposals,0);
+ requests[2].resolve();assert.equal(await pending,true);assert.equal(fallbackDisposals,2);
+ for(const[key,file]of Object.entries(module.FERN_FILES)){const texture=material[key];assert.strictEqual(b[key],texture);assert(textures.includes(texture));assert.equal(texture.name,file);assert.equal(texture.colorSpace,key==='map'?T.SRGBColorSpace:T.NoColorSpace);assert.equal(texture.anisotropy,4);assert.equal(texture.wrapS,T.ClampToEdgeWrapping);assert(texture.generateMipmaps);}
+ const c=module.applyFernSurface(new T.MeshStandardMaterial());assert.strictEqual(c.map,material.map);material.dispose();b.dispose();c.dispose();assert([...disposed.values()].every(n=>n===0));assert.strictEqual(module.loadFernTextures(),pending);assert.equal(requests.length,3);
 });
 
 test('failure of any one atlas file preserves the whole fallback and releases successful siblings',async t=>{
  for(const failedKey of['map','alphaMap','normalMap'])await t.test(failedKey,async sub=>{
-  const module=await fresh(),h=habitat(module),material=h.fern.material,before={map:material.map,alphaMap:material.alphaMap,normalMap:material.normalMap};let fallbackDisposed=0;before.map.addEventListener('dispose',()=>fallbackDisposed++);before.alphaMap.addEventListener('dispose',()=>fallbackDisposed++);
+  const module=await freshSurface(),material=module.applyFernSurface(new T.MeshStandardMaterial()),before={map:material.map,alphaMap:material.alphaMap,normalMap:material.normalMap};let fallbackDisposed=0;before.map.addEventListener('dispose',()=>fallbackDisposed++);before.alphaMap.addEventListener('dispose',()=>fallbackDisposed++);
   const requests=[],created=[],counts=new Map();
   sub.mock.method(T.TextureLoader.prototype,'loadAsync',url=>new Promise((resolve,reject)=>{const file=new URL(url).pathname.split('/').at(-1);if(file===module.FERN_FILES[failedKey]){requests.push({fail:()=>reject(Error('fixture missing local file'))});return;}const texture=new T.Texture();created.push(texture);counts.set(texture,0);texture.addEventListener('dispose',()=>counts.set(texture,counts.get(texture)+1));requests.push({resolve:()=>resolve(texture)});}));
   const pending=module.loadFernTextures();assert.strictEqual(module.loadFernTextures(),pending);assert.equal(requests.length,3);requests.find(r=>r.fail).fail();await new Promise(setImmediate);
   for(const key of Object.keys(before))assert.strictEqual(material[key],before[key]);
   requests.filter(r=>r.resolve).forEach(r=>r.resolve());assert.equal(await pending,false);assert.equal(created.length,2);assert([...counts.values()].every(n=>n===1),'failed atlas leaked or double-disposed a successful sibling');
-  assert.equal(fallbackDisposed,0);for(const key of Object.keys(before))assert.strictEqual(material[key],before[key]);assert.strictEqual(module.loadFernTextures(),pending);assert.equal(requests.length,3);release(h.world);assert.equal(fallbackDisposed,0);assert([...counts.values()].every(n=>n===1));
+  assert.equal(fallbackDisposed,0);for(const key of Object.keys(before))assert.strictEqual(material[key],before[key]);assert.strictEqual(module.loadFernTextures(),pending);assert.equal(requests.length,3);material.dispose();assert.equal(fallbackDisposed,0);assert([...counts.values()].every(n=>n===1));
  });
 });
 
@@ -94,4 +92,44 @@ test('fern cutouts use alpha-tested green-channel masks and retain the shared in
  for(const token of['#include <map_fragment>','#include <alphamap_fragment>','#include <alphatest_fragment>','#include <normal_fragment_maps>'])assert(fern.fragmentShader.includes(token),'standard texture stage removed: '+token);
  assert(fern.vertexShader.includes('instanceMatrix*grassPoint'));assert(fern.vertexShader.includes('mat3(modelMatrix*instanceMatrix)'));assert(fern.vertexShader.includes('groundFlex*.035'));assert(!fern.vertexShader.includes('undefined'));assert(!fern.fragmentShader.includes('undefined'));
  module.animateAdventureGroundDetail(12);assert.equal(fern.uniforms.groundWindTime.value,12);module.animateAdventureGroundDetail(NaN);module.animateAdventureGroundDetail(Infinity);assert.equal(fern.uniforms.groundWindTime.value,12);module.animateAdventureGroundDetail(0);assert.equal(fern.uniforms.groundWindTime.value,0);release(h.world);
+});
+
+test('shrub leaves use isolated scan regions on curved midribs, not solid pointed silhouettes',async()=>{
+ const module=await fresh(),{TREE_LEAF_UVS}=await import('../tree-scenery.js?v=153'),h=habitat(module),g=h.shrub.geometry,{position:p,uv,color}=g.attributes;
+ assert.equal(g.index.count/3,120);assert.equal(uv.count,p.count);assert([...uv.array].every(v=>Number.isFinite(v)&&v>=0&&v<=1));
+ for(let branch=0;branch<3;branch++){
+  const first=branch*46;
+  for(let j=0;j<10;j++){assert(Math.abs(uv.getX(first+j)-.085)<1e-6);assert(Math.abs(uv.getY(first+j)-.78)<1e-6);}
+  for(let leaf=0;leaf<4;leaf++){
+   const n=first+10+leaf*9,[u,v,w,h]=TREE_LEAF_UVS[(branch*4+leaf)%TREE_LEAF_UVS.length];
+   for(let j=0;j<9;j++){
+    assert(uv.getX(n+j)>=u-1e-6&&uv.getX(n+j)<=u+w+1e-6&&uv.getY(n+j)>=v-1e-6&&uv.getY(n+j)<=v+h+1e-6,'leaf samples a neighbouring scan');
+    assert.equal(color.getX(n+j),color.getY(n+j));assert.equal(color.getY(n+j),color.getZ(n+j),'scan receives an extra green vertex tint');
+   }
+   // The scan controls the taper; the supporting surface keeps full width at
+   // both ends, a curved middle, a raised ridge and a visibly drooping tip.
+   const width=row=>Math.hypot(p.getX(n+row*3+2)-p.getX(n+row*3),p.getZ(n+row*3+2)-p.getZ(n+row*3));
+   assert(width(0)>.08&&width(0)<.11);assert(Math.abs(width(0)-width(1))<1e-6);assert(Math.abs(width(1)-width(2))<1e-6);
+   assert(p.getY(n+4)>(p.getY(n+3)+p.getY(n+5))/2+.02,'leaf has no raised midrib');
+   assert(p.getY(n+4)>p.getY(n+1)+.06,'leaf has no curved shoulder');
+   assert(p.getY(n+7)<p.getY(n+1)-.10,'leaf tip does not droop');
+  }
+ }
+ release(h.world);
+});
+
+test('shrub cutouts share one RGBA atlas and retain wind without transparent sorting or green over-tint',async()=>{
+ const module=await fresh(),h=habitat(module),other=habitat(module),m=h.shrub.material,texture=m.map;
+ assert.strictEqual(m,other.shrub.material);for(const mesh of h.group.children.filter(m=>m.name==='habitat-shrub'))assert.strictEqual(mesh.material,m);
+ assert.notStrictEqual(m,h.fern.material);assert.equal(m.name,'M_Shrub_Scanned_A');assert.equal(m.side,T.DoubleSide);assert.equal(m.transparent,false);assert.equal(m.depthWrite,true);assert.equal(m.alphaMap,null);assert.equal(m.alphaTest,.34);assert.equal(texture.colorSpace,T.SRGBColorSpace);
+ const {data,width,height}=texture.image,uv=h.shrub.geometry.attributes.uv;
+ const sample=i=>{const x=Math.round(uv.getX(i)*(width-1)),v=uv.getY(i),y=Math.round((texture.flipY?1-v:v)*(height-1));return data[(y*width+x)*4+3]/255;};
+ for(let branch=0;branch<3;branch++){
+  const first=branch*46;for(let i=0;i<10;i++)assert(sample(first+i)>m.alphaTest,'stem vanished into the transparent atlas');
+  for(let leaf=0;leaf<4;leaf++){const center=first+10+leaf*9+4;assert(sample(center)>m.alphaTest,'leaf center disappeared');assert(sample(center-1)<m.alphaTest&&sample(center+1)<m.alphaTest,'scan retains opaque rectangular sides');}
+ }
+ const tint=new T.Color();for(let i=0;i<h.shrub.count;i++){h.shrub.getColorAt(i,tint);assert(Math.min(tint.r,tint.g,tint.b)>.91,'instance tint hides scanned leaf colour');}
+ const shader=shaderFor(m);assert.strictEqual(shader.uniforms.groundWindTime,module.groundWindTime);assert(shader.vertexShader.includes('groundFlex*.035'));assert(shader.vertexShader.includes('mat3(modelMatrix*instanceMatrix)'));
+ for(const token of['#include <map_fragment>','#include <alphatest_fragment>'])assert(shader.fragmentShader.includes(token));assert(!shader.fragmentShader.includes('undefined'));
+ let disposed=0;texture.addEventListener('dispose',()=>disposed++);release(h.world);release(other.world);assert.equal(disposed,0,'world cleanup disposed a shared leaf atlas');
 });

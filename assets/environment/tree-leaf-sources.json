@@ -1,0 +1,24 @@
+{
+  "asset": "Island Tree 01 (leaf maps only)",
+  "page": "https://polyhaven.com/a/island_tree_01",
+  "license": "CC0-1.0",
+  "authors": [
+    "Rico Cilliers",
+    "Rob Tuytel"
+  ],
+  "processing": "Original 1K maps retained; runtime canvas packs eight scanned leaf shapes into one shared 1K branch atlas. Tree geometry is authored in this project.",
+  "files": [
+    {
+      "file": "island_tree_01_leaves_diff_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/island_tree_01/island_tree_01_leaves_diff_1k.jpg",
+      "bytes": 191886,
+      "sha256": "f56d762a1507754752abf164cc12acbc1e87ce87fa609ac44b98a1b0037c89d8"
+    },
+    {
+      "file": "island_tree_01_leaves_alpha_1k.png",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/island_tree_01/island_tree_01_leaves_alpha_1k.png",
+      "bytes": 57438,
+      "sha256": "f4341f147988dbe6b58d9ca841a8f0e4bcff25bc40d05f9877da82006d489c39"
+    }
+  ]
+}

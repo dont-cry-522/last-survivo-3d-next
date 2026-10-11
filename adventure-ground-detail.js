@@ -1,10 +1,13 @@
+import {applyFernSurface} from './fern-surfaces.js?v=153';
+import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=153';
 import{sceneryRhythmAt}from'./exploration-composition.js?v=144';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
 import {forestHabitatAt} from './forest-habitats.js?v=139';
 import {bridgeContains} from './coast.js?v=114';
-import {naturalRockGeometry} from './biome-scenery.js?v=152';
+import {naturalRockGeometry} from './biome-scenery.js?v=153';
+import {surfaceUniforms} from './surface-textures.js?v=120';
 
 const profiles={
  forest:{count:1200,grass:.83,height:1,tuft:[0x566d48,0x829360],litter:[0x827561,0x66685c]},
@@ -46,43 +49,43 @@ material.onBeforeCompile=shader=>{
  `);
 };
 material.customProgramCacheKey=()=> 'adventure-ground-wind';
-// A small cutout fallback keeps leaves readable if an offline texture is missing.
-// Real 1K scans replace it atomically, once, and are shared across world rebuilds.
-export const FERN_FILES={map:'fern_02_diff_1k.jpg',alphaMap:'fern_02_alpha_1k.png',normalMap:'fern_02_nor_gl_1k.jpg'};
-const fernTint=new T.Color(0xffffff),fallbackColor=new T.DataTexture(new Uint8Array([115,140,83,255]),1,1);
-fallbackColor.colorSpace=T.SRGBColorSpace;fallbackColor.needsUpdate=true;
-const fernFallbackData=new Uint8Array(128*256*4);
-for(let y=0;y<256;y++)for(let x=0;x<128;x++){
- const u=x/127,v=y/255;let fill=false;
- for(const [left,right,base,tip] of [[.078,.240,.948,.109],[.307,.458,.786,.021],[.718,.839,.903,.107]]){
-  const t=(1-v-base)/(tip-base),side=Math.abs((u-(left+right)*.5)/(right-left));
-  if(t>=0&&t<=1&&side<Math.max(.008,Math.sin(t*Math.PI)*(.24+.16*Math.max(0,Math.sin(t*120)))))fill=true;
- }
- const i=(y*128+x)*4;fernFallbackData[i]=fernFallbackData[i+1]=fernFallbackData[i+2]=fill?255:0;fernFallbackData[i+3]=255;
-}
-const fallbackAlpha=new T.DataTexture(fernFallbackData,128,256);fallbackAlpha.minFilter=T.LinearFilter;fallbackAlpha.magFilter=T.LinearFilter;fallbackAlpha.needsUpdate=true;
-const fernMaterial=material.clone();fernMaterial.name='M_Fern_Scanned_A';fernMaterial.map=fallbackColor;fernMaterial.alphaMap=fallbackAlpha;fernMaterial.alphaTest=.42;fernMaterial.roughness=.88;fernMaterial.normalScale.set(.32,.32);fernMaterial.onBeforeCompile=shader=>{
- material.onBeforeCompile(shader);
- shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
-  #if NUM_HEMI_LIGHTS > 0
-   // A thin leaflet transmits some sky light even when its underside faces the
-   // camera. Use the actual sky light so this fill follows the day/night cycle.
-   reflectedLight.indirectDiffuse+=diffuseColor.rgb*hemisphereLights[0].skyColor*.30;
+const fernTint=new T.Color(0xffffff),fernMaterial=material.clone();
+fernMaterial.name='M_Fern_Scanned_A';fernMaterial.onBeforeCompile=material.onBeforeCompile;fernMaterial.customProgramCacheKey=material.customProgramCacheKey;
+applyFernSurface(fernMaterial);
+const shrubMaterial=material.clone();
+shrubMaterial.name='M_Shrub_Scanned_A';shrubMaterial.onBeforeCompile=material.onBeforeCompile;shrubMaterial.customProgramCacheKey=material.customProgramCacheKey;
+applyTreeLeafSurface(shrubMaterial);
+// Low scree is solid mineral, not flexible foliage. The shared rock maps are
+// already loaded for scenery; these two samples need no new texture or pass.
+const habitatStoneMaterial=new T.MeshStandardMaterial({name:'M_Habitat_Stone_A',vertexColors:true,roughness:.96,flatShading:true});
+habitatStoneMaterial.onBeforeCompile=shader=>{
+ Object.assign(shader.uniforms,{rockColor:surfaceUniforms.rockColor,rockHeight:surfaceUniforms.rockHeight,rockReady:surfaceUniforms.rockReady});
+ shader.vertexShader='attribute float stoneDamp; varying vec3 habitatStonePoint; varying float habitatStoneDamp;\n'+shader.vertexShader;
+ shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+  vec4 stonePoint=vec4(position,1.0);
+  #ifdef USE_INSTANCING
+   stonePoint=instanceMatrix*stonePoint;
   #endif
+  habitatStonePoint=(modelMatrix*stonePoint).xyz;habitatStoneDamp=stoneDamp;
  `);
-};fernMaterial.customProgramCacheKey=()=> 'adventure-fern-wind';
-let fernLoading;
-export function loadFernTextures(){
- if(fernLoading)return fernLoading;
- const loader=new T.TextureLoader();
- fernLoading=Promise.all(Object.entries(FERN_FILES).map(async([key,file])=>{
-  try{const texture=await loader.loadAsync(new URL('./assets/environment/'+file,import.meta.url).href);texture.name=file;texture.colorSpace=key==='map'?T.SRGBColorSpace:T.NoColorSpace;texture.anisotropy=4;return[key,texture];}catch{return[key,null];}
- })).then(entries=>{
-  if(entries.some(([,texture])=>!texture)){for(const[,texture]of entries)texture?.dispose();return false;}
-  for(const[key,texture]of entries)fernMaterial[key]=texture;
-  fernMaterial.needsUpdate=true;fallbackColor.dispose();fallbackAlpha.dispose();return true;
- });return fernLoading;
-}
+ shader.fragmentShader='uniform sampler2D rockColor,rockHeight; uniform float rockReady; varying vec3 habitatStonePoint; varying float habitatStoneDamp;\n'+shader.fragmentShader;
+ shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+  vec2 stoneUV=habitatStonePoint.xz*.82+habitatStonePoint.y*vec2(.36,.21);
+  vec3 stoneAlbedo=texture2D(rockColor,stoneUV).rgb;
+  float stoneHeight=texture2D(rockHeight,stoneUV).r;
+  float stonePixel=max(length(dFdx(habitatStonePoint)),length(dFdy(habitatStonePoint)));
+  float stoneDetail=1.0-smoothstep(.015,.085,stonePixel);
+  diffuseColor.rgb*=mix(vec3(1.0),clamp(stoneAlbedo*2.45,vec3(.45),vec3(1.18)),rockReady*.66);
+  float stoneRelief=(stoneHeight-.5)*.005*rockReady*stoneDetail*(1.0-habitatStoneDamp*.35);
+ `);
+ shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor-habitatStoneDamp*.08,.87,1.0);');
+ shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+  vec3 stoneDx=dFdx(-vViewPosition),stoneDy=dFdy(-vViewPosition),stoneRx=cross(stoneDy,normal),stoneRy=cross(normal,stoneDx);
+  float stoneDet=dot(stoneDx,stoneRx);
+  normal=normalize(abs(stoneDet)*normal-sign(stoneDet)*(dFdx(stoneRelief)*stoneRx+dFdy(stoneRelief)*stoneRy));
+ `);
+};
+habitatStoneMaterial.customProgramCacheKey=()=> 'habitat-low-mineral';
 export function animateAdventureGroundDetail(time){if(Number.isFinite(time))windTime.value=time;}
 const near=(x,z,p,r)=>(x-p.x)**2+(z-p.z)**2<r*r;
 
@@ -377,23 +380,28 @@ function fernGeometry(){
  }
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;
 }
-// Leaves fold around a raised midrib, twist away from their branch and droop at
-// the tip. Fewer, smaller leaves reveal the stems instead of a solid green fan.
+// Each small leaf bends across a raised midrib. The scan supplies the irregular
+// outline, so the geometry does not taper it a second time into a pointed arrow.
 function shrubGeometry(){
- const positions=[],colors=[],flex=[],indices=[];
- const vertex=(x,y,z,shade)=>{const i=positions.length/3;positions.push(x,y,z);colors.push(shade*.92,shade,shade*.88);flex.push(Math.max(0,Math.min(1,y/.65))**2);return i;};
+ const positions=[],colors=[],uv=[],flex=[],indices=[];
+ const vertex=(x,y,z,shade,u=.085,v=.78)=>{const i=positions.length/3;positions.push(x,y,z);colors.push(shade,shade,shade);uv.push(u,v);flex.push(Math.max(0,Math.min(1,y/.65))**2);return i;};
  for(let branch=0;branch<3;branch++){
   const a=branch*2.399+.20*Math.sin(branch),s=Math.sin(a),c=Math.cos(a),height=.39+(branch%3)*.075,reach=.18+branch*.036,start=positions.length/3;
   const stem=t=>({x:s*reach*t*t,y:height*t-.035-.055*t*t*t,z:c*reach*t*t});
   for(let row=0;row<=4;row++){const t=row/4,p=stem(t),w=.008*(1-t*.7);vertex(p.x+c*w,p.y,p.z-s*w,.43+t*.27);vertex(p.x-c*w,p.y,p.z+s*w,.48+t*.27);if(row<4){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}}
   for(let tier=0;tier<2;tier++)for(const side of[-1,1]){
-   const base=stem(.43+tier*.37+(side===1?.055:0)),angle=a+side*(.9+tier*.3),sx=Math.sin(angle),cz=Math.cos(angle),length=.28-tier*.025,n=positions.length/3;
-   const leaf=(t,cross,shade)=>{const w=Math.sin(t*Math.PI)*(.071-tier*.009)*cross,fold=Math.sin(t*Math.PI)*(1-Math.abs(cross))*.023;return vertex(base.x+sx*length*t+cz*w,base.y+.075*Math.sin(t*Math.PI)-.105*t*t+fold+w*side*.35,base.z+cz*length*t-sx*w,shade);};
-   leaf(0,0,.54);for(const t of[.30,.70]){leaf(t,-1,.68);leaf(t,0,.63);leaf(t,1,.83);}leaf(1,0,.79);
-   indices.push(n,n+1,n+2,n,n+2,n+3,n+1,n+4,n+2,n+2,n+4,n+5,n+2,n+5,n+3,n+3,n+5,n+6,n+4,n+7,n+5,n+5,n+7,n+6);
+   const base=stem(.43+tier*.37+(side===1?.055:0)),angle=a+side*(.9+tier*.3),sx=Math.sin(angle),cz=Math.cos(angle),length=.22-tier*.023,n=positions.length/3;
+   const [u,v,uw,vh]=TREE_LEAF_UVS[(branch*4+tier*2+(side===1?1:0))%TREE_LEAF_UVS.length];
+   for(const [row,t]of[0,.52,1].entries()){
+    for(const cross of[-1,0,1]){
+     const w=(.052-tier*.007)*cross,fold=Math.sin(t*Math.PI)*(1-Math.abs(cross))*.023;
+     vertex(base.x+sx*length*t+cz*w,base.y+.075*Math.sin(t*Math.PI)-.105*t*t+fold+w*side*.35,base.z+cz*length*t-sx*w,.86+t*.11+cross*.025,u+(cross+1)*.5*uw,v+t*vh);
+    }
+    if(row<2){const k=n+row*3;indices.push(k,k+3,k+1,k+1,k+3,k+4,k+1,k+4,k+2,k+2,k+4,k+5);}
+   }
   }
  }
- const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(indices);g.computeVertexNormals();return g;
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(indices);g.computeVertexNormals();return g;
 }
 function reedGeometry(){
  const p=[],c=[],ix=[],flex=[];
@@ -406,6 +414,24 @@ function reedGeometry(){
   }
  }
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;
+}
+function habitatStoneGeometry(){
+ const g=naturalRockGeometry.clone(),p=g.attributes.position,c=g.attributes.color;
+ g.name='SM_Habitat_Stone_A';
+ for(let i=0;i<p.count;i++){
+  const x=p.getX(i),y=p.getY(i),z=p.getZ(i),ledge=.5+.5*Math.sin(x*4.8+z*3.1),upper=T.MathUtils.smoothstep(y,-.05,.52);
+  // A shorter, inset shoulder exposes the side planes of the original low
+  // boulder. The buried underside and placed height never move upward.
+  p.setXYZ(i,x*(.82-upper*ledge*.045),y-upper*ledge*.045,z*(.84-upper*(1-ledge)*.045));
+  const shade=.64+T.MathUtils.smoothstep(y,-.35,.70)*.25+Math.sin(x*7-z*4+y*3)*.045;
+  c.setXYZ(i,shade*1.025,shade,shade*.955);
+ }
+ g.setAttribute('groundFlex',new T.Float32BufferAttribute(new Float32Array(p.count),1));g.computeVertexNormals();
+ // Sphere UV seams include unused pole vertices; keep their valid shared normal
+ // instead of leaving a zero vector after recalculating the reshaped surface.
+ const n=g.attributes.normal,source=naturalRockGeometry.attributes.normal;
+ for(let i=0;i<n.count;i++)if(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))<1e-6)n.setXYZ(i,source.getX(i),source.getY(i),source.getZ(i));
+ return g;
 }
 export function installHabitatDetail(world,mapId){
  if(!habitatProfiles[mapId]&&mapId!=='confluence')return null;
@@ -451,10 +477,11 @@ export function installHabitatDetail(world,mapId){
  // Four quadrants permit frustum culling while bounding the complete layer to 16 draws.
  for(const kind of['fern','shrub','reed','stone'])for(let quadrant=0;quadrant<4;quadrant++){
   const list=records.filter(p=>p.kind===kind&&(Number(p.x>=0)+Number(p.z>=0)*2)===quadrant);if(!list.length)continue;
-  const geometry=kind==='fern'?fernGeometry():kind==='shrub'?shrubGeometry():kind==='reed'?reedGeometry():naturalRockGeometry.clone();
-  if(kind==='stone')geometry.setAttribute('groundFlex',new T.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count),1));
-  geometry.computeBoundingBox();const batch=new T.InstancedMesh(geometry,kind==='fern'?fernMaterial:material,list.length);batch.name='habitat-'+kind;batch.receiveShadow=true;batch.userData.ownedGeometry=true;
-  list.forEach((p,i)=>{dummy.position.set(p.x,kind==='stone'?-.055:-.042-geometry.boundingBox.min.y*p.height,p.z);dummy.scale.set(p.width,p.height,p.width);dummy.rotation.set(0,p.angle,0);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);color.set(p.color);if(kind==='fern')color.lerp(fernTint,.92);batch.setColorAt(i,color);});
+  const geometry=kind==='fern'?fernGeometry():kind==='shrub'?shrubGeometry():kind==='reed'?reedGeometry():habitatStoneGeometry();
+  const damp=kind==='stone'?Float32Array.from(list,p=>p.biome==='forest'?forestHabitatAt(world,p.x,p.z).bank:0):null;
+  if(damp)geometry.setAttribute('stoneDamp',new T.InstancedBufferAttribute(damp,1));
+  geometry.computeBoundingBox();const batch=new T.InstancedMesh(geometry,kind==='fern'?fernMaterial:kind==='shrub'?shrubMaterial:kind==='stone'?habitatStoneMaterial:material,list.length);batch.name='habitat-'+kind;batch.receiveShadow=true;batch.userData.ownedGeometry=true;
+  list.forEach((p,i)=>{dummy.position.set(p.x,kind==='stone'?-.055:-.042-geometry.boundingBox.min.y*p.height,p.z);dummy.scale.set(p.width,p.height,p.width);dummy.rotation.set(0,p.angle,0);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);color.set(p.color);if(kind==='fern'||kind==='shrub')color.lerp(fernTint,.92);if(kind==='stone'&&p.biome==='forest')color.lerp(new T.Color(0x777468).lerp(new T.Color(0x545d57),damp[i]),.88);batch.setColorAt(i,color);});
   batch.computeBoundingSphere();batch.addEventListener('dispose',()=>{batch.visible=false;group.userData.disposed=true;});group.add(batch);
  }
  world.group.add(group);world.habitatDetail=group;return group;

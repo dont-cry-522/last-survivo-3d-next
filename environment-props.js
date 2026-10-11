@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
-import{finishRock,installGroundSurface,boulderRockGeometry}from'./biome-scenery.js?v=152';
+import{finishRock,installGroundSurface,boulderRockGeometry}from'./biome-scenery.js?v=153';
 import{surfaceUniforms}from'./surface-textures.js?v=120';
-import{groundWindTime}from'./adventure-ground-detail.js?v=152';
+import{groundWindTime}from'./adventure-ground-detail.js?v=153';
 
 // Shared rounded edges catch side light without adding meshes or changing collision footprints.
 const block=new T.BoxGeometry(1,1,1,3,3,3),p=block.attributes.position,colors=[],v=new T.Vector3(),core=new T.Vector3();
@@ -54,7 +54,7 @@ export function prepareBatchedSurface(geometry,kind,scale={}){
  const p=geometry.attributes.position,n=geometry.attributes.normal,uv=geometry.attributes.uv,params=geometry.parameters||{};
  const metric=new T.Vector3(scale.sx??1,scale.sy??1,scale.sz??1),point=new T.Vector3(),normal=new T.Vector3(),center=new T.Vector3(),size=new T.Vector3(),across=new T.Vector3(),along=new T.Vector3(),depth=new T.Vector3();
  const positions=[],styles=[],tube=geometry.type==='TubeGeometry',cylinder=geometry.type==='CylinderGeometry',torus=geometry.type==='TorusGeometry';
- const style=kind==='cloth'&&(tube||cylinder||torus)||tube&&params.radius<.03?3:kind==='cloth'?2:1;
+ const style=geometry.userData.bark?4:kind==='cloth'&&(tube||cylinder||torus)||tube&&params.radius<.03?3:kind==='cloth'?2:1;
  geometry.computeBoundingBox();geometry.boundingBox.getCenter(center).multiply(metric);geometry.boundingBox.getSize(size).multiply(metric);
  const axis=size.x>size.y&&size.x>size.z?0:size.z>size.y?2:1,other=axis===0?2:0,last=3-axis-other,centers=[],lengths=[0];
  if(tube||cylinder){
@@ -134,7 +134,16 @@ function surfaceMaterial(source,kind,axis='y',vertexColors=true){
      float propFine=1.0-smoothstep(.009,.04,propPixel);
      float propDamp=(1.0-smoothstep(.04,.85,propPoint.y))*(.55+.45*propPatch);
      float woodRelief=0.0;
-     if(propStyle<1.5){
+     if(propStyle>3.5){
+      float barkAngle=atan(propCoord.z,propCoord.x+.000001),barkLong=propCoord.y;
+      float barkWander=sin(barkLong*1.7+barkAngle*3.0)*.50+sin(barkLong*5.3-barkAngle)*.16;
+      float barkCrack=pow(.5+.5*sin(barkAngle*29.0+barkWander),12.0);
+      float barkFlake=.5+.5*sin(barkLong*17.0+sin(barkAngle*19.0)*2.0);
+      float barkPeel=smoothstep(.72,.93,propPatch)*smoothstep(.25,.8,barkFlake);
+      diffuseColor.rgb*=mix(vec3(.79,.82,.79),vec3(1.20,1.08,.86),barkPeel);
+      diffuseColor.rgb*=1.0-barkCrack*.42*propDetail+(barkFlake-.5)*.08*propFine;
+      woodRelief=(-barkCrack*.012+(barkFlake-.5)*.0016)*propDetail;
+     }else if(propStyle<1.5){
       vec2 woodCross=propCoord.xz;float woodLong=propCoord.y;
       float woodDrift=sin(woodLong*2.1+woodCross.y*5.0)*.55+sin(woodLong*5.9+woodCross.x*9.0)*.21;
       float woodRun=.35+.65*smoothstep(-.5,.65,sin(woodLong*2.9+woodCross.x*13.0)+sin(woodLong*.73+woodCross.y*9.0)*.48);

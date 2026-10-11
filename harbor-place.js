@@ -135,7 +135,15 @@ export function buildHarborPlace(kit){
  add(roll,0xadb09a,{x:6.1,y:3.54,z:-.23,rz:Math.PI/2,overhead:true},'cloth');
  for(const x of[5.15,6.97])add(new T.TorusGeometry(.148,.022,4,12),rope,{x,y:3.54,z:-.23,ry:Math.PI/2,overhead:true},'cloth');
  const crate=(x,z,w=.98,tall=false)=>{
-  plank(dark,x,.50,z,w,.94,w*.84);
+  // Separate side planks expose recessed seams instead of one painted box.
+  for(let i=0;i<5;i++){
+   const y=.14+i*.18;
+   for(const side of[-1,1]){
+    plank(i%2?dark:timber,x,y,z+side*w*.39,w,.165,.075);
+    plank(i%2?timber:dark,x+side*(w*.5-.039),y,z,.075,.165,w*.72);
+   }
+   plank(i%2?cut:timber,x+(i-2)*w*.194,.982,z,w*.182,.055,w*.84);
+  }
   for(const y of[.20,.78])for(const side of[-1,1])plank(cut,x,y,z+side*w*.43,w*1.04,.075,.06);
   for(const side of[-1,1])plank(timber,x+side*w*.38,.52,z,.10,1.01,w*.87);
   kit.solid(x,z,Math.hypot(w*.54,w*.46),tall?2.17:1.06);
@@ -148,9 +156,16 @@ export function buildHarborPlace(kit){
  crate(4.92,-5.50,1.15,true);crate(6.50,-5.75,.90);crate(7.51,4.79,1.05,true);
  for(const [x,z]of[[7.82,-4.38],[4.8,4.65]]){
   for(let level=0;level<(x>7?2:1);level++){
-   const base=level*.90;add(new T.CylinderGeometry(.37,.32,.84,12),timber,{x,y:base+.46,z});
+   const base=level*.90,body=new T.CylinderGeometry(.37,.37,.84,24,6),bp=body.attributes.position,bc=[];
+   body.name='SM_Harbor_BarrelStaves_A';
+   for(let i=0;i<bp.count;i++){
+    const y=bp.getY(i),t=y/.84+.5,a=Math.atan2(bp.getZ(i),bp.getX(i)),bulge=.86+.14*Math.sin(Math.PI*t);
+    bp.setX(i,bp.getX(i)*bulge);bp.setZ(i,bp.getZ(i)*bulge);
+    const shade=.88+.12*(.5+.5*Math.sin(Math.floor((a+Math.PI)*12/Math.PI)*2.399));bc.push(shade,shade,shade);
+   }
+   body.setAttribute('color',new T.Float32BufferAttribute(bc,3));body.computeVertexNormals();add(body,timber,{x,y:base+.46,z});
    for(const y of[base+.18,base+.74])add(new T.TorusGeometry(.365,.034,5,12),iron,{x,y,z,rx:Math.PI/2},'metal');
-   for(let i=0;i<8;i++){const angle=i*Math.PI/4;bar(i%2?dark:cut,[x+Math.cos(angle)*.31,base+.085,z+Math.sin(angle)*.31],[x+Math.cos(angle)*.35,base+.82,z+Math.sin(angle)*.35],.020);}
+   for(let i=0;i<5;i++)plank(i%2?dark:cut,x+(i-2)*.113,base+.884,z,.103,.022,Math.sqrt(Math.max(0,.31**2-((i-2)*.113)**2))*2);
   }
   kit.solid(x,z,.42,x>7?1.86:.92);
  }

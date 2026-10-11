@@ -1,6 +1,7 @@
 import{test}from'node:test';
 import assert from'node:assert/strict';
 import{createHash}from'node:crypto';
+import{readFileSync}from'node:fs';
 import * as T from'../vendor/three.module.js';
 import{addTree,updateTreeDetail,installForestBackdrop}from'../tree-scenery.js';
 import{buildWorld,animateWorld}from'../world.js';
@@ -112,7 +113,7 @@ test('full leaf sprays use one mipmapped cutout atlas without per-tree allocatio
  // Average down the real alpha image: the cutout must retain a readable crown at distance.
  for(let level=0;level<5;level++){
   const coverage=pixels.filter(a=>a>=.30).length/pixels.length;
-  assert(coverage>.5&&coverage<.82,'leaf atlas becomes sparse noise or an opaque rectangle at mip '+level);
+  assert(coverage>.18&&coverage<.38,'branch atlas loses readable leaves or closes its internal gaps at mip '+level);
   assert.equal(pixels[0],0,'atlas reaches its rectangular corner');
   const next=[];
   for(let y=0;y<size;y+=2)for(let x=0;x<size;x+=2)next.push((pixels[y*size+x]+pixels[y*size+x+1]+pixels[(y+1)*size+x]+pixels[(y+1)*size+x+1])/4);
@@ -138,7 +139,7 @@ test('layered crowns are full from above and below while retaining alpha-cut lig
    const fromAbove=opaque(down.intersectObject(leaf)),fromBelow=opaque(up.intersectObject(leaf));
    assert.equal(fromAbove,fromBelow,'cutout foliage disappears from its underside');covered+=Number(fromAbove);
   }
-  assert(covered>400&&covered<760,'tree has become a sparse skeleton or lost its light gaps');
+  assert(covered>310&&covered<600,'branch canopy has become a sparse skeleton or lost its light gaps');
  }
 });
 
@@ -244,4 +245,58 @@ test('forest backdrop stays beyond play bounds, batches at most 240 trees and re
  assert.equal(geometries.size,6);assert.equal(materials.size,2);
  const joined={group:new T.Group(),half:144},group=installForestBackdrop(joined,'confluence',(x,z)=>x>0&&z<0?'forest':'snow');assert(group.userData.records.every(p=>p.x>0&&p.z<0));
  assert.equal(installForestBackdrop({group:new T.Group(),half:96},'snow'),null);
+});
+
+
+test('scanned leaf maps remain local, attributed and below 0.3 MB',()=>{
+ const root=new URL('../assets/environment/',import.meta.url),source=JSON.parse(readFileSync(new URL('tree-leaf-sources.json',root)));let bytes=0;
+ assert.equal(source.license,'CC0-1.0');assert.equal(new URL(source.page).hostname,'polyhaven.com');assert.equal(source.files.length,2);
+ for(const f of source.files){const data=readFileSync(new URL(f.file,root));assert.equal(createHash('sha256').update(data).digest('hex'),f.sha256);assert.equal(data.length,f.bytes);assert.equal(new URL(f.source).hostname,'dl.polyhaven.org');bytes+=data.length;}
+ assert(bytes<300000);
+});
+
+test('unavailable scanned leaf images keep shared fallback and never retry every world rebuild',async t=>{
+ const module=await import('../tree-scenery.js?failed-scan-test'),a=module.addTree(new T.Group(),'forest',4),map=a.material.map;let requests=0,disposed=0;map.addEventListener('dispose',()=>disposed++);
+ t.mock.method(T.ImageLoader.prototype,'loadAsync',async()=>{requests++;throw Error('fixture missing leaf map');});
+ const pending=module.loadTreeTextures();assert.strictEqual(module.loadTreeTextures(),pending);assert.equal(await pending,false);assert.equal(requests,2);assert.equal(disposed,0);assert.strictEqual(a.material.map,map);
+ const b=module.addTree(new T.Group(),'forest',4);module.updateTreeDetail(b,0,0);assert.strictEqual(b.material.map,map);assert([...b.geometry.attributes.uv.array].every(Number.isFinite));
+});
+
+test('branch fallback has real internal openings and a directional silhouette rather than an opaque disc',()=>{
+ const image=addTree(new T.Group(),'forest',4).material.map.image,{width,height,data}=image;let inside=0,covered=0;
+ for(let y=height*.25;y<height*.75;y++)for(let x=width*.25;x<width*.75;x++){inside++;covered+=Number(data[(y*width+x)*4+3]>=77);}
+ assert(covered/inside>.30&&covered/inside<.65,'the central branch region became a solid leaf plate');
+ const opaque=(u,v)=>data[(Math.floor(v*height)*width+Math.floor(u*width))*4+3]>=77;
+ let asymmetric=0;for(let y=1;y<10;y++)for(let x=1;x<10;x++)asymmetric+=Number(opaque(x/10,y/10)!==opaque(1-x/10,1-y/10));
+ assert(asymmetric>15,'leaf arrangement regained a radially repeated disc outline');
+ assert(opaque(.5,.5),'fixed geometric-leaf UV must survive the atlas change');
+});
+
+test('raw leaf surface preserves wind, shares fallback and has correct single-leaf UVs',async()=>{
+ const module=await import('../tree-scenery.js?raw-leaf-test'),a=new T.MeshStandardMaterial(),b=new T.MeshStandardMaterial();let windCalls=0;
+ a.onBeforeCompile=shader=>{windCalls++;shader.uniforms.windClock={value:2};shader.vertexShader+='\n// existing wind';};a.customProgramCacheKey=()=> 'existing-wind';
+ assert.strictEqual(module.applyTreeLeafSurface(a),a);assert.strictEqual(module.applyTreeLeafSurface(a),a);module.applyTreeLeafSurface(b);assert.strictEqual(a.map,b.map);assert(a.map.flipY);
+ assert.strictEqual(a.alphaMap,null);assert.equal(a.side,T.DoubleSide);assert(a.alphaTest>=.3&&a.alphaTest<=.4);assert(!a.transparent&&a.depthWrite);
+ const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};a.onBeforeCompile(shader);
+ assert.equal(windCalls,1);assert.equal(shader.uniforms.windClock.value,2);assert(shader.vertexShader.includes('// existing wind'));assert(shader.fragmentShader.includes('hemisphereLights[0].skyColor'));assert(shader.fragmentShader.includes('gl_FrontFacing?.045:.19'));assert(a.customProgramCacheKey().startsWith('existing-wind'));
+ const {data,width,height}=a.map.image,alpha=(u,v)=>data[(Math.min(height-1,Math.floor((1-v)*height))*width+Math.min(width-1,Math.floor(u*width)))*4+3];
+ assert.equal(module.TREE_LEAF_UVS.length,8);
+ for(const [u,v,w,h]of module.TREE_LEAF_UVS){assert(u>=0&&v>=0&&u+w<=1&&v+h<=1);assert.equal(alpha(u+w*.5,v+h*.5),255);assert(alpha(u+w*.02,v+h*.5)<87&&alpha(u+w*.98,v+h*.5)<87,'single leaf still renders a square tile');}
+ assert.equal(alpha(.085,.78),255);a.dispose();b.dispose();
+});
+
+test('scanned maps update early and late leaf materials atomically while retaining crown ownership',async t=>{
+ const module=await import('../tree-scenery.js?successful-scan-test'),crown=module.addTree(new T.Group(),'forest',4),oldCrown=crown.material.map,a=module.applyTreeLeafSurface(new T.MeshStandardMaterial()),retired=module.applyTreeLeafSurface(new T.MeshStandardMaterial()),oldRaw=a.map;
+ const matrices=[crown.geometry.attributes.position.array.slice(),crown.geometry.attributes.uv.array.slice()];retired.dispose();let requests=0,disposed=0,rawDisposed=0,draws=0,strokes=0;
+ oldCrown.addEventListener('dispose',()=>disposed++);oldRaw.addEventListener('dispose',()=>rawDisposed++);
+ t.mock.method(T.ImageLoader.prototype,'loadAsync',async url=>{requests++;return{mask:url.includes('_alpha_')};});
+ t.mock.method(globalThis.document,'createElement',()=>{
+  let image={mask:false};const ctx={drawImage(source){image=source;draws++;},clearRect(){},putImageData(){},save(){},restore(){},translate(){},rotate(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},stroke(){strokes++;},getImageData(){const data=new Uint8ClampedArray(1024*1024*4);for(let i=0;i<data.length;i+=4)data.set(image.mask?[255,255,255,255]:[93,128,70,255],i);return{data};}};
+  return{getContext:()=>ctx};
+ });
+ const pending=module.loadTreeTextures();assert.strictEqual(module.loadTreeTextures(),pending);assert.equal(await pending,true);assert.equal(requests,2);assert.equal(strokes,7);assert.equal(draws,56,'scan compositor no longer uses the bounded 54-leaf twig pattern');
+ assert.equal(disposed,1);assert.equal(rawDisposed,1);assert.notStrictEqual(crown.material.map,oldCrown);assert.notStrictEqual(a.map,oldRaw);assert.notStrictEqual(a.map,crown.material.map,'raw leaf materials received the composed branch atlas');assert.strictEqual(retired.map,oldRaw,'disposed material stayed in the update registry');
+ const late=module.applyTreeLeafSurface(new T.MeshStandardMaterial());assert.strictEqual(late.map,a.map);assert(a.map.flipY);assert.equal(a.map.image.width,1024);assert(a.map.generateMipmaps);assert.equal(a.map.colorSpace,T.SRGBColorSpace);assert.equal(a.map.image.data[1],128);
+ assert.deepEqual(crown.geometry.attributes.position.array,matrices[0]);assert.deepEqual(crown.geometry.attributes.uv.array,matrices[1]);assert.equal(crown.parent.children.length,2);
+ a.dispose();late.dispose();assert.equal(rawDisposed,1,'material cleanup disposed the shared live scan');
 });

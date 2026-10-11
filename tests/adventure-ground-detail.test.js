@@ -14,6 +14,8 @@ import {installExplorationRoutes} from '../exploration-routes.js';
 import {installExplorationLandmarks} from '../exploration-landmarks.js';
 import {installExplorationComposition} from '../exploration-composition.js';
 import {installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
+import {naturalRockGeometry} from '../biome-scenery.js?v=153';
+import {surfaceUniforms} from '../surface-textures.js?v=120';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const maps=['forest','snow','ash','sand','coast','confluence'];
@@ -208,6 +210,33 @@ test('habitat clusters support all biomes, protect gameplay and release bounded 
   cleanup(w);assert(g.userData.disposed);assert.equal(released,g.children.length);
  }
  const a=buildWorld('forest',7),b=buildWorld('forest',7);assert.deepEqual(installHabitatDetail(a,'forest').userData.records,installHabitatDetail(b,'forest').userData.records);cleanup(a);cleanup(b);
+});
+
+test('habitat scree uses grounded mineral sides and shared rock maps without moving placed stones',()=>{
+ const first=buildWorld('forest',7),second=buildWorld('snow',7);installForestHabitats(first,'forest');
+ const a=installHabitatDetail(first,'forest'),b=installHabitatDetail(second,'snow'),stones=a.children.filter(m=>m.name==='habitat-stone'),original=naturalRockGeometry.attributes.position;
+ assert(stones.length>0);const shared=stones[0].material;assert.equal(shared.name,'M_Habitat_Stone_A');assert.equal(shared.transparent,false);assert.equal(shared.flatShading,true);assert.equal(shared.side,T.FrontSide);assert.equal(shared.roughness,.96);
+ const actual=new T.Matrix4(),expected=new T.Object3D(),color=new T.Color();let wet=0,disposed=0;
+ for(const group of[a,b])for(const batch of group.children.filter(m=>m.name==='habitat-stone')){
+  assert.strictEqual(batch.material,shared);const {position:p,groundFlex,stoneDamp}=batch.geometry.attributes;assert.equal(batch.geometry.index.count/3,120);assert.equal(stoneDamp.count,batch.count);assert(stoneDamp.isInstancedBufferAttribute);
+  assert.equal(p.count,original.count);for(let i=0;i<p.count;i++){
+   const ox=original.getX(i),oy=original.getY(i),oz=original.getZ(i);
+   assert(Math.abs(p.getX(i))<=Math.abs(ox)+1e-7&&Math.abs(p.getZ(i))<=Math.abs(oz)+1e-7,'rock enlarged its footprint');
+   assert(p.getY(i)<=oy+1e-7,'rock raised its established silhouette');if(oy<-.05)assert.equal(p.getY(i),oy,'buried underside moved');assert.equal(groundFlex.getX(i),0);
+  }
+  batch.getMatrixAt(0,actual);const q=Number(actual.elements[12]>=0)+Number(actual.elements[14]>=0)*2;
+  const records=group.userData.records.filter(p=>p.kind==='stone'&&(Number(p.x>=0)+Number(p.z>=0)*2)===q);assert.equal(records.length,batch.count);
+  for(const[i,r]of records.entries()){
+   expected.position.set(r.x,-.055,r.z);expected.scale.set(r.width,r.height,r.width);expected.rotation.set(0,r.angle,0);expected.updateMatrix();batch.getMatrixAt(i,actual);
+   assert.deepEqual(Float32Array.from(actual.elements),Float32Array.from(expected.matrix.elements),'stone instance transform changed');
+   assert(stoneDamp.getX(i)>=0&&stoneDamp.getX(i)<=1);if(r.biome==='forest'){wet+=stoneDamp.getX(i);batch.getColorAt(i,color);assert(Math.max(color.r,color.g,color.b)<.21,'forest scree retained a pale paper colour');}else assert.equal(stoneDamp.getX(i),0);
+  }
+ }
+ assert(wet>1,'wet banks lost their damp stone finish');
+ const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};shared.onBeforeCompile(shader);
+ for(const key of['rockColor','rockHeight','rockReady'])assert.strictEqual(shader.uniforms[key],surfaceUniforms[key]);
+ assert.equal((shader.fragmentShader.match(/texture2D\(/g)||[]).length,2);assert(shader.fragmentShader.includes('stoneRelief'));assert(shader.fragmentShader.includes('roughnessFactor-habitatStoneDamp*.08'));assert(!shader.vertexShader.includes('groundWindTime'));assert(!shader.fragmentShader.includes('leafBacklight'));
+ const onDispose=()=>disposed++;shared.addEventListener('dispose',onDispose);cleanup(first);cleanup(second);assert.equal(disposed,0);shared.removeEventListener('dispose',onDispose);
 });
 
 

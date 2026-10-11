@@ -1,8 +1,8 @@
 import * as T from './vendor/three.module.js';
-import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {naturalRockGeometry} from './biome-scenery.js?v=152';
-import {batchedSurfaceMaterial,prepareBatchedSurface,wornStoneBlock} from './environment-props.js?v=152';
-import {addTree} from './tree-scenery.js?v=151';
+import {mergeGeometries,toCreasedNormals} from './vendor/BufferGeometryUtils.js';
+import {naturalRockGeometry} from './biome-scenery.js?v=153';
+import {batchedSurfaceMaterial,prepareBatchedSurface,wornStoneBlock} from './environment-props.js?v=153';
+import {addTree} from './tree-scenery.js?v=153';
 import {bridgeContains} from './coast.js?v=114';
 import {seeded,segmentDistance} from './rules.js?v=125';
 
@@ -15,6 +15,25 @@ function finish(kind){
 }
 const bent=(points,radius=.05)=>new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),6,radius,5,false);
 
+function forestStone(fragment){
+ const source=naturalRockGeometry.clone(),p=source.attributes.position;
+ // Keep the buried base and original envelope. Two sloping fracture faces
+ // replace the smooth dome, while the old low-poly skirt keeps weathered edges.
+ for(let i=0;i<p.count;i++){
+  let x=p.getX(i)*.95,z=p.getZ(i)*.94;
+  x=T.MathUtils.clamp(x,-.83+.11*z,.83-.14*z);
+  z=T.MathUtils.clamp(z,-.79-.10*x,.81+.12*x);
+  const ridge=fragment?.48:.54,tilt=fragment?-.24:.18;
+  const y=Math.min(p.getY(i),ridge+tilt*x-.20*z,.53-tilt*x+.16*z);
+  p.setXYZ(i,x,y,z);
+ }
+ // Preserve broken edges without turning the whole stone into a flat-shaded
+ // gem. This splits normals only: the triangle count and shared source stay put.
+ const g=toCreasedNormals(source,.62);source.dispose();
+ g.setIndex(Array.from({length:g.attributes.position.count},(_,i)=>i));
+ return g;
+}
+
 // Preserve the established placement/collision envelope, independently of leaf silhouettes.
 const forestEnvelope=[
  {footprint:1.7924601726519591,height:2.384399890899658},
@@ -23,9 +42,9 @@ const forestEnvelope=[
 function forestUndergrowth(variant){
  const source=new T.Group();addTree(source,'forest',3,{angle:variant*.7});
  const stems=[],vertices=[],indices=[],colors=[],uvs=[],up=new T.Vector3(0,1,0),point=new T.Vector3();
- const map=source.children[1].material.map.image;let pixel=0;
- for(let i=0;i<map.data.length;i+=4)if(map.data[i+3]===255){pixel=i/4;break;}
- const u=(pixel%map.width+.5)/map.width,v=(Math.floor(pixel/map.width)+.5)/map.height;
+ // Both fallback and scanned atlases reserve this opaque sample. Fixed UVs
+ // survive late texture replacement without hiding existing young-tree leaves.
+ const u=.5,v=.5;
  const branch=(points,radius,sides=3,steps=2)=>{
   const curve=new T.CatmullRomCurve3(points),g=new T.TubeGeometry(curve,steps,radius,sides,false),p=g.attributes.position;
   for(let i=0;i<=steps;i++){
@@ -97,7 +116,8 @@ function clusterTemplate(id,variant){
  };
  if(id==='forest'){
   for(const part of forestUndergrowth(variant))add(part.geometry,part.material,part.color);
-  rock(0x637655,-.42,.21,.27,.78,.35,.69);rock(0x788367,.65,.16,-.24,.59,.27,.50);
+  add(forestStone(0),finish('stone'),0x807b6e,{x:-.42,y:.21,z:.27,sx:.78,sy:.35,sz:.69});
+  add(forestStone(1),finish('stone'),0x8b8476,{x:.65,y:.16,z:-.24,sx:.59,sy:.27,sz:.50});
  }else if(id==='snow'){
   tree('snow',-.48,-.30,.48,.34);tree('snow',.57,.38,.34,.26);
   for(const [x,z,s]of[[-.65,.45,.76],[.55,-.31,.87],[.0,.61,.51]]){

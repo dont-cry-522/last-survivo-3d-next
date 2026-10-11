@@ -11,7 +11,7 @@ import {installExplorationRoutes} from '../exploration-routes.js';
 import {bridgeContains} from '../coast.js';
 import {waterDepth} from '../water.js';
 import {segmentDistance} from '../rules.js';
-import {naturalRockGeometry} from '../biome-scenery.js?v=152';
+import {naturalRockGeometry} from '../biome-scenery.js?v=153';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const maps=['forest','snow','ash','sand','coast','confluence'];
@@ -55,6 +55,35 @@ test('forest saplings and shrubs use small attached leaves instead of flattened 
   }
   assert(low>=40&&high>=100,'two low shrubs or the taller sapling disappeared');
   assert(g.boundingBox.max.y-g.boundingBox.min.y>1.9,'foliage has been flattened into a ground sheet');
+ }
+ cleanup(w);
+});
+
+test('forest stones have low fractured mineral faces, buried bases and the unchanged triangle budget',()=>{
+ const w=create('forest',7),state=installEnvironmentClusters(w,'forest'),a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
+ const rocks=state.group.children.filter(o=>o.isInstancedMesh&&o.material.userData.propSurface==='stone-placed');
+ assert.equal(rocks.length,2,'each forest variant should retain one shared rock batch');
+ for(const mesh of rocks){
+  const g=mesh.geometry,p=g.attributes.position,n=g.attributes.normal,color=g.attributes.color,index=g.index;
+  assert.equal(index.count/3,240,'the two low stones exceeded their original 120 triangles each');
+  assert(g.boundingBox.max.y<.43,'the soft olive-shaped domes returned');
+  for(let fragment=0;fragment<2;fragment++){
+   let bottom=Infinity,top=-Infinity;const faces=[];
+   for(let i=fragment*360;i<(fragment+1)*360;i+=3){
+    const ia=index.getX(i),ib=index.getX(i+1),ic=index.getX(i+2);
+    a.fromBufferAttribute(p,ia);b.fromBufferAttribute(p,ib);c.fromBufferAttribute(p,ic);
+    const normal=new T.Vector3().crossVectors(b.clone().sub(a),c.clone().sub(a)).normalize();
+    if(Math.min(a.y,b.y,c.y)>.24&&normal.y>.7)faces.push(normal);
+    for(const v of[ia,ib,ic]){
+     bottom=Math.min(bottom,p.getY(v));top=Math.max(top,p.getY(v));
+     assert(color.getX(v)>=color.getY(v)&&color.getY(v)>=color.getZ(v),'forest stone has returned to green moss foam');
+     assert(Math.abs(Math.hypot(n.getX(v),n.getY(v),n.getZ(v))-1)<.00001,'fracture normal is invalid');
+    }
+   }
+   assert(bottom<-.035&&bottom>-.06,'stone base must still sit below the actual -.03 ground');
+   assert(top>.28&&top<.43,'stone should have a low visible broken crown');
+   assert(faces.some(normal=>faces.filter(other=>normal.dot(other)>.9999).length>=6),'upper surface should contain a broad real fracture face, not just a recolored sphere');
+  }
  }
  cleanup(w);
 });
@@ -132,4 +161,11 @@ test('placement is independent of global randomness, and sealed worlds skip with
  try{Math.random=()=>.11;const first=installEnvironmentClusters(a,'coast');Math.random=()=>.89;const second=installEnvironmentClusters(b,'coast');assert.deepEqual(records(first),records(second));}finally{Math.random=old;cleanup(a);cleanup(b);}
  const w=create('forest',7),children=w.group.children.length,obstacles=w.obstacles.length;w.patches.push({x:0,z:0,r:1000,kind:'vent'});const none=installEnvironmentClusters(w,'forest');assert.equal(none.records.length,0);assert.equal(none.group,null);assert.equal(w.group.children.length,children);assert.equal(w.obstacles.length,obstacles);cleanup(w);
  assert.equal(installEnvironmentClusters({},'unsupported'),null);
+});
+
+
+test('young-tree leaf UVs use the stable atlas sample across asynchronous texture replacement',()=>{
+ const world=create('forest',7),state=installEnvironmentClusters(world,'forest');let checked=0;
+ for(const batch of state.group.children){if(batch.material?.name!=='shared-cutout-leaves')continue;const uv=batch.geometry.attributes.uv;assert(uv&&uv.count>0);assert([...uv.array].every(value=>value===.5));checked++;}
+ assert(checked>0);cleanup(world);
 });

@@ -4,9 +4,9 @@ import * as T from'../vendor/three.module.js';
 import{polishEnvironmentModels,prepareBatchedSurface,batchedSurfaceMaterial}from'../environment-props.js';
 import{placeTemplate}from'../biome-places.js';
 import{installEnvironmentClusters}from'../environment-clusters.js';
-import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=152';
+import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=153';
 import{buildWorld}from'../world.js';
-import{boulderRockGeometry}from'../biome-scenery.js?v=152';
+import{boulderRockGeometry}from'../biome-scenery.js?v=153';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 
 test('batched grain follows the piece axis and curved rope length without changing original geometry',()=>{
@@ -163,4 +163,11 @@ test('ash columns have shared broken crowns and inward seams without moving thei
   w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
  }
  assert.equal(shared.size,3);assert.deepEqual(boulderRockGeometry.attributes.position.array,originals,'ash carving polluted the common boulder geometry');
+});
+
+
+test('bark finish is explicit and does not turn boat planks or ropes into bark',()=>{
+ const bark=new T.CylinderGeometry(.8,.8,3,16),board=new T.BoxGeometry(2,.1,.4);bark.userData.bark=true;
+ prepareBatchedSurface(bark,'wood');prepareBatchedSurface(board,'wood');assert([...bark.attributes.surfaceKind.array].every(v=>v===4));assert([...board.attributes.surfaceKind.array].every(v=>v===1));
+ bark.dispose();board.dispose();
 });

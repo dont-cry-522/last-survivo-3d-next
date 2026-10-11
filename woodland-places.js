@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {naturalRockGeometry} from './biome-scenery.js?v=152';
+import {naturalRockGeometry} from './biome-scenery.js?v=153';
 
 // Authored in local space: the route runs along Z, with |x| < 3.1 kept clear.
 // The installer owns placement, batching, materials, colliders and disposal.
@@ -7,17 +7,17 @@ function surface(positions,indices,colors){
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setIndex(indices);
  if(colors)g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.computeVertexNormals();return g;
 }
-function limb(points,radii,segments=18,sides=12){
+function limb(points,radii,segments=18,sides=12,bark=false){
  const curve=new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),g=new T.TubeGeometry(curve,segments,1,sides,false),p=g.attributes.position,colors=[];
  for(let row=0;row<=segments;row++){
   const t=row/segments,center=curve.getPointAt(t),at=t*(radii.length-1),radius=T.MathUtils.lerp(radii[Math.floor(at)],radii[Math.min(radii.length-1,Math.floor(at)+1)],at%1);
   for(let side=0;side<=sides;side++){
-   const i=row*(sides+1)+side,a=side/sides*Math.PI*2,r=radius*(1+.052*Math.sin(a*5+t*9)+.028*Math.cos(a*9-t*5));
+   const i=row*(sides+1)+side,a=side/sides*Math.PI*2,r=radius*(1+.052*Math.sin(a*5+t*9)+.028*Math.cos(a*9-t*5))*(bark?(.97-.065*(.5+.5*Math.sin(a*13+t*1.9))**6):1);
    p.setXYZ(i,center.x+(p.getX(i)-center.x)*r,center.y+(p.getY(i)-center.y)*r,center.z+(p.getZ(i)-center.z)*r);
    const shade=.80+.14*Math.sin(a*3+t*2)+.06*Math.cos(a*7-t*4);colors.push(shade,shade,shade);
   }
  }
- g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.computeVertexNormals();return g;
+ g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.userData.bark=bark;g.computeVertexNormals();return g;
 }
 // Uneven concentric end-grain is geometry, not a flat bright disk/decal.
 function brokenEnd(center,direction,radius){
@@ -66,7 +66,7 @@ function ridge(side,snow=false){
 function forest(kit){
  const add=(category,g,color,transform)=>kit.piece(category,g,color,transform),wood=0x655443;
  const trunk=[[-6.0,.96,-5.5],[-5.45,1.08,-2.6],[-5.16,.96,.5],[-5.60,.79,3.1],[-6.12,.70,5.9]];
- add('wood',limb(trunk,[.87,.90,.78,.67,.53],32,14),wood);
+ add('wood',limb(trunk,[.87,.90,.78,.67,.53],32,28,true),wood);
  add('wood',brokenEnd(trunk[4],[-.30,-.04,1],.54),0xb69a70);
  add('wood',brokenEnd(trunk[0],[-.14,.04,-1],.84),0x8f795b);
  const trunkCurve=new T.CatmullRomCurve3(trunk.map(p=>new T.Vector3(...p)));

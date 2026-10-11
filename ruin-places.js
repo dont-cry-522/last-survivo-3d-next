@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
-import{wornStoneBlock}from'./environment-props.js?v=152';
-import{naturalRockGeometry}from'./biome-scenery.js?v=152';
+import{wornStoneBlock}from'./environment-props.js?v=153';
+import{naturalRockGeometry}from'./biome-scenery.js?v=153';
 
 // Continuous broken masonry, rather than a row of identical stacked blocks.
 // The kit owns each new geometry; the two repository source shapes stay shared.

@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries,toCreasedNormals} from './vendor/BufferGeometryUtils.js';
 import {naturalRockGeometry} from './biome-scenery.js?v=154';
-import {batchedSurfaceMaterial,prepareBatchedSurface,wornStoneBlock} from './environment-props.js?v=154';
+import {batchedSurfaceMaterial,prepareBatchedSurface,wornStoneBlock} from './environment-props.js?v=155';
 import {addTree} from './tree-scenery.js?v=153';
 import {bridgeContains} from './coast.js?v=114';
 import {seeded,segmentDistance} from './rules.js?v=125';

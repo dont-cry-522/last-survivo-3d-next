@@ -5,7 +5,7 @@ import {buildWorld} from '../world.js';
 import {waterDepth} from '../water.js';
 import {bridgeContains} from '../coast.js';
 import {segmentDistance} from '../rules.js';
-import {installForestHabitats} from '../forest-habitats.js';
+import {installForestHabitats,forestHabitatAt} from '../forest-habitats.js';
 import {polishEnvironmentModels} from '../environment-props.js';
 import {installForestVista} from '../forest-vista.js';
 import {installBiomePlaces} from '../biome-places.js';
@@ -294,9 +294,9 @@ const releaseDetail=g=>{g.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.use
 test('scenery edges reassign existing cover across six maps, keeping original shoulders, near-spawn cover and exact GPU budgets',()=>{
  for(const id of maps)for(const seed of[7,522]){
   const w=scenicWorld(id,seed),clusters=w.environmentClusters,places=w.biomePlaces,before=state(w),obstacles=w.obstacles.slice(),transforms=obstacles.map(o=>o.mesh.matrix.toArray()),routes=JSON.stringify(w.explorationRoutes.map(r=>r.points));
-  // Same real solids and composition, with only new edge-source metadata hidden.
+  // Same real solids, passages and composition, with only edge-source metadata hidden.
   // This compares against the original distribution without a second world RNG.
-  w.environmentClusters=null;w.biomePlaces=[];
+  w.environmentClusters=null;w.biomePlaces=places.map(p=>({...p,solids:[]}));
   const original=[installAdventureGroundDetail(w,id),installHabitatDetail(w,id)],baseline=original.map(g=>({records:g.userData.records,budget:detailBudget(g)}));
   original.forEach(releaseDetail);w.environmentClusters=clusters;w.biomePlaces=places;
   const layers=[installAdventureGroundDetail(w,id),installHabitatDetail(w,id)];
@@ -344,4 +344,66 @@ test('edge redistribution is deterministic after cleanup and leaves a surviving 
   for(let i=0;i<rebuilt.length;i++){assert.deepEqual(rebuilt[i].userData.records,records[i]);assert.deepEqual(rebuilt[i].children.map(b=>b.instanceMatrix.array),matrices[i]);}
   assert.equal(disposedMaterial,0);assert(alive.every(g=>!g.userData.disposed&&g.children.every(b=>b.visible)));
  }finally{Math.random=random;shared.removeEventListener('dispose',onDispose);cleanup(first);cleanup(other);}
+});
+
+test('forest transitions join low cover and understory at real banks and groves within the existing instance budget',()=>{
+ for(const [seed,habitatCount]of[[7,1138],[522,1137],[43837033,1146]]){
+  const w=buildWorld('forest',seed);installForestHabitats(w,'forest');const before=state(w),floor=installAdventureGroundDetail(w,'forest'),understory=installHabitatDetail(w,'forest');
+  assert.equal(state(w),before);assert.equal(floor.userData.records.length,1200);assert.equal(understory.userData.records.length,habitatCount);
+  assert.equal(floor.children.length,2);assert(understory.children.length<=16);
+  const low=floor.userData.records.filter(p=>p.transition),high=understory.userData.records.filter(p=>p.transition);
+  for(const [all,connected,footprint]of[[floor.userData.records,low,.55],[understory.userData.records,high,1.15]]){
+   assert(connected.length>=all.length*.10&&connected.length<=Math.floor(all.length*.18));
+   assert(connected.some(p=>p.transition==='bank')&&connected.some(p=>p.transition==='shade'));
+   for(const p of connected){
+    assert.equal(p.biome,'forest');assert(!p.edge,'later scenery placement breaks the connected patches');
+    const h=forestHabitatAt(w,p.x,p.z);
+    if(p.transition==='bank')assert(h.bank>=.22,'shore plants were moved into a dry meadow');
+    if(p.transition==='shade')assert(h.shade>=.2,'ferns were moved out of their sheltered grove');
+    if(p.transition==='shoulder'&&footprint===.55)assert(p.shoulder);
+    far(p,w.spawn,4+footprint);for(const obstacle of w.obstacles)far(p,obstacle,obstacle.r+footprint+.2);
+    for(const site of w.sites){far(p,site,(site.event?7:5.5)+footprint);for(const node of site.nodes||[])far(p,node,2+footprint);}
+    for(const pond of w.ponds)for(let i=0;i<8;i++)assert.equal(waterDepth(pond,p.x+Math.sin(i*Math.PI/4)*footprint,p.z+Math.cos(i*Math.PI/4)*footprint),0);
+   }
+  }
+  const linked=high.filter(p=>low.some(q=>p.transitionIndex===q.transitionIndex&&Math.hypot(p.x-q.x,p.z-q.z)<3.5));
+  assert(linked.length>high.length*.62,'mid-height plants remain isolated instead of sharing low ground cover');
+  // Bank growth varies inland depth instead of forming a fixed-offset ring.
+  const depths=low.filter(p=>p.transition==='bank').map(p=>Math.min(...w.ponds.map(q=>{
+   const c=Math.cos(q.angle||0),s=Math.sin(q.angle||0),x=p.x-q.x,z=p.z-q.z;
+   return(Math.hypot((c*x-s*z)/q.rx,(s*x+c*z)/q.rz)-1)*Math.min(q.rx,q.rz);
+  })));
+  assert(Math.max(...depths)-Math.min(...depths)>2.5,'shore cover forms a narrow planted border');
+  cleanup(w);
+ }
+});
+
+test('forest road shoulders taper toward the bare walking corridor and relocation rebuilds deterministically',()=>{
+ const a=buildWorld('forest',522),b=buildWorld('forest',522);for(const w of[a,b])installForestHabitats(w,'forest');
+ const first=installAdventureGroundDetail(a,'forest'),same=installAdventureGroundDetail(b,'forest');assert.deepEqual(first.userData.records,same.userData.records);
+ const routes=[];if(a.road)routes.push({points:a.road,width:4.2});
+ for(const site of a.sites){const p=site.trail.geometry.attributes.position,points=[];for(let i=0;i<p.count;i+=4)points.push({x:(p.getX(i+1)+p.getX(i+2))*.5,z:(p.getZ(i+1)+p.getZ(i+2))*.5});routes.push({points,width:1.65});}
+ const inner=[],outer=[];
+ for(const p of first.userData.records.filter(p=>p.kind==='tuft'&&p.shoulder)){
+  let d=Infinity;for(const route of routes)for(let i=1;i<route.points.length;i++){const x=route.points[i-1],y=route.points[i];d=Math.min(d,segmentDistance(p.x,p.z,x.x,x.z,y.x,y.z)-route.width);}
+  assert(d>=.55-1e-7,'shoulder fills the clear walking corridor');if(d<1.1)inner.push(p.height);else if(d>1.7)outer.push(p.height);
+ }
+ assert(inner.length>10&&outer.length>10);const mean=list=>list.reduce((n,x)=>n+x,0)/list.length;
+ assert(mean(inner)<mean(outer)*.8,'the road ends at a uniform wall of equally tall grass');
+ cleanup(a);cleanup(b);
+});
+
+test('forest transition planting keeps rotated scenery passages clear in both forest and joined maps',()=>{
+ for(const [id,seed]of[['forest',43837033],['confluence',522]]){
+  const world=scenicWorld(id,seed),layers=[installAdventureGroundDetail(world,id),installHabitatDetail(world,id)];
+  assert(world.biomePlaces.length>0);
+  for(const [layer,group]of layers.entries()){
+   const footprint=layer?1.15:.55,records=group.userData.records.filter(p=>p.transition);assert(records.length>10);
+   for(const p of records)for(const place of world.biomePlaces){
+    const c=Math.cos(place.angle||0),s=Math.sin(place.angle||0),dx=p.x-place.x,dz=p.z-place.z;
+    assert(Math.abs(c*dx-s*dz)>=3.1+footprint||Math.abs(s*dx+c*dz)>=10+footprint,`${id} ${p.kind} fills a scenery passage`);
+   }
+  }
+  cleanup(world);
+ }
 });

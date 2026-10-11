@@ -251,7 +251,7 @@ function softenSceneryEdges(world,mapId,records,footprint,allowed){
  // Keep road shoulders, near-spawn cover, and existing scenery-edge growth.
  // Keeping each donor's quadrant also preserves the habitat's culling batches.
  for(let i=0;i<records.length;i++){
-  const p=records[i];if(p.shoulder||p.biome==='forest'&&['reed','stone'].includes(p.kind)||near(p.x,p.z,world.spawn,20)||sources.some(s=>near(p.x,p.z,s,s.edge==='place'?17:s.footprint+5)))continue;
+  const p=records[i];if(p.shoulder||p.transition||p.biome==='forest'&&['reed','stone'].includes(p.kind)||near(p.x,p.z,world.spawn,20)||sources.some(s=>near(p.x,p.z,s,s.edge==='place'?17:s.footprint+5)))continue;
   const k=key(p);if(!donors.has(k))donors.set(k,[]);donors.get(k).push(i);
  }
  const lanes=[];
@@ -283,6 +283,61 @@ function softenSceneryEdges(world,mapId,records,footprint,allowed){
  }
 }
 
+// Connect existing cover into loose banks and understory patches. Both layers
+// share the same anchor field, so low grass fills between ferns instead of each
+// plant sitting on its own island. Relocation keeps every kind and culling cell.
+function connectForestCover(world,mapId,records,footprint,allowed){
+ const habitat=world.forestHabitats;if(!habitat)return;
+ const random=seeded(layoutSeed(world,mapId)^0x5f23a91),sources=[],floor=footprint===FOOTPRINT;
+ const add=(x,z,angle,zone)=>{if(!habitat.region||habitat.region.contains(x,z))sources.push({x,z,angle,zone});};
+ for(const grove of habitat.groves)for(let i=0;i<3;i++){
+  const a=random()*Math.PI*2,r=5+random()*7;add(grove.x+Math.sin(a)*r,grove.z+Math.cos(a)*r,a,'shade');
+ }
+ for(const pond of habitat.ponds)for(let i=0;i<7;i++){
+  // Unequal arcs have breaks and varying inland depth, rather than an even ring.
+  const a=(i+random()*.7)*Math.PI*2/7,turn=pond.angle||0,c=Math.cos(turn),s=Math.sin(turn),tide=pond.baseRx===undefined?1:1.19;
+  const rx=(pond.baseRx??pond.rx)*tide*1.12+3.2+random()*1.8,rz=(pond.baseRz??pond.rz)*tide*1.12+3.2+random()*1.8,u=Math.sin(a)*rx,v=Math.cos(a)*rz;
+  const tangent=Math.atan2(c*Math.cos(a)*rx-s*Math.sin(a)*rz,-s*Math.cos(a)*rx-c*Math.sin(a)*rz);
+  add(pond.x+c*u+s*v,pond.z-s*u+c*v,tangent,'bank');
+ }
+ // Route shoulders share the same sparse clumps, with short inner blades and a
+ // fuller outer edge. The worn centre retains its original clear width.
+ for(const route of routesFor(world))for(let i=1;i<route.points.length;i++){
+  const a=route.points[i-1],b=route.points[i],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);if(length<.1)continue;
+  const steps=Math.min(6,Math.ceil(length/12));
+  for(let j=0;j<steps;j++){
+   const t=(j+.15+random()*.7)/steps,side=random()<.5?-1:1,offset=route.width===5.8?6.3:3.55;
+   add(a.x+dx*t-dz/length*offset*side,a.z+dz*t+dx/length*offset*side,Math.atan2(dx,dz),'shoulder');
+  }
+ }
+ if(!sources.length)return;
+ const region=habitat.region,quadrant=p=>Number(p.x>=0)+Number(p.z>=0)*2,donors=new Map(),budget=Math.floor(records.filter(p=>p.biome==='forest').length*.18);
+ for(let i=0;i<records.length;i++){
+  const p=records[i];if(p.biome!=='forest'||p.shoulder||near(p.x,p.z,world.spawn,20))continue;
+  const key=p.kind+':'+quadrant(p);if(!donors.has(key))donors.set(key,[]);donors.get(key).push(i);
+ }
+ const lanes=(world.explorationRoutes||[]).flatMap(r=>r.points.slice(1).map((b,i)=>({a:r.points[i],b}))),shoulderAllowed=floor?placementFilter(world,footprint,true):allowed;
+ const passages=(world.biomePlaces||[]).map(p=>({...p,c:Math.cos(p.angle||0),s:Math.sin(p.angle||0)}));
+ let moved=0;
+ for(const [sourceIndex,source]of sources.entries()){
+  const quota=Math.max(2,Math.ceil(budget/sources.length)),kinds=floor?['tuft','litter']:source.zone==='bank'?['reed','stone']:source.zone==='shade'?['fern']:['shrub'];
+  let planted=0;
+  for(let attempt=0;attempt<quota*16&&planted<quota&&moved<budget;attempt++){
+   const along=(random()-.5)*7.5,across=(random()-.5)*2.8,x=source.x+Math.sin(source.angle)*along+Math.cos(source.angle)*across,z=source.z+Math.cos(source.angle)*along-Math.sin(source.angle)*across;
+   if(region&&!region.contains(x,z))continue;
+   const h=forestHabitatAt(world,x,z),rhythm=sceneryRhythmAt(world,x,z);
+   if(source.zone==='shade'&&h.shade<.2||source.zone==='bank'&&h.bank<.22||rhythm.opening>.78)continue;
+   if(lanes.some(({a,b})=>segmentDistance(x,z,a.x,a.z,b.x,b.z)<2+footprint))continue;
+   if(passages.some(p=>{const dx=x-p.x,dz=z-p.z;return Math.abs(p.c*dx-p.s*dz)<3.1+footprint&&Math.abs(p.s*dx+p.c*dz)<10+footprint;}))continue;
+   if(!(source.zone==='shoulder'?shoulderAllowed:allowed)(x,z)||records.some(p=>near(x,z,p,floor?.9:.62)))continue;
+   const kind=kinds[Math.floor(random()*kinds.length)],list=donors.get(kind+':'+quadrant({x,z}));if(!list?.length)continue;
+   const record=records[list.pop()];record.x=x;record.z=z;record.transition=source.zone;record.transitionIndex=sourceIndex;
+   if(floor&&source.zone==='shoulder')record.shoulder=true;
+   planted++;moved++;
+  }
+ }
+}
+
 export function installAdventureGroundDetail(world,mapId){
  if(!profiles[mapId]&&mapId!=='confluence')return null;
  if(world.adventureGroundDetail&&!world.adventureGroundDetail.userData.disposed)return world.adventureGroundDetail;
@@ -310,6 +365,7 @@ export function installAdventureGroundDetail(world,mapId){
   const kind=random()<profile.grass?'tuft':'litter',size=.78+random()*.36,height=(.82+random()*.30)*(kind==='tuft'?profile.height:1),palette=profile[kind];
   records.push({x,z,biome,kind,size,height,angle:random()*Math.PI*2,color:palette[Math.floor(random()*palette.length)],shade:.90+random()*.16});
  }
+ connectForestCover(world,mapId,records,FOOTPRINT,allowed);
  softenSceneryEdges(world,mapId,records,FOOTPRINT,allowed);
  // Blend existing floor colors across districts without adding decal layers.
  for(const p of records)if(p.biome==='forest'){
@@ -320,6 +376,10 @@ export function installAdventureGroundDetail(world,mapId){
   if(p.kind==='tuft'){
    const growth=.5+.5*Math.sin(p.x*.23+Math.sin(p.z*.17)*1.7);
    p.size*=.80+growth*.30+h.shade*.08;p.height*=.68+growth*.29;
+   if(p.shoulder){
+    let distance=Infinity;for(const route of routes)for(let i=1;i<route.points.length;i++){const a=route.points[i-1],b=route.points[i];distance=Math.min(distance,segmentDistance(p.x,p.z,a.x,a.z,b.x,b.z)-(route.width===5.8?4.2:1.65));}
+    const edge=T.MathUtils.smoothstep(distance,.55,2.5);p.height*=.58+edge*.42;p.size*=.78+edge*.22;
+   }
   }
  }
  // Reuse the same instances; open patches stay low while sheltered shoulders
@@ -467,6 +527,7 @@ export function installHabitatDetail(world,mapId){
    records.push({x:px,z:pz,biome,kind:plantKind,angle:angle+(random()-.5)*1.2,width:profile.width*size,height:bank&&plantKind==='stone'?.13*size:profile.height*size*(1+habitat.shade*.13-habitat.ruin*.22),color:tint.getHex()});
   }
  }
+ connectForestCover(world,mapId,records,1.15,allowed);
  softenSceneryEdges(world,mapId,records,1.15,allowed);
  // Broad patches alternate with quiet gaps; their widths grow into one another
  // below the sight line, staying inside the already-reserved 1.15m footprint.

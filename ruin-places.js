@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import{wornStoneBlock}from'./environment-props.js?v=154';
+import{wornStoneBlock}from'./environment-props.js?v=155';
 import{naturalRockGeometry}from'./biome-scenery.js?v=154';
 
 // Continuous broken masonry, rather than a row of identical stacked blocks.

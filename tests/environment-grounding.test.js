@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import * as T from '../vendor/three.module.js';
 import {buildWorld} from '../world.js';
+import {installForestHabitats} from '../forest-habitats.js';
+import {installExplorationRoutes} from '../exploration-routes.js';
 import {polishEnvironmentModels} from '../environment-props.js';
 import {installBiomePlaces} from '../biome-places.js';
 import {installEnvironmentClusters} from '../environment-clusters.js';
@@ -11,7 +13,11 @@ import {installAdventureGroundDetail,installHabitatDetail} from '../adventure-gr
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const cleanup=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
-const channel=(state,c)=>state.texture.image.data.filter((_,i)=>i%2===c);
+const channel=(state,c)=>state.texture.image.data.filter((_,i)=>i%4===c);
+const sample=(state,world,x,z,c)=>{
+ const extent=world.half+8,u=Math.floor((x+extent)/(extent*2)*512),v=Math.floor((z+extent)/(extent*2)*512);
+ return state.texture.image.data[(v*512+u)*4+c];
+};
 test('five maps and confluence keep gameplay, geometry and shared materials intact while grounding permanent scenery',()=>{
  for(const id of ['forest','snow','ash','sand','coast','confluence']){
   const world=buildWorld(id,522);polishEnvironmentModels(world);installBiomePlaces(world,id);installEnvironmentClusters(world,id);
@@ -23,7 +29,7 @@ test('five maps and confluence keep gameplay, geometry and shared materials inta
   for(const key of Object.keys(base.uniforms))assert.strictEqual(shader.uniforms[key].value,base.uniforms[key].value);
   assert(shader.fragmentShader.includes('soilRelief'));assert(!shader.fragmentShader.includes('undefined'));assert.equal(shader.fragmentShader.match(/texture2D\(sceneryContact/g).length,1);
   assert(shader.fragmentShader.indexOf('float groundContact')<shader.fragmentShader.indexOf('reflectedLight.indirectDiffuse*=1.0-groundContact'));
-  const {image}=state.texture,red=channel(state,0);assert.equal(image.width,512);assert.equal(image.height,512);assert.equal(image.data.byteLength,524288);assert.equal(state.texture.format,T.RGFormat);assert(state.texture.generateMipmaps);assert(red.some(v=>v>200));assert(red.some(v=>v>0&&v<80));assert(red.filter(v=>v>0).length/red.length<.10,'contact shading grew into a scene-wide dark carpet');assert(channel(state,1).every(v=>v===0));
+  const {image}=state.texture,red=channel(state,0);assert.equal(image.width,512);assert.equal(image.height,512);assert.equal(image.data.byteLength,1048576);assert.equal(state.texture.format,T.RGBAFormat);assert(state.texture.generateMipmaps);assert(red.some(v=>v>200));assert(red.some(v=>v>0&&v<80));assert(red.filter(v=>v>0).length/red.length<.10,'contact shading grew into a scene-wide dark carpet');assert(channel(state,1).every(v=>v===0));
   let materialDisposed=0,textureDisposed=0,sharedDisposed=0;state.material.addEventListener('dispose',()=>materialDisposed++);state.texture.addEventListener('dispose',()=>textureDisposed++);source.addEventListener('dispose',()=>sharedDisposed++);
   cleanup(world);assert(state.disposed);assert.equal(materialDisposed,1);assert.equal(textureDisposed,1);assert.equal(sharedDisposed,0);assert.strictEqual(world.ground.material,source);geometry.dispose();assert.equal(textureDisposed,1);
  }
@@ -52,7 +58,7 @@ test('plant channel keeps the v153 obstacle mask exact, without darkening duplic
  assert.equal(createHash('sha256').update(channel(first,0)).digest('hex'),'3e001774b00ce5c12feb797311a6fbde6cebfa4110d459b49b7b05e2ba6c2384');
  assert.deepEqual(channel(first,0),channel(third,0));assert.deepEqual(first.texture.image.data,second.texture.image.data);
  const green=channel(first,1);assert(green.some(v=>v>100));assert(green.some(v=>v>0&&v<30));assert(green.every(v=>v<=220));assert.equal(channel(third,1).some(v=>v>0),false);assert.equal(original,JSON.stringify(a.habitatDetail.userData.records));
- const sample=(state,x,z)=>{const px=Math.floor((x+24)/48*512),py=Math.floor((z+24)/48*512);return state.texture.image.data[(py*512+px)*2+1];};
+ const sample=(state,x,z)=>{const px=Math.floor((x+24)/48*512),py=Math.floor((z+24)/48*512);return state.texture.image.data[(py*512+px)*4+1];};
  assert.equal(sample(first,8,8),0);assert.notEqual(sample(first,.4,.2),sample(first,-.2,.4),'root stain became a rotationally uniform disc');
  for(const w of [a,b,c])w.ground.geometry.dispose();
 });
@@ -62,7 +68,7 @@ test('all maps reuse one fixed mask and unchanged plant records, with only fores
   const world=buildWorld(id,522);polishEnvironmentModels(world);installBiomePlaces(world,id);installEnvironmentClusters(world,id);installAdventureGroundDetail(world,id);installHabitatDetail(world,id);
   const records=[...world.adventureGroundDetail.userData.records,...world.habitatDetail.userData.records],before=JSON.stringify(records),children=world.group.children.length,positions=world.ground.geometry.attributes.position.array.slice();
   const state=installEnvironmentGrounding(world),expected=records.filter(p=>p.biome==='forest'&&['tuft','fern','shrub'].includes(p.kind)).length;
-  assert.equal(state.plants,expected);assert.equal(state.texture.image.data.length,512*512*2);assert.equal(world.group.children.length,children);assert.deepEqual(world.ground.geometry.attributes.position.array,positions);assert.equal(JSON.stringify(records),before);
+  assert.equal(state.plants,expected);assert.equal(state.texture.image.data.length,512*512*4);assert.equal(world.group.children.length,children);assert.deepEqual(world.ground.geometry.attributes.position.array,positions);assert.equal(JSON.stringify(records),before);
   const green=channel(state,1);assert.equal(green.some(v=>v>0),id==='forest'||id==='confluence');assert(green.filter(v=>v>0).length/green.length<.12,'forest root transitions became a scene-wide carpet');
   assert.strictEqual(installEnvironmentGrounding(world).texture,state.texture);assert.strictEqual(world.ground.material,state.material);
   if(id==='confluence')for(const p of records.filter(p=>p.biome!=='forest')){
@@ -80,4 +86,70 @@ test('plant-only worlds allocate one bounded mask and release it on restart',()=
  const state=installEnvironmentGrounding(world);assert.equal(state.sources,0);assert.equal(state.plants,4096);assert(channel(state,0).every(v=>v===0));assert(channel(state,1).filter(v=>v>0).length<900,'malformed width escaped the bounded root footprint');
  const saved=state.texture.image.data.slice();let disposed=0;state.texture.addEventListener('dispose',()=>disposed++);ground.geometry.dispose();assert.equal(disposed,1);assert.strictEqual(ground.material,source);
  const next=installEnvironmentGrounding(world);assert.notStrictEqual(next,state);assert.deepEqual(next.texture.image.data,saved);ground.geometry.dispose();assert(next.disposed);
+});
+
+const floorWorld=()=>{
+ const ground=new T.Mesh(new T.PlaneGeometry(48,48),new T.MeshStandardMaterial());ground.userData.ownedGeometry=true;
+ return{half:16,ground,obstacles:[],sites:[],forestHabitats:{region:null,relic:null,groves:[],ponds:[]}};
+};
+test('forest floor has continuous dirt shoulders, shaded duff and a narrow damp irregular bank',()=>{
+ const world=floorWorld();world.road=[{x:-15,z:5},{x:15,z:5}];
+ world.forestHabitats.groves=[{x:9,z:-8}];world.forestHabitats.ponds=[{x:-9,z:-6,rx:3,rz:2,angle:0}];
+ const before=JSON.stringify({road:world.road,habitat:world.forestHabitats}),state=installEnvironmentGrounding(world);
+ assert(state.forestPixels>0&&state.sources===0&&state.plants===0,'forest-only worlds should use the same mask without props');
+ const road=[0,1,2,3,4,5].map(d=>sample(state,world,0,5+d,2));
+ assert(road[0]>245&&road.at(-1)===0);assert(road.some(v=>v>30&&v<220));
+ for(let i=1;i<road.length;i++)assert(road[i]<=road[i-1],'road has a hard/reversed concentric band');
+ assert(sample(state,world,0,5,3)<=130,'road centre should remain clear of the leaf shoulder');
+ assert(sample(state,world,0,7,3)>145,'road shoulder has no leaf transition');
+ assert(sample(state,world,9,-8,3)>150,'grove floor did not acquire dry brown/green duff');
+ assert(sample(state,world,-5.6,-6,3)<95,'actual pond edge did not acquire damp soil');
+ assert.equal(sample(state,world,-.5,-6,3)>=128,true,'wetness spread into the broad nine-metre habitat halo');
+ assert.equal(sample(state,world,-19,-19,3),128,'neutral ground has become globally tinted');
+ assert.equal(JSON.stringify({road:world.road,habitat:world.forestHabitats}),before);
+ world.ground.geometry.dispose();assert(state.disposed);
+});
+
+test('visible trail masks follow mesh world coordinates and never bake hidden destinations',()=>{
+ const world=floorWorld(),parent=new T.Group(),g=new T.BufferGeometry();
+ g.setAttribute('position',new T.Float32BufferAttribute([-5,0,-.7,-5,0,-.3,-5,0,.3,-5,0,.7,5,0,-.7,5,0,-.3,5,0,.3,5,0,.7],3));
+ const visible=new T.Mesh(g,new T.MeshBasicMaterial()),hidden=new T.Mesh(g.clone(),visible.material);parent.add(visible);parent.position.set(7,0,8);parent.rotation.y=Math.PI/2;hidden.position.set(-7,0,-8);hidden.visible=false;
+ world.sites=[{trail:visible},{trail:hidden},{}];const original=g.attributes.position.array.slice(),state=installEnvironmentGrounding(world);
+ assert(sample(state,world,7,8,2)>230);assert.equal(sample(state,world,0,0,2),0,'local-space trail leaked onto the world origin');
+ assert.equal(sample(state,world,-7,-8,2),0,'unrevealed guide became a permanent floor marking');
+ assert.equal(hidden.visible,false);assert.deepEqual(g.attributes.position.array,original);
+ world.ground.geometry.dispose();g.dispose();hidden.geometry.dispose();visible.material.dispose();
+});
+
+test('neutral floor channels preserve even glossy base roughness without applying a forest clamp',()=>{
+ const world=floorWorld();delete world.forestHabitats;world.obstacles=[{x:0,z:0,r:1,place:true}];
+ const source=world.ground.material;source.roughness=.12;
+ source.onBeforeCompile=shader=>{shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=.12;');};
+ const state=installEnvironmentGrounding(world),shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};state.material.onBeforeCompile(shader);
+ assert.equal(state.material.roughness,.12);assert(channel(state,2).every(v=>v===0));assert(channel(state,3).every(v=>v===128));
+ assert(shader.fragmentShader.includes('float forestFloor=(groundContacts.a-(128.0/255.0))*(255.0/127.0);'),'neutral byte must subtract its exact normalized constant');
+ assert.match(shader.fragmentShader,/if\(max\(forestTrack,max\(forestDuff,forestDamp\)\)>0\.0\)\{\s*roughnessFactor=clamp\(roughnessFactor\+forestDuff\*\.07-forestTrack\*\.025-forestDamp\*\.21,\.66,1\.0\);\s*\}/,'forest clamp must be guarded, preserving every original roughness at zero forest contribution');
+ assert(shader.fragmentShader.indexOf('roughnessFactor=.12;')<shader.fragmentShader.indexOf('if(max(forestTrack'));
+ world.ground.geometry.dispose();assert.strictEqual(world.ground.material,source);assert.equal(source.roughness,.12);
+});
+
+test('real forest and joined maps add floor transitions only to forest, with one sample and exact old contact channels',()=>{
+ for(const id of ['forest','snow','ash','sand','coast','confluence']){
+  const world=buildWorld(id,522);polishEnvironmentModels(world);installForestHabitats(world,id);installBiomePlaces(world,id);installEnvironmentClusters(world,id);installExplorationRoutes(world);
+  const positions=world.ground.geometry.attributes.position.array.slice(),source=world.ground.material,children=world.group.children.length,layout=JSON.stringify(world.obstacles.map(o=>[o.x,o.z,o.r,o.height]));
+  const state=installEnvironmentGrounding(world),b=channel(state,2),a=channel(state,3),forest=id==='forest'||id==='confluence';
+  assert.equal(state.forestPixels>0,forest);assert.equal(b.some(v=>v>200),forest);assert.equal(a.some(v=>v<110),forest);assert.equal(a.some(v=>v>150),forest);
+  if(!forest){assert(b.every(v=>v===0));assert(a.every(v=>v===128));}
+  if(id==='confluence'){
+   const region=world.forestHabitats.region,extent=world.half+8,pixel=2*extent/512;
+   for(let z=0;z<512;z++)for(let x=0;x<512;x++)if(!region.contains((x+.5)*pixel-extent,(z+.5)*pixel-extent)){
+    assert.equal(b[z*512+x],0);assert.equal(a[z*512+x],128,'non-forest region acquired duff or wet mud');
+   }
+  }
+  const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};state.material.onBeforeCompile(shader);
+  assert.equal(shader.fragmentShader.match(/texture2D\(sceneryContact/g).length,1);assert(shader.fragmentShader.includes('forestDamp*.21'));assert(shader.fragmentShader.indexOf('roughnessFactor+forestDuff')>shader.fragmentShader.indexOf('roughnessFactor-soilWet'),'base material overwrote the wet-bank roughness');
+  assert.equal(world.group.children.length,children);assert.deepEqual(world.ground.geometry.attributes.position.array,positions);assert.equal(JSON.stringify(world.obstacles.map(o=>[o.x,o.z,o.r,o.height])),layout);
+  const first=state.texture.image.data.slice();world.ground.geometry.dispose();assert.strictEqual(world.ground.material,source);
+  const next=installEnvironmentGrounding(world);assert.deepEqual(next.texture.image.data,first);assert.notStrictEqual(next.texture,state.texture);cleanup(world);assert(next.disposed);
+ }
 });

@@ -49,7 +49,7 @@ test('pier meshes dispose per world without releasing shared material or touchin
 });
 
 test('ordinary-dressing clearance at a pier end never removes a protected district just beyond its rounded safety margin',async()=>{
- const {harborPierPlan}=await import('../harbor-bank-layout.js?v=154');
+ const {harborPierPlan}=await import('../harbor-bank-layout.js?v=155');
  const {bridgeContains}=await import('../coast.js?v=114');
  const baseline=buildWorld('coast',7),target=installBiomePlaces(baseline,'coast').find(p=>p.pier),b=target.pier;
  const ux=Math.cos(b.angle),uz=-Math.sin(b.angle),vx=Math.sin(b.angle),vz=Math.cos(b.angle);

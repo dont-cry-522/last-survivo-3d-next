@@ -11,15 +11,16 @@
 <button id="portrait" disabled>手机竖屏预览</button><button id="landscape" disabled>手机横屏预览</button>
 <p id="status" role="status">正在载入测试资源…</p><div id="view"></div><pre id="report">尚未运行。</pre>
 <script type="module">
+import {ENEMY_GUIDE} from '../battle-guide.js?v=123';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),assert=(ok,message)=>{if(!ok)throw Error(message);};
-const records=[],storage=new Map(),errors=[];let frame,win,g,shots=[],html,css;
+const records=[],storage=new Map(),errors=[];let frame,win,g,shots=[],html,css,frameClock=0;
 window.mobileControlsReport={checks:records};
 const doc=()=>win.document,el=id=>doc().querySelector(id),rect=id=>el(id).getBoundingClientRect();
 function publish(){window.mobileControlsReport={checks:records,simulatedTouch:true,trueDeviceTest:false};$('#report').textContent=JSON.stringify(window.mobileControlsReport,null,2);}
 async function check(name,fn){$('#status').textContent='检查中：'+name;try{records.push({name,pass:true,details:await fn()});}catch(error){records.push({name,pass:false,error:error.message});}publish();}
 function dimensions(width,height){frame.style.width=width+'px';frame.style.height=height+'px';}
 async function load(touch=true,width=390,height=844){
- if(g){errors.push(...win.qaErrors);g.menu();g.audio.stopMusic();g.renderer.dispose();g.renderer.forceContextLoss();}
+ if(g){errors.push(...win.qaErrors);g.menu();g.audio.stopMusic();g.cinema?.dispose();g.renderer.dispose();g.renderer.forceContextLoss();}
  frame?.remove();frame=document.createElement('iframe');frame.title=touch?'模拟手机真实游戏':'电脑真实游戏';dimensions(width,height);$('#view').append(frame);
  window.qaStorage=storage;
  const bootstrap=`<base href="../"><script>
@@ -36,7 +37,7 @@ async function load(touch=true,width=390,height=844){
  if(touch){const style=doc().createElement('style');style.textContent=css.replaceAll(/\(pointer:\s*coarse\)/g,'(min-width:0px)').replaceAll(/\(pointer:\s*fine\)/g,'(min-width:100000px)');doc().head.append(style);}
  // Test input and gameplay, not Web Audio. Keep asynchronous audio loading out of the fixture.
  g.audio.init=async()=>true;g.audio.shot=(...args)=>shots.push({time:g.time,args});
- await sleep(80);win.dispatchEvent(new win.Event('resize'));win.qaFrame(0);
+ await sleep(80);win.dispatchEvent(new win.Event('resize'));frameClock=0;draw();
  assert(doc().body.classList.contains('touch')===touch,'粗指针分支选择错误');
 }
 function setMode(mode){el('[data-attack-mode="'+mode+'"]').click();}
@@ -46,14 +47,19 @@ function setup(mode='auto',hero='silver'){
  // Keep the real spawn and camera target together; moving only player would leave the camera elsewhere.
  const{x,z}=g.player;
  Object.assign(g.world,{obstacles:Array.from({length:32},(_,i)=>({x:x+Math.sin(i*Math.PI/16)*23,z:z+Math.cos(i*Math.PI/16)*23,r:8})),patches:[],ponds:[],ice:[],fords:[],bridges:[],sites:[],roaming:[],discoveries:[],breakables:[]});
- Object.assign(g.player,{attack:0,inv:999,pending:0,iceVX:0,iceVZ:0});g.hero.rotation.y=0;
- shots=[];win.qaFrame(0);
+ Object.assign(g.player,{attack:0,inv:999,pending:0,iceVX:0,iceVZ:0});g.hero.rotation.y=0;g.setView('third');g.adventureCamera.yaw=Math.PI/4;g.adventureCamera._ready=false;
+ shots=[];draw();
 }
 function target(){const e=g.spawn('golem',g.player.x,g.player.z+3);assert(e,'未创建目标');Object.assign(e,{hp:10000,maxHp:10000,speed:0,cool:999,damage:0});const p=e.mesh.position.clone();p.y=.8;p.project(g.camera);assert(Math.abs(p.x)<.96&&Math.abs(p.y)<.96&&p.z>-1&&p.z<1,'测试靶不在可见视锥：'+JSON.stringify(p));e.qaProjection={x:p.x,y:p.y,z:p.z};return e;}
 function step(seconds=.6){for(let elapsed=0;elapsed<seconds-1e-8;){const dt=Math.min(1/60,seconds-elapsed);g.step(dt);elapsed+=dt;}}
+function draw(){win.qaFrame(frameClock);}
+// Advance the real frame/UI timers without redrawing the full scene on every
+// fixed clock sample. The last frame renders normally; this does not measure FPS.
+function frames(seconds,inspect=()=>{}){const render=g.cinema.render;g.cinema.render=()=>{};try{for(let t=0;t<seconds-1e-8;){const dt=Math.min(.04,seconds-t);win.qaFrame(frameClock+=dt*1000);t+=dt;inspect();}}finally{g.cinema.render=render;draw();}}
 function pointer(id,type,pointerId=1,x=0,y=0,pointerType='touch'){
  const node=typeof id==='string'?el(id):id,r=node.getBoundingClientRect?.()||{left:0,top:0,width:0,height:0};
- node.dispatchEvent(new win.PointerEvent(type,{bubbles:true,cancelable:true,pointerId,pointerType,button:0,buttons:type==='pointerup'||type==='pointercancel'?0:1,clientX:r.left+r.width/2+x,clientY:r.top+r.height/2+y,isPrimary:pointerId===1}));
+ const init={bubbles:true,cancelable:true,pointerId,pointerType,button:0,buttons:type==='pointerup'||type==='pointercancel'?0:1,clientX:r.left+r.width/2+x,clientY:r.top+r.height/2+y,isPrimary:pointerId===1},mouse={pointerdown:'mousedown',pointerup:'mouseup',pointermove:'mousemove'};
+ node.dispatchEvent(pointerType==='mouse'&&mouse[type]?new win.MouseEvent(mouse[type],init):new win.PointerEvent(type,init));
 }
 function down(id='#aim-stick',pointerId=1,x=0,y=0){pointer(id,'pointerdown',pointerId,x,y);}
 function up(id='#aim-stick',pointerId=1){pointer(id,'pointerup',pointerId);}
@@ -61,14 +67,66 @@ function displacement(before){return Math.hypot(g.player.x-before.x,g.player.z-b
 function setScale(value){const input=el('#control-scale');assert(input,'缺少按键大小设置');input.value=value;input.dispatchEvent(new win.Event('input',{bubbles:true}));}
 function box(id){const r=rect(id);return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};}
 function overlap(a,b){return Math.min(a.right,b.right)-Math.max(a.x,b.x)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.y,b.y)>1;}
-function controlsInside(width,height){const ids=['#joystick','#aim-stick','#dash'],boxes=ids.map(id=>({id,...box(id)}));for(const b of boxes)assert(b.width>=40&&b.height>=40&&b.x>=-1&&b.y>=-1&&b.right<=width+1&&b.bottom<=height+1,b.id+' 超出屏幕或可点击面积过小：'+JSON.stringify(b));for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++)assert(!overlap(boxes[i],boxes[j]),boxes[i].id+' 与 '+boxes[j].id+' 重叠');return boxes;}
+function controlsInside(width,height){const ids=['#joystick','#aim-stick','#dash','#jump','#crouch'],boxes=ids.map(id=>({id,...box(id)}));for(const b of boxes)assert(b.width>=40&&b.height>=40&&b.x>=-1&&b.y>=-1&&b.right<=width+1&&b.bottom<=height+1,b.id+' 超出屏幕或可点击面积过小：'+JSON.stringify(b));for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++)assert(!overlap(boxes[i],boxes[j]),boxes[i].id+' 与 '+boxes[j].id+' 重叠');return boxes;}
+const settingIds=['view-toggle','landscape','sound','audio-settings','controls-settings'],discoveryKey='forest3d-next-discovered-enemies',noticeKey='forest3d-next-known-notices';
+const visible=node=>!!node&&node.getBoundingClientRect().width>0&&node.getBoundingClientRect().height>0&&win.getComputedStyle(node).visibility!=='hidden';
+function action(label){const b=[...doc().querySelectorAll('#dialog-content .dialog-actions button')].find(b=>b.textContent.trim()===label);assert(b,'缺少对话框入口：'+label);b.click();return b;}
+function pauseMenu(){if(g.state==='playing')el('#pause').click();else if(g.state==='paused'&&!el('#dialog').open){g.resume();el('#pause').click();}assert(g.state==='paused'&&el('#dialog').open,'暂停菜单未打开');}
+function settings(){pauseMenu();action('设置');assert(el('#mobile-pause-settings'),'设置页未打开');return el('#mobile-pause-settings');}
+function onlyPause(){const shown=[...doc().querySelectorAll('header button,header summary,header .brand')].filter(visible).map(n=>n.id||n.className);assert(shown.length===1&&shown[0]==='pause','手机战斗顶部仍有其它控件：'+JSON.stringify(shown));assert(!overlap(box(el('#stats')?'#stats':'.run-info'),box('#map')),'计时/击败/首领信息与小地图重叠');return shown;}
+function retained(nodes,home){for(const[id,node]of nodes){assert(el('#'+id)===node&&node.isConnected&&doc().querySelectorAll('#'+id).length===1,id+' 丢失、复制或被替换');assert(!!node.closest('header')===home,id+' 没有按流程搬回原位置');}}
+function guide(){pauseMenu();action('图鉴与介绍');assert(el('.guide-content'),'图鉴页未打开');}
+function guideKinds(){const found=new Set();for(const map of['forest','snow','ash','sand','coast']){el('[data-guide-map="'+map+'"]').click();for(const entry of doc().querySelectorAll('.enemy-entry')){assert(ENEMY_GUIDE[entry.dataset.enemy],'无效种类进入图鉴');assert(entry.querySelector('img')?.getAttribute('src')&&entry.querySelector('dd')?.textContent,'图鉴缺少图片或说明');found.add(entry.dataset.enemy);}}return [...found].sort();}
+const discoveries=()=>JSON.parse(storage.get(discoveryKey)||'[]');
+function quietSpawn(kind,x=0,z=9){const e=g.spawn(kind,g.player.x+x,g.player.z+z);assert(e,'测试怪物无法生成：'+kind);Object.assign(e,{speed:0,cool:999,hp:10000,maxHp:10000,damage:0});if(e.role==='flyer')e.flight={stage:'orbit',timer:999};return e;}
+async function freshGuideWorld(){storage.delete(noticeKey);storage.delete(discoveryKey);await load(true,390,844);setup('manual','scout');g.player.attack=9999;}
+async function checkPauseSettings(){
+ for(const[width,height]of[[320,568],[390,844],[844,390]])await check(width+'×'+height+' 暂停设置：布局、原控件监听与归位',async()=>{
+  dimensions(width,height);await sleep(80);win.dispatchEvent(new win.Event('resize'));setup();onlyPause();const nodes=new Map(settingIds.map(id=>[id,el('#'+id)]));
+  down('#aim-stick');const panel=settings();assert(!g.controls.held,'打开设置未清攻击');retained(nodes,false);assert(settingIds.every(id=>panel.contains(el('#'+id))),'原设置控件没有全部进入面板');const time=g.time;frames(.5);assert(g.time===time,'设置页仍推进对局');
+  const before=g.adventureCamera.mode;el('#view-toggle').click();assert(g.adventureCamera.mode!==before&&g.state==='paused','暂停中不能切换视角');
+  for(const[bus,value]of[['music',37],['sfx',52]]){const input=el('#'+bus+'-volume');input.value=value;input.dispatchEvent(new win.Event('input',{bubbles:true}));assert(Math.abs(g.audio[bus+'Volume']-value/100)<1e-9,bus+' 原监听丢失');}
+  const style=el('#sfx-style');style.value=style.options[style.options.length-1].value;style.dispatchEvent(new win.Event('change',{bubbles:true}));assert(g.audio.sfxStyle===style.value,'音效版本监听丢失');g.audio.setMuted(true);el('#sound').click();assert(!g.audio.muted,'声音按钮监听丢失');setScale(120);assert(doc().body.style.getPropertyValue('--touch-scale')==='1.2','按键大小监听丢失');
+  const dialog=box('#dialog');assert(dialog.x>=-1&&dialog.right<=width+1&&dialog.y>=-1&&dialog.bottom<=height+1,'设置对话框超出屏幕');
+  for(const id of['view-toggle','landscape','sound','music-volume','sfx-volume','sfx-style','control-scale']){const node=el('#'+id);node.scrollIntoView({block:'nearest'});const b=box('#'+id);assert(visible(node)&&b.x>=-1&&b.right<=width+1,'设置控件横向溢出或不可见：'+id);}
+  for(const button of doc().querySelectorAll('#dialog-content .dialog-actions button')){const r=button.getBoundingClientRect();assert(visible(button)&&r.top>=0&&r.bottom<=height+1,'设置底部返回/继续按钮不可见');assert(doc().elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')===button,'设置底部操作被遮挡');}
+  action('返回暂停');retained(nodes,true);assert(g.state==='paused','返回设置菜单意外开始战斗');action('设置');retained(nodes,false);action('继续远征');retained(nodes,true);onlyPause();assert(!el('#audio-settings').open&&!el('#controls-settings').open,'继续游戏后下拉面板仍打开');
+  settings();el('#dialog').dispatchEvent(new win.Event('cancel',{cancelable:true}));retained(nodes,true);assert(g.state==='playing','关闭设置未恢复对局');
+  settings();el('#dialog').close();await sleep(0);retained(nodes,true);g.resume();settings();g.menu();retained(nodes,true);assert(g.state==='menu','设置中退出没有回大厅');g.start();retained(nodes,true);onlyPause();
+  settings();g.start();retained(nodes,true);assert(g.state==='playing'&&!el('#dialog').open,'设置中重开残留页面或丢控件');setScale(100);return{width,height,controls:settingIds,dialog,controlsLayout:controlsInside(width,height)};
+ });
+ await check('暂停横屏入口调用原全屏/方向逻辑（浏览器 API 模拟）',async()=>{
+  settings();let fullscreenCalls=0,locks=0,unlocks=0;const objects=[[doc().documentElement,'requestFullscreen',async()=>{fullscreenCalls++;}],[win.screen.orientation,'lock',async value=>{assert(value==='landscape','方向参数错误');locks++;}],[win.screen.orientation,'unlock',()=>{unlocks++;}]],saved=[];
+  try{for(const[object,key,fn]of objects){assert(object,'缺少方向 API 对象');saved.push({object,key,descriptor:Object.getOwnPropertyDescriptor(object,key)});Object.defineProperty(object,key,{configurable:true,value:fn});}el('#landscape').click();await sleep(0);assert(fullscreenCalls===1&&locks===1&&g.state==='paused','搬动后的横屏按钮失效');el('#landscape').click();await sleep(0);assert(unlocks>0,'不能取消模拟横屏');}
+  finally{for(const{object,key,descriptor}of saved.reverse())if(descriptor)Object.defineProperty(object,key,descriptor);else delete object[key];if(g.state==='paused')g.resume();}return{fullscreenCalls,locks,unlocks,simulation:'native permission and physical rotation not tested'};
+ });
+}
+async function checkDiscoveryUI(){
+ await check('手机初始图鉴为空，生成怪物立即登记；密集与首领不会丢失',async()=>{
+  await freshGuideWorld();guide();assert(guideKinds().length===0,'未发现的怪物提前出现在手机图鉴');action('返回暂停');g.resume();
+  const kinds=['golem','wolf','spitter','shaman'],spawned=kinds.map((kind,i)=>quietSpawn(kind,Math.sin(i*1.6)*9,Math.cos(i*1.6)*9));g.spawnBoss();assert(g.boss?.alive,'首领没有生成');const expected=[...kinds,g.boss.kind].sort();assert(expected.every(kind=>discoveries().includes(kind)),'被提示队列限制吞掉图鉴发现');
+  quietSpawn('golem',0,-4);assert(new Set(discoveries()).size===discoveries().length,'重复物种重复写入');guide();assert(JSON.stringify(guideKinds())===JSON.stringify(expected),'图鉴没有严格按已发现过滤');action('返回暂停');g.resume();g.menu();g.start();guide();assert(expected.every(kind=>guideKinds().includes(kind)),'重开丢失图鉴');action('返回暂停');g.resume();return{spawned:spawned.map(e=>e.kind),boss:g.boss?.kind||expected.find(x=>!kinds.includes(x)),discovered:expected};
+ });
+ await check('手机提示靠上、不可交互、显示约1.8秒，重复与35秒内密集发现不刷屏',async()=>{
+  await freshGuideWorld();quietSpawn('golem');let shownAt=null,hiddenAt=null;frames(8.4,()=>{if(!el('#encounter').hidden&&shownAt===null)shownAt=g.time;});assert(shownAt!==null,'安全空档没有显示新发现');const card=el('#encounter');assert(card.querySelector('img').hidden&&card.querySelector('span').textContent.includes('图鉴'),'手机提示仍显示长说明');assert(win.getComputedStyle(card).pointerEvents==='none'&&card.tabIndex<0&&card.getAttribute('role')!=='button','手机提示仍可交互');card.click();assert(g.state==='playing','点击提示意外暂停');
+  const layouts=[];for(const[width,height]of[[320,568],[390,844],[844,390]]){dimensions(width,height);await sleep(80);win.dispatchEvent(new win.Event('resize'));draw();const b=box('#encounter');assert(b.y>=0&&b.y<=85&&b.bottom<=height*.4,'新提示没有贴近上沿');for(const id of['#joystick','#aim-stick','#dash','#jump','#crouch','#pause'])assert(!overlap(b,box(id)),'提示遮挡'+id);const p=g.hero.position.clone();p.y=1.2;p.project(g.camera);const heroBox={x:(p.x+1)*width/2-28,right:(p.x+1)*width/2+28,y:(1-p.y)*height/2-42,bottom:(1-p.y)*height/2+34};assert(!overlap(b,heroBox),'提示遮挡角色');onlyPause();layouts.push({width,height,notice:b});}
+  const heldText=card.textContent;quietSpawn('wolf',9,0);quietSpawn('spitter',-9,0);assert(card.textContent===heldText,'密集发现替换当前提示');frames(2,()=>{if(card.hidden&&hiddenAt===null)hiddenAt=g.time;});assert(hiddenAt!==null&&hiddenAt-shownAt>=1.76&&hiddenAt-shownAt<=1.88,'提示时长不是约1.8秒：'+(hiddenAt-shownAt));
+  quietSpawn('golem',0,-9);quietSpawn('shaman',6,-7);let earlyBanner=false;frames(34,()=>{earlyBanner||=!card.hidden;});assert(!earlyBanner,'35秒间隔内出现重复或密集提示');assert(['golem','wolf','spitter','shaman'].every(kind=>discoveries().includes(kind)),'被略过的提示没有登记图鉴');
+  // New types after the cooldown may wait for the existing safe battle phase.
+  frames(Math.max(0,47.2-g.time));quietSpawn('flyer',0,10);let secondAt=null;frames(6,()=>{if(!card.hidden&&secondAt===null)secondAt=g.time;});assert(secondAt!==null&&secondAt-hiddenAt>=35,'冷却后新发现未正常显示或提前出现');return{shownAt,hiddenAt,duration:hiddenAt-shownAt,secondAt,gap:secondAt-hiddenAt,layouts};
+ });
+ await check('图鉴跨页面保留，旧 enemy: 记录迁移且无效种类不进入新存档',async()=>{
+  const previous=discoveries();await load();setup('manual','scout');guide();assert(previous.every(kind=>guideKinds().includes(kind)),'重新加载丢失已发现图鉴');action('返回暂停');g.resume();
+  storage.set(noticeKey,JSON.stringify(['enemy:wolf','enemy:__proto__','enemy:missing-kind','circle:vent']));storage.set(discoveryKey,JSON.stringify(['golem','constructor','missing-kind',5,null]));await load();setup('manual','scout');guide();assert(JSON.stringify(guideKinds())===JSON.stringify(['golem','wolf']),'旧数据迁移或过滤失败');action('返回暂停');g.resume();quietSpawn('shaman');assert(discoveries().every(kind=>typeof kind==='string'&&Object.hasOwn(ENEMY_GUIDE,kind)),'无效种类被写回新存档');return{migrated:discoveries()};
+ });
+}
 function lock(value){for(const id of['#run','#portrait','#landscape'])$(id).disabled=value;}
-async function preview(width,height){lock(true);$('#status').textContent='正在载入手机预览…';try{await load(true,width,height);setup();target();win.qaFrame(0);$('#status').textContent=width+' × '+height+' 手机模拟预览：可点击顶部「按键」设置，游戏时间冻结。';}catch(error){$('#status').textContent='预览失败：'+error.message;}finally{lock(false);}}
+async function preview(width,height){lock(true);$('#status').textContent='正在载入手机预览…';try{await load(true,width,height);setup();target();draw();$('#status').textContent=width+' × '+height+' 手机模拟预览：暂停 → 设置可调整视角、横屏、声音和按键，游戏时间冻结。';}catch(error){$('#status').textContent='预览失败：'+error.message;}finally{lock(false);}}
 $('#portrait').onclick=()=>preview(390,844);$('#landscape').onclick=()=>preview(667,375);
 $('#run').onclick=async()=>{
  lock(true);records.length=0;errors.length=0;storage.clear();
  try{
-  storage.set('forest-echoes-attack-mode','manual');await load();
+  storage.set('forest-echoes-next-attack-mode','manual');await load();
   await check('手机默认自动瞄准，不继承电脑模式；目标在场也不自动开火',()=>{
    assert(selectedMode()==='auto','手机首次默认不是自动瞄准');assert(el('[data-attack-mode="auto"]').textContent.includes('自动瞄准'),'手机文案仍叫自动攻击');
    setup();const foe=target();step(.8);assert(shots.length===0,'未按攻击键就发射');assert(g.controls.hasAim,'自动模式没有获取可见目标');return{mode:selectedMode(),shots:shots.length,targetNDC:foe.qaProjection};
@@ -89,8 +147,8 @@ $('#run').onclick=async()=>{
    setup();down('#joystick',2,80,0);pointer('#joystick','pointerup',99);const before={...g.player};step(.2);assert(displacement(before)>.4,'无关触点释放了移动摇杆');up('#joystick',2);
    down('#aim-stick',1);pointer('#aim-stick','pointercancel',99);assert(g.controls.held,'无关触点取消了攻击按钮');up();return{foreignPointerIgnored:true};
   });
-  await check('手动模式保持右杆方向攻击',()=>{
-   setup('manual');down('#aim-stick',1,60,0);assert(g.controls.held&&g.controls.hasAim,'手动右杆没有激活');assert(Math.abs(g.controls.angle-Math.PI*.75)<.03,'右推方向没有匹配相机朝向');step(.6);assert(shots.length>0,'手动无目标不能发射');up();return{angle:g.controls.angle,shots:shots.length};
+  await check('手动模式按住攻击、拖动右杆连续转向瞄准',()=>{
+   setup('manual');g.setView('first');draw();down('#aim-stick',1,60,0);assert(g.controls.held&&g.controls.hasAim,'手动右杆没有激活');const yaw=g.adventureCamera.yaw;assert(Math.abs(Math.atan2(Math.sin(g.controls.angle-yaw),Math.cos(g.controls.angle-yaw)))<.03,'按住攻击没有沿准星方向出手');pointer('#aim-stick','pointermove',1,100,0);assert(g.adventureCamera.yaw<yaw-.1,'拖动右杆没有连续转向');assert(Math.abs(Math.atan2(Math.sin(g.controls.angle-g.adventureCamera.yaw),Math.cos(g.controls.angle-g.adventureCamera.yaw)))<.03,'拖动后的瞄准没有跟随准星');step(.6);assert(shots.length>0,'手动无目标不能发射');up();return{yawBefore:yaw,yawAfter:g.adventureCamera.yaw,angle:g.controls.angle,shots:shots.length};
   });
   await check('模式切换、暂停、旋转及重新开局清除按住输入',()=>{
    const results=[];for(const action of['mode','pause','resize','restart']){setup();target();down();if(action==='mode')setMode('manual');if(action==='pause'){g.pause();assert(!g.controls.held,'暂停后还保持攻击');g.resume();}if(action==='resize')win.dispatchEvent(new win.Event('resize'));if(action==='restart')g.start();assert(!g.controls.held,action+' 未清除攻击');const count=shots.length;step(.5);assert(shots.length===count,action+' 后没有重新按键却发射');results.push(action);}return results;
@@ -104,22 +162,22 @@ $('#run').onclick=async()=>{
   await check('放大缩小摇杆不改变满推移动速度',async()=>{
    dimensions(390,844);await sleep(80);win.dispatchEvent(new win.Event('resize'));const moves=[];for(const scale of[75,100,135]){setup();setScale(scale);const r=rect('#joystick');down('#joystick',2,r.width/2,0);const before={...g.player};step(.4);moves.push({scale,distance:displacement(before)});up('#joystick',2);}assert(moves.every(m=>Math.abs(m.distance-moves[0].distance)<.01),'按键大小改变了满推移动速度');assert(moves[0].distance>2,'满推速度异常过低');return moves;
   });
-  await check('新怪物提示靠屏幕上沿，避开角色及操作区',async()=>{
-   const layouts=[];for(const[width,height]of[[320,568],[390,844],[667,375],[844,390]]){dimensions(width,height);await sleep(80);win.dispatchEvent(new win.Event('resize'));setup();target();win.qaFrame(0);const b=box('#encounter');assert(!el('#encounter').hidden,'新物种提示未出现');assert(b.y>=0&&b.y<=85,'新物种提示没有放在顶部');assert(b.bottom<=height*.4,'提示占用了过多中央画面');const p=g.hero.position.clone();p.y=1.2;p.project(g.camera);const heroBox={x:(p.x+1)*width/2-28,right:(p.x+1)*width/2+28,y:(1-p.y)*height/2-42,bottom:(1-p.y)*height/2+34};assert(!overlap(b,heroBox),'新物种提示遮挡角色');for(const id of['#joystick','#aim-stick','#dash'])assert(!overlap(b,box(id)),'提示遮挡'+id);layouts.push({width,height,notification:b,hero:heroBox});}return layouts;
-  });
-  await check('长介绍可点击暂停查看全文，返回后不会自动续射',()=>{
-   setup('auto','wuling');const card=el('#encounter'),text=card.querySelector('span').textContent;assert(card.querySelector('strong').textContent.includes('雾苓')&&text.includes('保留剩余寿命'),'未触发角色完整介绍');assert(win.getComputedStyle(card).pointerEvents!=='none','提示不可触摸');down();card.click();assert(g.state==='paused','查看完整介绍未暂停');assert(el('#dialog-content').textContent.includes(text),'详情没有完整介绍');assert(!g.controls.held,'查看详情没有清除攻击');g.resume();const count=shots.length;step(.3);assert(shots.length===count,'返回后自动续射');return{fullTextLength:text.length,pausedAndReleased:true};
-  });
+  await checkPauseSettings();
+  await checkDiscoveryUI();
   await check('手机大小与模式持久化，电脑旧偏好独立保留',async()=>{
-   setScale(135);setMode('manual');assert(storage.get('forest-echoes-attack-mode')==='manual','手机写入覆盖了电脑模式');assert(storage.get('forest-echoes-mobile-attack-mode')==='manual','手机模式未保存');assert(storage.has('forest3d-touch-scale'),'按键大小未保存');await load();assert(selectedMode()==='manual','重开未恢复手机模式');assert(Number(el('#control-scale').value)===135,'重开未恢复按键大小');el('#control-scale-reset').click();assert(Number(el('#control-scale').value)===100,'恢复默认未回到100%');assert(el('#control-scale-value').textContent.includes('100'),'恢复默认后显示未更新');return{mobileMode:selectedMode(),restoredScale:135,resetScale:100};
+   setScale(135);setMode('manual');assert(storage.get('forest-echoes-next-attack-mode')==='manual','手机写入覆盖了电脑模式');assert(storage.get('forest-echoes-next-mobile-attack-mode')==='manual','手机模式未保存');assert(storage.has('forest3d-next-touch-scale'),'按键大小未保存');await load();assert(selectedMode()==='manual','重开未恢复手机模式');assert(Number(el('#control-scale').value)===135,'重开未恢复按键大小');el('#control-scale-reset').click();assert(Number(el('#control-scale').value)===100,'恢复默认未回到100%');assert(el('#control-scale-value').textContent.includes('100'),'恢复默认后显示未更新');return{mobileMode:selectedMode(),restoredScale:135,resetScale:100};
   });
   await check('电脑自动攻击照旧；手动鼠标按住才攻击',async()=>{
-   storage.set('forest-echoes-attack-mode','auto');await load(false,1100,700);assert(selectedMode()==='auto','电脑原有自动攻击偏好失效');setup();target();step(.8);assert(shots.length>0,'电脑自动模式被改成需要按住');const autoShots=shots.length;setup('manual');target();step(.5);assert(shots.length===0,'电脑手动模式自动发射');pointer('#world','pointerdown',1,80,80,'mouse');step(.8);assert(shots.length>0,'电脑鼠标按住无法发射');pointer('#world','pointerup',1,80,80,'mouse');const manualShots=shots.length;step(.6);assert(shots.length===manualShots,'电脑松开鼠标后继续发射');assert(storage.get('forest-echoes-mobile-attack-mode')==='manual','电脑模式覆盖了手机偏好');return{autoShots,manualShots};
+   storage.set('forest-echoes-next-attack-mode','auto');await load(false,1100,700);assert(selectedMode()==='auto','电脑原有自动攻击偏好失效');setup();target();step(.8);assert(shots.length>0,'电脑自动模式被改成需要按住');const autoShots=shots.length;setup('manual');target();step(.5);assert(shots.length===0,'电脑手动模式自动发射');pointer('#world','pointerdown',1,80,80,'mouse');step(.8);assert(shots.length>0,'电脑鼠标按住无法发射');pointer('#world','pointerup',1,80,80,'mouse');const manualShots=shots.length;step(.6);assert(shots.length===manualShots,'电脑松开鼠标后继续发射');assert(storage.get('forest-echoes-next-mobile-attack-mode')==='manual','电脑模式覆盖了手机偏好');return{autoShots,manualShots};
+  });
+  await check('电脑保留完整图鉴、顶部控件和可点击介绍',async()=>{
+   storage.delete(noticeKey);storage.delete(discoveryKey);await load(false,1100,700);setup('manual','scout');const header=['#view-toggle','#sound','#audio-settings','#battle-guide'];assert(header.every(id=>visible(el(id))),'电脑顶部设置被手机规则隐藏');el('#battle-guide').click();assert(g.state==='paused'&&el('.guide-content'),'电脑图鉴入口失效');const all=guideKinds();assert(Object.keys(ENEMY_GUIDE).every(kind=>all.includes(kind)),'电脑图鉴被已发现规则过滤');g.resume();
+   quietSpawn('shaman');frames(8.4);const card=el('#encounter');assert(!card.hidden&&card.getAttribute('role')==='button'&&card.tabIndex===0&&win.getComputedStyle(card).pointerEvents!=='none','电脑新介绍不再可点击');card.click();assert(g.state==='paused'&&el('#dialog-content').textContent.includes(ENEMY_GUIDE.shaman.name),'电脑点击介绍不能查看详情');g.resume();return{fullGuide:all.length};
   });
   await check('模拟浏览器运行没有未处理异常',()=>{errors.push(...win.qaErrors);assert(!errors.length,errors.join('; '));return{errors};});
  }catch(error){records.push({name:'初始化',pass:false,error:error.message});}
  finally{if(g){g.menu();g.audio.stopMusic();}publish();lock(false);$('#status').textContent=records.every(r=>r.pass)?'全部 '+records.length+' 项检查通过；仍需手机真机触控复核。':'有检查未通过，请查看下方报告。';}
 };
-try{[html,css]=await Promise.all(['../index.html','../style.css'].map(async path=>{const r=await fetch(path);assert(r.ok,'无法读取'+path);return r.text();}));lock(false);$('#status').textContent='已准备好。点击按钮运行，测试不会改写真实存档。';}catch(error){$('#status').textContent='准备失败：'+error.message;}
+try{[html,css]=await Promise.all(['../index.html','../style.css'].map(async path=>{const r=await fetch(path,{cache:'no-store'});assert(r.ok,'无法读取'+path);return r.text();}));lock(false);$('#status').textContent='已准备好。点击按钮运行，测试不会改写真实存档。';if(new URLSearchParams(location.search).has('run'))setTimeout(()=>$('#run').click(),0);}catch(error){$('#status').textContent='准备失败：'+error.message;}
 </script>
 </html>

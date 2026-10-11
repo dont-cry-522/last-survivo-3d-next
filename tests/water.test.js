@@ -20,6 +20,22 @@ test('water depth follows the rotated shoreline and slows gradually without stac
  assert.equal(terrainAt(world,5,7).speed,.48);assert.equal(terrainAt(world,5,7,'golem').speed,.76);assert.equal(terrainAt(world,5,7,'snowtotem').speed,1);assert.equal(terrainAt(world,50,50).speed,1);
  const speeds=[0,1,2,3,4,5,6,7].map(d=>terrainAt({patches:[pond]},5,7+d).speed);assert(speeds.every((n,i)=>!i||n>=speeds[i-1]));
 });
+test('rotated visible shoreline vertices keep shallow water inside and dry ground immediately outside',()=>{
+ const point=new T.Vector3(),epsilon=.0001;
+ for(const angle of[0,.31,Math.PI/2,-.74]){
+  const group=new T.Group(),[pond]=buildPonds(group,'forest',seeded(8),{x:-30,z:-30},[],[{x:5,z:7,rx:6,rz:3.2,angle}]);
+  group.updateMatrixWorld(true);const positions=pond.mesh.geometry.attributes.position;
+  // Use the rendered outer-ring vertices, so rotation/scale or shore-profile mismatches fail here.
+  for(let i=positions.count-48;i<positions.count;i++){
+   point.fromBufferAttribute(positions,i).applyMatrix4(pond.mesh.matrixWorld);const dx=point.x-pond.x,dz=point.z-pond.z;
+   assert(waterDepth(pond,point.x,point.z)<.000002,'visible shore disagrees with the water boundary');
+   const inside=waterDepth(pond,pond.x+dx*(1-epsilon),pond.z+dz*(1-epsilon));
+   assert(Math.abs(inside-epsilon/.48)<.000002,'water does not start gradually at the visible edge');
+   assert.equal(waterDepth(pond,pond.x+dx*(1+epsilon),pond.z+dz*(1+epsilon)),0,'water extends beyond the visible edge');
+  }
+  group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
+ }
+});
 test('ponds stay clear of trees, spawn and reward sites; ash stays dry; surface meshes are shared',()=>{
  let previous;for(const id of ['forest','snow','ash'])for(let seed=0;seed<30;seed++){
   const w=buildWorld(id,seed);assert.equal(w.ponds.length,id==='ash'?0:6);
@@ -57,7 +73,8 @@ test('low-angle water uses biome sky colors within the existing surface pass and
   assert.strictEqual(shader.uniforms.waterSky,again.uniforms.waterSky,'recompilation must reuse cached reflection uniforms');
   assert.strictEqual(shader.uniforms.waterDetail,again.uniforms.waterDetail);
   palettes.push(shader.uniforms.waterSky.value.getHex());
-  assert.equal((source.match(/texture2D\(waterDetail,/g)||[]).length,id==='forest'?3:2,'only forest adds one filtered bed sample to the shared detail map');
+  assert.equal((source.match(/texture2D\(waterDetail,/g)||[]).length,2,'the moving flow and stationary shore share two detail samples');
+  assert.equal((source.match(/texture2D\(waterBed,/g)||[]).length,id==='forest'?1:0,'forest replaces its old third noise sample with one gravel-bed sample');
   assert(source.indexOf('dFdx(waveHeight)')<source.indexOf('vec3 waterReflection='),'reflection must see the final animated normal');
   assert(source.indexOf('outgoingLight=mix(outgoingLight,reflectedSky')<source.indexOf('#include <opaque_fragment>'),'reflection must precede alpha output');
   assert(source.includes('#include <tonemapping_fragment>')&&source.includes('#include <fog_fragment>'),'water reflection must retain scene tone mapping and distance fog');
@@ -67,6 +84,33 @@ test('low-angle water uses biome sky colors within the existing surface pass and
   group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
  }
  assert.equal(new Set(palettes).size,3,'forest, snow and coast keep their own reflection palettes');
+});
+test('forest gravel bed is one bounded filtered texture shared by water, wet banks and rebuilds',()=>{
+ let texture,uniform;
+ for(const id of['forest','forest','snow','coast','sand']){
+  const group=new T.Group(),ponds=buildPonds(group,id,seeded(12),{x:-30,z:-30},[],[{x:2,z:4,rx:6,rz:5,angle:.3},{x:20,z:18,rx:5,rz:4,angle:-.6}]);
+  for(const pond of ponds)for(const [material,kind]of[[pond.mesh.material,'standard'],[pond.bank.material,'lambert']]){
+   const shader={uniforms:{},vertexShader:T.ShaderLib[kind].vertexShader,fragmentShader:T.ShaderLib[kind].fragmentShader};material.onBeforeCompile(shader);
+   assert.equal((shader.fragmentShader.match(/texture2D\(waterDetail,/g)||[]).length,2,'water and wet banks keep their two existing detail samples');
+   assert.equal((shader.fragmentShader.match(/texture2D\(waterBed,/g)||[]).length,id==='forest'?1:0,'only forest water and wet banks add a single shared gravel sample');
+   if(id!=='forest'){
+    assert.equal(shader.uniforms.waterBed,undefined,'non-forest water or wet banks allocated a gravel sampler');
+    assert(!shader.fragmentShader.includes('uniform sampler2D waterBed;'));continue;
+   }
+   const bed=shader.uniforms.waterBed.value;
+   if(texture){assert.strictEqual(bed,texture,'pond rebuild allocated another gravel texture');assert.strictEqual(shader.uniforms.waterBed,uniform);}
+   else{texture=bed;uniform=shader.uniforms.waterBed;}
+   assert(bed.isDataTexture);assert.equal(bed.image.width,256);assert.equal(bed.image.height,256);assert.equal(bed.image.data.length,256*256*4);
+   assert.equal(bed.colorSpace,T.NoColorSpace,'gravel RGB stores linear reflectance');assert.equal(bed.format,T.RGBAFormat);assert.equal(bed.type,T.UnsignedByteType);
+   assert.equal(bed.wrapS,T.RepeatWrapping);assert.equal(bed.wrapT,T.RepeatWrapping);assert(bed.generateMipmaps);assert.equal(bed.minFilter,T.LinearMipmapLinearFilter);assert.equal(bed.magFilter,T.LinearFilter);
+  }
+  assert.equal(group.children.length,6,'gravel bed added a new rendered mesh');group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
+ }
+ assert([...texture.image.data].every(v=>Number.isFinite(v)&&v>=0&&v<=255),'gravel contains invalid channel values');
+ for(let channel=0;channel<4;channel++){
+  let min=255,max=0;for(let i=channel;i<texture.image.data.length;i+=4){min=Math.min(min,texture.image.data[i]);max=Math.max(max,texture.image.data[i]);}
+  assert(max-min>16,'gravel reflectance or pebble height became a flat fill');
+ }
 });
 test('shore leaves bend and taper within the existing instances and preserve the layout RNG stream',()=>{
  let sharedGeometry;
@@ -96,7 +140,7 @@ test('forest shore plants and stones form uneven small clusters without adding g
  for(let seed=0;seed<20;seed++){
   const group=new T.Group(),[pond]=buildPonds(group,'forest',seeded(seed),{x:-30,z:-30},[],[{x:2,z:4,rx:6,rz:5,angle:.3}]);
   for(const [name,stride]of [['pond-reeds',6],['pond-shore-stones',2]]){
-   const batch=group.getObjectByName(name),points=[];
+   const batch=group.getObjectByName(name),points=[];let halfSubmerged=0;
    for(let i=0;i<batch.count;i++){
     batch.getMatrixAt(i,matrix);point.setFromMatrixPosition(matrix);scale.setFromMatrixScale(matrix);points.push(point.clone());
     assert(waterDepth(pond,point.x,point.z)<.12,'shore dressing drifted into swimming water');
@@ -105,9 +149,11 @@ test('forest shore plants and stones form uneven small clusters without adding g
      const vertices=batch.geometry.attributes.position,vertex=new T.Vector3();let bottom=Infinity,top=-Infinity;
      for(let j=0;j<vertices.count;j++){vertex.fromBufferAttribute(vertices,j).applyMatrix4(matrix);bottom=Math.min(bottom,vertex.y);top=Math.max(top,vertex.y);}
      assert(bottom>=-.05&&bottom<=-.02,'transformed shore stone floats or sinks too far');assert(top>.04,'small shore stone disappeared underground');
+     if(waterDepth(pond,point.x,point.z)>0&&bottom<pond.mesh.position.y&&top>pond.mesh.position.y)halfSubmerged++;
     }
    }
    for(let i=0;i<points.length;i+=stride)for(let j=i+1;j<i+stride;j++)assert(points[i].distanceTo(points[j])<1.55,'one small shoreline cluster became a uniform ring');
+   if(name==='pond-shore-stones')assert(halfSubmerged>0,'pond has no shore stone crossing its visible water plane');
   }
   group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
  }
@@ -122,8 +168,8 @@ test('forest wet sediment stays dark and neutral while other shore palettes reta
  }
  const forest=banks.forest.color,luminance=c=>c.r*.2126+c.g*.7152+c.b*.0722;
  assert(luminance(forest)<.08&&luminance(forest)<luminance(banks.coast.color)*.5,'forest bank became a bright sandy outline');
- assert(forest.g>forest.r&&forest.b>forest.r*.9,'forest sediment became yellow rather than damp neutral soil');assert(banks.forest.opacity<=.25);
- for(const[id,color]of Object.entries({snow:0x798480,coast:0x82785d,sand:0x97845e}))assert.equal(banks[id].color.getHex(),color);
+ assert(forest.g>forest.r&&forest.b>forest.r*.9,'forest sediment became yellow rather than damp neutral soil');assert.equal(banks.forest.opacity,.82,'forest wet bank uses local shader fading at its outer edge');
+ for(const[id,[color,opacity]]of Object.entries({snow:[0x798480,.34],coast:[0x82785d,.23],sand:[0x97845e,.34]})){assert.equal(banks[id].color.getHex(),color);assert.equal(banks[id].opacity,opacity,'non-forest shore opacity changed');}
 });
 test('water pose does not accumulate and returns to land for heroes and ground creatures',()=>{
  for(const kind of ['silver','scout','wraith','wolf','golem','mushroom']){const g=actor(kind),d=g.userData;d.waterDepth=1;

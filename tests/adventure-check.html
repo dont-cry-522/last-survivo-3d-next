@@ -1,4 +1,4 @@
-<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 双视角实测</title><style>body{margin:12px;background:#17272b;color:#e2ecea;font:14px system-ui}button{padding:10px;margin:4px;background:#254943;border:1px solid #709582;color:inherit;border-radius:5px}iframe{display:block;border:0;margin-top:8px}pre{white-space:pre-wrap}#view{overflow:auto}</style><button id="run" disabled>运行双视角回归</button><select id="preview-map" aria-label="预览地图"><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="confluence">五境</option></select><select id="preview-place" aria-label="预览位置"><option value="spawn">出生地</option><option value="water">水岸</option><option value="trees">树丛</option><option value="ruins">遗迹近景</option><option value="elder">古树空地</option><option value="thicket">幽暗密林</option><option value="floor">林下落叶近景</option></select><button id="third" disabled>第三人称预览</button><button id="first" disabled>第一人称预览</button><button id="capture" disabled>保存画面</button><p id="status">正在加载真实游戏（隔离存档，固定帧测试）</p><div id="view"></div><pre id="report"></pre><script type="module">
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 双视角实测</title><style>body{margin:12px;background:#17272b;color:#e2ecea;font:14px system-ui}button{padding:10px;margin:4px;background:#254943;border:1px solid #709582;color:inherit;border-radius:5px}iframe{display:block;border:0;margin-top:8px}pre{white-space:pre-wrap}#view{overflow:auto}</style><button id="run" disabled>运行双视角回归</button><select id="preview-map" aria-label="预览地图"><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="confluence">五境</option></select><select id="preview-place" aria-label="预览位置"><option value="spawn">出生地</option><option value="water">水岸</option><option value="waterbed">浅水石底</option><option value="watercenter">水中近看</option><option value="trees">树丛</option><option value="ruins">遗迹近景</option><option value="elder">古树空地</option><option value="thicket">幽暗密林</option><option value="floor">林下落叶近景</option></select><button id="third" disabled>第三人称预览</button><button id="first" disabled>第一人称预览</button><button id="capture" disabled>保存画面</button><p id="status">正在加载真实游戏（隔离存档，固定帧测试）</p><div id="view"></div><pre id="report"></pre><script type="module">
 import * as T from '../vendor/three.module.js';
 import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=123';
 import {HERO_LOADOUTS,WEAPONS} from '../rules.js?v=125';
@@ -11,7 +11,7 @@ previewHero.value='silver';$('#preview-map').before(previewHero,previewWeapon);
 function previewWeapons(){previewWeapon.replaceChildren();for(const[index,id]of HERO_LOADOUTS[previewHero.value].entries()){const option=document.createElement('option');option.value=index;option.textContent=WEAPONS[id].name;previewWeapon.append(option);}}
 previewHero.onchange=previewWeapons;previewWeapons();
 const previewEnemy=document.createElement('select');previewEnemy.id='preview-enemy';previewEnemy.setAttribute('aria-label','预览怪物');for(const[id,name]of[['','无怪物'],['mushroom','蘑菇'],['wolf','狼'],['golem','岩怪'],['spitter','吐息者'],['shaman','萨满'],['flyer','本图飞行怪']])previewEnemy.add(new Option(name,id));$('#preview-place').after(previewEnemy);
-for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴'],['polish-run','持械与特效检查'],['habitat-run','六地图环境检查'],['weapon-run','枪口与近战镰刀检查'],['melee-poses','近战动作与尾迹检查'],['melee-sequence','近战完整动作检查'],['lighting-whitebox','光照白模检查'],['lighting-run','森林昼夜检查'],['lighting-day','晨光预览'],['lighting-night','月夜预览'],['boss-run','三首领与实体碰撞检查'],['boss-preview','第三首领预览']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
+for(const[id,text]of[['attack-preview','单次出手预览'],['dodge-preview','闪避预览'],['recover-preview','推进 8 帧'],['mobility-preview','跳跃与飞行怪预览'],['crouch-preview','下蹲姿势预览'],['mobility-run','运行蹲跳与空战回归'],['air-portrait','保存飞行怪图鉴'],['polish-run','持械与特效检查'],['habitat-run','六地图环境检查'],['weapon-run','枪口与近战镰刀检查'],['melee-poses','近战动作与尾迹检查'],['melee-sequence','近战完整动作检查'],['lighting-whitebox','光照白模检查'],['lighting-run','森林昼夜检查'],['water-run','水岸材质检查'],['water-step','水面推进 1 秒'],['lighting-day','晨光预览'],['lighting-night','月夜预览'],['boss-run','三首领与实体碰撞检查'],['boss-preview','第三首领预览']]){const button=document.createElement('button');button.id=id;button.textContent=text;button.disabled=true;$('#capture').before(button);}
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
 async function load(mobile=false,width=1180,height=720){
@@ -205,6 +205,7 @@ $('#run').onclick=async()=>{
 async function preview(mode){const controls=[...document.querySelectorAll('button,select')],disabled=controls.map(c=>c.disabled);for(const c of controls)c.disabled=true;try{await load();select(previewHero.value,Number(previewWeapon.value),$('#preview-map').value);g.setView(mode);g.adventureCamera.yaw=-.75;g.adventureCamera.pitch=mode==='first'?-.08:-.20;
  const place=$('#preview-place').value;
  if(place==='water'){const p=g.world.ponds[0];if(p){g.player.x=p.x+p.rx+2;g.player.z=p.z;g.adventureCamera.yaw=-Math.PI/2;g.adventureCamera.pitch=mode==='first'?-.23:-.32;}}
+ if(['waterbed','watercenter'].includes(place)){const p=g.world.ponds[0];if(p){const distance=place==='waterbed'?.91:0;g.player.x=p.x+Math.cos(p.angle)*p.rx*distance;g.player.z=p.z-Math.sin(p.angle)*p.rx*distance;g.adventureCamera.yaw=p.angle-Math.PI/2;g.adventureCamera.pitch=mode==='first'?-.65:-.50;}}
  if(place==='trees'){const trees=g.world.obstacles.filter(o=>o.mesh.getObjectByName('tree-canopy')),p=trees.find(o=>g.world.obstacles.every(q=>Math.hypot(o.x-q.x,o.z+5-q.z)>q.r+1));if(p){g.player.x=p.x;g.player.z=p.z+5;g.adventureCamera.yaw=Math.PI;g.adventureCamera.pitch=mode==='first'?.15:.05;}}
  if(place==='ruins'&&g.world.forestVista?.anchors.length){const a=g.world.forestVista.anchors[0],base=Math.atan2(g.world.spawn.x-a.x,g.world.spawn.z-a.z);for(let n=0;n<8;n++){const angle=base+n*Math.PI/4,x=a.x+Math.sin(angle)*3.6,z=a.z+Math.cos(angle)*3.6;if(g.world.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+.7))continue;g.player.x=x;g.player.z=z;g.adventureCamera.yaw=Math.atan2(a.x-x,a.z-z);g.adventureCamera.pitch=.12;break;}}
  if(['elder','thicket'].includes(place)&&g.world.forestHabitats){const h=g.world.forestHabitats,p=place==='elder'?h.elder:g.world.obstacles.find(o=>o.mesh.userData.forestHabitat==='thicket');if(p){for(let n=0;n<16;n++){const a=n*Math.PI/8,r=place==='elder'?13:6,x=p.x+Math.sin(a)*r,z=p.z+Math.cos(a)*r;if(g.world.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+.8))continue;g.player.x=x;g.player.z=z;g.adventureCamera.yaw=Math.atan2(p.x-x,p.z-z);g.adventureCamera.pitch=place==='elder'?.27:.1;break;}}}
@@ -390,4 +391,22 @@ $('#boss-run').onclick=async()=>{
   errors.push(...win.qaErrors);publish();$('#status').textContent='三首领与实体检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;
  }finally{buttons.forEach(b=>b.disabled=false);}
 };
-</script></html>
+
+// Render the same surface at both bank and swimming height, with the production clock.
+$('#water-step').onclick=()=>{step(60);$('#status').textContent='水面推进 1 秒 · '+JSON.stringify(reportFrame());};
+$('#water-run').onclick=async()=>{
+ const buttons=[...document.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);results.length=0;errors.length=0;
+ try{
+  for(const[mobile,width,height]of[[false,1180,720],[true,844,390],[true,390,844]]){
+   await load(mobile,width,height);select('silver',0,'forest');const p=g.world.ponds[0],shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};p.mesh.material.onBeforeCompile(shader);
+   for(const mode of['first','third'])for(const offset of[0,437])for(const distance of[1.18,0])await check((mobile?width+'×'+height:'电脑')+' '+mode+' '+(offset?'月夜':'晨光')+' '+(distance?'岸边':'水中'),()=>{
+    g.player.x=p.x+Math.cos(p.angle)*p.rx*distance;g.player.z=p.z-Math.sin(p.angle)*p.rx*distance;g.setView(mode);g.adventureCamera.yaw=p.angle-Math.PI/2;g.adventureCamera.pitch=-.40;g.environmentLighting.timeOffset=offset;step(10);
+    const before=reportFrame(),clock=shader.uniforms.waterTime.value,bed=shader.uniforms.waterBed.value;assert(bed.image.width===256&&bed.generateMipmaps,'池底纹理预算不符');assert(before.calls<2000,'水岸绘制超预算');
+    g.pause();step(12);assert(shader.uniforms.waterTime.value===clock,'暂停仍推进水纹');g.resume();step(6);assert(shader.uniforms.waterTime.value>clock,'恢复后水纹未继续');assert(shader.uniforms.waterBed.value===bed,'推进时重建了池底纹理');return reportFrame();
+   });
+  }
+  errors.push(...win.qaErrors);publish();$('#status').textContent='水岸材质检查完成';
+ }finally{buttons.forEach(b=>b.disabled=false);}
+};
+</script>
+</html>

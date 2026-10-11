@@ -24,6 +24,25 @@ export function terrainAt(world,x,z,kind='hero'){
  const slow=world.patches.find(p=>p.kind==='slow'&&Math.hypot(p.x-x,p.z-z)<p.r);return{kind:slow?'slow':'land',depth:0,floating,speed:slow?(kind==='hero'?.72:.75)*(world.sandstorm?.active&&(!slow.biome||slow.biome==='sand')?.72:1):1};
 }
 let surfaceGeometry;const stoneGeometry=naturalRockGeometry,surfaces=new Map();
+let bedTexture;
+// One small, tiled gravel bed, generated once without consuming map randomness.
+// RGB is linear reflectance; alpha is the rounded pebble height. Mips keep it quiet at distance.
+function pondBedTexture(){
+ if(bedTexture)return bedTexture;
+ const size=256,cells=20,data=new Uint8Array(size*size*4),hash=(x,y,k)=>{const n=Math.sin(((x+cells)%cells)*127.1+((y+cells)%cells)*311.7+k*74.7)*43758.5453;return n-Math.floor(n);};
+ const sites=Array.from({length:cells*cells},(_,i)=>{const x=i%cells,y=Math.floor(i/cells);return{x:.08+hash(x,y,0)*.84,y:.08+hash(x,y,1)*.84,rx:.39+hash(x,y,2)*.24,ry:.32+hash(x,y,3)*.24,tone:hash(x,y,4),phase:hash(x,y,5)*Math.PI*2};});
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  const u=x/size*cells,v=y/size*cells,cx=Math.floor(u),cy=Math.floor(v);let nearest=2,px=0,py=0,tone=0;
+  for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){
+   const gx=cx+i,gy=cy+j,site=sites[((gy+cells)%cells)*cells+(gx+cells)%cells],dx=(u-gx-site.x)/site.rx,dy=(v-gy-site.y)/site.ry,a=Math.atan2(dy,dx),d=Math.hypot(dx,dy)*(1+Math.sin(a*3+site.phase)*.065+Math.cos(a*5+site.phase)*.045);
+   if(d<nearest){nearest=d;px=dx;py=dy;tone=site.tone;}
+  }
+  const round=Math.sqrt(Math.max(0,1-nearest*nearest)),edge=T.MathUtils.smoothstep(nearest,.86,1),grain=(Math.sin(x*73.3+y*37.9)*43758.5)%1;
+  const shade=.70+round*.26-px*.12-py*.16,stone=(.065+tone*.075)*shade+grain*.007,silt=.057+grain*.008,light=T.MathUtils.lerp(stone,silt,edge),index=(y*size+x)*4;
+  data[index]=Math.round(clamp(light*(1.03+tone*.12),0,1)*255);data[index+1]=Math.round(light*255);data[index+2]=Math.round(light*(.90+tone*.04)*255);data[index+3]=Math.round(round*255);
+ }
+ bedTexture=new T.DataTexture(data,size,size);bedTexture.name='T_Pond_Gravel_A';bedTexture.wrapS=bedTexture.wrapT=T.RepeatWrapping;bedTexture.generateMipmaps=true;bedTexture.minFilter=T.LinearMipmapLinearFilter;bedTexture.magFilter=T.LinearFilter;bedTexture.anisotropy=4;bedTexture.needsUpdate=true;return bedTexture;
+}
 // Two bent leaves retain each existing reed's anchor, height and instanced draw.
 const reedGeometry=(()=>{
  const positions=[],colors=[],indices=[];
@@ -64,6 +83,7 @@ function waterSurface(id){
  if(!surfaces.has(id)){
   const clock={value:0},detail={value:environmentDetailTexture()},climate=CLIMATE_LIGHT[id]||CLIMATE_LIGHT.forest,reflection={waterSky:{value:new T.Color(climate.sky)},waterHorizon:{value:new T.Color(climate.fog)}},coast=id==='coast'?{coastPonds:{value:Array.from({length:8},()=>new T.Vector4())},coastTurns:{value:Array.from({length:8},()=>new T.Vector2())},coastCount:{value:0}}:null,material=new T.MeshStandardMaterial({color:id==='snow'?0x71bdcf:0x398f91,vertexColors:true,roughness:.38,metalness:0,side:T.DoubleSide,transparent:true,depthWrite:false});
   material.forceSinglePass=true;
+  const bed=id==='forest'?{value:pondBedTexture()}:null;
   material.onBeforeCompile=shader=>{shader.uniforms.waterTime=clock;shader.uniforms.waterDetail=detail;Object.assign(shader.uniforms,reflection);if(coast)Object.assign(shader.uniforms,coast);shader.vertexShader='varying vec3 waterWorld; varying vec2 waterLocal;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nwaterWorld=(modelMatrix*vec4(position,1.0)).xyz;waterLocal=position.xz;');shader.fragmentShader=(coast?coastUnionShader:'')+'\nuniform float waterTime; uniform sampler2D waterDetail; uniform vec3 waterSky; uniform vec3 waterHorizon; varying vec3 waterWorld; varying vec2 waterLocal;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
     float angle=atan(waterLocal.y,waterLocal.x);
     float radial=length(waterLocal)/(1.0+.07*sin(angle*3.0)+.045*cos(angle*5.0));
@@ -79,31 +99,33 @@ function waterSurface(id){
     float swellB=waterWorld.x*-1.25+waterWorld.z*.48-waterTime*.41+waterFlow.x*1.7-waterFlow.y*.7;
     float rippleA=sin(waterWorld.x*2.8+waterWorld.z*3.9+sin(swellA)*1.5+sin(swellB)*.8-waterTime*.83);
     float rippleB=sin(waterWorld.x*-3.5+waterWorld.z*2.1+sin(swellB)*1.1+waterFlow.y*2.2-waterTime*.62);
-    float light=pow(max(0.0,rippleA),10.0)*smoothstep(.48,.87,rippleB)*(.3+waterFlow.y*.7)*.038*rippleDetail;
+    float light=pow(max(0.0,rippleA),10.0)*smoothstep(.48,.87,rippleB)*(.3+waterFlow.y*.7)*${id==='forest'?'.009':'.038'}*rippleDetail;
     // Wind crosses the bank in short fragments, never in radial foam rings.
     float lapPhase=swellA*1.35+waterFlow.y*2.0;
     float shoreLap=pow(max(0.0,sin(lapPhase)),5.0)*smoothstep(.72,.88,radial)*(1.0-smoothstep(.95,1.0,radial))*(.3+waterFlow.y*.7)*shoreBreak;
-    float waveHeight=(sin(swellA)*${id==='coast'?'.045':'.033'}+sin(swellB)*${id==='coast'?'.026':'.020'}+(rippleA+rippleB)*.0025*rippleDetail)*(1.0-edge*.72)+shoreLap*.003;
+    float waveHeight=(sin(swellA)*${id==='coast'?'.045':id==='forest'?'.016':'.033'}+sin(swellB)*${id==='coast'?'.026':id==='forest'?'.011':'.020'}+(rippleA+rippleB)*${id==='forest'?'.008':'.0025'}*rippleDetail)*(1.0-edge*${id==='forest'?'.30':'.72'})+shoreLap*.003;
     vec3 deepWater=vec3(${id==='coast'?'.021,.098,.129':id==='snow'?'.029,.086,.126':'.012,.050,.048'});
     vec3 shallowWater=vec3(${id==='coast'?'.080,.170,.170':id==='snow'?'.090,.170,.200':id==='forest'?'.021,.064,.055':'.071,.132,.112'});
     vec3 sediment=vec3(${id==='coast'?'.160,.135,.085':id==='snow'?'.115,.137,.125':id==='sand'?'.290,.220,.120':'.043,.052,.038'});
     float bedDetail=mix(.5,shoreGrain.b,rippleDetail);
-    ${id==='forest'?`// Fine, stationary bed grain seen through a slight wave distortion.
-    vec3 bedGrain=texture2D(waterDetail,waterWorld.xz*.72+vec2(rippleA,rippleB)*.003*rippleDetail).rgb;
-    bedDetail=mix(.5,smoothstep(.19,.81,bedGrain.b*.65+bedGrain.r*.35),rippleDetail);`:''}
     // Stationary sediment shelves break the radial color bands without changing water depth.
     float bedDepth=clamp(depth+(shoreGrain.x-.5)*.28+(shoreGrain.y-.5)*.12,0.0,1.0);
-    float bedVisibility=(1.0-smoothstep(.04,${id==='forest'?'.36':'.66'},bedDepth))*${id==='forest'?'.46*(.18+.82*smoothstep(.38,.72,shoreGrain.y+shoreGrain.x*.10))':'.66'};
+    float bedVisibility=${id==='forest'?'exp(-bedDepth*4.8)*(.82+shoreGrain.y*.18)':'(1.0-smoothstep(.04,.66,bedDepth))*.66'};
     vec3 riverbed=sediment*(.76+shoreGrain.x*.22+bedDetail*.25);
+    ${id==='forest'?`// The bed stays in world space; only a centimetre-scale refraction sways it.
+    vec2 bedUV=(waterWorld.xz+vec2(rippleA,rippleB)*.018*rippleDetail)*.36;
+    vec4 bedGravel=texture2D(waterBed,bedUV);
+    riverbed=mix(sediment*.90,bedGravel.rgb*vec3(.72,.91,.88),.28+.56*smoothstep(.30,.68,shoreGrain.y))*(.82+shoreGrain.x*.18)*(.88+bedGravel.a*.12);`:''}
     float caustic=smoothstep(.80,1.02,rippleA*.55+rippleB*.45+waterFlow.y*.12)*bedVisibility*rippleDetail;
     diffuseColor.rgb=mix(deepWater*(.90+shoreGrain.x*.10+waterFlow.y*.06),shallowWater,1.0-smoothstep(.07,.92,bedDepth));
     diffuseColor.rgb=mix(diffuseColor.rgb,riverbed,bedVisibility)+vec3(.48,.68,.61)*caustic*.06;
     diffuseColor.rgb+=vec3(.56,.73,.70)*light*(1.0-edge*.35)+vec3(.017,.023,.018)*shoreLap;
     // Lapping shifts only the inner fade: the visible shore never exceeds the gameplay boundary.
-    // Forest shallows use the shaded bed above, not a broad window onto sunlit yellow ground.
-    diffuseColor.a*=(${id==='forest'?'.92+depth*.04':'.64+depth*.30'})*(1.0-smoothstep(${id==='forest'?'.955+shoreGrain.y*.025':'.80+shoreGrain.y*.12'}+shoreLap*.012,1.0,radial));
+    // The forest's partly transparent shallows reveal the continuous damp bed below.
+    diffuseColor.a*=(${id==='forest'?'.94+depth*.04':'.64+depth*.30'})*(1.0-smoothstep(${id==='forest'?'.91+shoreGrain.y*.035':'.80+shoreGrain.y*.12'}+shoreLap*.012,1.0,radial));
 `);
-   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor=${id==='forest'?'.16+edge*.36':'.23+edge*.29'}+(.5-waterFlow.y)*.065;`);
+   if(bed){shader.uniforms.waterBed=bed;shader.fragmentShader='uniform sampler2D waterBed;\n'+shader.fragmentShader;}
+   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor=${id==='forest'?'.13+edge*.065':'.23+edge*.29'}+(.5-waterFlow.y)*.065;`);
    shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     vec3 waveDx=dFdx(-vViewPosition),waveDy=dFdy(-vViewPosition);
     vec3 waveRx=cross(waveDy,normal),waveRy=cross(normal,waveDx);
@@ -120,8 +142,8 @@ function waterSurface(id){
     vec3 reflectedSky=mix(waterHorizon,waterSky,smoothstep(.02,.72,waterReflection.y));
     reflectedSky*=.88+waterFlow.y*.12+shoreGrain.x*.05;
     float reflectionBreak=.78+waterFlow.x*.22;
-    ${id==='forest'?'outgoingLight-=totalSpecular*(1.0-smoothstep(.08,.65,depth))*.94;':''}
-    outgoingLight=mix(outgoingLight,reflectedSky,(.035+waterFresnel*.43)*${id==='forest'?'smoothstep(.30,.95,depth)':'(.48+depth*.52)'}*reflectionBreak);
+    ${id==='forest'?'outgoingLight-=totalSpecular*edge*.24;':''}
+    outgoingLight=mix(outgoingLight,reflectedSky,${id==='forest'?'(.028+waterFresnel*.70)':'(.035+waterFresnel*.43)*(.48+depth*.52)'}*reflectionBreak);
     #include <opaque_fragment>
    `);
    // Keep derivative helpers alive through the normal calculation at overlap boundaries.
@@ -129,7 +151,7 @@ function waterSurface(id){
   };
   material.customProgramCacheKey=()=> 'pond-depth-reflection-'+id+(coast?'-union':'');
   // Matte sediment receives the existing lights/shadows instead of sitting above them as a dark decal.
-  const bank=new T.MeshLambertMaterial({color:id==='snow'?0x798480:id==='coast'?0x82785d:id==='sand'?0x97845e:0x414c43,transparent:true,opacity:id==='coast'?.23:id==='forest'?.25:.34,depthWrite:false});
+  const bank=new T.MeshLambertMaterial({color:id==='snow'?0x798480:id==='coast'?0x82785d:id==='sand'?0x97845e:0x414c43,transparent:true,opacity:id==='coast'?.23:id==='forest'?.82:.34,depthWrite:false});
   bank.onBeforeCompile=shader=>{shader.uniforms.waterTime=clock;shader.uniforms.waterDetail=detail;if(coast)Object.assign(shader.uniforms,coast);shader.vertexShader='varying vec2 bankLocal;varying vec2 bankWorld;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nbankLocal=position.xz;bankWorld=(modelMatrix*vec4(position,1.0)).xz;');shader.fragmentShader=(coast?coastUnionShader:'')+'\nuniform float waterTime; uniform sampler2D waterDetail; varying vec2 bankLocal;varying vec2 bankWorld;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
    float a=atan(bankLocal.y,bankLocal.x);float r=length(bankLocal)/(1.0+.07*sin(a*3.0)+.045*cos(a*5.0));${coast?'float ownRadial=r;r=coastRadial(bankWorld,1.12,r);':''}
    vec2 bankGrain=texture2D(waterDetail,bankWorld*.035+vec2(waterTime*.0012,-waterTime*.0008)).rg;
@@ -138,10 +160,17 @@ function waterSurface(id){
    float wetSwell=bankWorld.x*.65+bankWorld.y*.95-waterTime*.55+bankGrain.x*2.6;
    float wetLap=pow(max(0.0,sin(wetSwell*1.35+bankGrain.y*2.0)),5.0);
    float sedimentPatch=smoothstep(${id==='forest'?'.38,.72,shoreGrain.y+shoreGrain.x*.10':'.24,.78,shoreGrain.y+shoreGrain.x*.18'});
-   diffuseColor.rgb*=(.72+shoreGrain.x*.22+shoreGrain.b*.09)*mix(.73,1.0,smoothstep(.72,.98,r));
-   diffuseColor.a*=${id==='forest'?'(1.0-smoothstep(.84+shoreGrain.x*.035,.945,r))*(.12+sedimentPatch*.88)+wetContact*wetLap*.04*smoothstep(.38,.72,shoreGrain.y)':'(1.0-smoothstep(.72+shoreGrain.x*.16,1.0,r))*(.34+sedimentPatch*.66)+wetContact*wetLap*.07*smoothstep(.23,.76,shoreGrain.y)'};
+   ${id==='forest'?`// Water ends at bank radius 1/1.12. The same gravel continues through it.
+   // Irregular wet soil gives way to dry ground outside; no full circular outline.
+   vec4 bankGravel=texture2D(waterBed,bankWorld*.36);
+   float dryEdge=r+(shoreGrain.x-.5)*.065+(shoreGrain.z-.5)*.022;
+   float damp=1.0-smoothstep(.887,.960,dryEdge);
+   vec3 gravel=mix(vec3(.043,.052,.038)*.90,bankGravel.rgb*vec3(.72,.91,.88),.28+.56*smoothstep(.30,.68,shoreGrain.y))*(.82+shoreGrain.x*.18)*(.88+bankGravel.a*.12);
+   diffuseColor.rgb=mix(vec3(.057,.055,.040)*(.85+shoreGrain.b*.3),gravel,damp);
+   diffuseColor.a*=(1.0-smoothstep(.89,.998,dryEdge))*(.55+sedimentPatch*.45);`:`diffuseColor.rgb*=(.72+shoreGrain.x*.22+shoreGrain.b*.09)*mix(.73,1.0,smoothstep(.72,.98,r));
+   diffuseColor.a*=(1.0-smoothstep(.72+shoreGrain.x*.16,1.0,r))*(.34+sedimentPatch*.66)+wetContact*wetLap*.07*smoothstep(.23,.76,shoreGrain.y);`}
    ${coast?'if(ownRadial>r+.0001)discard;':''}
-  `);};
+  `);if(bed){shader.uniforms.waterBed=bed;shader.fragmentShader='uniform sampler2D waterBed;\n'+shader.fragmentShader;}};
   bank.customProgramCacheKey=()=> 'pond-broken-wet-bank-'+id+(coast?'-union':'');
   const reeds=new T.MeshStandardMaterial({color:id==='snow'?0x94a599:id==='coast'?0x7b8657:id==='forest'?0x526b48:0x7e8954,roughness:1,vertexColors:true,side:T.DoubleSide}),stones=new T.MeshStandardMaterial({color:id==='snow'?0x9aaeb0:0x6c7a68,roughness:.94,vertexColors:true});
   reeds.forceSinglePass=true;
@@ -205,7 +234,7 @@ export function buildPonds(group,id,rnd,spawn,sites,locations=null){
   for(let i=0;i<6;i++){
    let a=rnd()*Math.PI*2;const r=.16+rnd()*.3;
    if(forest){if(i%2===0)stoneAnchor=a;else a=stoneAnchor+.075+Math.sin(a)*.025;}
-   const point=at(a,forest?(i%2===0?1.035:1.065):1.06);if(submerged(point))continue;
+   const point=at(a,forest?(i%2===0?.985:1.055):1.06);if(submerged(point))continue;
    dummy.position.set(point.x,r*.25,point.z);dummy.rotation.set(rnd()*.3,rnd()*6,rnd()*.3);
    const scale=forest&&i%2?.55:1;dummy.scale.set(r*scale,(.15+rnd()*.12)*scale,r*.8*scale);dummy.updateMatrix();
    if(forest){

@@ -4,11 +4,11 @@ import{batchedSurfaceMaterial,prepareBatchedSurface}from'./environment-props.js?
 import{waterDepth}from'./water.js?v=160';
 import{bridgeContains}from'./coast.js?v=114';
 import{segmentDistance}from'./rules.js?v=125';
-import{buildWoodlandPlace}from'./woodland-places.js?v=161';
-import{buildRuinPlace}from'./ruin-places.js?v=161';
+import{buildWoodlandPlace}from'./woodland-places.js?v=162';
+import{buildRuinPlace}from'./ruin-places.js?v=162';
 import{buildHarborPlace}from'./harbor-place.js?v=161';
 import{coastPlaceCandidates,harborPierPlan}from'./harbor-bank-layout.js?v=160';
-import{installHarborBank}from'./harbor-bank.js?v=160';
+import{installHarborBank}from'./harbor-bank.js?v=162';
 
 const templates=new Map(),materials=new Map(),HALF_X=9.4,HALF_Z=8.4;
 function finish(category){

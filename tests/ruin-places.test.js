@@ -1,5 +1,6 @@
 import test from'node:test';
 import assert from'node:assert/strict';
+import{createHash}from'node:crypto';
 import * as T from'../vendor/three.module.js';
 import{buildRuinPlace}from'../ruin-places.js';
 import{naturalRockGeometry}from'../biome-scenery.js?v=156';
@@ -90,7 +91,7 @@ test('the second sand place leads into one store court and retains a real fallen
 test('the second ash furnace hearth stays visible above its own shallow slag bed',()=>{
  const place=build('ash',1),group=new T.Group(),material=new T.MeshBasicMaterial({side:T.DoubleSide});let hearth;
  for(const part of place.parts){const mesh=new T.Mesh(part.geometry,material);group.add(mesh);if(part.category==='metal'&&part.geometry.type==='CircleGeometry')hearth=mesh;}
- group.updateMatrixWorld(true);assert(hearth);assert(hearth.geometry.boundingBox.max.y<=.12,'hearth became a raised platform');
+ group.updateMatrixWorld(true);assert(hearth);assert(hearth.geometry.boundingBox.max.y<=.035,'hearth became a raised platform');
  const ray=new T.Raycaster();
  for(const[dx,dz]of[[0,0],[-.3,0],[.3,0],[0,-.3],[0,.3],[-.6,.3],[.6,-.3]]){
   ray.set(new T.Vector3(5.68+dx,2,-3.3+dz),new T.Vector3(0,-1,0));const hits=ray.intersectObject(group,true);assert.equal(hits[0]?.object,hearth,'slag floor hides the cold furnace hearth');
@@ -100,7 +101,7 @@ test('the second ash furnace hearth stays visible above its own shallow slag bed
 });
 
 test('the two layouts differ physically, use existing material categories and preserve the default template',()=>{
- const budgets={ash:[[6172,4,57],[5786,3,48]],sand:[[8744,3,55],[7488,3,46]]};
+ const budgets={ash:[[6308,4,57],[5886,3,48]],sand:[[8900,3,55],[7608,3,46]]};
  for(const id of['ash','sand']){
   const first=build(id),second=build(id,1),explicit=build(id,0);assert.deepEqual(first.solids,explicit.solids);assert.notDeepEqual(first.solids,second.solids,'variant changes only colors');
   assert.notEqual(first.kind,second.kind);assert.notEqual(Math.sign(first.focus.x),Math.sign(second.focus.x),'both layouts keep the same large landmark on the same side');
@@ -110,6 +111,52 @@ test('the two layouts differ physically, use existing material categories and pr
   }
   first.parts.forEach((p,i)=>assert.deepEqual(p.geometry.attributes.position.array,explicit.parts[i].geometry.attributes.position.array));first.dispose();second.dispose();explicit.dispose();
  }
+});
+
+test('fractured ground and sand deposits taper below the real ground with no raised walkable slab',()=>{
+ const material=new T.MeshBasicMaterial({side:T.FrontSide}),ray=new T.Raycaster();
+ for(const id of['ash','sand'])for(const variant of[0,1]){
+  const place=build(id,variant),layers=place.parts.filter(p=>p.geometry.userData.ruinGroundLayer);
+  assert.equal(layers.length,id==='ash'?4:5,'ground layer count changed');
+  for(const{geometry:g}of layers){
+   const p=g.attributes.position,n=g.attributes.normal,c=g.attributes.color,meta=g.userData.ruinGroundLayer;
+   assert.equal(g.index.count/3,120,'thin layer has a larger geometry cost than the old rock');
+   assert(g.boundingBox.max.y<=.0290001&&g.boundingBox.max.y<=meta.ceiling+.000001,'walkable detail hides the player feet');
+   assert(g.boundingBox.min.y<-.034,'edges do not reach through the real ground at -0.03m');
+   assert.equal(Array.from({length:p.count},(_,i)=>p.getY(i)).filter(y=>y<-.034).length,24,'the whole irregular perimeter must be buried');
+   assert(g.boundingBox.max.y-g.boundingBox.min.y>.037,'layer has collapsed into a flat decal');
+   for(let i=0;i<p.count;i++)assert(n.getY(i)>.8,'ground layer is folded or wound downward');
+   for(const value of c.array)assert(Number.isFinite(value)&&value>=0&&value<=1,'ground color is invalid');
+   assert(Math.max(...c.array)-Math.min(...c.array)>.05,'fractures or wind streaks have no low-contrast tonal variation');
+   // A front-facing ray confirms the center is actual continuous ground, with
+   // no alpha plane or back-facing hole where a player can walk into the yard.
+   const mesh=new T.Mesh(g,material);mesh.updateMatrixWorld(true);ray.set(new T.Vector3(p.getX(0),1,p.getZ(0)),new T.Vector3(0,-1,0));assert(ray.intersectObject(mesh).length>0);
+  }
+  place.dispose();
+ }
+ material.dispose();
+});
+
+test('low wall seams remain inside the original solid footprint and use biome-specific ground contact',()=>{
+ for(const id of['ash','sand'])for(const variant of[0,1]){
+  const place=build(id,variant),walls=place.parts.filter(p=>p.category==='stone'&&p.geometry.type==='BufferGeometry'&&Math.abs(p.geometry.boundingBox.min.y+.1)<1e-6);
+  assert.equal(walls.length,id==='ash'?(variant?4:6):(variant?5:6));
+  for(const{geometry:g}of walls){
+   const p=g.attributes.position,c=g.attributes.color,foot=[],shoulder=[],seams=new Set();
+   for(let i=0;i<p.count;i++){
+    const y=p.getY(i);if(y<0)foot.push(c.getY(i));
+    if(y>.04&&y<.26){seams.add(y.toFixed(4));shoulder.push(c.getY(i));}
+   }
+   assert(seams.size>=2,'low rock seam has no uneven profile');
+   const avg=a=>a.reduce((s,n)=>s+n,0)/a.length;assert(id==='sand'?avg(foot)>avg(shoulder):avg(foot)<avg(shoulder),'sand burial and soot contact use the same color treatment');
+  }
+  place.dispose();
+ }
+});
+
+test('ground and low wall refinement preserves every collider from both established layouts',()=>{
+ const original={ash:['b1fc4ed1ca2168ec0472caca3fdfb1f4bd8f5ceedf6f6ac43879733b769988fc','0a618a5ce70680b0acc74bcf67c877d5ac7b25aa2ca995d5737301413fb29972'],sand:['a461e5c7c578709ca708b7fc8361f40df82e100f258282754bf617706a6e7f61','486f88fe3dacf2c633813c39f8967f6f39827ab86d0b1145dcbf4cc4a8d50f66']};
+ for(const id of['ash','sand'])for(const variant of[0,1]){const p=build(id,variant);assert.equal(createHash('sha256').update(JSON.stringify(p.solids)).digest('hex'),original[id][variant]);p.dispose();}
 });
 
 test('builds are deterministic, own their pieces, and never mutate or dispose shared sources',()=>{

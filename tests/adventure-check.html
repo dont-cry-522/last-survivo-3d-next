@@ -824,7 +824,7 @@ sceneryEdgeButton.onclick=async()=>{
 
 // Real-terrain integration checks: keep scenery, solids, water and encounter arrays intact.
 // Only actor placement/health are fixtures; movement and lifecycle use the production APIs.
-const terrainButton=document.createElement('button');terrainButton.id='terrain-run';terrainButton.textContent='真实缓坡与七角色检查';$('#capture').before(terrainButton);
+const terrainButton=document.createElement('button');terrainButton.id='terrain-run';terrainButton.textContent='六图真实缓坡与七角色检查';$('#capture').before(terrainButton);
 $('#preview-place').add(new Option('出生地沿小路看缓坡','terrain-approach'));
 $('#preview-place').add(new Option('小路尽头看水岸','terrain-bank'));
 const terrainFloor=(x,z)=>g.world.groundHeightAt?.(x,z)||0;
@@ -838,11 +838,12 @@ function terrainStandClear(x,z){
  if([...(g.world.sites||[]),...(g.world.discoveries||[]),...(g.world.roaming||[])].some(p=>Math.hypot(x-p.x,z-p.z)<9))return false;
  const h=terrainFloor(x,z);return !g.world.overhead.firstHit({x,y:h+.05,z},{x,y:h+g.player.standHeight+1.4,z});
 }
-function terrainLane(){
- const data=g.world.forestTerrain;assert(data&&typeof g.world.groundHeightAt==='function','真实森林地形未安装');
+function terrainLane(biome=null){
+ const data=g.world.forestTerrain;assert(data&&typeof g.world.groundHeightAt==='function','真实地形未安装');
+ const region=biome&&g.world.regions?.find(r=>r.id===biome);
  const candidates=[];for(let row=0;row<=data.rows;row++)for(let col=0;col<=data.cols;col++){
   const x=g.world.ground.position.x-data.width/2+col*data.width/data.cols,z=g.world.ground.position.z-data.height/2+row*data.height/data.rows,h=terrainFloor(x,z);
-  if(h>.005)candidates.push({x,z,h});
+  if(h>.005&&(!region||region.contains(x,z)))candidates.push({x,z,h});
  }
  candidates.sort((a,b)=>b.h-a.h);
  for(const p of candidates.slice(0,240))for(let turn=0;turn<16;turn++){
@@ -862,8 +863,8 @@ function positionTerrainApproach(mode,bank=false){
 function terrainFrames(n,inspect=()=>{},hz=60){
  for(let i=0;i<n;i++){g.step(1/hz);assert(g.state==='playing','缓坡检查意外进入 '+g.state);assert(g.player.y>=terrainFloor(g.player.x,g.player.z)-.00001,'脚底穿过真实地形');inspect(i);}
 }
-function checkTerrainHero(hero,mobile=false){
- select(hero,0,'forest');win.document.querySelector('[data-attack-mode="manual"]').click();const lane=terrainLane(),original=g.world,solids=g.world.obstacles,patches=g.world.patches,sites=g.world.sites,ground=g.world.ground.geometry;
+function checkTerrainHero(hero,mobile=false,map='forest',biome=null){
+ select(hero,0,map);win.document.querySelector('[data-attack-mode="manual"]').click();const lane=terrainLane(biome),original=g.world,solids=g.world.obstacles,patches=g.world.patches,sites=g.world.sites,ground=g.world.ground.geometry;
  putTerrainPlayer(lane.x,lane.z,lane.yaw);g.setView('third');let low=Infinity,high=-Infinity;
  key('keydown','w');terrainFrames(18,()=>{const h=terrainFloor(g.player.x,g.player.z);low=Math.min(low,h);high=Math.max(high,h);assert(Math.abs(g.player.y-h)<.00001,'走坡浮空 '+hero);assert(g.player.jumpVelocity===0&&g.player.jumpRest===0,'走坡误触发跳跃或落地锁');});key('keyup','w');
  assert(Math.hypot(g.player.x-lane.x,g.player.z-lane.z)>1,'真实步行未发生');
@@ -879,10 +880,10 @@ function checkTerrainHero(hero,mobile=false){
  g.hurtEnemy(e,1e8);const orb=g.orbs.at(-1);assert(orb&&Math.abs(orb.mesh.position.y-(terrainFloor(orb.x,orb.z)+.5))<.00001,'掉落没有生成在坡面上');terrainFrames(1);assert(Math.abs(orb.mesh.position.y-(terrainFloor(orb.x,orb.z)+.45+Math.sin(g.time*3)*.08))<.00001,'经验吸引时穿坡');
  assert(g.world===original&&g.world.obstacles===solids&&g.world.patches===patches&&g.world.sites===sites&&g.world.ground.geometry===ground,'测试改动了真实世界或移除了地形');
  g.player.inv=0;g.mirage.reset();g.damage(1e8,g.player.x,g.player.z,'poison');assert(g.state==='lost'&&Math.abs(g.player.y-terrainFloor(g.player.x,g.player.z))<.00001&&g.player.jumpVelocity===0,'结束没有清理垂直状态');step(1,0);
- return{hero,source:mobile?'触控跳跃按钮与手机尺寸模拟，非真机':'真实键盘 W / Space 与生产闪避',lane,walkHeights:[low,high],jumpRise:peak-takeoff,...reportFrame()};
+ return{hero,map,biome,source:mobile?'触控跳跃按钮与手机尺寸模拟，非真机':'真实键盘 W / Space 与生产闪避',lane,walkHeights:[low,high],jumpRise:peak-takeoff,...reportFrame()};
 }
-function checkTerrainPoison(){
- select('wuling',0,'forest');const lane=terrainLane();putTerrainPlayer(lane.x,lane.z,lane.yaw);const w=weaponStats(g.player);assert(g.poison.cast(w,g.player,lane.yaw,{x:lane.x,z:lane.z}),'毒囊没有施放');terrainFrames(90);
+function checkTerrainPoison(map='forest',biome=null){
+ select('wuling',0,map);const lane=terrainLane(biome);putTerrainPlayer(lane.x,lane.z,lane.yaw);const w=weaponStats(g.player);assert(g.poison.cast(w,g.player,lane.yaw,{x:lane.x,z:lane.z}),'毒囊没有施放');terrainFrames(90);
  const fog=g.poisonVFX.fog.find(m=>m.visible);assert(g.poison.clouds.length===1&&fog,'毒囊没有落地并形成毒雾');fog.updateWorldMatrix(true,false);const pos=fog.geometry.attributes.position,p=new T.Vector3();let maximum=0;
  for(let i=0;i<pos.count;i++){p.fromBufferAttribute(pos,i).applyMatrix4(fog.matrixWorld);const h=terrainFloor(p.x,p.z);maximum=Math.max(maximum,h);assert(Math.abs(p.y-h-.07)<.00002,'毒雾网格没有逐点贴合地形');}
  assert(maximum>.005,'毒雾测试落在了平地');const oldWorld=g.world,oldTerrain=oldWorld.forestTerrain,geometry=oldWorld.ground.geometry,fogGeometry=fog.geometry;let released=0,fogReleased=0;geometry.addEventListener('dispose',()=>released++);fogGeometry.addEventListener('dispose',()=>fogReleased++);
@@ -894,8 +895,12 @@ terrainButton.onclick=async()=>{
  try{
   await load();for(const hero of Object.keys(HERO_LOADOUTS))await check(hero+' 真实林地缓坡：走/跳/闪避/怪物/掉落/死亡',()=>checkTerrainHero(hero));
   await check('真实坡面毒囊、毒雾逐顶点贴地与重开释放',checkTerrainPoison);
-  for(const map of['snow','ash','sand','coast','confluence'])await check(map+' 沿用旧平地且不带入森林高度',()=>{select('silver',0,map);assert(!g.world.groundHeightAt&&!g.world.forestTerrain,'森林缓坡串入旧地图');assert(g.player.y===0&&g.player.groundHeight===0,'旧地图出生高度变化');return reportFrame();});
+  for(const map of['snow','ash','sand','coast'])await check(map+' 实际缓坡：走/跳/瞬移/怪物/掉落',()=>checkTerrainHero('silver',false,map));
+  for(const biome of['forest','snow','ash','sand','coast'])await check('五境 '+biome+' 实际缓坡与双视角',()=>checkTerrainHero('silver',false,'confluence',biome));
+  await check('五境坡面毒雾与重开释放',()=>checkTerrainPoison('confluence','sand'));
   await load(true,844,390);for(const hero of['silver','lingya','wuling'])await check(hero+' 手机横屏模拟：真实缓坡与触控跳跃',()=>checkTerrainHero(hero,true));
+  for(const map of['snow','ash','sand','coast'])await check(map+' 手机横屏模拟：缓坡步行与触控跳跃',()=>checkTerrainHero('scout',true,map));
+  for(const biome of['forest','snow','ash','sand','coast'])await check('五境 '+biome+' 手机横屏模拟：缓坡与触控跳跃',()=>checkTerrainHero('silver',true,'confluence',biome));
   errors.push(...win.qaErrors);publish();$('#status').textContent='真实缓坡检查完成：'+results.filter(r=>r.pass).length+'/'+results.length+'；保留实际实体和水域。手机为尺寸/触控模拟，非真机或帧率测试。';
  }catch(e){errors.push(e.message);publish();$('#status').textContent='真实缓坡检查中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
 };

@@ -7,6 +7,7 @@ import{installForestVista}from'../forest-vista.js';
 import{installForestHabitats}from'../forest-habitats.js';
 import{terrainAt,waterDepth}from'../water.js';
 import{updateTide}from'../coast.js';
+import{naturalRockGeometry}from'../biome-scenery.js';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const cleanup=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
@@ -83,4 +84,25 @@ test('the actual plank tops stay above the water surface along the whole pier',(
   }
  }
  cleanup(world);
+});
+
+test('shore slabs stay buried and inside their original jumpable solids without adding triangles',()=>{
+ const original=naturalRockGeometry.attributes.position.array.slice(),point=new T.Vector3();
+ for(const map of['coast','confluence']){
+  const world=buildWorld(map,7);installBiomePlaces(world,map);world.group.updateMatrixWorld(true);
+  for(const place of world.biomePlaces.filter(p=>p.pier)){
+   const mesh=place.mesh.getObjectByName('SM_HarborBank_stone'),g=mesh.geometry,solids=place.solids.filter(o=>o.mesh.name==='COL_HarborBank'&&o.height===.32);
+   assert.equal(g.index.count/3,solids.length*120,'shore detail added geometry instead of reshaping the old stones');
+   let low=Infinity,high=-Infinity,minShade=Infinity,maxShade=0;
+   for(let i=0;i<g.attributes.position.count;i++){
+    point.fromBufferAttribute(g.attributes.position,i).applyMatrix4(mesh.matrixWorld);low=Math.min(low,point.y);high=Math.max(high,point.y);
+    assert(solids.some(o=>Math.hypot(point.x-o.x,point.z-o.z)<o.r&&point.y<o.height),'shore slab exceeds its actual collision');
+    const shade=g.attributes.color.getX(i);minShade=Math.min(minShade,shade);maxShade=Math.max(maxShade,shade);
+   }
+   assert(low<-.03&&high>.12&&high<.25,'slabs must enter the floor and retain a low broken crown');
+   assert(maxShade-minShade>.025,'damp lower faces and exposed mineral top lost their contrast');
+  }
+  cleanup(world);
+ }
+ assert.deepEqual(naturalRockGeometry.attributes.position.array,original,'shared scenery rock was mutated');
 });

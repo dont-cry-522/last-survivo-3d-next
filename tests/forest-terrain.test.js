@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
-import {buildWorld} from '../world.js';
+import {buildWorld,moveActor,supportHeight,clearAt} from '../world.js';
+import {resetMobility,beginJump,tickMobility} from '../adventure-mobility.js';
+import {groundAim,segmentGroundEntry} from '../adventure-combat.js';
+import {terrainAt} from '../water.js';
 import {installForestHabitats} from '../forest-habitats.js';
 import {installExplorationRoutes} from '../exploration-routes.js';
 import {installAdventureGroundDetail,installHabitatDetail} from '../adventure-ground-detail.js';
@@ -17,6 +20,27 @@ import {installExplorationComposition} from '../exploration-composition.js';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const cleanup=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
 function forest(seed){const w=buildWorld('forest',seed);installForestHabitats(w,'forest');installExplorationRoutes(w);installAdventureGroundDetail(w,'forest');installHabitatDetail(w,'forest');return w;}
+function completeWorld(id,seed){
+ const w=buildWorld(id,seed);
+ for(const install of [installForestVista,installForestHabitats,installBiomePlaces,installEnvironmentClusters,installExplorationRoutes,installExplorationLandmarks,installExplorationComposition,installAdventureGroundDetail,installHabitatDetail])install(w,id);
+ return w;
+}
+function flatOverlays(w){
+ w.group.updateMatrixWorld(true);const point=new T.Vector3(),entries=[];
+ w.group.traverse(mesh=>{
+  if(!mesh.isMesh||mesh===w.ground||mesh.isInstancedMesh||!mesh.userData.ownedGeometry||mesh.userData.groundCue)return;
+  const geometry=mesh.geometry,attr=geometry.attributes.position;if(!attr)return;
+  for(let i=0;i<attr.count;i++){point.fromBufferAttribute(attr,i).applyMatrix4(mesh.matrixWorld);if(point.y<-.06||point.y>.08)return;}
+  const entry={mesh,geometry,released:0};geometry.addEventListener('dispose',()=>entry.released++);entries.push(entry);
+ });return entries;
+}
+function gameplay(w){
+ // Gameplay records can also hold Three objects; their serialized geometry is
+ // deliberately changing. Snapshot the actual layout, collision and reward data.
+ const fields=['id','kind','x','y','z','r','rx','rz','baseRx','baseRz','angle','width','length','half','height','sceneryHeight','event','hp','state','age','biome','claimed','active','cooldown','done','points','nodes'];
+ const pick=value=>Array.isArray(value)?value.map(pick):value&&typeof value==='object'?Object.fromEntries(fields.filter(k=>value[k]!==undefined).map(k=>[k,pick(value[k])])):value;
+ return JSON.stringify(Object.fromEntries(['spawn','obstacles','ponds','bridges','fords','ice','sites','discoveries','roaming','patches','biomePlaces','explorationRoutes'].map(key=>[key,pick(w[key])])));
+}
 
 test('forest approach uses its rendered triangles for bounded shallow ground without moving solid footprints',()=>{
  for(const seed of [7,522,43837033]){
@@ -43,7 +67,7 @@ test('grass roots and owned ground overlays rise once; ground contact and root c
  const contact=installEnvironmentGrounding(w),cap=installForestFloorRelief(w,'forest');assert(contact&&cap);let freed=0;contact.texture.addEventListener('dispose',()=>freed++);cleanup(w);assert(t.disposed&&cap.userData.disposed&&contact.disposed);assert.equal(w.groundHeightAt,undefined);assert.equal(freed,1);
 });
 
-test('other maps and missing approaches keep the original ground and allocate no height field',()=>{
+test('worlds without authored routes keep the original ground and allocate no height field',()=>{
  for(const id of ['snow','ash','sand','coast','confluence','forest']){const w=buildWorld(id,522),g=w.ground.geometry,positions=g.attributes.position.array.slice();assert.equal(installForestTerrain(w,id),null);assert.equal(w.ground.geometry,g);assert.deepEqual(g.attributes.position.array,positions);assert.equal(w.groundHeightAt,undefined);cleanup(w);}
 });
 
@@ -58,7 +82,7 @@ test('real forest route and soil triangles stay above the floor internally witho
    for(let i=0;i<attr.count;i++){point.fromBufferAttribute(attr,i).applyMatrix4(mesh.matrixWorld);if(point.y<-.06||point.y>.08){flat=false;break;}}
    if(flat){const entry={mesh,geometry,material:mesh.material,color:geometry.attributes.color?.array.slice(),released:0};geometry.addEventListener('dispose',()=>entry.released++);overlays.push(entry);}
   }
-  const children=w.group.children.slice(),t=installForestTerrain(w,'forest');assert(t.overlayTrianglesAdded>=0&&t.overlayTrianglesAdded<=4096);if(seed===522)assert(t.overlayTrianglesAdded>0);if(seed===19)assert.equal(t.overlayTrianglesAdded,0,'flat overlays were unnecessarily refined');if(seed===9)assert.equal(t.overlayTrianglesAdded,4096,'budget saturation case no longer exercised');
+  const children=w.group.children.slice(),t=installForestTerrain(w,'forest');assert(t.overlayTrianglesAdded>=0&&t.overlayTrianglesAdded<=4096);if(seed===522)assert(t.overlayTrianglesAdded>0);
   assert.deepEqual(w.group.children,children);let checked=0;
   for(const entry of overlays){
    const {mesh,geometry,color}=entry,g=mesh.geometry,attr=g.attributes.position,index=g.index;
@@ -75,5 +99,66 @@ test('real forest route and soil triangles stay above the floor internally witho
   }
   assert(checked>100);const active=overlays.map(r=>r.mesh.geometry);assert.equal(installForestTerrain(w,'forest'),t);assert.deepEqual(overlays.map(r=>r.mesh.geometry),active);
   cleanup(w);assert(overlays.every(r=>r.released===1),'original overlay geometry was leaked or disposed twice');
+ }
+});
+
+test('all five climates and their joined regions have bounded visible relief while every wet or solid footprint stays fixed',()=>{
+ const maps=['forest','snow','ash','sand','coast'];
+ for(const id of [...maps,'confluence'])for(const seed of [7,522,43837033]){
+  const w=completeWorld(id,seed),before=gameplay(w),children=[];w.group.traverse(o=>children.push(o));
+  const wet=[...(w.ponds||[]).map(p=>({...p,rx:(p.baseRx??p.rx)*(p.baseRx===undefined?1:1.19)*1.12*1.115,rz:(p.baseRz??p.rz)*(p.baseRz===undefined?1:1.19)*1.12*1.115})),...(w.ice||[]).map(p=>({...p,rx:p.rx*1.16,rz:p.rz*1.16}))];
+  const samples=wet.flatMap(q=>Array.from({length:16},(_,i)=>{assert(q.rx>0&&q.rz>0);const a=i*Math.PI/8,u=Math.cos(a)*q.rx,v=Math.sin(a)*q.rz,c=Math.cos(q.angle||0),s=Math.sin(q.angle||0);return{x:q.x+c*u+s*v,z:q.z-s*u+c*v};}));
+  const kinds=samples.map(p=>terrainAt(w,p.x,p.z));
+  const t=installForestTerrain(w,id);assert(t,`${id}/${seed} did not install`);assert.equal(gameplay(w),before);const after=[];w.group.traverse(o=>after.push(o));assert.deepEqual(after,children);
+  assert(t.maxHeight>.06&&t.maxHeight<=.25);assert.equal(t.cols,id==='confluence'?160:144);assert.equal(w.ground.geometry.index.count/3,t.cols*t.rows*2);assert(t.overlayTrianglesAdded<=4096);
+  for(const biome of id==='confluence'?maps:[id]){
+   const region=w.regions?.find(r=>r.id===biome),routes=t.corridors.filter(r=>r.biome===biome);assert(routes.length>=1&&routes.length<=2,`${id}/${seed}/${biome}: corridor count`);
+   let peak=0,area=0;
+   for(let i=0;i<t.heights.length;i++){const x=i%(t.cols+1)*t.width/t.cols-t.width/2,z=Math.floor(i/(t.cols+1))*t.height/t.rows-t.height/2;if(region&&!region.contains(x,z))continue;peak=Math.max(peak,t.heights[i]);if(t.heights[i]>.04)area+=t.width/t.cols*t.height/t.rows;}
+   assert(peak>.06&&area>35,`${id}/${seed}/${biome}: relief was protected down to an invisible patch (${peak}m/${area}m2)`);
+  }
+  if(id==='forest')assert.equal(t.corridors.length,2,'forest retains its approach and gains a second route');
+  for(const [i,p] of samples.entries()){assert.equal(t.sample(p.x,p.z),0,`${id}/${seed}: highest tide or ice edge raised`);assert.deepEqual(terrainAt(w,p.x,p.z),kinds[i]);}
+  for(const q of [...(w.biomePlaces||[]).map(p=>({...p,hx:10,hz:10})),...(w.bridges||[]).map(p=>({...p,hx:p.width/2+1,hz:p.length/2+1})),...(w.fords||[]).map(p=>({...p,hx:p.half+1,hz:p.width/2+1}))]){
+   const c=Math.cos(q.angle||0),s=Math.sin(q.angle||0);for(const u of[-q.hx,0,q.hx])for(const v of[-q.hz,0,q.hz])assert.equal(t.sample(q.x+c*u+s*v,q.z-s*u+c*v),0,`${id}/${seed}: place/bridge/ford approach raised`);
+  }
+  for(const o of w.obstacles)for(let a=0;a<8;a++)assert.equal(t.sample(o.x+Math.cos(a*Math.PI/4)*o.r,o.z+Math.sin(a*Math.PI/4)*o.r),0,`${id}/${seed}: collider raised`);
+  for(let z=0;z<=t.rows;z++)for(let x=0;x<=t.cols;x++){const i=z*(t.cols+1)+x;assert(Number.isFinite(t.heights[i])&&t.heights[i]>=0);if(x)assert(Math.abs(t.heights[i]-t.heights[i-1])<=t.width/t.cols*.035+1e-7);if(z)assert(Math.abs(t.heights[i]-t.heights[i-t.cols-1])<=t.height/t.rows*.035+1e-7);}
+  const active=w.ground.geometry;let disposed=0;active.addEventListener('dispose',()=>disposed++);assert.equal(installForestTerrain(w,id),t);cleanup(w);assert(t.disposed);assert.equal(w.groundHeightAt,undefined);assert.equal(disposed,1);
+ }
+});
+
+test('nested regional overlays stay above triangle interiors and release only their owned replacements',()=>{
+ let nested=0,refined=0;
+ for(const id of ['snow','ash','sand','coast','confluence'])for(const seed of[7,522,43837033]){
+  const w=completeWorld(id,seed),entries=flatOverlays(w),t=installForestTerrain(w,id);assert(t.overlayTrianglesAdded<=4096);
+  for(const entry of entries){
+   const mesh=entry.mesh,g=mesh.geometry,attr=g.attributes.position,index=g.index,a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3(),point=new T.Vector3();let raised=false;
+   const count=index?.count??attr.count;
+   for(let i=0;i<count;i+=3){
+    a.fromBufferAttribute(attr,index?.getX(i)??i).applyMatrix4(mesh.matrixWorld);b.fromBufferAttribute(attr,index?.getX(i+1)??i+1).applyMatrix4(mesh.matrixWorld);c.fromBufferAttribute(attr,index?.getX(i+2)??i+2).applyMatrix4(mesh.matrixWorld);
+    for(let u=0;u<=4;u++)for(let v=0;v<=4-u;v++){
+     point.copy(a).multiplyScalar(u/4).addScaledVector(b,v/4).addScaledVector(c,1-(u+v)/4);const height=t.sample(point.x,point.z);if(height<=0)continue;raised=true;
+     assert(point.y>=height+w.ground.position.y-1e-6,`${id}/${seed}: ${mesh.name||'overlay'} interior buried by ${height+w.ground.position.y-point.y}m (${t.overlayTrianglesAdded} added triangles)`);
+    }
+   }
+   if(raised&&mesh.parent!==w.group)nested++;if(g!==entry.geometry){refined++;assert.equal(entry.released,1);}else assert.equal(entry.released,0);
+   let released=0;g.addEventListener('dispose',()=>released++);entry.activeReleased=()=>released;
+  }
+  cleanup(w);assert(entries.every(e=>e.released===1&&e.activeReleased()===1),'overlay geometry was leaked or disposed twice');
+ }
+ assert(nested>0,'test never reached a regional ground overlay');assert(refined>0,'test never exercised owned geometry replacement');
+});
+
+test('existing feet, jump and spatial projectile queries use the same raised triangles in every map',()=>{
+ for(const id of ['forest','snow','ash','sand','coast','confluence']){
+  const w=completeWorld(id,522),t=installForestTerrain(w,id);let i=t.heights.indexOf(t.maxHeight),x=i%(t.cols+1)*t.width/t.cols-t.width/2,z=Math.floor(i/(t.cols+1))*t.height/t.rows-t.height/2;
+  assert(clearAt(w,x,z));const hero={x:x-.5,z,standHeight:1.8,dashTime:0};resetMobility(hero,t.sample(hero.x,hero.z));
+  moveActor(w,hero,1,0);assert.equal(hero.x,x+.5);assert(Math.abs(hero.y-t.sample(hero.x,hero.z))<1e-7);assert.equal(supportHeight(w,hero),hero.y);
+  const foe={x:x-.5,z,y:0},pet={x,z:z-.5,y:0};moveActor(w,foe,1,0);moveActor(w,pet,0,1);assert.equal(foe.y,t.sample(foe.x,foe.z));assert.equal(pet.y,t.sample(pet.x,pet.z));
+  assert(beginJump(hero));let airborne=false;for(let frame=0;frame<65;frame++){moveActor(w,hero,.01,0);tickMobility(hero,1/60,{ground:supportHeight(w,hero)});airborne||=hero.y>hero.groundHeight+.5;}assert(airborne);assert.equal(hero.y,t.sample(hero.x,hero.z));
+  const ray={origin:{x,y:2,z},direction:{x:0,y:-1,z:0}},aim=groundAim(ray,{x,z},12,0,t.sample),hit=segmentGroundEntry(ray.origin,{x,y:-1,z},t.sample);
+  assert(Math.abs(aim.y-t.sample(x,z))<1e-6);assert(hit!==null&&Math.abs(2-hit*3-t.sample(x,z))<.001);assert.equal(segmentGroundEntry({x:x-1,y:1,z},{x:x+1,y:1,z},t.sample),null);
+  cleanup(w);
  }
 });

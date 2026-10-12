@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import * as T from '../vendor/three.module.js';
 import {buildWoodlandPlace} from '../woodland-places.js';
 import {naturalRockGeometry} from '../biome-scenery.js?v=156';
@@ -155,4 +156,48 @@ test('snow skirts make continuous grounded rock-foot drifts while leaving the sh
   }
   const low=built.solids.filter(o=>o.height<1.1);assert(low.length>=5,'the low sled and windbreak no longer retain jumpable collision heights');built.dispose();
  }
+});
+
+test('contour polish keeps the established four collision layouts and exact geometry budgets',()=>{
+ const original={forest:[['f3c9869316bc633dac9f64a8efbcda6edd984687fc03fc4da292bc4a5fb96a54',14232,24],['e2d4ad54eab673db495ec0fe6a361856d5f40a29dd2596b42d892da04388b16b',14232,24]],snow:[['c543676e585018a0bdbd26d50f8db50f0418632a37a27880fa6e133db4e52e05',4862,47],['7318c8fb282fb8761d5aed8d44fc4c232110efa2299b210275bed4948c0e9e01',5126,48]]};
+ for(const biome of['forest','snow'])for(const variant of[0,1]){
+  const built=capture(biome,variant),[hash,triangles,count]=original[biome][variant];
+  assert.equal(createHash('sha256').update(JSON.stringify(built.solids)).digest('hex'),hash,'terrain polish changed solid position, radius or height');
+  assert.equal(built.solids.length,count);assert.equal(built.pieces.reduce((n,p)=>n+(p.geometry.index?.count??p.geometry.attributes.position.count)/3,0),triangles);assert.equal(new Set(built.pieces.map(p=>p.category)).size,4);built.dispose();
+ }
+});
+
+test('fallen roots have low bent feet and buried tips without adding a mound or separate contact mesh',()=>{
+ for(const variant of[0,1]){
+  const built=capture('forest',variant),roots=built.pieces.filter(p=>p.geometry.name==='SM_Forest_BuriedRoot_A');assert.equal(roots.length,9);
+  for(const {geometry:g}of roots){
+   const p=g.attributes.position;assert.equal(g.index.count/3,192);assert(g.userData.bark);
+   for(let i=p.count-9;i<p.count;i++)assert(p.getY(i)<-.04,'root tip still floats over the soil');
+   let feet=0;for(let i=0;i<p.count-9;i++)if(p.getY(i)>-.03&&p.getY(i)<.22)feet++;
+   assert(feet>=9,'root ends as a straight leg rather than bending across the ground');
+  }
+  built.dispose();
+ }
+});
+
+test('cut-back snow caps hug real layered rock faces while leaving irregular exposed shoulders',()=>{
+ const material=new T.MeshBasicMaterial({side:T.DoubleSide}),ray=new T.Raycaster(),down=new T.Vector3(0,-1,0),point=new T.Vector3(),vertex=new T.Vector3();
+ for(const variant of[0,1]){
+  const built=capture('snow',variant),rocks=built.pieces.filter(p=>p.geometry.name==='SM_Snow_RockRidge_A'),caps=built.pieces.filter(p=>p.geometry.name==='SM_Snow_RidgeCap_A'),meshes=rocks.map(p=>new T.Mesh(p.geometry,material));meshes.forEach(m=>m.updateMatrixWorld(true));
+  for(const [side,cap]of caps.entries()){
+   const p=cap.geometry.attributes.position,index=cap.geometry.index,rock=rocks[side].geometry.attributes.position,exposure=[];
+   for(let row=0;row<19;row++){
+    const width=rock.getX(row*7+6)-rock.getX(row*7);exposure.push((p.getX(row*5)-rock.getX(row*7))/width);
+    assert(p.getX(row*5)>rock.getX(row*7+1),'wind-scoured rock shoulder is fully covered again');
+   }
+   assert(Math.max(...exposure)-Math.min(...exposure)>.06,'snow edge has become one regular blanket');
+   for(let i=0;i<index.count;i+=3){
+    point.set(0,0,0);for(let j=0;j<3;j++)point.add(vertex.fromBufferAttribute(p,index.getX(i+j)).multiplyScalar(1/3));
+    const snowY=point.y;point.y=10;ray.set(point,down);const hit=ray.intersectObjects(meshes,false)[0];assert(hit,'snow floats beyond the rock');
+    const thickness=snowY-hit.point.y;assert(thickness>=0&&thickness<.085,`snow separates from or sinks through the real rock surface: ${thickness}`);
+   }
+  }
+  built.dispose();
+ }
+ material.dispose();
 });

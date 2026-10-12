@@ -60,15 +60,26 @@ function ridgeSection(side,t,variant=0){
  const z=-7.25+t*14.5,bulge=Math.sin(Math.PI*t)**.35,bay=side===(variant?-1:1)?Math.max(0,1-((z-(variant?-1.3:.8))/3.7)**2)**2:0;
  return{z,bulge,bay,center:side*(6.05+.17*Math.sin(t*7+variant*.8)+bay*.68),width:(.30+bulge*1.61)*(1+.045*Math.sin(t*19+variant))*(1-bay*.12),height:(.10+bulge*(2.42+.52*Math.sin(t*9+.6+variant*.7)+.30*Math.sin(t*22)))*(1-bay*.23)};
 }
+const rockSection=[[-1,-.04],[-.84,.36],[-.49,.82],[-.10,1],[.42,.86],[.88,.43],[1,-.04]];
+// Broad intersecting strata clip only the visible ridge, never its collision
+// envelope. Snow interpolates the actual rock triangles instead of a round lid.
+function ridgeFaceHeight(height,cross,t,variant){
+ const cut=.79+.055*Math.sin(t*15+variant*.8);
+ for(let i=1;i<rockSection.length;i++)if(cross<=rockSection[i][0]){
+  const [a,low]=rockSection[i-1],[b,upper]=rockSection[i],from=low<0?-.08:height*Math.min(low,cut+a*.13,.92-a*.19),to=upper<0?-.08:height*Math.min(upper,cut+b*.13,.92-b*.19);
+  return T.MathUtils.lerp(from,to,(cross-a)/(b-a));
+ }
+ return-.08;
+}
 function ridge(side,snow=false,variant=0){
  const p=[],indices=[],colors=[],rows=19;
  for(let row=0;row<rows;row++){
   const t=row/(rows-1),{z,center,width,height}=ridgeSection(side,t,variant);
   // Rock faces form one connected ridge. The separate snow lid rests directly
   // on its upper three shoulders; no snow spheres stacked along the skyline.
-  const section=snow?[[-.84,.39],[-.51,.86],[-.12,1.02],[.39,.90],[.83,.47]]:[[-1,-.04],[-.84,.36],[-.49,.82],[-.10,1],[.42,.86],[.88,.43],[1,-.04]];
+  const wind=.12+.16*(.5+.5*Math.sin(t*15+variant+side)),section=snow?[[-.84+wind,.39],[-.49,.82],[-.10,1],[.42,.86],[.83-wind*.65,.47]]:rockSection;
   for(let j=0;j<section.length;j++){
-   const [cross,high]=section[j],x=center+cross*width,y=high<0?-.08:height*high+(snow?.045:0),shade=snow?.84+high*.15:.62+high*.32+.055*Math.sin(t*24+j);
+   const [cross,high]=section[j],x=center+cross*width,y=ridgeFaceHeight(height,cross,t,variant)+(snow?.039+.013*Math.sin(t*13+j+variant)**2:0),shade=snow?.84+high*.15:.62+high*.32+.055*Math.sin(t*24+j);
    p.push(x,y,z);colors.push(shade*(snow?1:.96),shade,shade*(snow?1.02:1.06));
    if(row&&j){const n=p.length/3-1,nc=section.length;indices.push(n,n-nc,n-1,n-1,n-nc,n-nc-1);}
   }
@@ -85,7 +96,7 @@ function snowSkirt(side,variant){
  for(let row=0;row<19;row++){
   const t=row/18,{z,center,width,height,bay}=ridgeSection(side,t,variant),foot=center-side*width*.83,tip=side*(3.48+.13*Math.sin(t*17+variant)**2),scoured=1-T.MathUtils.smoothstep(bay,.02,.18);
   for(let j=0;j<3;j++){
-   const u=j/2,x=T.MathUtils.lerp(foot,tip,u),y=j===0?height*.40*scoured+.047:j===1?.026+.055*Math.sin(t*13+variant)**2:-.045,shade=.88+(1-u)*.08;
+   const u=j/2,x=T.MathUtils.lerp(foot,tip,u),y=j===0?ridgeFaceHeight(height,-side*.83,t,variant)*scoured+.047:j===1?.026+.055*Math.sin(t*13+variant)**2:-.045,shade=.88+(1-u)*.08;
    p.push(x,y,z);colors.push(shade*.97,shade,shade*1.02);
    if(row&&j){const n=p.length/3-1,face=[n,n-3,n-1,n-1,n-3,n-4];if(side>0)face.reverse();indices.push(...face);}
   }
@@ -108,8 +119,9 @@ function forest(kit,variant){
  // another upright trunk. All of it remains on the left of the passage.
  const butt=trunk[0],rootX=butt[0]-.13,rootZ=butt[2]-.33*direction;
  for(let i=0;i<9;i++){
-  const a=i*2.399+variant*.4,reach=1.12+(i%3)*.20,tip=[rootX+Math.cos(a)*reach,.03,rootZ+Math.sin(a)*reach];
-  add('wood',limb([[butt[0]-.02,butt[1]+.04,butt[2]+.02*direction],[rootX+Math.cos(a)*.48,1.12+(i%3)*.29,rootZ+Math.sin(a)*.48],tip],[.24,.16,.025],12,8),i%2?0x574b3e:0x6d5b45);
+  const a=i*2.399+variant*.4,reach=1.12+(i%3)*.20,tip=[rootX+Math.cos(a)*reach,-.058,rootZ+Math.sin(a)*reach],knee=[rootX+Math.cos(a)*reach*.77-Math.sin(a)*.07,.11+(i%2)*.03,rootZ+Math.sin(a)*reach*.77+Math.cos(a)*.07];
+  const root=limb([[butt[0]-.02,butt[1]+.04,butt[2]+.02*direction],[rootX+Math.cos(a)*.48,1.12+(i%3)*.29,rootZ+Math.sin(a)*.48],knee,tip],[.24,.16,.065,.009],12,8,true);root.name='SM_Forest_BuriedRoot_A';
+  add('wood',root,i%2?0x574b3e:0x6d5b45);
  }
  kit.solid(rootX,rootZ,1.95,2.10);
  for(const [t,side]of[[.27,-1],[.58,1],[.80,-1]]){

@@ -4,12 +4,14 @@ import{naturalRockGeometry}from'./biome-scenery.js?v=156';
 
 // Continuous broken masonry, rather than a row of identical stacked blocks.
 // The kit owns each new geometry; the two repository source shapes stay shared.
-function wallGeometry(profile,depth){
+function wallGeometry(profile,depth,biome){
  const positions=[],colors=[],indices=[];
- const quad=(a,b,c,d)=>{const first=positions.length/3;for(const p of[a,b,c,d]){positions.push(...p);const shade=.82+Math.min(1,Math.max(0,p[1])/2.5)*.16;colors.push(shade*1.02,shade,shade*.97);}indices.push(first,first+1,first+2,first,first+2,first+3);};
- const points=profile.map(([x,h])=>{const wear=.035*Math.sin(x*2.9);return{bf:[x,-.10,depth*.5],bb:[x,-.10,-depth*.5],tf:[x,h,depth*.46+wear],tb:[x,h,-depth*.46+wear]};});
- for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];quad(a.bf,b.bf,b.tf,a.tf);quad(b.bb,a.bb,a.tb,b.tb);quad(a.tf,b.tf,b.tb,a.tb);quad(a.bb,b.bb,b.bf,a.bf);}
- const a=points[0],b=points.at(-1);quad(a.bb,a.bf,a.tf,a.tb);quad(b.bf,b.bb,b.tb,b.tf);
+ const quad=(a,b,c,d)=>{const first=positions.length/3;for(const p of[a,b,c,d]){positions.push(...p);const foot=1-T.MathUtils.smoothstep(p[1],.01,.35+.055*Math.sin(p[0]*2.2)),shade=.82+Math.min(1,Math.max(0,p[1])/2.5)*.16+foot*(biome==='sand'?.11:-.085);colors.push(shade*1.025,shade,shade*.95);}indices.push(first,first+1,first+2,first,first+2,first+3);};
+ // One recessed low seam gives the rock bed a broken edge. Sand-worn feet
+ // retain more of their width; neither treatment expands the solid envelope.
+ const points=profile.map(([x,h])=>{const wear=.035*Math.sin(x*2.9),seam=Math.min(h*.44,.19+.055*Math.sin(x*2.3+.7)),inset=depth*(biome==='sand'?.465:.39);return{bf:[x,-.10,depth*.5],bb:[x,-.10,-depth*.5],mf:[x,seam,inset+wear*.2],mb:[x,seam,-inset+wear*.2],tf:[x,h,depth*.46+wear],tb:[x,h,-depth*.46+wear]};});
+ for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];quad(a.bf,b.bf,b.mf,a.mf);quad(a.mf,b.mf,b.tf,a.tf);quad(b.bb,a.bb,a.mb,b.mb);quad(b.mb,a.mb,a.tb,b.tb);quad(a.tf,b.tf,b.tb,a.tb);quad(a.bb,b.bb,b.bf,a.bf);}
+ const a=points[0],b=points.at(-1);quad(a.bb,a.bf,a.mf,a.mb);quad(a.mb,a.mf,a.tf,a.tb);quad(b.bf,b.bb,b.mb,b.mf);quad(b.mf,b.mb,b.tb,b.tf);
  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
 }
 function vaultGeometry(inner,thickness,depth,start=0,end=Math.PI){
@@ -22,14 +24,32 @@ function flowGeometry(points,width){
  for(let i=0;i<=28;i++){const t=i/28,p=curve.getPoint(t),d=curve.getTangent(t),r=width*(.62+.28*Math.sin(t*13+1)**2);positions.push(p.x-d.z*r,p.y,p.z+d.x*r,p.x+d.z*r,p.y,p.z-d.x*r);if(i){const a=(i-1)*2;indices.push(a,a+3,a+1,a,a+2,a+3);}}
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setIndex(indices);g.computeVertexNormals();return g;
 }
+function groundLayerGeometry(biome,phase,ceiling=.029){
+ const positions=[],colors=[],indices=[],steps=24;
+ const vertex=(x,z,r)=>{
+  const crack=Math.exp(-Math.abs(x+.34*z+.10*Math.sin(z*4+phase))*18),wave=Math.sin(x*3.2+z*1.1+phase);
+  const crest=biome==='ash'?.018+.009*Math.cos(x*3.1+phase)*Math.sin(z*2.8+.4)-.008*crack:.014+.014*(.5+.5*wave);
+  const y=r===1?-.035:Math.min(ceiling,crest),shade=biome==='ash'?.92-.09*crack+.03*Math.sin(x*2+z*3+phase):.93+.05*Math.sin(x*1.3-z*2.1+phase);
+  positions.push(x,y,z);colors.push(shade,shade,shade);
+ };
+ vertex(.035*Math.sin(phase),.035*Math.cos(phase),0);
+ // The same 120 triangles as the former flattened rock: a continuous thin
+ // surface with an irregular buried perimeter, not a raised oval slab.
+ for(const r of[.29,.62,1])for(let i=0;i<steps;i++){
+  const a=i*Math.PI*2/steps,edge=.87+.055*Math.sin(a*3+phase)+.035*Math.cos(a*7-phase);
+  vertex(Math.cos(a)*r*edge+.055*(1-r)*Math.sin(phase+r*3),Math.sin(a)*r*edge+.047*(1-r)*Math.cos(phase-r*2),r);
+ }
+ for(let i=0;i<steps;i++){const j=(i+1)%steps;indices.push(0,1+j,1+i);for(let ring=0;ring<2;ring++){const a=1+ring*steps+i,b=1+ring*steps+j,c=a+steps,d=b+steps;indices.push(a,b,d,a,d,c);}}
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(indices);g.computeVertexNormals();g.userData.ruinGroundLayer={biome,ceiling};return g;
+}
 
 export function buildRuinPlace(biome,kit,variant=0){
  if(biome!=='ash'&&biome!=='sand')return null;
  const piece=(category,geometry,color,transform)=>kit.piece(category,geometry,color,transform);
  const box=(category,color,x,y,z,sx,sy,sz,ry=0,rz=0)=>piece(category,wornStoneBlock.clone(),color,{x,y,z,sx,sy,sz,ry,rz});
- const wall=(profile,depth,color,x,z,angle=0)=>{piece('stone',wallGeometry(profile,depth),color,{x,z,ry:angle});kit.solidBox(x,z,profile.at(-1)[0]-profile[0][0],depth,Math.max(...profile.map(p=>p[1])),angle);};
+ const wall=(profile,depth,color,x,z,angle=0)=>{piece('stone',wallGeometry(profile,depth,biome),color,{x,z,ry:angle});kit.solidBox(x,z,profile.at(-1)[0]-profile[0][0],depth,Math.max(...profile.map(p=>p[1])),angle);};
  const rock=(color,x,y,z,sx,sy,sz,angle=0)=>{piece('stone',naturalRockGeometry.clone(),color,{x,y,z,sx,sy,sz,ry:angle});if(y+sy>.3)kit.solid(x,z,Math.max(sx,sz)*1.2,y+sy*1.1);};
- const floor=(color,x,z,sx,sz,angle=0)=>piece('ground',naturalRockGeometry.clone(),color,{x,y:.012,z,sx,sy:.08,sz,ry:angle});
+ const floor=(color,x,z,sx,sz,angle=0,ceiling=.029)=>piece('ground',groundLayerGeometry(biome,x*.73+z*.41,ceiling),color,{x,z,sx,sz,ry:angle});
  if(biome==='ash'&&variant===1){
   // The second yard follows a cooled outcrop into an open, broken round furnace.
   // Long stepped beds replace the first yard's barrel roof and parallel walls.
@@ -45,9 +65,9 @@ export function buildRuinPlace(biome,kit,variant=0){
    piece('stone',vaultGeometry(1.11,.30,height,start,end),i%2?0x6c5948:0x574a3e,{x:furnace.x,y:height*.5-.045,z:furnace.z,rx:Math.PI/2});
    kit.solid(furnace.x+Math.cos(a)*1.26,furnace.z+Math.sin(a)*1.26,.58,height+.025);
   }
-  // The shallow slag bed reaches .084m; keep the cold hearth visible above it
-  // without raising the walkable overlay beyond the existing .12m ground limit.
-  piece('metal',new T.CircleGeometry(1.07,22),0x343933,{x:furnace.x,y:.106,z:furnace.z,rx:-Math.PI/2});
+  // Only this furnace's underlying layer is depressed. The visible hearth
+  // stays within the existing foot clearance instead of becoming a platform.
+  piece('metal',new T.CircleGeometry(1.07,22),0x343933,{x:furnace.x,y:.034,z:furnace.z,rx:-Math.PI/2});
   // The cold drain, rail ends, and low casting bed all point back to the broken
   // opening. These are passive scenery; they never add a vent or heat damage.
   piece('ground',flowGeometry([[4.38,-3.3],[4.06,-2.37],[4.34,-1.02],[5.02,.18],[5.15,1.30]],.29),0x383d38,{});
@@ -56,7 +76,7 @@ export function buildRuinPlace(biome,kit,variant=0){
   for(let i=0;i<5;i++)box('metal',0x71604d,4.2+i*.53,.052,1.82,.055,.06,1.10);
   for(const x of[-5.43,-4.12])box('metal',0x544d43,x,.062,-5.59,.09,.10,3.22,.08);
   for(let i=0;i<6;i++)box('stone',i%2?0x564b42:0x6a5e4e,-4.78,.03,-7.12+i*.54,1.82,.06,.17,.08+Math.sin(i)*.026);
-  for(const[x,z,sx,sz,a]of[[-6.82,-2.78,1.45,2.31,.12],[-4.87,-5.45,1.36,1.80,.07],[5.69,-3.32,1.56,1.59,.18],[5.74,4.36,1.64,1.84,-.16]])floor(0x48473f,x,z,sx,sz,a);
+  for(const[x,z,sx,sz,a,ceiling]of[[-6.82,-2.78,1.45,2.31,.12],[-4.87,-5.45,1.36,1.80,.07],[5.69,-3.32,1.56,1.59,.18,.01],[5.74,4.36,1.64,1.84,-.16]])floor(0x48473f,x,z,sx,sz,a,ceiling);
   for(const[x,z,sx,sy,sz]of[[-7.16,3.87,.86,.46,1.21],[-5.65,4.70,.88,.30,.74],[6.65,6.49,.76,.32,.52]])rock(0x5d574d,x,sy*.61,z,sx,sy,sz,x*.18);
   for(let i=0;i<16;i++){
    const side=i%2?-1:1,x=side*(4.02+(i*1.37)%3.55),z=-6.69+(i*2.13)%13.50;

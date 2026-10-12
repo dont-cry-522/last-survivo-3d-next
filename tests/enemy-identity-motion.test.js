@@ -80,3 +80,26 @@ test('wolf head and mushroom cap trail directional recoil, freeze on pause and s
   assert.deepEqual(pose(left),pose(control));assert.deepEqual(pose(right),pose(control));for(const m of all)assert.equal(m.position.length(),0);
  }
 });
+
+test('stone feet plant through weight transfer and the existing slam/recovery at every supported frame rate',()=>{
+ const point=new Vector3();
+ for(const fps of[30,60,120]){
+  const m=actor('golem'),d=m.userData;let t=0,lift=0,armRaise=0;
+  m.position.set(4,1.2,-3);animateActor(m,t,0,0,0);
+  for(const stage of['walk','wind','recover'])for(let i=1;i<=fps*(stage==='wind'?.95:1.5);i++){
+   t+=1/fps;d.walkPhase=t*ENEMY_MOTION.golem.cadence;const attack=stage==='wind'?Math.max(.001,.95-(i-1)/fps):0;animateActor(m,t,stage==='walk'?2.5:0,attack,0);m.updateMatrixWorld(true);
+   armRaise=Math.max(armRaise,-d.arms[0].rotation.x);const feet=[];
+   for(const leg of d.legs){const mesh=leg.joint.children[0],p=mesh.geometry.attributes.position;let bottom=Infinity;for(let j=0;j<p.count;j++)bottom=Math.min(bottom,point.fromBufferAttribute(p,j).applyMatrix4(mesh.matrixWorld).y-1.2);feet.push(bottom);assert(bottom>=.00799&&bottom<.105,'stone foot lost ground clearance: '+bottom);assert.deepEqual(leg.joint.scale.toArray(),[1,1,1]);}
+   assert(Math.min(...feet)<.00801,'both stone feet left the ground during a grounded attack');lift=Math.max(lift,...feet);assert.deepEqual(m.position.toArray(),[4,1.2,-3]);
+   const snapshot=pose(m);animateActor(m,t,stage==='walk'?2.5:0,attack,0);assert.deepEqual(pose(m),snapshot,'paused support correction drifted');
+  }
+  assert(lift>.07,'swing foot never cleared the ground');assert(armRaise>1,'heavy slam has no visible shoulder windup');assert.equal(d.release,0);
+ }
+ assert.deepEqual(ENEMY_MOTION.golem,{wind:.95,recover:.48,cadence:4.7,range:2.4});assert.deepEqual(ENEMY_MOTION.wolf,{wind:.48,recover:.18,cadence:12,range:3});
+});
+
+test('wolf bite hinges below the same cheek and restores after release without changing its leg anchors',()=>{
+ const m=actor('wolf'),d=m.userData,anchors=d.legs.map(l=>[...l.joint.position.toArray(),...l.knee.position.toArray(),...l.paw.position.toArray()]);let opening=0;
+ for(let i=0;i<=120;i++){const attack=i<29?.48-i/60:0;animateActor(m,i/60,0,attack,0);opening=Math.max(opening,d.jaw.rotation.x);const before=[d.jaw.position.y,d.jaw.rotation.x];animateActor(m,i/60,0,attack,0);assert.deepEqual([d.jaw.position.y,d.jaw.rotation.x],before);}
+ assert(opening>.14&&opening<.3);assert.equal(d.jaw.rotation.x,0);assert.equal(d.jaw.position.y,-.21);assert.deepEqual(d.legs.map(l=>[...l.joint.position.toArray(),...l.knee.position.toArray(),...l.paw.position.toArray()]),anchors);
+});

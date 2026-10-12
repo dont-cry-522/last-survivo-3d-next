@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import * as T from '../vendor/three.module.js';
 import {actor,animateActor} from '../world.js';
 import {polishEnemyAppearance} from '../enemy-appearance.js';
@@ -105,4 +106,31 @@ test('thin mushroom gills and stone mottling remain real shared geometry within 
  skin.onBeforeCompile(shader);
  assert.match(shader.vertexShader,/creaturePoint=position/);assert.match(shader.fragmentShader,/dFdx\(creaturePoint\)/);assert.match(shader.fragmentShader,/roughnessFactor=clamp/);
  assert.equal(Object.keys(shader.uniforms).length,0,'no per-creature texture or animation uniform');
+});
+
+test('continuous wolf anatomy and irregular stone contours retain their actor budgets and hit heights',()=>{
+ const shells=geometry=>{
+  const p=geometry.attributes.position,vertices=new Map(),ids=[],parent=[],edges=new Map(),root=i=>{while(parent[i]!==i)i=parent[i];return i;};
+  for(let i=0;i<p.count;i++){const key=[p.getX(i),p.getY(i),p.getZ(i)].map(v=>v.toFixed(5)).join(',');if(!vertices.has(key)){vertices.set(key,vertices.size);parent.push(parent.length);}ids.push(vertices.get(key));}
+  for(let i=0;i<ids.length;i+=3){const tri=ids.slice(i,i+3);if(new Set(tri).size<3)continue;for(let j=0;j<3;j++){const a=tri[j],b=tri[(j+1)%3],key=a<b?a+':'+b:b+':'+a;edges.set(key,(edges.get(key)||0)+1);parent[root(a)]=root(b);}}
+  return{count:new Set(parent.map((_,i)=>root(i))).size,closed:[...edges.values()].every(n=>n===2)};
+ };
+ const wolf=actor('wolf'),golem=actor('golem'),body=wolf.getObjectByName('creature-body').geometry;
+ assert.deepEqual(shells(body),{count:1,closed:true},'wolf chest and neck returned to overlapping shells');
+ for(const [m,height,budget,calls]of[[wolf,1.350000011920929,4588,15],[golem,2.1435913920402525,2100,6]]){
+  const parts=surfaces(m);assert.equal(new T.Box3().setFromObject(m).max.y,height,'spawn-derived projectile hit height changed');assert.equal(parts.length,calls);assert(parts.reduce((n,p)=>n+(p.geometry.index?.count??p.geometry.attributes.position.count)/3,0)<=budget);
+ }
+ const stone=golem.getObjectByName('creature-body').geometry,p=stone.attributes.position,n=stone.attributes.normal,c=stone.attributes.color,at=new Map();let creases=0,moss=0;
+ for(let i=0;i<p.count;i++){const key=[p.getX(i),p.getY(i),p.getZ(i)].map(v=>v.toFixed(5)).join(','),normal=new T.Vector3().fromBufferAttribute(n,i);if(at.has(key)&&normal.dot(at.get(key))<.8)creases++;else at.set(key,normal);if(c.getY(i)>c.getX(i)*1.15&&c.getY(i)>c.getZ(i)*1.3)moss++;}
+ assert(creases>20,'fracture faces were smoothed into a clay barrel');assert(moss>20,'upper and sheltered stone lost their baked moss patches');
+ // The original head, heavy fists and planted feet are reference contours;
+ // chest cleanup must not replace them with regular lathed cylinders.
+ for(const [name,expected]of Object.entries({'golem-head':'bddf3a8560bdcf1ac4c5b82cbc5e070ed46d0f67ef7a91d62360b656fa42ca7e','golem-arm':'b6e3c85d28a39b7d37296fba85369be1de59e619e43fa4decf98cd860e7caa30','golem-leg':'10249bf9103b58c715e67cf098accd7ac8b392dc64442793816fa73230934145'})){
+  const hash=createHash('sha256'),geometry=golem.getObjectByName(name).geometry;for(const attr of['position','normal','color'])hash.update(Buffer.from(geometry.attributes[attr].array.buffer));assert.equal(hash.digest('hex'),expected,name+' lost its original natural stone contour');
+ }
+});
+
+test('fur and stone use the existing shared material while other forest models keep their vertices, normals and colors',()=>{
+ const hashes={mushroom:'8e509a5a33fef8726dd131deea09ad123bec8b8a5d137a7addfc21391e5ef991',spitter:'ea115bf60a83454cd9151386047bbca65b20eea23f7bfffb7461592d86f55aa7',shaman:'35246dc1db2cc779a313dbe5660e56116bc9757657751bbddbe545a913a85fca'};
+ for(const kind of kinds){const parts=surfaces(actor(kind)),surface=kind==='wolf'?1:kind==='golem'?2:0,hash=createHash('sha256');for(const part of parts){assert.equal(part.geometry.attributes.creatureSurface.count,part.geometry.attributes.position.count);assert(part.geometry.attributes.creatureSurface.array.every(v=>v===surface));for(const name of['position','normal','color'])hash.update(Buffer.from(part.geometry.attributes[name].array.buffer));}if(hashes[kind])assert.equal(hash.digest('hex'),hashes[kind],kind+' appearance changed during the wolf/stone pass');}
 });

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {WEAPONS} from '../rules.js';
 import {weaponSample} from '../weapon-audio.js';
-import {weaponGesture,shotStarted,WEAPON_RECOVERY,meleeSwing,scythePose} from '../weapon-performance.js';
+import {weaponGesture,shotStarted,WEAPON_RECOVERY,meleeSwing,scythePose,crossbowMechanism} from '../weapon-performance.js';
 
 test('all weapons have finite bounded distinct shot and impact textures with smooth ends',()=>{
   for(const event of ['shot','impact']){
@@ -59,4 +59,12 @@ test('scythe sweeps through contact without braking, then returns below the load
   let previous=rest;
   for(let i=1;i<=1000;i++){const pose=scythePose(duration*i/1000,period,combo);for(const key of Object.keys(pose)){assert(Number.isFinite(pose[key]));assert(Math.abs(pose[key]-previous[key])<.03);}previous=pose;}
  }
+});
+
+
+test('crossbow reload pulls monotonically, catches before loading and leaves the hand free after return',()=>{
+ const start=crossbowMechanism(0),ready=crossbowMechanism(1);assert.equal(start.pull,0);assert.equal(start.boltVisible,false);assert.equal(ready.pull,.30);assert.equal(ready.hand,0);assert(ready.boltVisible);
+ let previous=start;
+ for(let i=1;i<=1000;i++){const pose=crossbowMechanism(i/1000);assert(pose.pull>=previous.pull);assert(pose.pull<=.30);assert(pose.hand>=0&&pose.hand<=1);assert(Math.abs(pose.hand-previous.hand)<.02);assert(Math.abs(pose.pull-previous.pull)<.004);if(pose.boltVisible)assert.equal(pose.pull,.30);previous=pose;}
+ assert(crossbowMechanism(.38).hand>.99);assert.equal(crossbowMechanism(.9).hand,0);assert.deepEqual(crossbowMechanism(-1),start);assert.deepEqual(crossbowMechanism(5),ready);
 });

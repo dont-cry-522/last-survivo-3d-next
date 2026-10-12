@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
 import {FirstPersonView} from '../first-person-view.js';
-import {makeHero} from '../hero-model.js';
+import {makeHero,poseCrossbow} from '../hero-model.js';
 import {shadowFocus} from '../shadow-gear.js';
 import {createShadowAura,updateShadowAura,disposeShadowAura} from '../shadow-aura.js';
 import {miasmaLantern} from '../mirage-appearance.js';
@@ -104,14 +104,15 @@ test('moving bow strings, pump, book page and lantern petals are mirrored via re
 
 test('an idle unposed bow gets connected viewmodel strings without editing the source or masking later animation',()=>{
  const camera=new T.PerspectiveCamera(60,16/9,.1,100),view=new FirstPersonView(camera),gun=weapon('crossbow');
+ for(const string of gun.userData.crossbowStrings){string.position.set(0,0,0);string.scale.y=1;string.quaternion.identity();}
  try{
   view.setHero(hero(gun),'crossbow');view.update(1,.016,{visible:true});camera.updateMatrixWorld(true);
   for(let i=0;i<2;i++){
    const source=gun.userData.crossbowStrings[i],clone=view.bowStrings[i][1];
    assert.deepEqual(source.position.toArray(),[0,0,0]);assert.equal(source.scale.y,1);
    const a=new T.Vector3(0,-.5,0).applyMatrix4(clone.matrix),b=new T.Vector3(0,.5,0).applyMatrix4(clone.matrix);
-   assert(a.distanceTo(new T.Vector3(i?.44:-.44,.11,.36))<1e-6);assert(b.distanceTo(new T.Vector3(0,.12,.29))<1e-6);
-   assert(Math.abs(b.y-a.y)<.02,'bow string is still a vertical unit cylinder');
+   assert(a.distanceTo(new T.Vector3(i?.44:-.44,.11,.36))<1e-6);assert(b.distanceTo(new T.Vector3(0,.16,-.01))<1e-6);
+   assert(Math.abs(b.y-a.y)<.06,'bow string is still a vertical unit cylinder');
    source.position.set(.1,.2,.3);source.rotation.set(.2,.4,.8);source.scale.y=.48;
   }
   view.update(1.1,.016,{visible:true});
@@ -319,17 +320,48 @@ test('each category frees all exclusive detail resources once while retaining sh
  }}finally{view.dispose();}
 });
 
- test('close-view crossbow has a tapered beveled body and recurved limbs while retaining animated geometry',()=>{
+test('both views share the shaped crossbow with curved limbs, a separate slide, trigger and loaded bolt',()=>{
  const camera=new T.PerspectiveCamera(60,1.6,.1,100),view=new FirstPersonView(camera),gun=weapon('crossbow');
  try{
   view.setHero(hero(gun),'crossbow');view.update(1,.016,{visible:true});camera.updateMatrixWorld(true);
-  const changed=view.parts.filter(([source,clone])=>source.isMesh&&source.geometry!==clone.geometry);assert.equal(changed.length,6);
-  assert.equal(changed.filter(([,clone])=>clone.geometry.name==='First_person_recurved-limb').length,2);
-  for(const [source,clone]of changed){assert.equal(source.geometry.type,'BoxGeometry');assert(view.ownedGeometry.includes(clone.geometry));assert(clone.geometry.attributes.position.count>8);assert([...clone.geometry.attributes.normal.array].every(Number.isFinite));}
-  for(const [source,clone]of view.bowStrings)assert.equal(source.geometry,clone.geometry,'animated strings were replaced');
+  const names=['SM_Crossbow_WoodStock_A','SM_Crossbow_Grip_A','SM_Crossbow_RecurvedLimb_L','SM_Crossbow_RecurvedLimb_R','SM_Crossbow_TriggerGuard_A','SM_Crossbow_Trigger_A','SM_Crossbow_Latch_A','SM_Crossbow_BoltShaft_A','SM_Crossbow_BoltHead_A'];
+  for(const name of names){const source=gun.getObjectByName(name),pair=view.parts.find(([n])=>n===source);assert(source&&pair,name);assert.equal(pair[1].geometry,source.geometry,'different first/third-person shape');assert(source.castShadow&&source.receiveShadow);}
+  const limbs=names.filter(n=>n.includes('Recurved')).map(n=>gun.getObjectByName(n));
+  for(const limb of limbs){const p=limb.geometry.attributes.position;assert(p.count>80);assert([...p.array,...limb.geometry.attributes.normal.array].every(Number.isFinite));assert(limb.material.metalness>.5);}
+  const stock=gun.getObjectByName('SM_Crossbow_WoodStock_A');assert.equal(stock.material.metalness,0);assert(stock.material.roughness>.65);
+  const guard=gun.getObjectByName('SM_Crossbow_TriggerGuard_A');assert.equal(guard.geometry.type,'TubeGeometry');
   const projected=view.hands.map(hand=>hand.getWorldPosition(new T.Vector3()).project(camera));assert(projected.every(p=>p.y> -1.16),'hands hidden completely below the frame');
  }finally{view.dispose();}
- });
+});
+
+test('crossbow strings and slide lock behind the loaded bolt while the support hand returns to the stock',()=>{
+ const camera=new T.PerspectiveCamera(60,16/9,.1,100),view=new FirstPersonView(camera),gun=weapon('crossbow'),actor=hero(gun);
+ try{
+  view.setHero(actor,'crossbow');
+  for(const phase of[0,.10,.22,.38,.60,.74,.90,1]){
+   poseCrossbow(gun,phase);Object.assign(actor.userData,{attackAge:phase,reloadDuration:1,reloadPhase:phase});view.update(phase,1/60,{visible:true});camera.updateMatrixWorld(true);
+   for(const [source,clone]of view.bowStrings){const b=new T.Vector3(0,.5,0).applyMatrix4(clone.matrix);assert(Math.abs(b.z-(.29-gun.userData.stringPull))<1e-6);assert(clone.position.equals(source.position));}
+   const source=gun.userData.crossbowLatch,clone=view.parts.find(([s])=>s===source)[1];assert.equal(clone.position.z,-gun.userData.stringPull);
+   assert.equal(gun.userData.crossbowBolt.visible,phase>.72);
+   const bladeSource=gun.userData.crossbowBolt;assert.equal(view.parts.find(([s])=>s===bladeSource)[1].visible,phase>.72);
+  }
+  assert.equal(gun.userData.stringPull,.30,'string springs forward before the next shot');
+  const shaft=gun.getObjectByName('SM_Crossbow_BoltShaft_A');gun.updateMatrixWorld(true);const nock=shaft.localToWorld(new T.Vector3(0,-.265,0)),stringEnd=gun.userData.crossbowStrings[0].localToWorld(new T.Vector3(0,.5,0));assert(nock.distanceTo(stringEnd)<1e-6,'loaded bolt is disconnected from the cocked string');
+  const palm=view.hands[1].localToWorld(new T.Vector3(0,.045,-.023)),foregrip=view.model.localToWorld(new T.Vector3(0,-.05,.18));assert(palm.distanceTo(foregrip)<1e-8,'support hand stays on charging handle');
+  const frozen=view.weapon.matrix.clone();view.update(5,0,{visible:true});assert.deepEqual(view.weapon.matrix.elements,frozen.elements);
+ }finally{view.dispose();}
+});
+
+test('shared scythe metal has a raised forged spine, thin edge and real leather bindings within a small geometry budget',()=>{
+ const gun=weapon('shadowblade'),blade=gun.getObjectByName('SM_Scythe_ForgedBlade_A');assert(blade);
+ const p=blade.geometry.attributes.position;let low=Infinity,high=-Infinity,triangles=0;
+ for(let i=0;i<p.count;i++){low=Math.min(low,p.getZ(i));high=Math.max(high,p.getZ(i));}
+ assert(high-low>.05,'blade is still a flat slab');assert(blade.material.vertexColors&&blade.material.metalness>.6);assert.equal(blade.material.emissiveIntensity,1);assert.equal(blade.material.emissive.getHex(),0);
+ const normal=blade.geometry.attributes.normal,faceRows=p.count/2;for(let i=6;i<faceRows-6;i++){assert(normal.getZ(i)<0,'back blade face points inward');assert(normal.getZ(i+faceRows)>0,'front blade face points inward');}
+ assert(gun.getObjectByName('SM_Scythe_SocketBrace_A'));assert(gun.getObjectByName('SM_Scythe_LeatherBinding_0'));assert(gun.getObjectByName('SM_Scythe_LeatherBinding_1'));
+ gun.traverse(n=>{if(n.isMesh){triangles+=(n.geometry.index?.count||n.geometry.attributes.position.count)/3;assert([...n.geometry.attributes.position.array,...n.geometry.attributes.normal.array].every(Number.isFinite));}});
+ assert(triangles<4500,'held scythe exceeds the near-view mesh budget');
+});
 
 
 test('projectile outlets are attached to the visible weapon in landscape and portrait',()=>{

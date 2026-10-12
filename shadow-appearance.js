@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {smoothSeams} from './hero-finish.js?v=114';
+import {smoothSeams} from './hero-finish.js?v=170';
 
 // Reuse the Ranger's authored cloth, UVs and skinning; each template owns its tints.
 export function shadowOutfit(root){

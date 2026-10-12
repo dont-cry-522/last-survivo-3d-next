@@ -1,4 +1,4 @@
-import{updateEnemyGrip}from'./enemy-appearance.js?v=120';
+import{updateEnemyGrip}from'./enemy-appearance.js?v=170';
 // Attack timings are shared with the pose driver so the strike matches its hit.
 export const ENEMY_MOTION={
  foamling:{wind:.55,recover:.25,cadence:9,range:2.1},tidecrab:{wind:.7,recover:.35,cadence:10,range:3.1},reefturtle:{wind:1.1,recover:.6,cadence:4,range:4},jellyseer:{wind:.85,recover:.4,cadence:4,range:12},tidestar:{wind:.9,recover:.45,cadence:4,range:11},wreckwarden:{wind:1.25,recover:1.7,cadence:4},
@@ -71,6 +71,23 @@ function plantPaw(leg,rig,phase,stride,crouch,pounce){
  }
  leg.joint.rotation.set(hip,0,0);leg.knee.rotation.set(knee,0,0);leg.paw.rotation.set(-hip-knee,0,0);
 }
+const stoneSoles=new WeakMap();
+function plantStoneFoot(leg,rig,phase,stride){
+ const joint=leg.joint,geometry=joint.children[0].geometry;
+ if(!stoneSoles.has(geometry)){
+  const p=geometry.attributes.position,bottom=geometry.boundingBox.min.y,points=new Map();
+  for(let i=0;i<p.count;i++)if(p.getY(i)<bottom+.021){const v=[p.getX(i),p.getY(i),p.getZ(i)];points.set(v.join(','),v);}
+  stoneSoles.set(geometry,[...points.values()]);
+ }
+ const u=((phase/(Math.PI*2))%1+1)%1,support=u<.62,swing=support?0:(u-.62)/.38,travel=support?1-2*u/.62:-1+2*smooth(swing),lift=Math.sin(swing*Math.PI)*.09*stride;
+ joint.rotation.set(-travel*.15*stride,0,0);joint.position.set(joint.position.x,.57,travel*.12*stride);
+ // Project the small cached sole perimeter through the rig and hip rotations.
+ // The torso can settle over a planted foot without translating the actor root.
+ const a=Math.cos(rig.rotation.x),b=Math.sin(rig.rotation.x),c=Math.cos(rig.rotation.y),d=Math.sin(rig.rotation.y),e=Math.cos(rig.rotation.z),f=Math.sin(rig.rotation.z);
+ const rx=a*f+b*d*e,ry=a*e-b*d*f,rz=-b*c,co=Math.cos(joint.rotation.x),si=Math.sin(joint.rotation.x),sy=ry*co+rz*si,sz=-ry*si+rz*co;
+ let bottom=Infinity;for(const [x,y,z]of stoneSoles.get(geometry))bottom=Math.min(bottom,rig.position.y+rx*(joint.position.x+x)+ry*.57+rz*joint.position.z+sy*y+sz*z);
+ joint.position.y+=(.008+lift-bottom)/ry;
+}
 function animateForestEnemy(d,t,stride,phase,gather,drive,impact){
  const rig=d.rig,pounce=d.pounce||0,turn=d.motionTurn||0,look=d.motionLook||0;
  const leap=d.kind==='wolf'||d.kind==='mushroom',recover=Math.min(1,(d.landRecover||0)/(ENEMY_MOTION[d.kind]?.recover||.18));
@@ -88,18 +105,18 @@ function animateForestEnemy(d,t,stride,phase,gather,drive,impact){
   rig.position.set(sway*.012*stride+look*adjust*.018,(Math.abs(sway)*.015-.015)*stride-gather*.09+airborne*.26-landing*.07-brake*.02,-impact*.13-gather*.035+drive*.04-brake*.025);
   rig.rotation.set(.045*stride+Math.sin(phase*2)*.018*stride-gather*.04+drive*.09+landing*.08+brake*.055,0,sway*.025*stride-turn*.045*stride);
   d.head.rotation.set(.07*stride+lag*.025*stride+gather*.17-drive*.25+landing*.10-brake*.025,Math.sin(t*1.35)*.025*(1-stride)+look*(.34+adjust*.08)-turn*.065,-sway*.018*stride+turn*.025);
-  d.jaw.position.y=-.21-gather*.04-drive*.065-pounce*.035;
+  d.jaw.position.y=-.21-gather*.012-drive*.022-pounce*.012;d.jaw.rotation.x=gather*.10+drive*.16+pounce*.10;
   d.tail.rotation.set(-.05-gather*.2+airborne*.18+brake*.09,Math.sin(phase*.65-.5)*(.07+.18*stride)-turn*.22,0);
   if(d.tailTip)d.tailTip.rotation.set(Math.sin(phase*.65-.9)*.055*stride,Math.sin(phase*.65-1.25)*(.055+.11*stride)-turn*.28,0);
   d.ears?.forEach((ear,i)=>ear.rotation.set(-.06-Math.sin(phase-.8+i*.35)*.075*stride-gather*.19+drive*.11,look*.05,(i?1:-1)*.07+breath*.025+turn*.045));
   for(const leg of d.legs)if(leg.knee&&leg.paw)plantPaw(leg,rig,phase+leg.phase,stride,gather+landing*(leg.joint.position.z>0?1.2:.75)+brake*.25,pounce);
  }else if(d.kind==='golem'){
   const weight=Math.sin(phase)*stride;
-  rig.position.set(weight*.035,Math.abs(sway)*.025*stride-gather*.13-drive*.045,-impact*.13-gather*.045+drive*.04);
-  rig.rotation.set(.035*stride-gather*.075+drive*.14-impact*.12,Math.sin(phase-.4)*.025*stride,weight*.045);
-  d.legs.forEach(({joint,phase:offset})=>{const step=Math.sin(phase+offset);joint.rotation.set(step*.23*stride,0,0);});
-  d.arms.forEach((arm,i)=>arm.rotation.set(Math.sin(phase+i*Math.PI-.3)*.15*stride-gather*(i?1.02:.9)+drive*(i?.48:.4),0,(i?1:-1)*(.04*stride+.12*gather)));
-  if(d.head)d.head.rotation.set(-gather*.045+drive*.06,-rig.rotation.y*.65,-weight*.025);
+  rig.position.set(weight*.045,Math.abs(sway)*.014*stride-gather*.09-drive*.08-settle*.025,-impact*.13-gather*.045+drive*.04);
+  rig.rotation.set(.035*stride-gather*.09+drive*.18-impact*.12,Math.sin(phase-.4)*.025*stride,weight*.04);
+  d.legs.forEach(leg=>plantStoneFoot(leg,rig,phase+leg.phase,stride));
+  d.arms.forEach((arm,i)=>{arm.position.y=1.34-gather*.04-drive*.13;arm.rotation.set(Math.sin(phase+i*Math.PI-.55)*.14*stride-gather*(i?1.34:1.24)-drive*.20,0,(i?1:-1)*(.035*stride+.10*gather));});
+  if(d.head)d.head.rotation.set(-gather*.065+drive*.045-settle*.025,-rig.rotation.y*.65,-weight*.025);
  }else if(d.staff){
   const spitter=d.kind==='spitter',walk=Math.sin(phase)*stride;
   rig.position.set(walk*(spitter?.025:.012),Math.abs(sway)*.035*stride+breath*.008-gather*.055+drive*.025,-impact*.13-gather*.025+drive*.045);

@@ -39,6 +39,14 @@ export function shotStarted(d,attack,previous){
 
 export function weaponCuePhases(id,period){const scale=['crossbow','shotgun','rifle'].includes(id)?1:Math.min(WEAPON_RECOVERY[id],Math.max(.12,period*.9))/period;return (WEAPON_CUES[id]||[]).map(t=>t*scale);}
 
+// Reload is driven by the existing attack cycle. The string catches at the rear
+// while the support hand returns below the stock; it must not spring forward a
+// second time before the next actual shot.
+export function crossbowMechanism(phase=1){
+ const p=clamp(phase);
+ return{pull:.30*smooth(.22,.60,p),hand:smooth(.12,.22,p)*(1-smooth(.66,.88,p)),boltVisible:p>.72};
+}
+
 // Rear grip / shaft poses: diagonal carry, shoulder preparation, cutting pass,
 // follow-through below the target, then an unloaded return. Both hands follow
 // this single rigid pole; the blade never swings independently of the shaft.

@@ -1,0 +1,37 @@
+<!doctype html><meta charset="utf-8"><title>角色与器物样板检查</title>
+<style>body{background:#162b2c;color:#e8e9df;font:14px system-ui}canvas{max-width:100%;height:auto}pre{white-space:pre-wrap}a{color:#b6ddcf}</style>
+<h1>角色、器物与林地怪物 · 同光照样板</h1><p>使用正式模型和动画；中性检查台用于比较结构，不代表实战场景。不会读写玩家存档。</p>
+<p id="status">正在载入</p><a id="save-png">保存对照图</a><div id="sheet"></div><pre id="report"></pre>
+<script type="module">
+import * as T from '../vendor/three.module.js';
+import {actor,animateActor} from '../world.js?v=170';
+document.querySelector('#status').textContent='模块已加载，核对模型入口';
+const worldSource=await(await fetch('../world.js',{cache:'no-store'})).text(),skinEntry=worldSource.match(/from['"](.\/skinned-hero\.js[^'"]*)['"]/)[1];
+const {loadHeroAssets,disposeHero}=await import(new URL('../'+skinEntry,location.href));
+import {ENEMY_MOTION} from '../enemy-motion.js?v=170';
+const errors=[];addEventListener('error',e=>errors.push(e.message));addEventListener('unhandledrejection',e=>errors.push(String(e.reason)));
+const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}),scene=new T.Scene(),camera=new T.PerspectiveCamera(31,1,.02,80);
+renderer.setSize(430,410);camera.aspect=430/410;camera.updateProjectionMatrix();renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
+scene.background=new T.Color(0x344f50);scene.add(new T.HemisphereLight(0x829cad,0x223d3f,1.25));
+const sun=new T.DirectionalLight(0xffdca0,3.85);sun.position.set(-8,14,10);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-4,right:4,top:4,bottom:-4});sun.shadow.normalBias=.012;scene.add(sun);
+const rim=new T.DirectionalLight(0x91bcd0,1.05);rim.position.set(4,7,-6);scene.add(rim);
+const floor=new T.Mesh(new T.PlaneGeometry(20,20),new T.MeshStandardMaterial({color:0x526450,roughness:1}));floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;floor.position.y=-.02;scene.add(floor);
+const sheet=document.createElement('canvas');sheet.width=1290;sheet.height=1320;document.querySelector('#sheet').append(sheet);const ctx=sheet.getContext('2d'),results=[];ctx.fillStyle='#162b2c';ctx.fillRect(0,0,sheet.width,sheet.height);
+function frame(bounds,direction,padding=1.13){const center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3()),height=Math.max(size.y,Math.hypot(size.x,size.z)*.87),distance=height*padding/(2*Math.tan(T.MathUtils.degToRad(camera.fov/2)));camera.position.copy(center).add(new T.Vector3(...direction).normalize().multiplyScalar(distance));camera.lookAt(center);camera.updateMatrixWorld(true);}
+document.querySelector('#status').textContent='正在读取正式角色素材';
+await loadHeroAssets();
+const shots=[['霜影 · 全身比例','silver','crossbow','front'],['霜影 · 白发与黑面具','silver','crossbow','face'],['霜影 · 行走时的肩背披风','silver','crossbow','back'],['短弩 · 木托、钢轨与弩机','silver','crossbow','weapon'],['战镰 · 刃脊、套箍与缠柄','wraith','shadowblade','weapon'],['林狼 · 侧身与承重','wolf',null,'front'],['林狼 · 扑击前蓄力','wolf',null,'wind'],['岩怪 · 石躯与关节','golem',null,'front'],['岩怪 · 抡击前蓄力','golem',null,'wind']];
+for(const [i,[label,kind,weapon,view]] of shots.entries()){
+ const model=actor(kind,weapon),hero=kind==='silver'||kind==='wraith';scene.add(model);if(hero&&!model.userData.skinned)throw Error('Actual skinned hero did not load');
+ for(let f=0;f<90;f++){const time=5+f/60;model.userData.travelAngle=0;model.userData.aimActive=view==='weapon';animateActor(model,time,view==='back'?4.5:0,view==='wind'?ENEMY_MOTION[kind].wind*(1-f/120):0);}
+ let visible=model;
+ if(view==='weapon'){visible=model.userData.gun.clone(true);visible.position.set(0,.8,0);visible.quaternion.identity();visible.scale.setScalar(1);model.visible=false;scene.add(visible);floor.visible=false;}
+ let bounds=new T.Box3().setFromObject(visible,true),direction=view==='back'?[2.3,1,-5]:view==='weapon'?[2.6,2.3,5]:kind==='wolf'?[5,2,4]:[2,1.2,5];
+ if(view==='face'){const head=model.userData.swimHead.getWorldPosition(new T.Vector3());head.y+=.10;bounds=new T.Box3().setFromCenterAndSize(head,new T.Vector3(.64,.67,.50));direction=[.7,.2,5];}
+ frame(bounds,direction,view==='face'?1.03:1.20);renderer.render(scene,camera);
+ const col=i%3,row=Math.floor(i/3);ctx.drawImage(renderer.domElement,col*430,row*440);ctx.fillStyle='#e8e9df';ctx.font='15px system-ui';ctx.fillText(label,col*430+12,row*440+430);
+ const finite=visible.matrixWorld.elements.every(Number.isFinite),gpu=renderer.getContext().getError();results.push({label,pass:finite&&gpu===0&&renderer.info.programs.every(p=>p.diagnostics?.runnable!==false),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles});
+ scene.remove(model);if(visible!==model)scene.remove(visible);if(hero)disposeHero(model);floor.visible=true;await new Promise(r=>setTimeout(r,0));
+}
+document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);document.querySelector('#status').textContent=results.every(r=>r.pass)&&!errors.length?'完成：9 个结构与动画画面':'检查失败';const link=document.querySelector('#save-png');link.href=sheet.toDataURL('image/png');link.download='art-samples.png';renderer.dispose();
+</script>

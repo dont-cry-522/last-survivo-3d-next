@@ -1,5 +1,5 @@
-import {shadowFocus} from './shadow-gear.js?v=128';
-import{weaponGesture,shotStarted}from'./weapon-performance.js?v=130';
+import {shadowFocus} from './shadow-gear.js?v=170';
+import{weaponGesture,shotStarted,crossbowMechanism}from'./weapon-performance.js?v=170';
 import{miasmaLantern}from'./mirage-appearance.js?v=114';
 import * as T from './vendor/three.module.js';
 // Shared smooth geometry: detail is concentrated on the two heroes, not multiplied across the forest.
@@ -10,6 +10,19 @@ const ell=(p,c,pos,scale,metal=0,emission=0)=>part(p,'SphereGeometry',[1,20,14],
 const block=(p,c,pos,scale,metal=0)=>part(p,'BoxGeometry',[1,1,1],c,pos,scale,metal);
 const tube=(p,c,pos,scale,metal=0)=>part(p,'CylinderGeometry',[1,1,1,16],c,pos,scale,metal);
 const joint=(p,pos)=>{const g=new T.Group();g.position.set(...pos);p.add(g);return g;};
+// Beveled, tapered sections retain the original weapon-space grip and outlet.
+function weaponHull(parent,name,rings,color,metal=0,directions){
+ const key=name+JSON.stringify(rings);
+ if(!geometries.has(key)){
+  const p=[],ix=[],edge=[[-.35,-.5],[.35,-.5],[.5,-.32],[.5,.32],[.35,.5],[-.35,.5],[-.5,.32],[-.5,-.32]];
+  for(let i=0;i<rings.length;i++){const[x,y,z,w,h]=rings[i],axis=directions?.[i];for(const[u,v]of edge)p.push(x+u*w*(axis?.x??1),y+v*h,z+u*w*(axis?.z??0));}
+  for(let i=0;i<rings.length-1;i++)for(let j=0;j<8;j++){const a=i*8+j,b=i*8+(j+1)%8;ix.push(a,b,a+8,b,b+8,a+8);}
+  for(const end of[0,rings.length-1]){const n=p.length/3;p.push(...rings[end].slice(0,3));for(let j=0;j<8;j++){const a=end*8+j,b=end*8+(j+1)%8;ix.push(...(end?[n,a,b]:[n,b,a]));}}
+  const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(p,3));geo.setIndex(ix);geo.computeVertexNormals();geo.name=name;geometries.set(key,geo);
+ }
+ const mesh=new T.Mesh(geometries.get(key),material(color,metal));mesh.name=name;mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);return mesh;
+}
+function weaponLine(parent,name,points,radius,color,metal=0){const mesh=part(parent,'TubeGeometry',[new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),Math.max(6,points.length*3),radius,6,false],color,undefined,undefined,metal);mesh.name=name;return mesh;}
 function tailored(p,c,profile,pos){const key='tailor'+JSON.stringify(profile);if(!geometries.has(key))geometries.set(key,new T.LatheGeometry(profile.map(([r,y])=>new T.Vector2(r,y)),24));const m=new T.Mesh(geometries.get(key),material(c));m.position.set(...pos);m.scale.z=.65;m.castShadow=m.receiveShadow=true;p.add(m);return m;}
 function cloth(p,color,width,length,z){const key=`cloth:${width}:${length}:${z}`;if(!geometries.has(key)){const vertices=[],indices=[];for(let y=0;y<=6;y++)for(let x=0;x<=6;x++){const u=x/6,v=y/6;vertices.push((u-.5)*width*(.62+.38*v),-length*v,z-Math.sin(v*Math.PI/2)*.18+Math.cos(u*Math.PI*4)*.035*v);}for(let y=0;y<6;y++)for(let x=0;x<6;x++){const a=y*7+x;indices.push(a,a+7,a+1,a+1,a+7,a+8);}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(vertices,3));g.setIndex(indices);g.computeVertexNormals();geometries.set(key,g);}const mat=material(color);mat.side=T.DoubleSide;const m=new T.Mesh(geometries.get(key),mat);m.castShadow=m.receiveShadow=true;p.add(m);return m;}
 function lock(p,color,x,y,z,length,bend=.12){const key=`lock:${length}:${bend}`;if(!geometries.has(key)){const v=[],ix=[];for(let i=0;i<=10;i++){const f=i/10,r=.069*Math.sin(Math.min(1,f*8)*Math.PI/2)*(1-f)+.001;for(let j=0;j<10;j++){const a=j*Math.PI/5;v.push(Math.cos(a)*r,-f*length,bend*f*f+Math.sin(a)*r*.58);}}for(let i=0;i<10;i++)for(let j=0;j<10;j++){const a=i*10+j,b=i*10+(j+1)%10;ix.push(a,b,a+10,b,b+10,a+10);}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.setIndex(ix);g.computeVertexNormals();geometries.set(key,g);}const m=new T.Mesh(geometries.get(key),material(color));m.position.set(x,y,z);m.castShadow=true;p.add(m);return m;}
@@ -73,18 +86,33 @@ export function makeHero(kind,weapon){
     part(head,'OctahedronGeometry',[.115,0],accent,[0,.07,0],[1,1.5,1],.35,.9);
     part(head,'TorusGeometry',[.085,.013,6,20],trim,[0,.07,0],[1,1,1],.8);
   }else if(weapon==='crossbow'){
-    block(gun,0x283845,[0,.045,.16],[.13,.12,.56]);
-    block(gun,0x866e59,[0,.12,.18],[.075,.035,.42]);
-    block(gun,0x171e28,[0,-.08,.01],[.10,.19,.14]).rotation.x=-.2;
+    gun.name='SM_Weapon_Crossbow_A';
+    weaponHull(gun,'SM_Crossbow_WoodStock_A',[[0,.035,-.14,.075,.095],[0,.047,-.075,.13,.12],[0,.047,.24,.11,.092],[0,.065,.435,.057,.06]],0x695240);
+    const grip=weaponHull(gun,'SM_Crossbow_Grip_A',[[0,0,-.095,.081,.070],[0,0,-.066,.095,.091],[0,0,.068,.091,.087],[0,0,.095,.083,.076]],0x242b32);grip.rotation.x=-Math.PI/2-.16;grip.position.set(0,-.077,.01);
+    for(const side of[-1,1]){
+      weaponHull(gun,'SM_Crossbow_SteelRail_'+(side<0?'L':'R'),[[side*.022,.112,-.075,.015,.014],[side*.022,.116,.21,.015,.019],[side*.018,.114,.44,.011,.010]],0xb0b9bf,.68);
+      weaponLine(gun,'SM_Crossbow_StockSeam_'+side,[[side*.047,.067,-.10],[side*.062,.074,-.02],[side*.050,.073,.20],[side*.030,.085,.35]],.0023,0x987a5a);
+    }
+    weaponLine(gun,'SM_Crossbow_TriggerGuard_A',[[0,.006,-.052],[0,-.073,-.053],[0,-.103,.085],[0,-.08,.14],[0,.002,.17]],.009,0x687880,.56);
+    weaponLine(gun,'SM_Crossbow_Trigger_A',[[0,-.012,.053],[0,-.047,.043],[0,-.066,.075]],.007,0xa0acb4,.72);
     const strings=[];
     for(const s of[-1,1]){
-      const limb=block(gun,0x8b9bab,[s*.23,.11,.43],[.43,.035,.065],.55);limb.rotation.y=s*.2;
-      ell(gun,0xc8e7ed,[s*.44,.11,.36],[.025,.035,.025],.6);
-      strings.push(part(gun,'CylinderGeometry',[.004,.004,1,4],0xd0dee6));
+      const curve=new T.CatmullRomCurve3([[0,.11,.42],[s*.16,.115,.463],[s*.32,.118,.432],[s*.44,.11,.36]].map(p=>new T.Vector3(...p))),rings=[],directions=[];
+      for(let i=0;i<=10;i++){const t=i/10,c=curve.getPoint(t),a=curve.getTangent(t);rings.push([c.x,c.y,c.z,.054-.033*t,.025-.014*t]);directions.push(new T.Vector3(a.z,0,-a.x).normalize());}
+      weaponHull(gun,'SM_Crossbow_RecurvedLimb_'+(s<0?'L':'R'),rings,0x687984,.64,directions);
+      weaponLine(gun,'SM_Crossbow_LimbRidge_'+s,[[s*.07,.124,.441],[s*.20,.129,.455],[s*.33,.129,.426],[s*.426,.118,.374]],.0028,0xb2bec4,.72);
+      const tip=ell(gun,0xb4c6ca,[s*.44,.11,.36],[.019,.025,.021],.6);tip.name='SM_Crossbow_StringNock_'+s;
+      const string=part(gun,'CylinderGeometry',[.003,.003,1,6],0x8e8d7e);string.name='SM_Crossbow_String_'+s;strings.push(string);
     }
-    const bolt=new T.Group();gun.add(bolt);block(bolt,0xdceaf0,[0,.16,.30],[.022,.023,.43],.6);
-    part(bolt,'ConeGeometry',[.045,.13,5],0xc8e7f0,[0,.16,.57],[1,1,1],.65).rotation.x=Math.PI/2;
-    gun.userData.crossbowStrings=strings;gun.userData.crossbowBolt=bolt;gun.userData.stringPull=0;
+    const latch=joint(gun,[0,0,-.30]);latch.name='SM_Crossbow_CockingSlide_A';
+    weaponHull(latch,'SM_Crossbow_Latch_A',[[0,.13,.263,.066,.025],[0,.134,.29,.072,.028],[0,.13,.31,.054,.021]],0x747e86,.66);
+    weaponLine(latch,'SM_Crossbow_CockingTab_A',[[.02,.126,.29],[.059,.134,.29],[.073,.134,.29]],.008,0x9aabb6,.7);
+    const bolt=new T.Group();bolt.name='SM_Crossbow_Bolt_A';gun.add(bolt);
+    const shaft=part(bolt,'CylinderGeometry',[.009,.009,.53,8],0x99836b,[0,.16,.255]);shaft.rotation.x=Math.PI/2;shaft.name='SM_Crossbow_BoltShaft_A';
+    const arrow=part(bolt,'ConeGeometry',[.027,.13,4],0xc8d1d5,[0,.16,.57],[1,1,1],.78);arrow.rotation.x=Math.PI/2;arrow.name='SM_Crossbow_BoltHead_A';
+    for(const s of[-1,1])weaponHull(bolt,'SM_Crossbow_BoltFletching_'+s,[[s*.007,.16,.014,.007,.013],[s*.013,.16,.046,.007,.037],[s*.006,.16,.096,.005,.010]],0x718b98);
+    gun.userData.crossbowStrings=strings;gun.userData.crossbowBolt=bolt;gun.userData.crossbowLatch=latch;gun.userData.stringPull=.30;
+    poseCrossbow(gun,1);
   }else if(weapon==='shuriken'){
     part(gun,'TorusGeometry',[.095,.022,8,20],trim,[0,0,.06],[1,1,1],.8).rotation.x=Math.PI/2;
     for(let i=0;i<4;i++){const blade=part(gun,'ConeGeometry',[.09,.32,3],0xd6e5e6,[Math.sin(i*Math.PI/2)*.21,0,.06+Math.cos(i*Math.PI/2)*.21],[1,1,.26],.85);blade.rotation.set(Math.PI/2,i*Math.PI/2,0);}
@@ -100,6 +128,13 @@ export function makeHero(kind,weapon){
     if(weapon==='shotgun'){const second=tube(gun,0x8c9ca6,[.075,.068,.47],[.032,.43,.032],.75);second.rotation.x=Math.PI/2;const pump=joint(gun,[0,0,0]);for(let i=0;i<4;i++)block(pump,0x8c6e48,[0,.025,.28+i*.037],[.14,.08,.022]);gun.userData.pump=pump;}
   }
   return g;
+}
+const stringUp=new T.Vector3(0,1,0),stringStart=new T.Vector3(),stringEnd=new T.Vector3();
+export function poseCrossbow(gun,phase=1){
+ const strings=gun.userData.crossbowStrings;if(!strings)return;
+ const mechanism=crossbowMechanism(phase);
+ for(let i=0;i<2;i++){stringStart.set(i?.44:-.44,.11,.36);stringEnd.set(0,.16,.29-mechanism.pull).sub(stringStart);strings[i].position.copy(stringStart).addScaledVector(stringEnd,.5);strings[i].scale.y=stringEnd.length();strings[i].quaternion.setFromUnitVectors(stringUp,stringEnd.normalize());}
+ gun.userData.stringPull=mechanism.pull;gun.userData.crossbowBolt.visible=mechanism.boltVisible;if(gun.userData.crossbowLatch)gun.userData.crossbowLatch.position.z=-mechanism.pull;
 }
 export function animateHero(g,t,speed,attack){
   const d=g.userData,dt=d.lastPoseTime===undefined?1/60:Math.max(0,Math.min(.05,t-d.lastPoseTime));d.lastPoseTime=t;
@@ -117,6 +152,7 @@ export function animateHero(g,t,speed,attack){
   const k=motion.kick,s=motion.sweep;d.rig.position.z=-k*(d.weaponId==='shotgun'?.10:.035);
   d.rightArm.rotation.y=d.weaponId==='shuriken'?-.7*s:d.weaponId==='dark'?.5*s:0;d.rightArm.rotation.x-=k*(staff?.45:.15);d.rightElbow.rotation.x-=k*(d.weaponId==='shuriken'?.4:.15);d.leftArm.rotation.x-=staff?.4*s:motion.draw*.3;
   if(d.weapon.userData.pump)d.weapon.userData.pump.position.z=-.23*motion.draw;
+  if(d.weaponId==='crossbow')poseCrossbow(d.weapon,d.reloadPhase??1);
   d.cape.rotation.x=.07+run*.34+Math.sin(t*5)*.045;d.cape.rotation.z=step*.045*run;
   if(d.pony){d.pony.rotation.x=-.1+run*.22+Math.sin(t*7)*.06;d.pony.rotation.z=step*.06*run;}
   if(d.scarf)d.scarf.rotation.x=run*.4+Math.sin(t*6)*.06;

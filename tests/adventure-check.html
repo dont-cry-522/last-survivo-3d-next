@@ -30,7 +30,7 @@ async function load(mobile=false,width=1180,height=720){
  const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
  // LOD generation must run in this renderer's realm: geometry merges compare
  // typed-array constructors, and WebGL uploads use instanceof checks.
- window.qaWorldReady=import('./world.js?v=169').then(module=>{window.qaAnimateWorld=module.animateWorld;});
+ window.qaWorldReady=import('./world.js?v=170').then(module=>{window.qaAnimateWorld=module.animateWorld;});
  <\/script>`;
  frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
  for(let i=0;i<600&&!win.game3d;i++)await sleep(50);assert(win.game3d,'加载超时 '+(win.qaErrors||[]).join(' / '));g=win.game3d;assert(await g.surfaceReady,'本地土石材质未全部加载');g.audio.init=async()=>true;const render=g.renderer.render.bind(g.renderer);g.renderer.render=(scene,camera)=>{if(scene!==g.hero.parent)return render(scene,camera);win.qaCamera=camera;if(g.state==='menu'&&win.document.querySelector('#preview-detail').getAttribute('aria-pressed')!=='true'){
@@ -345,7 +345,7 @@ $('#habitat-run').onclick=async()=>{
  const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v148-six-environments.png';a.click();$('#status').textContent='环境检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;publish();
  }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
 };
-$('#third').onclick=()=>preview('third');$('#first').onclick=()=>preview('first');$('#air-portrait').onclick=()=>{const kind=AIR_ROSTERS[$('#preview-map').value]||'duskbat',scene=new T.Scene(),camera=new T.PerspectiveCamera(36,1.5,.1,30),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(360,240);renderer.setClearColor(0x213235);const model=makeAirborne(kind);scene.add(model);animateAirborne({kind,mesh:model,id:1,flight:{stage:'orbit'}},.2);scene.add(new T.HemisphereLight(0xe3efff,0x38462e,2.8));const sun=new T.DirectionalLight(0xffedce,3);sun.position.set(-3,5,4);scene.add(sun);camera.position.set(2,2.8,4);camera.lookAt(0,.25,0);renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='next-bestiary-'+kind+'.png';a.click();renderer.dispose();renderer.forceContextLoss();};$('#capture').onclick=()=>{step(1,0);const a=document.createElement('a');a.href=g.renderer.domElement.toDataURL('image/png');a.download='forest-next-'+g.player.weaponId+'-'+g.adventureCamera.mode+'-f'+(previewShot?.frames||previewDodge?.frames||0)+'.png';a.click();};
+$('#third').onclick=()=>preview('third');$('#first').onclick=()=>preview('first');$('#air-portrait').onclick=()=>{const kind=AIR_ROSTERS[$('#preview-map').value]||'duskbat',scene=new T.Scene(),camera=new T.PerspectiveCamera(36,1.5,.1,30),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(360,240);renderer.setClearColor(0x213235);const model=makeAirborne(kind);scene.add(model);animateAirborne({kind,mesh:model,id:1,flight:{stage:'orbit'}},.2);scene.add(new T.HemisphereLight(0xe3efff,0x38462e,2.8));const sun=new T.DirectionalLight(0xffedce,3);sun.position.set(-3,5,4);scene.add(sun);camera.position.set(2,2.8,4);camera.lookAt(0,.25,0);renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='next-bestiary-'+kind+'.png';a.click();renderer.dispose();renderer.forceContextLoss();};$('#capture').onclick=()=>{step(1,0);const a=document.createElement('a');a.href=g.renderer.domElement.toDataURL('image/png');a.download='forest-next-'+g.player.weaponId+'-'+g.adventureCamera.mode+'-f'+(previewShot?.frames||previewDodge?.frames||0)+'.png';$('#capture-image')?.remove();a.id='capture-image';a.textContent='下载当前实景截图';$('#report').before(a);};
 
 $('#weapon-run').onclick=async()=>{
  const controls=[...document.querySelectorAll('button')];controls.forEach(b=>b.disabled=true);results.length=0;errors.length=0;
@@ -1139,7 +1139,7 @@ ambientButton.onclick=async()=>{
 // A fresh page can run one named inspection after loading; this avoids overlapping
 // iframe rebuilds when browser input acknowledgements time out during heavy QA.
 const autoCheck=new URLSearchParams(location.search).get('check');
-const autoButtons={lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run'};
+const autoButtons={lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',polish:'polish-run',heroes:'run'};
 if(g&&autoButtons[autoCheck]){$('#status').textContent='正在运行 '+autoCheck+' 检查…';$('#'+autoButtons[autoCheck]).click();}
 </script>
 </html>

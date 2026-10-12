@@ -3,7 +3,7 @@ import * as T from './vendor/three.module.js';
 import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=128';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,WEAPON_RECOVERY,scythePose} from './weapon-performance.js?v=130';
+import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=170';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
@@ -15,7 +15,7 @@ const PALETTES={
 const PROFILES={
  rifle:{type:'gun',width:.85,height:1,depth:.62,x:.38,y:-.48,pitch:.025,support:[0,-.045,.34]},
  shotgun:{type:'gun',width:.85,height:1,depth:.65,x:.38,y:-.49,pitch:.015,support:[0,-.025,.34]},
- crossbow:{type:'bow',width:.87,height:1,depth:.55,x:.30,y:-.46,pitch:.08,support:[0,-.05,.26]},
+ crossbow:{type:'bow',width:.87,height:1,depth:.55,x:.30,y:-.46,pitch:.08,support:[0,-.05,.18]},
  fire:{type:'staff',width:.64,height:1.36,depth:.40,x:.64,y:-.25,pitch:.04},
  dark:{type:'staff',width:.64,height:1.36,depth:.40,x:.64,y:-.25,pitch:.04},
  shuriken:{type:'throw',width:.58,height:.85,depth:.44,x:.56,y:-.57,pitch:.60},
@@ -70,25 +70,7 @@ function hullGeometry(rings,directions){
  for(const end of[0,rings.length-1]){const n=p.length/3;p.push(...rings[end].slice(0,3));for(let j=0;j<8;j++){const a=end*8+j,b=end*8+(j+1)%8;index.push(...(end?[n,a,b]:[n,b,a]));}}
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setIndex(index);g.computeVertexNormals();return g;
 }
-function crossbowDetail(source,gun){
- if(source.geometry.type!=='BoxGeometry')return null;
- let geometry,name;
- if(source.parent===gun&&source.scale.x>.3){
-  const side=Math.sign(source.position.x),curve=new T.CatmullRomCurve3([[0,.11,.42],[side*.16,.115,.463],[side*.32,.118,.432],[side*.44,.11,.36]].map(p=>new T.Vector3(...p))),rings=[],directions=[];
-  // Curved tapered spring limbs keep their tips on the original animated string anchors.
-  for(let i=0;i<=8;i++){const t=i/8,c=curve.getPoint(t),axis=curve.getTangent(t);rings.push([c.x,c.y,c.z,.040-.025*t,.020-.009*t]);directions.push(new T.Vector3(axis.z,0,-axis.x).normalize());}
-  geometry=hullGeometry(rings,directions);
-  geometry.applyMatrix4(new T.Matrix4().compose(source.position,source.quaternion,source.scale).invert());name='recurved-limb';
- }else if(source.parent===gun&&(source.scale.z>.3||source.scale.y>.15)){
-  geometry=hullGeometry([[0,0,-.5,.76,.78],[0,0,-.30,1,1],[0,.035,.27,.87,.87],[0,.045,.5,.59,.62]]);
-  if(source.scale.y>.15)geometry.rotateX(Math.PI/2);name=source.scale.y>.15?'shaped-grip':'beveled-receiver';
- }else if(source.parent===gun.userData.crossbowBolt){
-  geometry=new T.CylinderGeometry(.5,.5,1,8);geometry.rotateX(Math.PI/2);name='round-bolt';
- }
- if(geometry)geometry.name='First_person_'+name;return geometry;
-}
 function closeDetail(source,gun,id){
- if(id==='crossbow')return crossbowDetail(source,gun);
  let geometry;
  if(['rifle','shotgun'].includes(id)&&source.geometry.type==='BoxGeometry'){
   // Keep the authored contact points, but round receiver edges and taper the wooden stock.
@@ -301,7 +283,7 @@ export class FirstPersonView {
   for(let i=0;i<this.bowStrings.length;i++){
    const [source,clone]=this.bowStrings[i];
    if(!clone||source.position.lengthSq()>1e-10||Math.abs(source.scale.y-1)>1e-6)continue;
-   this.wrist.set(i?.44:-.44,.11,.36);this.scratch.set(0,.12,.29-.34*draw).sub(this.wrist);
+   this.wrist.set(i?.44:-.44,.11,.36);this.scratch.set(0,.16,.29-crossbowMechanism(cycle).pull).sub(this.wrist);
    clone.position.copy(this.wrist).addScaledVector(this.scratch,.5);clone.scale.y=this.scratch.length();clone.quaternion.setFromUnitVectors(UP,this.scratch.normalize());
   }
   const breath=Math.sin((Number(time)||0)*1.65)*.0018*(1-this.sway),settle=1-Math.min(1,motion.kick+motion.gather);
@@ -359,7 +341,7 @@ export class FirstPersonView {
   for(let i=0;i<2;i++){
    const hand=this.hands[i],arm=this.arms[i],point=this.scratch.copy(this.handPoints[i]);
    if(i&&id==='shotgun')point.z+=this.source.userData.pump?.position.z||0;
-   if(i&&id==='crossbow')point.lerp(this.wrist.set(.085,.13,.30-.28*draw).sub(this.center),Math.min(1,draw*2.2));
+   if(i&&id==='crossbow'){const mechanism=crossbowMechanism(cycle);point.lerp(this.wrist.set(.06,.13,.29-mechanism.pull).sub(this.center),mechanism.hand);}
    point.applyMatrix4(this.weapon.matrix);
    if(i&&!support)point.set(-halfW*.48-this.root.position.x,-halfH*.72-this.root.position.y+kick*.045,.11-kick*.06);
    hand.rotation.set(i?(support?-.30:-.45):-.18,i?-.20:.12,i?(support?-.38:.18):-.38);
@@ -370,7 +352,7 @@ export class FirstPersonView {
    if(id==='harpoon')hand.rotation.set(-.10,(i?-1:1)*Math.PI/2+this.weapon.rotation.y-Math.PI,i?.35:-.35);
    hand.scale.set(i?-handScale:handScale,handScale,handScale);
    hand.position.copy(point).sub(this.wrist.copy(CONTACT).multiply(hand.scale).applyQuaternion(hand.quaternion));
-   hand.morphTargetInfluences[0]=i&&!support?.72+.20*kick:profile.type==='palm'?.78+.18*kick:profile.type==='book'?.48:profile.type==='throw'?Math.max(kick*.90,this.source.visible?0:.88):i&&id==='crossbow'?draw*.40:0;
+   hand.morphTargetInfluences[0]=i&&!support?.72+.20*kick:profile.type==='palm'?.78+.18*kick:profile.type==='book'?.48:profile.type==='throw'?Math.max(kick*.90,this.source.visible?0:.88):i&&id==='crossbow'?crossbowMechanism(cycle).hand*.24:0;
    // The arms remain after a thrown weapon leaves the hand; only the source weapon is hidden.
    hand.visible=arm.visible=true;
    this.wrist.set(0,-.038,0).multiply(hand.scale).applyQuaternion(hand.quaternion).add(hand.position);

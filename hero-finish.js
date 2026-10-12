@@ -46,3 +46,31 @@ export function finishHeroSurface(root,kind){
   }
  });
 }
+
+// The short bob stays rooted at the crown; only its free ends lag a turn.
+// CPU vertex motion keeps the colour and shadow passes on the same silhouette.
+export function prepareSilverHair(model){
+ const hair=[];
+ model.traverse(mesh=>{
+  if(!mesh.isMesh||!mesh.userData.hairstyle)return;
+  mesh.geometry=mesh.geometry.clone();
+  const original=mesh.material;mesh.material=original.clone();mesh.material.onBeforeCompile=original.onBeforeCompile;mesh.material.customProgramCacheKey=original.customProgramCacheKey;
+  mesh.name='SM_Hero_Hair_Silver';
+  const p=mesh.geometry.attributes.position,n=mesh.geometry.attributes.normal,weight=new Float32Array(p.count),slope=new Float32Array(p.count);
+  for(let i=0;i<p.count;i++){const u=T.MathUtils.clamp((1.72-p.getY(i))/.14,0,1);weight[i]=u*u;slope[i]=u>0&&u<1?-2*u/.14:0;}
+  p.setUsage(T.DynamicDrawUsage);n.setUsage(T.DynamicDrawUsage);
+  mesh.userData.silverHair={position:p.array.slice(),normal:n.array.slice(),weight,slope};hair.push(mesh);
+ });return hair;
+}
+export function animateSilverHair(hair,time,run,turn){
+ const x=Math.sin(time*1.8)*.0025-turn*.018,z=Math.sin(time*2.2+.7)*.002-run*.007;
+ for(const mesh of hair){
+  const d=mesh.userData.silverHair,p=mesh.geometry.attributes.position,n=mesh.geometry.attributes.normal;
+  for(let i=0;i<p.count;i++){
+   const k=i*3,w=d.weight[i];p.setXYZ(i,d.position[k]+x*w,d.position[k+1],d.position[k+2]+z*w);
+   // Inverse transpose of this y-weighted shear: correct highlights without a full normal rebuild.
+   const nx=d.normal[k],ny=d.normal[k+1]-d.slope[i]*(x*d.normal[k]+z*d.normal[k+2]),nz=d.normal[k+2],length=Math.hypot(nx,ny,nz)||1;
+   n.setXYZ(i,nx/length,ny/length,nz/length);
+  }p.needsUpdate=true;n.needsUpdate=true;
+ }
+}

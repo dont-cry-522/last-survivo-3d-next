@@ -133,10 +133,11 @@ test('full forest pipeline keeps every terminal spray and branch join attached a
   const state=installExplorationComposition(w,id);assert(state.trees>0);w.group.updateMatrixWorld(true);let tips=0,joins=0;
   for(const o of w.obstacles){const canopy=o.mesh.getObjectByName('tree-canopy'),trunk=o.mesh.getObjectByName('tree-trunk'),template=canopy?.userData.treeTemplate;if(!template||template.snow||!owned.has(trunk))continue;
    assert.equal(trunk.geometry,owned.get(trunk),'route framing cloned an already-owned habitat trunk');
-   const p=trunk.geometry.attributes.position,start=p.count-template.sprays.length*11,ends=[new T.Vector3().fromBufferAttribute(p,41),...[0,1,2,3].map(i=>new T.Vector3().fromBufferAttribute(p,130+i*20+19))];
+   const p=trunk.geometry.attributes.position,start=p.count-template.sprays.length*11,stemCount=start-4*20,ends=[new T.Vector3().fromBufferAttribute(p,stemCount-1),...[0,1,2,3].map(i=>new T.Vector3().fromBufferAttribute(p,stemCount+i*20+19))];
    if(o!==w.forestHabitats.elder){
-    const stem=[];for(let ring=0;ring<5;ring++){const center=new T.Vector3();for(let i=0;i<8;i++)center.add(new T.Vector3().fromBufferAttribute(p,ring*8+i));stem.push(center.multiplyScalar(1/8));}
-    for(let branch=0;branch<4;branch++){const base=new T.Vector3().fromBufferAttribute(p,130+branch*20+18),near=new T.Vector3();let gap=Infinity;for(let i=1;i<stem.length;i++){new T.Line3(stem[i-1],stem[i]).closestPointToPoint(base,true,near);gap=Math.min(gap,near.distanceTo(base));}assert(gap<.16,'primary fork escaped its supporting trunk');}
+    const stem=[];// v169 continuous roots use 16 vertices per ring; these are the five original stem knots.
+    for(const ring of[0,2,4,5,6]){const center=new T.Vector3();for(let i=0;i<16;i++)center.add(new T.Vector3().fromBufferAttribute(p,ring*16+i));stem.push(center.multiplyScalar(1/16));}
+    for(let branch=0;branch<4;branch++){const base=new T.Vector3().fromBufferAttribute(p,stemCount+branch*20+18),near=new T.Vector3();let gap=Infinity;for(let i=1;i<stem.length;i++){new T.Line3(stem[i-1],stem[i]).closestPointToPoint(base,true,near);gap=Math.min(gap,near.distanceTo(base));}assert(gap<.16,'primary fork escaped its supporting trunk');}
    }
    for(const[i,[x,y,z,,,height]]of template.sprays.entries()){
     const end=trunk.localToWorld(new T.Vector3().fromBufferAttribute(p,start+i*11+10)),target=canopy.localToWorld(new T.Vector3(x,y+height*.24-template.bottom,z));

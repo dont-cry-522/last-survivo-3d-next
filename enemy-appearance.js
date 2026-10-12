@@ -8,16 +8,26 @@ const light=new T.MeshStandardMaterial({vertexColors:true,roughness:.6,emissive:
 // One texture-free finish for the five shared templates. Detail fades before it
 // becomes distant shimmer; positions stay local so markings follow each joint.
 skin.onBeforeCompile=shader=>{
- shader.vertexShader='varying vec3 creaturePoint;\n'+shader.vertexShader;
- shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ncreaturePoint=position;');
- shader.fragmentShader='varying vec3 creaturePoint;\n'+shader.fragmentShader;
+ shader.vertexShader='attribute float creatureSurface; varying float creatureKind; varying vec3 creaturePoint;\n'+shader.vertexShader;
+ shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ncreaturePoint=position;creatureKind=creatureSurface;');
+ shader.fragmentShader='varying float creatureKind; varying vec3 creaturePoint;\n'+shader.fragmentShader;
  shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
   float creaturePatch=.5+.25*sin(dot(creaturePoint,vec3(11.,7.,13.)))+.25*sin(dot(creaturePoint,vec3(-17.,19.,9.)));
   float creatureDetail=1.-smoothstep(.015,.055,max(length(dFdx(creaturePoint)),length(dFdy(creaturePoint))));
-  diffuseColor.rgb*=1.-(.5-creaturePatch)*.16*creatureDetail;`);
+  diffuseColor.rgb*=1.-(.5-creaturePatch)*.16*creatureDetail;
+  // Follow each moving part. Broad coat/lichen colors are baked into the mesh;
+  // only fine fur strands or shallow mineral seams fade with screen footprint.
+  if(creatureKind>.5&&creatureKind<1.5){
+   float furFlow=sin(creaturePoint.x*113.+sin(creaturePoint.y*16.+creaturePoint.z*11.)*2.4);
+   float furClump=.5+.5*sin(creaturePoint.x*31.+creaturePoint.y*5.+creaturePoint.z*7.);
+   diffuseColor.rgb*=1.+(furFlow*.055+(furClump-.5)*.12)*creatureDetail;
+  }else if(creatureKind>1.5){
+   float stoneSeam=abs(sin(dot(creaturePoint,vec3(9.3,5.7,7.8)))*sin(dot(creaturePoint,vec3(-5.2,11.9,6.1))));
+   diffuseColor.rgb*=1.-(1.-smoothstep(.01,.05,stoneSeam))*.10*creatureDetail;
+  }`);
  shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+(creaturePatch-.5)*.10,.82,1.);');
 };
-skin.customProgramCacheKey=()=> 'forest-creature-surface';
+skin.customProgramCacheKey=()=> 'forest-creature-fur-stone';
 function colored(g,color){
  const c=new T.Color(color),p=g.attributes.position,a=[];
  for(let i=0;i<p.count;i++)a.push(c.r,c.g,c.b);
@@ -41,13 +51,16 @@ function profile(points,color,{x=0,y=0,z=0,depth=1,bend=0,flute=0,segments=16,li
 function branch(c,points,radius=.035,segments=10){
  return colored(new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),segments,radius,5,false),c);
 }
-function wolfTrunk(){
- const p=[],indices=[],rings=[[-.57,0,0,.68],[-.49,.18,.21,.66],[-.34,.245,.26,.68],[-.13,.215,.235,.71],[.06,.255,.30,.73],[.25,.275,.33,.75],[.39,.21,.265,.78],[.46,0,0,.80]],sides=16;
- for(const [z,rx,ry,y]of rings)for(let i=0;i<=sides;i++){const a=i/sides*Math.PI*2;p.push(Math.cos(a)*rx,y+Math.sin(a)*ry,z);}
- for(let j=0;j<rings.length-1;j++)for(let i=0;i<sides;i++){const a=j*(sides+1)+i,b=a+sides+1;indices.push(a,a+1,b,a+1,b+1,b);}
+function wolfCoat(rings,head=false){
+ const p=[],indices=[],sides=16;
+ // Shared ring vertices give the shoulder, throat and muzzle one continuous
+ // surface without the seams left by overlapping ellipsoids.
+ for(const [z,rx,ry,y]of rings.slice(1,-1))for(let i=0;i<sides;i++){const a=i/sides*Math.PI*2;p.push(Math.cos(a)*rx,y+Math.sin(a)*ry,z);}
+ for(let j=0;j<rings.length-3;j++)for(let i=0;i<sides;i++){const a=j*sides+i,b=j*sides+(i+1)%sides;indices.push(a,b,a+sides,b,b+sides,a+sides);}
+ for(const end of[0,1]){const ring=rings[end?rings.length-1:0],center=p.length/3,offset=end?(rings.length-3)*sides:0;p.push(0,ring[3],ring[0]);for(let i=0;i<sides;i++){const a=offset+i,b=offset+(i+1)%sides;indices.push(...(end?[center,a,b]:[center,b,a]));}}
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setIndex(indices);g.computeVertexNormals();colored(g,0x677574);
- const c=g.attributes.color,base=new T.Color(0x677574),belly=new T.Color(0xa7aca0),back=new T.Color(0x465653),shade=new T.Color();
- for(let i=0;i<c.count;i++){const x=p[i*3],y=p[i*3+1],low=1-T.MathUtils.smoothstep(y,.46,.70),ridge=T.MathUtils.smoothstep(y,.78,1.02)*(1-Math.min(1,Math.abs(x)/.25));shade.copy(base).lerp(belly,low*.70).lerp(back,ridge*.70);c.setXYZ(i,shade.r,shade.g,shade.b);}
+ const c=g.attributes.color,base=new T.Color(head?0x8b948b:0x79827b),belly=new T.Color(0xc3c2ad),back=new T.Color(0x424e4b),shade=new T.Color();
+ for(let i=0;i<c.count;i++){const x=p[i*3],y=p[i*3+1],z=p[i*3+2],low=1-T.MathUtils.smoothstep(y,head?-.14:.50,head?-.015:.76),ridge=T.MathUtils.smoothstep(y,head?.07:.83,head?.23:1.07)*(1-Math.min(1,Math.abs(x)/.26)),throat=head?0:T.MathUtils.smoothstep(z,.15,.46)*(1-T.MathUtils.smoothstep(y,.79,.98));shade.copy(base).lerp(belly,Math.max(low*.76,throat*.66)).lerp(back,ridge*.78);c.setXYZ(i,shade.r,shade.g,shade.b);}
  return g;
 }
 function boulder(c,x,y,z,sx,sy,sz,rx=0,ry=0,rz=0){
@@ -93,15 +106,11 @@ function template(kind){
   for(let i=0;i<11;i++){const a=i*2.399,r=.16+(i%4)*.089;cap.push(capPatch(Math.cos(a)*r,Math.sin(a)*r,.037+i%2*.022,.028+i%3*.009,i%2?0xe1cc9e:0xc3a478));}
   p.cap=joined(cap);p.foot=joined([oval(0xa88e65,0,0,.035,.13,.105,.20)]);
  }else if(kind==='wolf'){
-  p.body=joined([
-   wolfTrunk(),oval(0x9ea798,0,.65,.365,.19,.25,.12),
-   oval(0x7f8b82,0,.88,.29,.215,.20,.20),
-   ...[-1,1].map(s=>oval(0x697b73,s*.20,.70,.24,.085,.225,.18))
-  ]);
+  p.body=joined([wolfCoat([[-.58,0,0,.69],[-.49,.19,.205,.675],[-.34,.245,.255,.695],[-.13,.215,.228,.728],[.055,.264,.30,.755],[.23,.277,.325,.775],[.36,.221,.27,.81],[.465,.168,.215,.86],[.57,.13,.155,.89],[.61,0,0,.90]])]);
   p.head=joined([
-   oval(0x7e8d85,0,.03,.005,.225,.23,.255),oval(0xaab1a2,0,-.065,.275,.13,.105,.205),
+   wolfCoat([[-.25,0,0,.045],[-.20,.135,.175,.042],[-.075,.245,.216,.04],[.075,.205,.194,.018],[.19,.18,.16,-.008],[.29,.132,.108,-.055],[.397,.091,.069,-.055],[.437,0,0,-.044]],true),
    oval(0x283632,0,-.031,.426,.098,.060,.055),oval(0x354039,0,-.150,.32,.105,.025,.14),
-   ...[-1,1].flatMap(s=>[oval(0x34463e,s*.155,.08,.180,.056,.045,.046),oval(0xdcc181,s*.163,.083,.215,.027,.021,.011),oval(0x334035,s*.166,.085,.225,.007,.020,.006,6,4),rock(0x667970,s*.18,.135,.17,.085,.038,.070,0,0,-s*.20),oval(0x8c9b8f,s*.185,-.10,-.035,.095,.13,.155),
+   ...[-1,1].flatMap(s=>[oval(0x34463e,s*.155,.08,.180,.056,.045,.046),oval(0xdcc181,s*.163,.083,.215,.027,.021,.011),oval(0x334035,s*.166,.085,.225,.007,.020,.006,6,4),rock(0x667970,s*.18,.135,.17,.085,.038,.070,0,0,-s*.20),
     branch(0x45554c,[[s*.096,-.128,.23],[s*.117,-.133,.33],[s*.076,-.115,.429]],.007,6),piece(new T.ConeGeometry(.017,.057,6),0xd4ceb1,s*.09,-.173,.325,1,1,1,Math.PI)])
   ]);
   p.ear=joined([profile([[0,0],[.105,.02],[.075,.14],[.019,.29],[0,.30]],0x7d8e82,{depth:.48,bend:-.018}),oval(0x48584c,0,.12,.040,.048,.10,.008)]);
@@ -112,10 +121,10 @@ function template(kind){
   p.lower=joined([oval(0x556d61,0,-.103,0,.052,.13,.057),oval(0x819486,0,-.231,.050,.075,.055,.105),...[-1,0,1].flatMap(s=>[oval(0x919e8b,s*.043,-.235,.120,.029,.045,.062,6,4),piece(new T.ConeGeometry(.010,.046,5),0x485047,s*.043,-.24,.181,1,1,1,Math.PI/2)])]);
  }else if(kind==='golem'){
   p.body=joined([
-   boulder(0x626958,0,.93,-.015,.67,.69,.70,.12,.2,-.07),boulder(0x8a8d75,-.16,1.39,.07,.40,.33,.39,.2,-.2,-.1),
-   boulder(0x737b62,.25,1.22,.14,.39,.38,.37,-.1,.2,.2),boulder(0x9b9f83,-.34,.81,.20,.25,.34,.30,.2,.2,-.3),
+   boulder(0x626958,0,.93,-.015,.67,.69,.70,.12,.2,-.07),boulder(0x8a8d75,-.15,1.36,.07,.43,.35,.40,.2,-.2,-.1),
+   boulder(0x737b62,.23,1.23,.14,.40,.39,.37,-.1,.2,.2),
    rock(0x374b3e,.03,1.08,.48,.20,.25,.047),rock(0xa7d2a0,.01,1.11,.529,.075,.14,.023),
-   ...[-1,1].flatMap(s=>[boulder(0x79816a,s*.46,1.44,-.03,.25,.17,.27,.1,0,s*.4),rock(0x627347,s*.39,1.48,.11,.25,.04,.19)]),
+   ...[-1,1].flatMap(s=>[boulder(0x79816a,s*.45,s<0?1.46:1.40,-.03,s<0?.27:.26,s<0?.18:.19,.27,.1,0,s*.4),rock(0x627347,s*.39,s<0?1.50:1.46,.11,.25,.04,.19)]),
    branch(0x334737,[[-.30,1.51,.28],[-.21,1.24,.421],[-.11,1.15,.474]],.018),branch(0x334737,[[.30,1.34,.385],[.21,1.12,.476],[.28,.88,.411]],.018)
   ]);
   p.head=joined([
@@ -152,6 +161,7 @@ function template(kind){
   p.castingForearm=joined([oval(cloth,0,-.115,0,.078,.135,.081),oval(trim,0,-.209,0,.083,.032,.086)]);
   p.foot=joined([oval(0x493f34,0,0,.045,.091,.075,.14)]);
  }
+ for(const geometry of Object.values(p))geometry.setAttribute('creatureSurface',new T.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count).fill(kind==='wolf'?1:kind==='golem'?2:0),1));
  templates.set(kind,p);return p;
 }
 function group(parent,x=0,y=0,z=0){const g=new T.Group();g.position.set(x,y,z);parent.add(g);return g;}

@@ -2,7 +2,7 @@ import test from'node:test';
 import assert from'node:assert/strict';
 import * as T from'../vendor/three.module.js';
 import{buildWorld,moveActor}from'../world.js';
-import{installBiomePlaces}from'../biome-places.js';
+import{installBiomePlaces}from'../biome-places.js?v=164';
 import{installForestVista}from'../forest-vista.js';
 import{installForestHabitats}from'../forest-habitats.js';
 import{terrainAt,waterDepth}from'../water.js';

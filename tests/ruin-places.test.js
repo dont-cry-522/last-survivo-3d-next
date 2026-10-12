@@ -2,7 +2,7 @@ import test from'node:test';
 import assert from'node:assert/strict';
 import{createHash}from'node:crypto';
 import * as T from'../vendor/three.module.js';
-import{buildRuinPlace}from'../ruin-places.js';
+import{buildRuinPlace}from'../ruin-places.js?v=164';
 import{naturalRockGeometry}from'../biome-scenery.js?v=156';
 import{wornStoneBlock}from'../environment-props.js?v=163';
 
@@ -101,7 +101,7 @@ test('the second ash furnace hearth stays visible above its own shallow slag bed
 });
 
 test('the two layouts differ physically, use existing material categories and preserve the default template',()=>{
- const budgets={ash:[[6308,4,57],[5886,3,48]],sand:[[8900,3,55],[7608,3,46]]};
+ const budgets={ash:[[10650,4,57],[8746,3,48]],sand:[[16308,3,55],[12676,3,46]]};
  for(const id of['ash','sand']){
   const first=build(id),second=build(id,1),explicit=build(id,0);assert.deepEqual(first.solids,explicit.solids);assert.notDeepEqual(first.solids,second.solids,'variant changes only colors');
   assert.notEqual(first.kind,second.kind);assert.notEqual(Math.sign(first.focus.x),Math.sign(second.focus.x),'both layouts keep the same large landmark on the same side');

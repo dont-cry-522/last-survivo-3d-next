@@ -4,9 +4,9 @@ import{batchedSurfaceMaterial,prepareBatchedSurface}from'./environment-props.js?
 import{waterDepth}from'./water.js?v=163';
 import{bridgeContains}from'./coast.js?v=114';
 import{segmentDistance}from'./rules.js?v=125';
-import{buildWoodlandPlace}from'./woodland-places.js?v=162';
-import{buildRuinPlace}from'./ruin-places.js?v=163';
-import{buildHarborPlace}from'./harbor-place.js?v=161';
+import{buildWoodlandPlace}from'./woodland-places.js?v=164';
+import{buildRuinPlace}from'./ruin-places.js?v=164';
+import{buildHarborPlace}from'./harbor-place.js?v=164';
 import{coastPlaceCandidates,harborPierPlan}from'./harbor-bank-layout.js?v=163';
 import{installHarborBank}from'./harbor-bank.js?v=163';
 

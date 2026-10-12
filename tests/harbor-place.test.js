@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
-import {buildHarborPlace} from '../harbor-place.js';
+import {buildHarborPlace} from '../harbor-place.js?v=164';
 import {createOverheadQuery} from '../adventure-overheads.js';
 
 function build(variant=0){
@@ -151,4 +151,17 @@ test('loading berth relocates complete work and cargo areas without adding piece
  assert.notDeepEqual(loading.meta.focus,wreck.meta.focus);
  const roofs=b=>b.pieces.filter(p=>p.overhead).map(p=>p.geometry.attributes.position.array);
  assert.deepEqual(roofs(loading),roofs(wreck));wreck.dispose();loading.dispose();
+});
+
+test('weathered boards keep outward end-grain normals separate from their long side faces',()=>{
+ const b=build(),a=new T.Vector3(),c=new T.Vector3(),d=new T.Vector3(),normal=new T.Vector3(),n=new T.Vector3();
+ const boards=b.pieces.filter(p=>p.geometry.name==='SM_Harbor_WeatheredBoard_A');assert.equal(boards.length,200);
+ for(const {geometry:g}of boards){
+  const p=g.attributes.position,index=g.index;assert.equal(index.count/3,44);
+  for(let i=index.count-36;i<index.count;i+=3){
+   const ids=[index.getX(i),index.getX(i+1),index.getX(i+2)];a.fromBufferAttribute(p,ids[0]);c.fromBufferAttribute(p,ids[1]);d.fromBufferAttribute(p,ids[2]);normal.crossVectors(c.sub(a),d.sub(a)).normalize();
+   for(const id of ids){n.fromBufferAttribute(g.attributes.normal,id);assert(n.dot(normal)>.55,'long side faces skewed the end-cap highlight');}
+  }
+ }
+ b.dispose();
 });

@@ -1,12 +1,34 @@
 import * as T from './vendor/three.module.js';
 
+// Three octagonal sections: rubbed arrises and a slightly weathered end, all
+// inside the original board. Metric bevels stay small on thin decking/sleeves.
+function harborBoard(w,h,d,phase){
+ const dimensions=[w,h,d],axis=w>=h&&w>=d?0:d>=h?2:1,a=(axis+1)%3,b=(axis+2)%3;
+ const length=dimensions[axis],u=dimensions[a]*.5,v=dimensions[b]*.5,bevel=Math.min(.018,u*.18,v*.18),positions=[],colors=[],indices=[];
+ const corners=[[-u+bevel,-v],[u-bevel,-v],[u,-v+bevel],[u,v-bevel],[u-bevel,v],[-u+bevel,v],[-u,v-bevel],[-u,-v+bevel]];
+ for(let row=0;row<3;row++)for(let j=0;j<8;j++){
+  const point=[0,0,0],end=row!==1,wear=end?Math.min(.025,length*.017)*(.3+.7*Math.sin(phase+j*.93+row)**2):0;
+  point[axis]=row===0?-length*.5+wear:row===2?length*.5-wear:0;
+  point[a]=corners[j][0]*(end?.975:1);point[b]=corners[j][1]*(end?.975:1);positions.push(...point);
+  const shade=(end?.84:.98)+.035*Math.sin(phase+j*1.7);colors.push(shade,shade,shade);
+  if(row){const n=row*8+j,k=row*8+(j+1)%8;indices.push(n-8,k-8,k,n-8,k,n);}
+ }
+ // End grain needs its own normals: long side faces must not flatten the short
+ // end-cap normals into the grain direction, which causes inverted highlights.
+ for(const ring of[0,16])for(let j=1;j<7;j++){
+  const base=positions.length/3;for(const k of ring?[0,j,j+1]:[0,j+1,j]){positions.push(...positions.slice((ring+k)*3,(ring+k)*3+3));colors.push(...colors.slice((ring+k)*3,(ring+k)*3+3));}
+  indices.push(base,base+1,base+2);
+ }
+ const g=new T.BufferGeometry();g.name='SM_Harbor_WeatheredBoard_A';g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(indices);g.computeVertexNormals();return g;
+}
+
 // Local, deterministic shipyard scenery. The centre lane stays empty; the kit
 // owns batching, material finishes and the matching world-space solid records.
 export function buildHarborPlace(kit,variant=0){
  const loading=variant===1;
  const timber=0x817b65,dark=0x4b5752,cut=0xa59b7d,rope=0x96937b,iron=0x4d6260;
  const add=(geometry,color,transform={},category='wood')=>kit.piece(category,geometry,color,transform);
- const plank=(color,x,y,z,w,h,d,ry=0,rz=0,overhead=false)=>add(new T.BoxGeometry(w,h,d),color,{x,y,z,ry,rz,overhead});
+ const plank=(color,x,y,z,w,h,d,ry=0,rz=0,overhead=false)=>add(harborBoard(w,h,d,x*.71+y*.43+z*.29),color,{x,y,z,ry,rz,overhead});
  const bar=(color,a,b,r=.06,category='wood',overhead=false,flex=null)=>{
   const from=new T.Vector3(...a),to=new T.Vector3(...b),delta=to.clone().sub(from),g=new T.CylinderGeometry(r*.83,r,delta.length(),6);
   g.applyQuaternion(new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),delta.normalize()));
@@ -161,12 +183,14 @@ export function buildHarborPlace(kit,variant=0){
  for(const [x,z,w,tall]of cargo)crate(x,z,w,tall);
  for(const [x,z]of loading?[[7.82,-4.38],[6.10,4.65]]:[[7.82,-4.38],[4.8,4.65]]){
   for(let level=0;level<(x>7?2:1);level++){
-   const base=level*.90,body=new T.CylinderGeometry(.37,.37,.84,24,6),bp=body.attributes.position,bc=[];
+   const base=level*.90,body=new T.CylinderGeometry(.37,.37,.84,48,6),bp=body.attributes.position,bc=[];
    body.name='SM_Harbor_BarrelStaves_A';
    for(let i=0;i<bp.count;i++){
-    const y=bp.getY(i),t=y/.84+.5,a=Math.atan2(bp.getZ(i),bp.getX(i)),bulge=.86+.14*Math.sin(Math.PI*t);
+    const y=bp.getY(i),t=y/.84+.5,a=Math.atan2(bp.getX(i),bp.getZ(i)),stave=(a+Math.PI*2)%(Math.PI*2)*16/(Math.PI*2),seam=Math.abs(stave-Math.round(stave))<.02;
+    // A shallow V joint is actual geometry, not just alternating painted bands.
+    const bulge=(.86+.14*Math.sin(Math.PI*t))*(seam?.979:1);
     bp.setX(i,bp.getX(i)*bulge);bp.setZ(i,bp.getZ(i)*bulge);
-    const shade=.88+.12*(.5+.5*Math.sin(Math.floor((a+Math.PI)*12/Math.PI)*2.399));bc.push(shade,shade,shade);
+    const shade=(seam?.73:.89)+.09*(.5+.5*Math.sin(Math.floor(stave+.001)*2.399));bc.push(shade,shade,shade);
    }
    body.setAttribute('color',new T.Float32BufferAttribute(bc,3));body.computeVertexNormals();add(body,timber,{x,y:base+.46,z});
    for(const y of[base+.18,base+.74])add(new T.TorusGeometry(.365,.034,5,12),iron,{x,y,z,rx:Math.PI/2},'metal');

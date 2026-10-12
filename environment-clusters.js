@@ -53,6 +53,63 @@ const forestEnvelope=[
  {footprint:1.7924601726519591,height:2.384399890899658},
  {footprint:1.7380870700551916,height:2.384399890899658}
 ];
+// Model-only revisions must not reseed the placement search or change clearance.
+const mineralEnvelopes={
+ snow:[{footprint:1.6518517266366224,height:2.2583999633789062},{footprint:1.5735932232532226,height:2.2583999633789062}],
+ ash:[{footprint:1.6784790160827399,height:1.9311074018478394},{footprint:1.5402436141536555,height:1.9311074018478394}],
+ sand:[{footprint:1.6553711347720972,height:1.5230000019073486},{footprint:1.660690370914034,height:1.5230000019073486}]
+};
+function fracturedStone(fragment,variant,ash=false){
+ const source=naturalRockGeometry.clone(),p=source.attributes.position;
+ for(let i=0;i<p.count;i++){
+  let x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+  // Broad fracture planes retain a rough buried foot; the crown is not a dome.
+  x=T.MathUtils.clamp(x,-.79+.10*z,.77-.16*z)*(1-.045*Math.sin(y*12+fragment));
+  z=T.MathUtils.clamp(z,-.77-.09*x,.76+.18*x);
+  y=Math.min(y,.59-(ash?.28:.12)*x+.09*z,.58+.23*x-.19*z,.70-.09*x+.25*z);
+  if(ash)y=Math.min(y,.69-.36*z+(fragment-1)*.075*x);
+  p.setXYZ(i,x,y,z);
+ }
+ const g=toCreasedNormals(source,ash?.56:.76);source.dispose();g.setIndex(Array.from({length:g.attributes.position.count},(_,i)=>i));
+ const vertices=g.attributes.position,n=g.attributes.normal,colors=[];
+ for(let i=0;i<vertices.count;i++){
+  const x=vertices.getX(i),y=vertices.getY(i),z=vertices.getZ(i),up=Math.max(0,n.getY(i)),seam=.5+.5*Math.sin(y*23+x*2-z*3+fragment+variant*.7);
+  const shade=.78+up*.15+seam*.045+T.MathUtils.smoothstep(y,-.3,.45)*.055;
+  colors.push(shade,shade*(ash?.96:1.01),shade*(ash?.94:1.03));
+ }
+ g.setAttribute('color',new T.Float32BufferAttribute(colors,3));return g;
+}
+function settledSnow(stone){
+ const p=stone.attributes.position,index=stone.index,a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3(),normal=new T.Vector3(),vertices=[],colors=[];
+ // A thin covering follows the actual exposed rock faces, including their tilt.
+ // It is not a second floating, scaled pebble sitting above the stone.
+ for(let i=0;i<index.count;i+=3){
+  const ids=[index.getX(i),index.getX(i+1),index.getX(i+2)];a.fromBufferAttribute(p,ids[0]);b.fromBufferAttribute(p,ids[1]);c.fromBufferAttribute(p,ids[2]);
+  normal.crossVectors(b.clone().sub(a),c.clone().sub(a)).normalize();
+  if(normal.y<.38||(a.y+b.y+c.y)/3<.12)continue;
+  for(const id of ids){const x=p.getX(id),y=p.getY(id),z=p.getZ(id),depth=.024+.012*Math.sin(x*3.1+z*2.7)**2;vertices.push(x,y+depth,z);const shade=.92+normal.y*.07;colors.push(shade*.97,shade,shade);}
+ }
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(vertices,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(Array.from({length:vertices.length/3},(_,i)=>i));g.computeVertexNormals();return g;
+}
+function erodedStrata(variant){
+ const levels=[[0,1.18],[.08,1.21],[.20,1.13],[.47,1.13],[.64,1.05],[.81,1.08],[1,1.03]],sides=16,vertices=[],colors=[],indices=[],crown=(x,z)=>Math.min(1.50,1.09+.45*x+.13*z);
+ // A broad tilted fracture keeps one shoulder high and the opposite edge low.
+ // Its sides retain only two shallow erosion seams, without a stepped cone.
+ for(const [j,[t,r]]of levels.entries())for(let i=0;i<sides;i++){
+  const a=i/sides*Math.PI*2,wear=1+.075*Math.sin(a*3+variant*.7)+.035*Math.cos(a*5+.3);
+  let x=Math.cos(a)*r*wear-.12+t*.06,z=Math.sin(a)*r*.65*wear-.08+t*.05;
+  x=T.MathUtils.clamp(x,-1.11+.12*z,1.10-.09*z);z=T.MathUtils.clamp(z,-.75-.07*x,.75-.13*x);
+  const y=-.07+(crown(x,z)+.07)*t;
+  vertices.push(x,y,z);const shade=.84+t*.035+.014*Math.sin(a*3+t*.8)+.008*Math.sin(y*18+x);colors.push(shade*1.04,shade,shade*.92);
+  if(j<levels.length-1){const k=j*sides+i,next=j*sides+(i+1)%sides;indices.push(k,k+sides,next,next,k+sides,next+sides);}
+ }
+ for(const j of[0,levels.length-1]){
+  const center=vertices.length/3,offset=j*sides,x=j?-.06:-.12,z=j?-.03:-.08;vertices.push(x,j?crown(x,z):-.07,z);colors.push(.91,.875,.805);
+  for(let i=0;i<sides;i++){const a=offset+i,b=offset+(i+1)%sides;indices.push(center,...(j?[b,a]:[a,b]));}
+ }
+ const source=new T.BufferGeometry();source.setAttribute('position',new T.Float32BufferAttribute(vertices,3));source.setAttribute('color',new T.Float32BufferAttribute(colors,3));source.setIndex(indices);source.computeVertexNormals();
+ const g=toCreasedNormals(source,.63);source.dispose();g.setIndex(Array.from({length:g.attributes.position.count},(_,i)=>i));return g;
+}
 function forestUndergrowth(variant){
  const source=new T.Group();addTree(source,'forest',3,{angle:variant*.7});
  const stems=[],vertices=[],indices=[],colors=[],uvs=[],up=new T.Vector3(0,1,0),point=new T.Vector3();
@@ -134,18 +191,18 @@ function clusterTemplate(id,variant){
   add(forestStone(1,variant),finish('stone'),0x8b8476,{x:.65,y:.16,z:-.24,sx:.59,sy:.27,sz:.50});
  }else if(id==='snow'){
   tree('snow',-.48,-.30,.48,.34);tree('snow',.57,.38,.34,.26);
-  for(const [x,z,s]of[[-.65,.45,.76],[.55,-.31,.87],[.0,.61,.51]]){
-   rock(0x718891,x,.36*s,z,s,.70*s,.75*s,.3+variant);rock(0xd6e1dd,x,.84*s,z,s*.89,.14*s,s*.72,.3+variant,'snow');
+  for(const [i,x,z,s]of[[0,-.65,.45,.76],[1,.55,-.31,.87],[2,.0,.61,.51]]){
+   const stone=fracturedStone(i,variant),snow=settledSnow(stone),pose={x,y:.36*s,z,sx:s,sy:.70*s,sz:.75*s,ry:.3+variant};
+   add(stone,finish('stone'),0x718891,pose);add(snow,finish('snow'),0xd6e1dd,pose);
   }
   rock(0x98c3ce,.45,.20,-.66,.39,.36,.34,.7,'ice');
  }else if(id==='ash'){
-  for(const [i,x,z,s]of[[0,-.51,.05,1.02],[1,.49,-.30,.78],[2,.53,.60,.62]])rock(i%2?0x67584e:0x4c4849,x,.51*s,z,s,.92*s,.79*s,variant+i*.8);
+  for(const [i,x,z,s]of[[0,-.51,.05,1.02],[1,.49,-.30,.78],[2,.53,.60,.62]])add(fracturedStone(i,variant,true),finish('stone'),i%2?0x67584e:0x4c4849,{x,y:.51*s,z,sx:s,sy:.92*s,sz:.79*s,ry:variant+i*.8});
   wood([[-.50,.04,-.26],[-.68,1.10,-.08],[-.30,1.88,.21]],.10,0x332f2c);
   wood([[-.65,.85,-.04],[-1.02,1.34,.16],[-1.08,1.49,.42]],.055,0x3f3630);
   wood([[-.54,1.12,.04],[.18,1.38,-.08],[.43,1.22,-.26]],.053,0x44392f);
  }else if(id==='sand'){
-  // Broad, overlapping strata have eroded lips and a low saddle, no new obelisk.
-  for(let i=0;i<4;i++)add(wornStoneBlock.clone(),finish('stone'),i%2?0xb7a17c:0x9f896b,{x:-.32+i*.13,y:.32+i*.32,z:-.10+i*.06,sx:2.25-i*.23,sy:.71-i*.07,sz:1.65-i*.13,ry:.09+variant*.16+i*.045});
+  add(erodedStrata(variant),finish('stone'),0xb7a17c,{ry:.09+variant*.16});
   rock(0xb4a184,.94,.19,.35,.55,.39,.66,.6);rock(0x9f8f71,-.67,.16,.68,.57,.34,.50,.3);
  }else{
   // Cargo, a stave barrel and a low sagging net form one compact working heap.
@@ -168,7 +225,7 @@ function clusterTemplate(id,variant){
   const p=geometry.attributes.position;for(let i=0;i<p.count;i++){point.fromBufferAttribute(p,i);footprint=Math.max(footprint,Math.hypot(point.x,point.z));height=Math.max(height,point.y);}
   triangles+=geometry.index.count/3;batches.push({geometry,material});
  }
- const template={batches,footprint:footprint+.04,height,triangles,...(id==='forest'?forestEnvelope[variant]:{})};templates.set(key,template);return template;
+ const template={batches,footprint:footprint+.04,height,triangles,...(id==='forest'?forestEnvelope[variant]:mineralEnvelopes[id]?.[variant])};templates.set(key,template);return template;
 }
 
 function corridors(world){

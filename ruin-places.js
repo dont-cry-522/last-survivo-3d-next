@@ -2,17 +2,55 @@ import * as T from './vendor/three.module.js';
 import{wornStoneBlock}from'./environment-props.js?v=163';
 import{naturalRockGeometry}from'./biome-scenery.js?v=156';
 
-// Continuous broken masonry, rather than a row of identical stacked blocks.
-// The kit owns each new geometry; the two repository source shapes stay shared.
+// Inset mortar and shallow chipped stone faces share one closed wall volume.
+// Every face stays inside the former profile; no new solids or draw calls.
 function wallGeometry(profile,depth,biome){
- const positions=[],colors=[],indices=[];
- const quad=(a,b,c,d)=>{const first=positions.length/3;for(const p of[a,b,c,d]){positions.push(...p);const foot=1-T.MathUtils.smoothstep(p[1],.01,.35+.055*Math.sin(p[0]*2.2)),shade=.82+Math.min(1,Math.max(0,p[1])/2.5)*.16+foot*(biome==='sand'?.11:-.085);colors.push(shade*1.025,shade,shade*.95);}indices.push(first,first+1,first+2,first,first+2,first+3);};
- // One recessed low seam gives the rock bed a broken edge. Sand-worn feet
- // retain more of their width; neither treatment expands the solid envelope.
- const points=profile.map(([x,h])=>{const wear=.035*Math.sin(x*2.9),seam=Math.min(h*.44,.19+.055*Math.sin(x*2.3+.7)),inset=depth*(biome==='sand'?.465:.39);return{bf:[x,-.10,depth*.5],bb:[x,-.10,-depth*.5],mf:[x,seam,inset+wear*.2],mb:[x,seam,-inset+wear*.2],tf:[x,h,depth*.46+wear],tb:[x,h,-depth*.46+wear]};});
- for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];quad(a.bf,b.bf,b.mf,a.mf);quad(a.mf,b.mf,b.tf,a.tf);quad(b.bb,a.bb,a.mb,b.mb);quad(b.mb,a.mb,a.tb,b.tb);quad(a.tf,b.tf,b.tb,a.tb);quad(a.bb,b.bb,b.bf,a.bf);}
- const a=points[0],b=points.at(-1);quad(a.bb,a.bf,a.mf,a.mb);quad(a.mb,a.mf,a.tf,a.tb);quad(b.bf,b.bb,b.mb,b.mf);quad(b.mf,b.mb,b.tb,b.tf);
- const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
+ const positions=[],colors=[],indices=[],recess=Math.min(.028,depth*.075);
+ const vertex=(p,tone=1)=>{positions.push(...p);const foot=1-T.MathUtils.smoothstep(p[1],.01,.35+.055*Math.sin(p[0]*2.2)),shade=(.82+Math.min(1,Math.max(0,p[1])/2.5)*.16+foot*(biome==='sand'?.11:-.085))*tone;colors.push(shade*1.025,shade,shade*.95);};
+ const face=(points,tone=1)=>{const first=positions.length/3;for(const p of points)vertex(p,tone);for(let i=1;i<points.length-1;i++)indices.push(first,first+i,first+i+1);};
+ const points=profile.map(([x,h])=>{const wear=.035*Math.sin(x*2.9),seam=Math.min(h*.44,.19+.055*Math.sin(x*2.3+.7)),inset=depth*(biome==='sand'?.465:.39);return{x,h,seam,front:[depth*.5,inset+wear*.2,depth*.46+wear],back:[-depth*.5,-inset+wear*.2,-depth*.46+wear]};});
+ const skin=(p,y,side)=>{const values=side===1?p.front:p.back,t=y<p.seam?(y+.10)/(p.seam+.10):(y-p.seam)/(p.h-p.seam);return T.MathUtils.lerp(values[y<p.seam?0:1],values[y<p.seam?1:2],t)-side*recess;};
+ const clip=(polygon,y,above)=>{const out=[];for(let i=0;i<polygon.length;i++){const a=polygon[i],b=polygon[(i+1)%polygon.length],inside=above?a[1]>=y:a[1]<=y,next=above?b[1]>=y:b[1]<=y;if(inside)out.push(a);if(inside!==next){const t=(y-a[1])/(b[1]-a[1]);out.push([a[0]+(b[0]-a[0])*t,y]);}}return out;};
+ for(let segment=1;segment<points.length;segment++){
+  const a=points[segment-1],b=points[segment],width=b.x-a.x,height=x=>T.MathUtils.lerp(a.h,b.h,(x-a.x)/width),at=(x,y,side)=>{const t=(x-a.x)/width,seam=T.MathUtils.lerp(a.seam,b.seam,t),values=(side===1?a.front:a.back).map((v,i)=>T.MathUtils.lerp(v,(side===1?b.front:b.back)[i],t)),below=y<seam;return T.MathUtils.lerp(values[below?0:1],values[below?1:2],below?(y+.1)/(seam+.1):(y-seam)/(height(x)-seam))-side*recess;};
+  // Staggered half-metre courses read as masonry instead of a smooth sheet.
+  for(let row=0;row<Math.ceil((Math.max(a.h,b.h)+.1)/.43);row++){
+   const low=-.10+row*.43,high=low+.43,offset=(row%2)*.38,first=Math.floor((a.x-offset)/.78),last=Math.ceil((b.x-offset)/.78);
+   for(let column=first;column<last;column++){
+    const left=Math.max(a.x,column*.78+offset),right=Math.min(b.x,(column+1)*.78+offset);if(right-left<.00001)continue;
+    let polygon=clip([[left,-.1],[right,-.1],[right,height(right)],[left,height(left)]],low,true);polygon=clip(polygon,high,false);if(polygon.length<3)continue;
+    // Keep the buried foot's existing crease along each tile boundary.
+    const seamAt=x=>T.MathUtils.lerp(a.seam,b.seam,(x-a.x)/width),creased=[];for(let k=0;k<polygon.length;k++){const p=polygon[k],q=polygon[(k+1)%polygon.length],pa=p[1]-seamAt(p[0]),qa=q[1]-seamAt(q[0]);creased.push(p);if(pa*qa<0){const t=pa/(pa-qa);creased.push([p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t]);}}polygon=creased;
+    const cx=polygon.reduce((sum,p)=>sum+p[0],0)/polygon.length,cy=polygon.reduce((sum,p)=>sum+p[1],0)/polygon.length,ys=polygon.map(p=>p[1]),span=Math.max(...ys)-Math.min(...ys);if(span<.00001)continue;
+    const edgeX=Math.min(.033,(right-left)*.13),edgeY=Math.min(.028,span*.13),tone=.96+.035*Math.sin(column*5.21+row*2.73+segment*.4);
+    for(const side of[1,-1]){
+     const rim=polygon.map(([x,y])=>[x,y,at(x,y,side)]),inner=polygon.map(([x,y])=>{const inset=1-Math.min(edgeX*2/(right-left),edgeY*2/span),px=cx+(x-cx)*inset,py=cy+(y-cy)*inset;return[px,py,at(px,py,side)+side*(recess-.004-.003*(1+Math.sin(column*2.2+row)))];});
+     face(side===1?inner:[...inner].reverse(),tone);
+     for(let i=0;i<rim.length;i++){const j=(i+1)%rim.length,quad=[rim[i],rim[j],inner[j],inner[i]];face(side===1?quad:quad.reverse(),tone*.90);}
+    }
+   }
+  }
+  // Close the original broken crown and buried bottom against the mortar skin.
+  face([[a.x,a.h,skin(a,a.h,1)],[b.x,b.h,skin(b,b.h,1)],[b.x,b.h,skin(b,b.h,-1)],[a.x,a.h,skin(a,a.h,-1)]]);
+  face([[a.x,-.1,skin(a,-.1,-1)],[b.x,-.1,skin(b,-.1,-1)],[b.x,-.1,skin(b,-.1,1)],[a.x,-.1,skin(a,-.1,1)]]);
+ }
+ for(const [p,reverse]of[[points[0],false],[points.at(-1),true]])for(const[low,high]of[[-.1,p.seam],[p.seam,p.h]]){const quad=[[p.x,low,skin(p,low,-1)],[p.x,low,skin(p,low,1)],[p.x,high,skin(p,high,1)],[p.x,high,skin(p,high,-1)]];face(reverse?quad.reverse():quad);}
+ const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();geometry.name='SM_Ruin_Masonry_'+biome;geometry.userData.ruinWall={profile,depth};return geometry;
+}
+// A continuous fired-clay section: outer belly, chipped lip, inner wall and
+// closed base. The two fracture faces expose real thickness instead of paper.
+function brokenPotGeometry(profile,size,start,span){
+ const steps=18,positions=[],colors=[],indices=[],outer=profile.map(([r,y])=>[r,y]),section=[...outer,[outer.at(-1)[0]-.052,outer.at(-1)[1]-.018],...outer.slice(1,-1).reverse().map(([r,y])=>[r-.055,y]),[.10,.065],[0,.065],[0,0]],top=outer.at(-1)[1];
+ const add=(p,tone)=>{positions.push(...p);colors.push(tone,tone*.985,tone*.955);return positions.length/3-1;},rings=[];
+ for(let i=0;i<=steps;i++){
+  const angle=start+span*i/steps,ring=[];
+  for(let j=0;j<section.length;j++){const[r,y]=section[j],lip=T.MathUtils.smoothstep(y,top*.72,top),dip=lip*(.018+.010*Math.sin(angle*7+.4)+.006*Math.cos(angle*11)),a=angle+(i===0?.018*(1+Math.sin(j*1.8)):i===steps?-.018*(1+Math.sin(j*1.8)):0),tone=j>=outer.length?.76: .94+.04*Math.sin(angle*3+y*7);ring.push(add([Math.sin(a)*r*size,(y-dip)*size,Math.cos(a)*r*size],tone));}
+  rings.push(ring);
+ }
+ for(let i=0;i<steps;i++)for(let j=0;j<section.length;j++){const next=(j+1)%section.length,a=rings[i][j],b=rings[i+1][j],c=rings[i+1][next],d=rings[i][next];indices.push(a,b,d,b,c,d);}
+ const caps=T.ShapeUtils.triangulateShape(section.map(([r,y])=>new T.Vector2(r,y)),[]);
+ for(const [i,reverse]of[[0,false],[steps,true]])for(const triangle of caps){const corners=triangle.map(j=>{const n=rings[i][j],p=positions.slice(n*3,n*3+3);return add(p,.88);});indices.push(...(reverse?corners.reverse():corners));}
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(indices);g.computeVertexNormals();g.name='SM_Ruin_BrokenPot_Clay';g.userData.ruinPot={size,height:top,thickness:.052*size};return g;
 }
 function vaultGeometry(inner,thickness,depth,start=0,end=Math.PI){
  const points=[],steps=18;for(let i=0;i<=steps;i++){const a=start+(end-start)*i/steps,r=inner+thickness+.026*Math.sin(a*9);points.push(new T.Vector2(Math.cos(a)*r,Math.sin(a)*r));}
@@ -109,7 +147,7 @@ export function buildRuinPlace(biome,kit,variant=0){
   }
   for(const[x,z,sx,sz,a]of[[-7.08,-4.45,1.05,2.28,.04],[-6.34,-1.38,1.68,.94,-.13],[7.04,1.91,1.21,2.37,.02],[5.82,4.35,1.93,.92,.10],[-5.43,-6.49,1.73,.75,.22]])floor(0xc6b089,x,z,sx,sz,a);
   for(const[x,z,size,a]of[[6.42,3.74,.46,.4],[5.53,3.94,.36,2.1],[4.56,.82,.42,.8],[-6.07,-.76,.32,2.7]]){
-   const pot=new T.LatheGeometry([[.18,0],[.46,.10],[.54,.33],[.43,.61],[.30,.69]].map(([r,y])=>new T.Vector2(r*size,y*size)),10,a,Math.PI*1.54);
+   const pot=brokenPotGeometry([[.18,0],[.46,.10],[.54,.33],[.43,.61],[.30,.69]],size,a,Math.PI*1.54);
    piece('ceramic',pot,0x9c7251,{x,y:.032,z});kit.solid(x,z,size*.6,.032+size*.70);
    for(let i=0;i<3;i++)box('ceramic',i%2?0xb58a62:0x886249,x-.24-i*.12,.037,z+.15-i*.14,.15,.065,.12,a+i*.63,.08);
   }
@@ -174,7 +212,7 @@ export function buildRuinPlace(biome,kit,variant=0){
  // Faded carved stripes sit on an actual wall surface, not floating UI glyphs.
  for(const z of[1.55,1.91,2.27,2.63])for(const y of[.77,1.16])box('stone',0x8c846b,7.12,y,z,.028,.07,.22,0,.05);
  for(const[x,z,size,a]of[[4.58,-4.31,.43,.3],[5.4,-3.93,.33,1.9],[-5.1,3.31,.45,.6],[-4.33,3.76,.29,2.7]]){
-  const pot=new T.LatheGeometry([[.19,0],[.48,.11],[.53,.35],[.43,.58],[.32,.67]].map(([r,y])=>new T.Vector2(r*size,y*size)),10,a,Math.PI*1.62);
+  const pot=brokenPotGeometry([[.19,0],[.48,.11],[.53,.35],[.43,.58],[.32,.67]],size,a,Math.PI*1.62);
   piece('ceramic',pot,0x976e51,{x,y:.035,z});kit.solid(x,z,size*.6,.035+size*.67);
   for(let i=0;i<3;i++)box('ceramic',i%2?0xb78861:0x825f48,x+.23+i*.14,.042,z+.19-i*.12,.15,.067,.13,a+i*.7,.09);
  }

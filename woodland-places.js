@@ -7,6 +7,40 @@ function surface(positions,indices,colors){
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setIndex(indices);
  if(colors)g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.computeVertexNormals();return g;
 }
+// Edge wear is cut inward, so old plank poses and collision heights still apply.
+function weatheredPlank(w,h,d,seed){
+ const half=[w/2,h/2,d/2],axis=w>=h&&w>=d?0:d>=h?2:1,steps=half.map((_,i)=>i===axis?5:2),g=new T.BoxGeometry(w,h,d,...steps),p=g.attributes.position,colors=[],v=new T.Vector3(),core=new T.Vector3(),bevel=Math.min(.018,h*.17,w*.12,d*.12);
+ for(let i=0;i<p.count;i++){
+  v.fromBufferAttribute(p,i);const along=v.getComponent(axis)/half[axis],across=v.getComponent(axis===0?2:0),edge=Math.abs(along);
+  for(let j=0;j<3;j++)core.setComponent(j,T.MathUtils.clamp(v.getComponent(j),-half[j]+bevel,half[j]-bevel));
+  v.sub(core).normalize().multiplyScalar(bevel).add(core);
+  const split=(.018+.018*Math.sin(across*27+seed*1.7)**8)*edge**8;
+  v.setComponent(axis,v.getComponent(axis)*(1-split));
+  if(axis!==1)v.y-=.006*(1-along*along)*(v.y/half[1]+1)*.5;
+  p.setXYZ(i,v.x,v.y,v.z);const shade=.91+.05*Math.sin(across*19+seed)-edge**8*.13;colors.push(shade,shade,shade);
+ }
+ g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.computeVertexNormals();g.name='SM_Woodland_WornPlank_A';return g;
+}
+function foldedCanvas(){
+ const g=new T.BoxGeometry(2,2,2,12,2,12),p=g.attributes.position,colors=[];
+ for(let i=0;i<p.count;i++){
+  const x=p.getX(i),y=p.getY(i),z=p.getZ(i),corner=Math.max(0,Math.abs(x)+Math.abs(z)-1.6),fold=.075*Math.sin(z*15+x*.9)+.035*Math.sin(x*11+z*3),hem=Math.exp(-(((z+.63)/.075)**2));
+  p.setXYZ(i,x*(.94-corner*.11),y>0?.68+fold-hem*.13:y<0?-.70+fold*.22:fold,z*(.98-corner*.09));
+  const shade=(y>0?.98:y<0?.62:.79)-hem*.12+.025*Math.sin(z*15+x*.9);colors.push(shade,shade,shade);
+ }
+ g.computeVertexNormals();g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.name='SM_Forest_FoldedCanvas_A';return g;
+}
+// Snow feathers down to the ground instead of forming a floating round cap.
+function sledDrift(width,height,depth,seed){
+ const p=[],c=[],indices=[],sides=20,rings=5;
+ for(let row=0;row<=rings;row++)for(let j=0;j<=sides;j++){
+  const t=row/rings,a=j/sides*Math.PI*2,edge=.90+.055*Math.sin(a*3+seed)+.035*Math.cos(a*5-seed),r=t*edge,x=Math.cos(a)*r,z=Math.sin(a)*r;
+  const y=height*Math.max(0,1-t*t)**1.35*(.83+.10*x-.06*z)-.032*t**8,shade=.91+.065*(1-t)+.017*Math.sin(a*3+seed)*t;
+  p.push(x*width,y,z*depth);c.push(shade*.98,shade,shade*1.015);
+  if(row&&j){const n=p.length/3-1;indices.push(n,n-1,n-sides-1,n-1,n-sides-2,n-sides-1);}
+ }
+ const g=surface(p,indices,c);g.name='SM_Snow_SledDrift_A';return g;
+}
 function limb(points,radii,segments=18,sides=12,bark=false){
  const curve=new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),g=new T.TubeGeometry(curve,segments,1,sides,false),p=g.attributes.position,colors=[];
  for(let row=0;row<=segments;row++){
@@ -89,6 +123,35 @@ function ridge(side,snow=false,variant=0){
  g.computeVertexNormals();return g;
 }
 
+// Clip the actual visible ridge triangles, then lift by one centimetre. Thin
+// ice cannot float above a differently interpolated rock surface or form bulbs.
+function ridgeIce(rock,side,row,seed,seam=false){
+ const p=[],colors=[],indices=[],source=rock.attributes.position,col=side<0?5:2;
+ const width=.09+.14*Math.sin(seed*2.17+.8)**2,height=.28+.36*Math.cos(seed*1.73+.4)**2;
+ const left=side<0?.74+.018*Math.cos(seed)**2:.012+.04*Math.cos(seed)**2,bottom=.10+.22*Math.sin(seed*1.39+.2)**2;
+ const outline=[[.05,.12],[.54,0],[.90,.17],[.98,.48],[.72,.90],[.33,1],[0,.60]].map(([u,v])=>[left+u*width,bottom+v*height]);
+ const limits=outline.map((a,i)=>{const b=outline[(i+1)%outline.length],dx=b[0]-a[0],dy=b[1]-a[1];return[-dy,dx,dy*a[0]-dx*a[1]];});
+ // The fine oblique fracture is clipped by the same irregular outer rim.
+ if(seam){const c=-left/width+.26*bottom/height;limits.push([1/width,-.26/height,c-.32],[-1/width,.26/height,-c+.37]);}
+ for(let triangle=0;triangle<2;triangle++){
+  const offset=((row-1)*6+col-1)*6+triangle*3;
+  let polygon=Array.from({length:3},(_,j)=>{const i=rock.index.getX(offset+j);return[i%7===col?1:0,Math.floor(i/7)===row?1:0,source.getX(i),source.getY(i),source.getZ(i)];});
+  for(const [u,v,c]of limits){
+   const clipped=[];
+   for(let j=0;j<polygon.length;j++){
+    const a=polygon[j],b=polygon[(j+1)%polygon.length],distanceA=u*a[0]+v*a[1]+c,distanceB=u*b[0]+v*b[1]+c,insideA=distanceA>=0,insideB=distanceB>=0;
+    if(insideA)clipped.push(a);
+    if(insideA!==insideB){const t=distanceA/(distanceA-distanceB);clipped.push(a.map((value,k)=>T.MathUtils.lerp(value,b[k],t)));}
+   }
+   polygon=clipped;
+  }
+  const start=p.length/3;
+  for(const v of polygon){p.push(v[2],v[3]+(seam?.013:.009),v[4]);const shade=.89+.075*v[1]+.035*Math.sin(seed+v[0]*4);colors.push(shade,shade,shade);}
+  for(let j=1;j<polygon.length-1;j++)indices.push(start,start+j,start+j+1);
+ }
+ const g=surface(p,indices,colors);g.name=seam?'SM_Snow_RidgeIceSeam_A':'SM_Snow_RidgeIceFilm_A';return g;
+}
+
 // A thin connected drift touches the rock's inner shoulder and feathers into
 // the soil. The clear central path remains wider than the authored 6.2 metres.
 function snowSkirt(side,variant){
@@ -142,9 +205,9 @@ function forest(kit,variant){
  // South-east: a collapsed carrier's sleeping platform, folded canvas and a
  // cold hearth. The planks are low and broken; nothing resembles another tower.
  const campZ=variant?-3.0:2.78;
- for(let i=0;i<6;i++)add('wood',new T.BoxGeometry(.32,.14,2.7-(i%3)*.22-(variant&&i===2?.65:0)),i%2?0x79634b:0x665943,{x:5.13+i*.35,y:.18+(i%2)*.025,z:campZ+(variant?.15*Math.sin(i):0),ry:(variant?.13:.04)*Math.sin(i),rz:.02*Math.cos(i)});
+ for(let i=0;i<6;i++)add('wood',weatheredPlank(.32,.14,2.7-(i%3)*.22-(variant&&i===2?.65:0),i+variant*7),i%2?0x79634b:0x665943,{x:5.13+i*.35,y:.18+(i%2)*.025,z:campZ+(variant?.15*Math.sin(i):0),ry:(variant?.13:.04)*Math.sin(i),rz:.02*Math.cos(i)});
  for(const z of[campZ-1.1,campZ+.9]){add('wood',limb([[4.90,.14,z],[5.8,.13,z+.03],[7.12,.10,z-.12]],[.13,.14,.07],8,8),0x574d3e);}
- add('cloth',new T.SphereGeometry(1,14,8),0x827962,{x:6.17,y:.35,z:campZ+.36,sx:variant?.56:.80,sy:variant?.22:.19,sz:variant?1.03:.89,ry:variant?.24:-.18});kit.solid(6.09,campZ+.14,1.34,.60);
+ add('cloth',foldedCanvas(),0x827962,{x:6.17,y:.35,z:campZ+.36,sx:variant?.56:.80,sy:variant?.22:.19,sz:variant?1.03:.89,ry:variant?.24:-.18});kit.solid(6.09,campZ+.14,1.34,.60);
  const hearth={x:variant?6.10:6.45,z:variant?2.70:-2.85};
  add('stone',naturalRockGeometry.clone(),0x49463d,{x:hearth.x,y:.016,z:hearth.z,sx:.71,sy:.065,sz:.70});
  for(let i=0;i<9;i++){const a=i/9*Math.PI*2;add('stone',naturalRockGeometry.clone(),i%2?0x7f8170:0x64695d,{x:hearth.x+Math.cos(a)*.72,y:.10,z:hearth.z+Math.sin(a)*.65,sx:.25,sy:.20,sz:.23,ry:a});}
@@ -155,7 +218,7 @@ function forest(kit,variant){
 function snow(kit,variant){
  const add=(category,g,color,transform)=>kit.piece(category,g,color,transform);
  for(const side of[-1,1]){
-  add('stone',ridge(side,false,variant),side<0?0x667b82:0x778891);
+  const rock=ridge(side,false,variant);add('stone',rock,side<0?0x667b82:0x778891);
   add('snow',ridge(side,true,variant),0xdde5df);
   add('snow',snowSkirt(side,variant),0xd3e1df);
   // Overlapping footprint cylinders represent the continuous rock wall. Their
@@ -164,28 +227,28 @@ function snow(kit,variant){
    const t=(z+7.25)/14.5,{center,bulge,bay}=ridgeSection(side,t,variant),height=Math.max(...[-.05,0,.05].map(d=>ridgeSection(side,T.MathUtils.clamp(t+d,0,1),variant).height))*1.02+.09;
    kit.solid(center,z,.50+bulge*1.64-bay*.15,height);
   }
-  // Dark blue seams follow the inward face, with inset milky ice plates above.
+  // Small milky ice fractures cling to exposed rock below the snow shoulder.
   for(let i=0;i<8;i++){
-   const z=-5.9+i*1.64,{center,width}=ridgeSection(side,(z+7.25)/14.5,variant),x=center-side*width*.72,height=.46+(i%3)*.15;
-   add('ice',naturalRockGeometry.clone(),i%2?0xa5c4cb:0x739da9,{x,y:height*.62,z,sx:.34,sy:height,sz:.95,ry:.14*Math.sin(i)});
-   add('ice',limb([[x-side*.17,.17,z-.48],[x-side*.22,.46,z-.16],[x-side*.18,.64,z+.02]],[.023,.027,.016],6,5),0x446b7d);
+   const z=-5.9+i*1.64,row=T.MathUtils.clamp(Math.round((z+7.25)/14.5*18),1,18),seed=i+variant*9;
+   add('ice',ridgeIce(rock,side,row,seed),i%2?0x879a9c:0x7c9096);
+   add('ice',ridgeIce(rock,side,row,seed,true),0x697e84);
   }
  }
  // A half-buried freight sled lies against the east ridge. The broken runner
  // curls upward once, while the deck and remaining crosspieces lean into snow.
  const sign=variant?-1:1,sledX=5.12*sign,shift=variant?-2.05:0,point=([x,y,z])=>[x*sign,y,z+shift];
  for(const side of[-1,1])add('wood',limb([[5.12+side*.62,.08,-1.05],[5.12+side*.62,.16,.65],[5.12+side*.62,.26,2.44],[5.12+side*.55,.73,2.98]].map(point),[.12,.12,.10,.065],18,8),0x645b4b);
- for(let i=0;i<7;i++)add('wood',new T.BoxGeometry(1.45-(i===2?.45:0)-(variant&&i===5?.32:0),.11,.27),i%2?0x978571:0x7c7161,{x:sledX+(i===2?.25*sign:0),y:.28+i*.025,z:shift-.72+i*.43,ry:i===2?.22:variant&&i===5?-.28:.025*Math.sin(i),rz:-.08*sign});
+ for(let i=0;i<7;i++)add('wood',weatheredPlank(1.45-(i===2?.45:0)-(variant&&i===5?.32:0),.11,.27,i+variant*7),i%2?0x978571:0x7c7161,{x:sledX+(i===2?.25*sign:0),y:.28+i*.025,z:shift-.72+i*.43,ry:i===2?.22:variant&&i===5?-.28:.025*Math.sin(i),rz:-.08*sign});
  add('wood',limb([[5.74,.27,.95],[6.02,.65,1.08],[6.10,.94,1.23]].map(point),[.065,.065,.025],7,7),0x696355);
  for(const z of[-.70,.13,.96,1.79,2.62])kit.solid(sledX,z+shift,.94,z>2?1.05:.64);
- for(const [x,z,sx,sz]of[[5.92,-.45,.66,1.12],[5.76,1.58,.53,.81],[4.85,2.78,.57,.39]])add('snow',naturalRockGeometry.clone(),0xe0e8e3,{x:x*sign,y:.29,z:z+shift,sx,sy:.23,sz,ry:.4});
+ for(const [i,[x,z,sx,sz]]of[[5.92,-.45,.66,1.12],[5.76,1.58,.53,.81],[4.85,2.78,.57,.39]].entries())add('snow',sledDrift(sx,.51,sz,i+variant*3),0xe0e8e3,{x:x*sign,z:z+shift,ry:.4});
  if(variant){
   // The abandoned load became a low windbreak beside the western bay, rather
   // than a second identical freight sled. Its visible slats remain jumpable.
-  for(let i=0;i<5;i++)add('wood',new T.BoxGeometry(.18,.62-i*.045,.16),i%2?0x776958:0x625b50,{x:-4.65-i*.25,y:.30-i*.018,z:1.70+.08*Math.sin(i),rz:.08*Math.sin(i)});
+  for(let i=0;i<5;i++)add('wood',weatheredPlank(.18,.62-i*.045,.16,i+20),i%2?0x776958:0x625b50,{x:-4.65-i*.25,y:.30-i*.018,z:1.70+.08*Math.sin(i),rz:.08*Math.sin(i)});
   add('wood',limb([[-4.68,.43,1.76],[-5.22,.39,1.70],[-5.72,.28,1.65]],[.05,.05,.035],7,6),0x645d50);
   kit.solid(-5.16,1.71,.78,.70);
-  add('snow',naturalRockGeometry.clone(),0xd5e2e0,{x:-5.38,y:.08,z:1.89,sx:.72,sy:.16,sz:.63});
+  add('snow',sledDrift(.72,.25,.63,7),0xd5e2e0,{x:-5.38,z:1.89});
  }
  return{kind:variant?'sheltered-sled-camp':'wind-cut-sled-pass',name:variant?'雪脊背风歇脚处':'风蚀雪橇山口',focus:{x:sledX,y:.45,z:.85+shift}};
 }

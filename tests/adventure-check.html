@@ -2,7 +2,7 @@
 import * as T from '../vendor/three.module.js';
 import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=157';
 import {HERO_LOADOUTS,WEAPONS,weaponStats} from '../rules.js?v=125';
-import {terrainAt,waterDepth} from '../water.js?v=163';
+import {terrainAt,waterDepth} from '../water.js?v=165';
 import {updateTide} from '../coast.js?v=114';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
@@ -402,8 +402,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=163');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=163');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=165');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=165');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -536,6 +536,29 @@ explorationButton.onclick=async()=>{
 const placeViewsButton=document.createElement('button');placeViewsButton.id='place-views-run';placeViewsButton.textContent='五图场景区域近看';$('#capture').before(placeViewsButton);
 const compositionViewsButton=document.createElement('button');compositionViewsButton.id='composition-views-run';compositionViewsButton.textContent='五图场景整体构图';$('#capture').before(compositionViewsButton);
 const placeDetailButton=document.createElement('button');placeDetailButton.id='place-details-run';placeDetailButton.textContent='五图模型细部近看';$('#capture').before(placeDetailButton);
+const entryViewsButton=document.createElement('button');entryViewsButton.id='entry-views-run';entryViewsButton.textContent='六图真实开场构图';$('#capture').before(entryViewsButton);
+const entryMobileButton=document.createElement('button');entryMobileButton.id='entry-mobile-run';entryMobileButton.textContent='六图手机开场构图';$('#capture').before(entryMobileButton);
+entryViewsButton.onclick=()=>runEntryViews(false);entryMobileButton.onclick=()=>runEntryViews(true);
+async function runEntryViews(mobile){
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
+ $('#entry-contact')?.remove();const sheet=document.createElement('canvas'),cw=590,ch=390;sheet.id='entry-contact';sheet.width=cw*2;sheet.height=ch*6;sheet.style.cssText='display:block;width:1180px;height:auto;margin:16px 0';sheet.setAttribute('aria-label','六张地图真实开场，左第一人称、右第三人称');$('#report').before(sheet);const paint=sheet.getContext('2d');paint.fillStyle='#17272b';paint.fillRect(0,0,sheet.width,sheet.height);
+ try{
+  {
+   if(mobile)await load(true,844,390);else if(!g)await load();
+   for(const [row,map]of['forest','snow','ash','sand','coast','confluence'].entries()){
+    select('silver',0,map);const start={x:g.player.x,z:g.player.z,yaw:g.adventureCamera.yaw},sites=JSON.stringify(g.world.sites.map(s=>[s.claimed,s.completed,s.availableAt]));
+    for(const [column,mode]of['first','third'].entries())await check(map+' 真实开场 '+mode+(mobile?' 手机横屏':' 电脑'),()=>{
+     if(g.state==='paused')g.resume();g.setView(mode);step(12);g.pause();step(1,0);const frame=reportFrame();
+     assert(Math.hypot(g.player.x-start.x,g.player.z-start.z)<.001,'开场构图移动了玩家');assert(Math.abs(g.adventureCamera.yaw-start.yaw)<.001,'切换视角改变了开场朝向');
+     assert(sceneryStandClear(g.player.x,g.player.z,.5),'开场位置堵塞');assert(sites===JSON.stringify(g.world.sites.map(s=>[s.claimed,s.completed,s.availableAt])),'开场改变了奖励状态');assert(frame.calls<2000&&frame.textures<64,'开场渲染资源超限');assert(frame.pixels<=(mobile?1800000:3200000),'开场像素预算超限');assert(Math.exp(-((g.hero.parent.fog.density*g.camera.far)**2))<.003,'远山在雾尚未遮住时被裁切');
+     {const x=column*cw,y=row*ch;paint.drawImage(g.renderer.domElement,x,y,cw,ch-30);paint.fillStyle='#e4eddf';paint.font='16px sans-serif';paint.fillText(map+' · '+mode+' · 实际出生点',x+12,y+ch-9);}
+     return{mobile,stand:start,viewport:[win.innerWidth,win.innerHeight],...frame};
+    });
+   }
+  }
+  errors.push(...win.qaErrors);publish();$('#status').textContent=(mobile?'六图手机开场：':'六图电脑开场：')+results.filter(r=>r.pass).length+'/'+results.length+'；手机为尺寸模拟，非真机帧率。';
+ }catch(e){errors.push(e.message);publish();$('#status').textContent='开场构图检查中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
+};
 placeViewsButton.onclick=()=>runPlaceViews();compositionViewsButton.onclick=()=>runPlaceViews(true);placeDetailButton.onclick=()=>runPlaceViews(false,true);
 function positionPlaceDetail(place){
  const v=place.variant??0,targets={forest:[6.1,.45,v?-3:2.78],snow:[v?-5.12:5.12,.45,v?-1.2:.85],ash:v?[7.55,.85,3.95]:[7.52,1.0,2.60],sand:v?[4.56,.22,.82]:[7.48,1.35,2.91],coast:v?[5.08,.7,-2]:[4.92,.7,-5.50]};

@@ -1,6 +1,6 @@
 import {applyFernSurface} from './fern-surfaces.js?v=156';
 import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=158';
-import{sceneryRhythmAt}from'./exploration-composition.js?v=163';
+import{sceneryRhythmAt}from'./exploration-composition.js?v=165';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';

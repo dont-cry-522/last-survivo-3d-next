@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
-import {addTree} from '../tree-scenery.js';
+import {addTree,animateTreeCanopy} from '../tree-scenery.js';
 import {buildWorld,animateWorld} from '../world.js';
 import {biomeWeights,REGIONS} from '../confluence.js';
 import {installForestVista} from '../forest-vista.js';
@@ -21,7 +21,7 @@ function corridor(id='forest'){
  return{group,ground,obstacles:[],breakables:[],explorationRoutes:[{biome:id,points:[{x:0,z:0},{x:50,z:0},{x:100,z:0}]}],explorationLandmarks:[{biome:id,x:100,z:0}],spawn:{x:0,z:0}};
 }
 function tree(w,x,z,id='forest',lower=0){
- const root=new T.Group();root.position.set(x,lower,z);w.group.add(root);addTree(root,id,5,{angle:.8});const o={x,z,r:.65,height:7,mesh:root};w.obstacles.push(o);return o;
+ const root=new T.Group();root.position.set(x,lower,z);w.group.add(root);const leaf=addTree(root,id,5,{angle:.8});(w.foliage||=[]).push({leaf,x:leaf.position.x,z:leaf.position.z,phase:x*.17+z*.13});const o={x,z,r:.65,height:7,mesh:root};w.obstacles.push(o);return o;
 }
 
 test('route rhythm opens at both ends, closes midway, and fades continuously into untouched terrain',()=>{
@@ -37,6 +37,25 @@ test('route rhythm opens at both ends, closes midway, and fades continuously int
  cleanup(w);
 });
 
+test('long excursions keep compact destination clearings and connected overhead crowns along the journey',()=>{
+ for(const id of['forest','snow','ash','sand','coast']){
+  const w=corridor(id);w.explorationRoutes=[{biome:id,points:[{x:0,z:0},{x:260,z:0}]}];w.explorationLandmarks=[{biome:id,x:260,z:0}];installExplorationComposition(w,id);
+  assert(sceneryRhythmAt(w,5,3).opening>.95&&sceneryRhythmAt(w,256,3).opening>.95);
+  assert(sceneryRhythmAt(w,30,3).enclosure>.95,'the start clearing expands with the length of the excursion');
+  assert(sceneryRhythmAt(w,230,3).enclosure>.95,'the destination clears a whole quarter of the map');cleanup(w);
+ }
+ for(const id of['forest','snow']){
+  const w=corridor(id),a=tree(w,50,-6,id),b=tree(w,50,6,id),crowns=[a,b].map(o=>o.mesh.getObjectByName('tree-canopy'));
+  const gap=()=>{w.group.updateMatrixWorld(true);return new T.Box3().setFromObject(crowns[1]).min.z-new T.Box3().setFromObject(crowns[0]).max.z;};
+  const before=gap(),layout=snapshot(w),state=installExplorationComposition(w,id),after=gap();
+  assert.equal(state.overhangingTrees,2);assert.equal(snapshot(w),layout);
+  assert(before-after>(id==='forest'?6:3),'the overhead gap remains visually unchanged');
+  if(id==='forest')assert(after<0,'the two broadleaf shoulders never form a continuous roof');
+  for(const crown of crowns)assert(new T.Box3().setFromObject(crown).min.y>=3.2);
+  cleanup(w);
+ }
+});
+
 test('forest and snow crowns frame routes while keeping roots, tactical trees, vistas and landmarks untouched',()=>{
  for(const id of['forest','snow']){
   const w=corridor(id),opening=tree(w,8,7,id),closed=tree(w,48,7,id),ending=tree(w,94,7,id),low=tree(w,55,8,id,-1.4);
@@ -50,10 +69,14 @@ test('forest and snow crowns frame routes while keeping roots, tactical trees, v
   assert.equal(state.trees,3);assert.equal(state.skippedLowTrees,1);assert.equal(snapshot(w),stateBefore);assert.deepEqual(w.ground.geometry.attributes.position.array,ground);
   for(const o of w.obstacles){
    assert.deepEqual(transforms(o.mesh),before.get(o.mesh));const trunk=o.mesh.getObjectByName('tree-trunk');assert.deepEqual(transforms(trunk),before.get(trunk));
-   const canopy=o.mesh.getObjectByName('tree-canopy');assert.deepEqual(canopy.position.toArray(),before.get(canopy)[0]);
+   const canopy=o.mesh.getObjectByName('tree-canopy');assert.equal(canopy.position.y,before.get(canopy)[0][1]);
    if([low,tactical,elder,vista,landmark].includes(o))assert.deepEqual(transforms(canopy),before.get(canopy));
    else{
-    assert(o===closed?canopy.scale.x>before.get(canopy)[1][0]*1.25:canopy.scale.x<before.get(canopy)[1][0]*.8);
+    assert(o===closed?canopy.scale.x>before.get(canopy)[1][0]*1.45:canopy.scale.x<before.get(canopy)[1][0]*.8);
+    const movement=canopy.position.clone().sub(new T.Vector3(...before.get(canopy)[0])).applyQuaternion(o.mesh.quaternion);
+    if(o===closed){assert(Math.abs(movement.x)<1e-8);assert(movement.z<-.5,'roadside crown does not reach inward over the route');}
+    else assert.equal(movement.length(),0,'a destination crown moved into its opening');
+    const motion=w.foliage.find(f=>f.leaf===canopy);assert.equal(motion.x,canopy.position.x);assert.equal(motion.z,canopy.position.z);
     const old=branches.get(o),positions=trunk.geometry.attributes.position,delta=canopy.matrixWorld.clone().multiply(old.crown.clone().invert()).multiply(old.matrix);let roots=0,upper=0;
     for(let i=0;i<positions.count;i++){
      if(old.positions.getY(i)<=1.8){assert.equal(positions.getX(i),old.positions.getX(i));assert.equal(positions.getY(i),old.positions.getY(i));assert.equal(positions.getZ(i),old.positions.getZ(i));roots++;}
@@ -62,6 +85,7 @@ test('forest and snow crowns frame routes while keeping roots, tactical trees, v
     for(const tilt of[-.034,0,.034]){canopy.rotation.z=tilt;w.group.updateMatrixWorld(true);assert(new T.Box3().setFromObject(canopy).min.y>=3.2,'moving foliage drops below the headroom budget');}canopy.rotation.z=0;
    }
   }
+  for(const f of w.foliage){const position=f.leaf.position.clone();animateTreeCanopy(f.leaf,1.7,f);assert(f.leaf.position.distanceTo(position)<.08,'the next wind frame discarded the authored overhang');}
   const after=[];w.group.traverse(o=>{if(o.isMesh)after.push([o,o.geometry,o.material]);});assert.equal(after.length,meshes.length,'composition added scene meshes');
   for(let i=0;i<after.length;i++){assert.equal(after[i][0],meshes[i][0]);assert.equal(after[i][2],meshes[i][2]);if(after[i][1]!==meshes[i][1])assert(after[i][0].name==='tree-trunk'&&after[i][0].userData.ownedGeometry,'composition cloned a non-branch asset');}
   const colors=w.ground.geometry.attributes.color.array.slice(),scales=w.obstacles.map(o=>o.mesh.getObjectByName('tree-canopy').scale.toArray());
@@ -134,7 +158,10 @@ test('real map composition preserves layouts, shared tree templates and rebuild 
   w.group.traverse(o=>{if(o.isMesh){const[g,m]=before.get(o);assert.equal(o.material,m);if(o.geometry!==g)assert(o.name==='tree-trunk'&&o.userData.ownedGeometry,'composition replaced a non-branch asset');}});
   const geometries=new Set();for(const o of w.obstacles)for(const mesh of o.mesh.children)if(mesh.userData.treeCanopy)geometries.add(mesh.geometry);
   if(id==='confluence')for(const r of w.regions)assert.equal(sceneryRhythmAt(w,r.x,r.z).biome,r.id);
+  const motions=(w.regions||[w]).flatMap(scope=>scope.foliage||[]);
+  for(const f of motions){if(w.regions)assert(w.foliage.includes(f),'joined regions copied a foliage record instead of sharing its authored motion baseline');assert(Math.hypot(f.leaf.position.x-f.x,f.leaf.position.z-f.z)<1e-8);}
   const colors=w.ground.geometry.attributes.color.array.slice();animateWorld(w,2,w.spawn.x,w.spawn.z);assert.deepEqual(w.ground.geometry.attributes.color.array,colors,'composition requires per-frame ground work');
+  for(const f of motions)assert(Math.hypot(f.leaf.position.x-f.x,f.leaf.position.z-f.z)<.08,'regional wind reset the route overhang');
   const listen=()=>releases++;for(const geometry of geometries)geometry.addEventListener('dispose',listen);
   const owned=new Set();w.group.traverse(o=>{if(o.name==='tree-trunk'&&o.userData.ownedGeometry)owned.add(o.geometry);});let ownedReleased=0;for(const g of owned)g.addEventListener('dispose',()=>ownedReleased++);
   cleanup(w);for(const geometry of geometries)geometry.removeEventListener('dispose',listen);assert.equal(releases,0,'world cleanup releases a shared tree template');assert.equal(ownedReleased,owned.size,'owned branches were leaked or disposed twice');

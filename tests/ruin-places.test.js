@@ -2,9 +2,9 @@ import test from'node:test';
 import assert from'node:assert/strict';
 import{createHash}from'node:crypto';
 import * as T from'../vendor/three.module.js';
-import{buildRuinPlace}from'../ruin-places.js?v=164';
+import{buildRuinPlace}from'../ruin-places.js?v=165';
 import{naturalRockGeometry}from'../biome-scenery.js?v=156';
-import{wornStoneBlock}from'../environment-props.js?v=163';
+import{wornStoneBlock}from'../environment-props.js?v=165';
 
 function build(id,variant=0){
  const parts=[],solids=[],dummy=new T.Object3D();

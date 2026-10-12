@@ -4,7 +4,7 @@ import * as T from '../vendor/three.module.js';
 import {buildWoodlandPlace} from '../woodland-places.js';
 import {naturalRockGeometry} from '../biome-scenery.js?v=156';
 
-function capture(biome){
+function capture(biome,variant=0){
  const pieces=[],solids=[];
  const result=buildWoodlandPlace(biome,{
   piece(category,geometry,color,transform={}){
@@ -14,13 +14,13 @@ function capture(biome){
   },
   solid(x,z,r,height){solids.push({x,z,r,height});},
   solidBox(){assert.fail('these authored natural places only need cylindrical chains');}
- });
+ },variant);
  return{pieces,solids,result,dispose(){for(const p of pieces)p.geometry.dispose();}};
 }
 
 test('woodland places have distinct horizontal silhouettes and bounded draw/triangle budgets',()=>{
- for(const biome of['forest','snow']){
-  const built=capture(biome),bounds=new T.Box3(),point=new T.Vector3();let triangles=0;
+ for(const biome of['forest','snow'])for(const variant of[0,1]){
+  const built=capture(biome,variant),bounds=new T.Box3(),point=new T.Vector3();let triangles=0;
   assert(built.result.kind&&built.result.name);assert(Object.values(built.result.focus).every(Number.isFinite));
   assert.equal(new Set(built.pieces.map(p=>p.category)).size,4);
   for(const part of built.pieces){
@@ -40,8 +40,8 @@ test('woodland places have distinct horizontal silhouettes and bounded draw/tria
 
 test('the complete north/south passage stays clear of both scenery and registered solids',()=>{
  const p=new T.Vector3();
- for(const biome of['forest','snow']){
-  const built=capture(biome);
+ for(const biome of['forest','snow'])for(const variant of[0,1]){
+  const built=capture(biome,variant);
   for(const part of built.pieces){const a=part.geometry.attributes.position;for(let i=0;i<a.count;i++){p.fromBufferAttribute(a,i).applyMatrix4(part.matrix);assert(Math.abs(p.x)>=3.1,biome+' scenery enters the wide path at '+p.toArray());}}
   for(const o of built.solids){assert(Math.abs(o.x)-o.r>=3.1,biome+' invisible wall enters the wide path');assert(o.r>0&&o.height>0);assert(Math.abs(o.x)+o.r<=9.05&&Math.abs(o.z)+o.r<=8.1,'registered footprint escapes the reserved rectangle');}
   built.dispose();
@@ -50,8 +50,8 @@ test('the complete north/south passage stays clear of both scenery and registere
 
 test('solid wood, rock, snow and ice above ankle height are covered by their actual obstacle envelopes',()=>{
  const p=new T.Vector3();
- for(const biome of['forest','snow']){
-  const built=capture(biome);
+ for(const biome of['forest','snow'])for(const variant of[0,1]){
+  const built=capture(biome,variant);
   for(const part of built.pieces){
    const a=part.geometry.attributes.position;
    for(let i=0;i<a.count;i++){
@@ -68,8 +68,8 @@ test('unrelated UUID randomness does not alter authored shapes, and all geometry
  // Three generates geometry UUIDs; these are irrelevant to authored placement.
  Math.random=()=>{calls++;return .25;};
  try{
-  for(const biome of['forest','snow']){
-   Math.random=()=>{calls++;return .13;};const a=capture(biome);Math.random=()=>{calls++;return .91;};const b=capture(biome);
+  for(const biome of['forest','snow'])for(const variant of[0,1]){
+   Math.random=()=>{calls++;return .13;};const a=capture(biome,variant);Math.random=()=>{calls++;return .91;};const b=capture(biome,variant);
    assert.deepEqual(a.solids,b.solids);assert.deepEqual(a.result,b.result);assert.equal(a.pieces.length,b.pieces.length);
    for(let i=0;i<a.pieces.length;i++){assert.deepEqual(a.pieces[i].geometry.attributes.position.array,b.pieces[i].geometry.attributes.position.array);assert.deepEqual(a.pieces[i].transform,b.pieces[i].transform);assert.notStrictEqual(a.pieces[i].geometry,b.pieces[i].geometry);}
    a.dispose();b.dispose();
@@ -79,9 +79,9 @@ test('unrelated UUID randomness does not alter authored shapes, and all geometry
 });
 
 test('the connected snow lids face upward and woodland vegetation never forms a sight-blocking wall',()=>{
- for(const biome of['forest','snow']){
-  const built=capture(biome);
-  if(biome==='snow')for(const part of built.pieces.filter(p=>p.category==='snow'&&!Object.keys(p.transform).length)){
+ for(const biome of['forest','snow'])for(const variant of[0,1]){
+  const built=capture(biome,variant);
+  if(biome==='snow')for(const part of built.pieces.filter(p=>p.geometry.name==='SM_Snow_RidgeCap_A')){
    const a=part.geometry.attributes.position,n=part.geometry.attributes.normal;
    assert(a.count>=90,'snow lid became a row of simple spheres');
    for(let i=0;i<a.count;i++)assert(n.getY(i)>.05,'snow lid is back-facing or inverted');
@@ -95,13 +95,64 @@ test('the connected snow lids face upward and woodland vegetation never forms a 
 });
 
 test('the sled remains visible from the passage instead of being swallowed by its snow ridge',()=>{
- const built=capture('snow'),material=new T.MeshBasicMaterial({side:T.DoubleSide}),meshes=built.pieces.map(part=>{
+ for(const variant of[0,1]){
+ const built=capture('snow',variant),material=new T.MeshBasicMaterial({side:T.DoubleSide}),meshes=built.pieces.map(part=>{
   const mesh=new T.Mesh(part.geometry,material);mesh.matrix.copy(part.matrix);mesh.matrixAutoUpdate=false;mesh.updateMatrixWorld(true);mesh.userData.category=part.category;return mesh;
- }),eye=new T.Vector3(0,1.65,.8),ray=new T.Raycaster(),target=new T.Vector3();
+ }),eye=new T.Vector3(0,1.65,built.result.focus.z),ray=new T.Raycaster(),target=new T.Vector3();
  let visible=0;
- for(const part of built.pieces.filter(p=>p.category==='wood'&&p.geometry.type==='BoxGeometry')){
+ for(const part of built.pieces.filter(p=>p.category==='wood'&&p.geometry.type==='BoxGeometry'&&p.geometry.parameters.height===.11)){
   target.setFromMatrixPosition(part.matrix);ray.set(eye,target.sub(eye).normalize());const first=ray.intersectObjects(meshes,false)[0];
   if(first?.object.userData.category==='wood')visible++;
  }
  assert(visible>=5,'the snow bank hides most of the broken sled');material.dispose();built.dispose();
+ }
+});
+
+test('woodland variants change real roots, broken camp layouts and sheltered ridge bays, not only color',()=>{
+ const average=(parts,axis)=>parts.reduce((n,p)=>n+(p.transform[axis]||0),0)/parts.length;
+ for(const biome of['forest','snow']){
+  const a=capture(biome,0),b=capture(biome,1),boards=built=>built.pieces.filter(p=>p.category==='wood'&&p.geometry.type==='BoxGeometry'&&p.geometry.parameters.height<.2);
+  assert.notEqual(a.result.kind,b.result.kind);assert.notDeepEqual(a.result.focus,b.result.focus);assert.notDeepEqual(a.solids,b.solids);
+  assert(Math.abs(average(boards(a),'z')-average(boards(b),'z'))>2,'camp remains in the same place');
+  const shapes=built=>built.pieces.filter(p=>p.category===(biome==='forest'?'wood':'stone')).map(p=>Array.from(p.geometry.attributes.position.array));
+  assert.notDeepEqual(shapes(a),shapes(b),'variant changed only its material tint');
+  if(biome==='snow')assert(average(boards(a),'x')*average(boards(b),'x')<0,'both sleds still occupy the same side of the pass');
+  else{
+   const groundFern=built=>built.pieces.filter(p=>p.geometry.name==='SM_Woodland_Fern_A');
+   assert(groundFern(a).length===72&&groundFern(b).length===72,'forest fern connection grew a second vegetation system');
+   assert.notDeepEqual(groundFern(a).map(p=>p.transform),groundFern(b).map(p=>p.transform));
+  }
+  a.dispose();b.dispose();
+ }
+});
+
+test('forest ground moss is broken and buried rather than a bright row of solid green pebbles',()=>{
+ const point=new T.Vector3();
+ for(const variant of[0,1]){
+  const built=capture('forest',variant),moss=built.pieces.filter(p=>p.geometry.name==='SM_Woodland_BrokenMoss_A');assert.equal(moss.length,24);
+  for(const part of moss){
+   const g=part.geometry,p=g.attributes.position,color=new T.Color(part.color);assert(g.index.count/3<=50,'broken moss exceeds its replacement geometry budget');
+   assert(Math.max(color.r,color.g,color.b)<.11,'ground moss returned to bright lime green');
+   for(let i=0;i<p.count;i++){
+    point.fromBufferAttribute(p,i).applyMatrix4(part.matrix);assert(point.y<.012,'low moss rose into a floating green cushion');
+    if(i%8)assert(point.y<-.035,'moss perimeter does not enter the soil');
+   }
+   // Every little island has its own buried perimeter; no triangles bridge the gaps.
+   for(let i=0;i<g.index.count;i+=3){const a=Math.floor(g.index.getX(i)/8);assert.equal(Math.floor(g.index.getX(i+1)/8),a);assert.equal(Math.floor(g.index.getX(i+2)/8),a);}
+  }
+  const widths=moss.map(p=>Math.abs(p.transform.x));assert(Math.max(...widths)-Math.min(...widths)>.7,'moss is still planted in two straight parallel rows');
+  built.dispose();
+ }
+});
+
+test('snow skirts make continuous grounded rock-foot drifts while leaving the sheltered sled bay shallow',()=>{
+ for(const variant of[0,1]){
+  const built=capture('snow',variant),skirts=built.pieces.filter(p=>p.geometry.name==='SM_Snow_RockFoot_A');assert.equal(skirts.length,2);
+  for(const part of skirts){
+   const g=part.geometry,p=g.attributes.position,n=g.attributes.normal;assert.equal(g.index.count/3,72);assert.equal(p.count,57);
+   for(let i=0;i<p.count;i++){assert(n.getY(i)>.05,'ground drift faces down');assert(Math.abs(p.getX(i))>=3.1);}
+   for(let row=0;row<19;row++){assert(p.getY(row*3+2)<-.03,'the drift edge floats above the ground');if(Math.abs(p.getZ(row*3)-built.result.focus.z)<1.1&&Math.sign(p.getX(row*3))===Math.sign(built.result.focus.x))assert(p.getY(row*3)<.1,'the sheltered bay is filled in front of the sled');}
+  }
+  const low=built.solids.filter(o=>o.height<1.1);assert(low.length>=5,'the low sled and windbreak no longer retain jumpable collision heights');built.dispose();
+ }
 });

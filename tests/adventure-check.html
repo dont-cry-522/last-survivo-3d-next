@@ -530,6 +530,48 @@ explorationButton.onclick=async()=>{
  const a=document.createElement('a');a.href=sheet.toDataURL('image/png');a.download='next-v148-exploration.png';a.click();publish();$('#status').textContent='探索环境完成：'+results.filter(r=>r.pass).length+'/'+results.length;
  }catch(e){errors.push(e.message);publish();}finally{controls.forEach(c=>c.disabled=false);}
 };
+// Both existing place slots, rendered close enough to inspect their materials
+// and passage. Also usable as a same-seed visual baseline before model changes.
+const placeViewsButton=document.createElement('button');placeViewsButton.id='place-views-run';placeViewsButton.textContent='五图场景区域近看';$('#capture').before(placeViewsButton);
+placeViewsButton.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
+ $('#place-contact')?.remove();const sheet=document.createElement('canvas'),cw=590,ch=390;sheet.id='place-contact';sheet.width=cw*2;sheet.height=ch*5;sheet.style.cssText='display:block;width:1180px;height:auto;margin:16px 0';sheet.setAttribute('aria-label','五种环境的两处场景实景：每行一张地图，左右为第一处与第二处');$('#report').before(sheet);const paint=sheet.getContext('2d');paint.fillStyle='#17272b';paint.fillRect(0,0,sheet.width,sheet.height);
+ try{
+  await load();
+  for(const [row,map]of['forest','snow','ash','sand','coast'].entries()){
+   select('silver',0,map);
+   for(const place of g.world.biomePlaces)await check(map+' 场景 '+(place.index+1)+' · '+place.name,()=>{
+    if(g.state==='paused')g.resume();g.setView('first');positionPlace({place});step(12);g.pause();step(1,0);
+    const frame=reportFrame();assert(frame.calls<2000&&frame.textures<64,'场景区域超出渲染预算');assert(sceneryStandClear(g.player.x,g.player.z,.5),'近景站位堵塞');
+    const x=place.index*cw,y=row*ch;paint.drawImage(g.renderer.domElement,x,y,cw,ch-30);paint.fillStyle='#e4eddf';paint.font='16px sans-serif';paint.fillText(map+' · '+place.name,x+12,y+ch-9);
+    return{biome:map,variant:place.variant??0,kind:place.kind,...frame};
+   });
+  }
+  errors.push(...win.qaErrors);publish();$('#status').textContent='五图场景近看完成：'+results.filter(r=>r.pass).length+'/'+results.length+'；下方为真实游戏画面。';
+ }catch(e){errors.push(e.message);publish();$('#status').textContent='场景近看中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
+};
+const placeRoutesButton=document.createElement('button');placeRoutesButton.id='place-routes-run';placeRoutesButton.textContent='双布局通路与手机检查';$('#capture').before(placeRoutesButton);
+placeRoutesButton.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
+ try{
+  for(const mobile of[false,true]){
+   await load(mobile,mobile?844:1180,mobile?390:720);
+   for(const map of['forest','snow','ash','sand','coast','confluence']){
+    select('silver',0,map);const before=JSON.stringify(g.world.sites.map(s=>[s.claimed,s.completed,s.availableAt]));
+    for(const place of g.world.biomePlaces)for(const mode of['first','third'])await check(map+' / '+place.biome+' 场景'+place.index+' '+mode+(mobile?' 手机横屏':' 电脑'),()=>{
+     assert(place.variant===place.index,'世界未选择对应模型变体');assert(place.mesh.parent===g.world.group,'场景模型被隐藏/脱离世界');
+     for(let i=0;i<=36;i++){const x=place.entrance.x+(place.exit.x-place.entrance.x)*i/36,z=place.entrance.z+(place.exit.z-place.entrance.z)*i/36;assert(!g.world.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+.45),'中央通道被实体挡住');assert(terrainAt(g.world,x,z).depth<.08,'场景中央通道进入水中');}
+     if(g.state==='paused')g.resume();g.setView(mode);positionPlace({place});step(12);g.pause();step(1,0);
+     const stats=reportFrame();assert(stats.calls<2000&&stats.textures<64,'区域超出批次/纹理预算');assert(stats.pixels<=(mobile?1800000:3200000),'区域超出像素预算');assert(JSON.stringify(g.world.sites.map(s=>[s.claimed,s.completed,s.availableAt]))===before,'场景变体触发或改变奖励');return{variant:place.variant,...stats};
+    });
+   }
+   await check((mobile?'手机':'电脑')+' 场景变体重开回收',()=>{
+    const previous=g.world,owned=new Set();previous.group.traverse(o=>{if(o.userData.ownedGeometry)owned.add(o.geometry);});let released=0;for(const geometry of owned)geometry.addEventListener('dispose',()=>released++);g.menu();assert(released===owned.size,'退出未完整释放私有场景几何');g.start();step(2);assert(g.world!==previous&&g.world.biomePlaces.length===10,'重开丢失五境场景');for(const biome of['forest','snow','ash','sand','coast'])assert(g.world.biomePlaces.filter(p=>p.biome===biome).map(p=>p.variant).join(',')==='0,1','重开变体缺失');return{released,...reportFrame()};
+   });
+  }
+  errors.push(...win.qaErrors);publish();$('#status').textContent='双布局通路检查完成：'+results.filter(r=>r.pass).length+'/'+results.length+'；手机为尺寸/触控模拟，不是帧率或真机结论。';
+ }catch(e){errors.push(e.message);publish();$('#status').textContent='双布局通路检查中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
+};
 // Fixed-clock render/resource checks only; this does not measure real frame rate.
 const fullscreenEnvironmentButton=document.createElement('button');fullscreenEnvironmentButton.id='fullscreen-environment-run';fullscreenEnvironmentButton.textContent='全屏环境预算检查';$('#capture').before(fullscreenEnvironmentButton);
 fullscreenEnvironmentButton.onclick=async()=>{

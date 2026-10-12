@@ -20,10 +20,13 @@ const cleanup=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.user
 const gameplay=w=>JSON.stringify({spawn:w.spawn,sites:w.sites.map(s=>[s.x,s.z,s.type,s.event,s.availableAt,s.claimed,s.discovered,s.mesh.visible,s.trail.visible]),patches:w.patches.map(p=>[p.x,p.z,p.rx,p.rz,p.r,p.kind]),breakables:w.breakables.map(p=>[p.x,p.z,p.state]),roads:w.road,places:w.biomePlaces.map(p=>[p.x,p.z,p.angle,p.entrance,p.exit])});
 const records=s=>s.records.map(({obstacle,...p})=>p);
 
-test('new forest undergrowth keeps the original seeded positions, angles and collision envelopes',()=>{
+test('forest undergrowth keeps the v161 authored-place seeded positions, angles and collision envelopes',()=>{
+ // Cluster layout seeds include place solids. v161 intentionally rearranges those
+ // solids; old place builders reproduce all six former hashes. Reward anchors,
+ // roads and non-place obstacles were compared independently and remain unchanged.
  const before={
-  forest:['bdcbe1e3c9839397c7173ea5707d0a91fa9d89942aea2b7c01bacb805625f73a','102bf6391930903c934fd59b21ba9302a7a1819d062c7c427a40531b01aa5097','77ab1299c3672429370c45de6cace3174b383e597deed937b34b3c5204e609d6'],
-  confluence:['b5fa5741aa240c9af5188454845b3e7cbc0ed3484612e90932a099970b5df3a4','0878d98e1062b3978bae6c0060c72a3942ca9f4e7131493eb8d2e23e167518b1','8278904825103767dd97c8948c2bcd7f954dd2b4b8bc66c36d5569d7a1ae78d9']
+  forest:['d680edaeb4508341a02db8bfb2084c70c3b3d924d48c088e116d207227c03643','67a96b11428a838bceea5c3f4136a92dfb436895b19592ac38768f8a701c147d','3bc78a44074a5d5ee404448e72de6fa38232e3297522e5d3e9912a911b4a523b'],
+  confluence:['a02b5037beff86dd86bdbb9ec2787fff133e4ab222518b82fa9e946d6aa015bc','aafb1c7be1c0264b7803d5028aaf3e0dc2f8c4b4c04633299d3419e16531d7d2','cce9090ede628fe4ca45008fe71e3e49675e5c38d66cf73210f5cb201c891d58']
  };
  for(const id of Object.keys(before))for(const [i,seed]of[7,522,43837033].entries()){
   const w=create(id,seed),state=installEnvironmentClusters(w,id);

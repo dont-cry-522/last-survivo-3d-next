@@ -5,7 +5,7 @@ import{buildRuinPlace}from'../ruin-places.js';
 import{naturalRockGeometry}from'../biome-scenery.js?v=156';
 import{wornStoneBlock}from'../environment-props.js?v=160';
 
-function build(id){
+function build(id,variant=0){
  const parts=[],solids=[],dummy=new T.Object3D();
  const kit={piece(category,geometry,color,transform={}){
   const{x=0,y=0,z=0,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1}=transform;dummy.position.set(x,y,z);dummy.rotation.set(rx,ry,rz);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();geometry.applyMatrix4(dummy.matrix);geometry.computeBoundingBox();parts.push({category,geometry,color,overhead:!!transform.overhead});
@@ -13,13 +13,13 @@ function build(id){
   const alongX=w>=d,length=Math.max(w,d),thick=Math.min(w,d),steps=Math.max(1,Math.ceil(length/.65)),span=length/steps,r=Math.hypot(span/2,thick/2),c=Math.cos(angle),s=Math.sin(angle);
   for(let i=0;i<steps;i++){const q=-length/2+(i+.5)*span,dx=alongX?q:0,dz=alongX?0:q;solids.push({x:x+c*dx+s*dz,z:z-s*dx+c*dz,r,height});}
  }};
- return{...buildRuinPlace(id,kit),parts,solids,dispose(){for(const p of parts)p.geometry.dispose();}};
+ return{...buildRuinPlace(id,kit,variant),parts,solids,dispose(){for(const p of parts)p.geometry.dispose();}};
 }
 
 test('ruins have wide continuous silhouettes, a clear central street and bounded mobile batches',()=>{
- for(const id of['ash','sand']){
-  const place=build(id),bounds=new T.Box3(),batches=new Set();let triangles=0;
-  assert.equal(place.kind,id==='ash'?'collapsed-kiln-yard':'buried-courtyard');assert(place.name&&Number.isFinite(place.focus.y));
+ for(const id of['ash','sand'])for(const variant of[0,1]){
+  const place=build(id,variant),bounds=new T.Box3(),batches=new Set();let triangles=0;
+  assert.equal(place.kind,id==='ash'?(variant?'cooled-furnace-terraces':'collapsed-kiln-yard'):(variant?'fallen-gate-waystation':'buried-courtyard'));assert(place.name&&Number.isFinite(place.focus.y));
   for(const part of place.parts){
    const g=part.geometry,p=g.attributes.position;bounds.union(g.boundingBox);batches.add(part.category+(part.overhead?':roof':''));triangles+=(g.index?g.index.count:p.count)/3;
    for(const attribute of Object.values(g.attributes))assert([...attribute.array].every(Number.isFinite));
@@ -38,8 +38,8 @@ test('ruins have wide continuous silhouettes, a clear central street and bounded
 });
 
 test('walls, fallen masonry and pots have solid footprints while the kiln entrance remains open',()=>{
- for(const id of['ash','sand']){
-  const place=build(id);
+ for(const id of['ash','sand'])for(const variant of[0,1]){
+  const place=build(id,variant);
   for(const part of place.parts.filter(p=>!p.overhead)){
    const p=part.geometry.attributes.position;
    for(let i=0;i<p.count;i++)if(p.getY(i)>.3){
@@ -47,10 +47,10 @@ test('walls, fallen masonry and pots have solid footprints while the kiln entran
     assert(place.solids.some(s=>Math.hypot(x-s.x,z-s.z)<s.r+.045&&y<=s.height+.045),id+' has floating non-solid masonry at '+[x,y,z]);
    }
   }
-  if(id==='ash'){
+  if(id==='ash'&&variant===0){
    assert(place.parts.some(p=>p.overhead),'the kiln needs a real raycast roof');
    for(let x=-7.35;x<=-3.15;x+=.1)assert(!place.solids.some(s=>Math.hypot(x-s.x,-2-s.z)<s.r+.28),'kiln mouth is sealed with an invisible collider');
-  }else assert(place.parts.some(p=>p.category==='ceramic'),'the buried courtyard lost its distinct relic debris');
+  }else if(id==='sand')assert(place.parts.some(p=>p.category==='ceramic'),'the buried courtyard lost its distinct relic debris');
   place.dispose();
  }
 });
@@ -64,11 +64,59 @@ test('the barrel roof has an actual opening and a broken crown rather than a pai
  roof.traverse(o=>o.material?.dispose());place.dispose();
 });
 
+test('the second ash yard has an open round furnace and stepped rock beds instead of another roofed kiln',()=>{
+ const place=build('ash',1),stone=new T.Group(),material=new T.MeshBasicMaterial({side:T.DoubleSide});
+ for(const part of place.parts.filter(p=>p.category==='stone'))stone.add(new T.Mesh(part.geometry,material));stone.updateMatrixWorld(true);
+ assert.equal(place.parts.filter(p=>p.geometry.type==='ExtrudeGeometry').length,7,'broken circular wall sectors are missing');assert(!place.parts.some(p=>p.overhead),'second yard repeats the first barrel roof');
+ for(let x=3.12;x<=5.68;x+=.08)assert(!place.solids.some(s=>Math.hypot(x-s.x,-3.3-s.z)<s.r+.28),'cold furnace entrance has an invisible blocker');
+ const ray=new T.Raycaster(new T.Vector3(3.12,.45,-3.3),new T.Vector3(1,0,0),0,2.56);assert.equal(ray.intersectObject(stone,true).length,0,'furnace entrance is painted over with masonry');
+ ray.set(new T.Vector3(5.68,.45,-3.3),new T.Vector3(1,0,0));ray.far=2;const wall=ray.intersectObject(stone,true)[0];assert(wall&&wall.distance>1&&wall.distance<1.5,'furnace has no real circular outer wall');
+ // Paired continuous strata form a low front ledge and a higher back face.
+ const terrace=place.parts.filter(p=>p.category==='stone'&&p.geometry.type==='BufferGeometry'&&p.geometry.boundingBox.max.x<-6);
+ assert(terrace.length>=2);assert(terrace.some(p=>p.geometry.boundingBox.max.y>1.5));assert(terrace.some(p=>p.geometry.boundingBox.max.y>.6&&p.geometry.boundingBox.max.y<.9));
+ material.dispose();place.dispose();
+});
+
+test('the second sand place leads into one store court and retains a real fallen doorway',()=>{
+ const place=build('sand',1);
+ // Approach is open from the central street into the eastern store court.
+ for(let x=3.12;x<=6.2;x+=.08)assert(!place.solids.some(s=>Math.hypot(x-s.x,1.72-s.z)<s.r+.28),'court entrance is sealed');
+ for(const [x,z]of[[7.53,1.72],[6.15,4.88],[6.16,-1.53]])assert(place.solids.some(s=>Math.hypot(x-s.x,z-s.z)<s.r),'U-shaped court wall is visual only');
+ assert(place.solids.some(s=>Math.hypot(-5.43-s.x,-4.88-s.z)<s.r&&s.height>1),'fallen lintel can be walked through');
+ assert(place.parts.filter(p=>p.category==='ceramic').length>=12,'store court lost its pottery remnants');
+ assert(place.focus.x<0&&place.focus.z<-4,'doorway focus still points at the first courtyard');place.dispose();
+});
+
+test('the second ash furnace hearth stays visible above its own shallow slag bed',()=>{
+ const place=build('ash',1),group=new T.Group(),material=new T.MeshBasicMaterial({side:T.DoubleSide});let hearth;
+ for(const part of place.parts){const mesh=new T.Mesh(part.geometry,material);group.add(mesh);if(part.category==='metal'&&part.geometry.type==='CircleGeometry')hearth=mesh;}
+ group.updateMatrixWorld(true);assert(hearth);assert(hearth.geometry.boundingBox.max.y<=.12,'hearth became a raised platform');
+ const ray=new T.Raycaster();
+ for(const[dx,dz]of[[0,0],[-.3,0],[.3,0],[0,-.3],[0,.3],[-.6,.3],[.6,-.3]]){
+  ray.set(new T.Vector3(5.68+dx,2,-3.3+dz),new T.Vector3(0,-1,0));const hits=ray.intersectObject(group,true);assert.equal(hits[0]?.object,hearth,'slag floor hides the cold furnace hearth');
+  const floor=hits.find(h=>h.object!==hearth);assert(floor&&hits[0].point.y-floor.point.y>.015,'hearth and floor can flicker at their overlap');
+ }
+ material.dispose();place.dispose();
+});
+
+test('the two layouts differ physically, use existing material categories and preserve the default template',()=>{
+ const budgets={ash:[[6172,4,57],[5786,3,48]],sand:[[8744,3,55],[7488,3,46]]};
+ for(const id of['ash','sand']){
+  const first=build(id),second=build(id,1),explicit=build(id,0);assert.deepEqual(first.solids,explicit.solids);assert.notDeepEqual(first.solids,second.solids,'variant changes only colors');
+  assert.notEqual(first.kind,second.kind);assert.notEqual(Math.sign(first.focus.x),Math.sign(second.focus.x),'both layouts keep the same large landmark on the same side');
+  for(const [variant,place]of[first,second].entries()){
+   const batches=new Set(place.parts.map(p=>p.category+(p.overhead?':roof':''))),triangles=place.parts.reduce((n,p)=>n+(p.geometry.index?.count??p.geometry.attributes.position.count)/3,0);
+   assert.deepEqual([triangles,batches.size,place.solids.length],budgets[id][variant]);assert([...batches].every(k=>['stone','stone:roof','ground','metal','ceramic'].includes(k)),'variant added a material family');
+  }
+  first.parts.forEach((p,i)=>assert.deepEqual(p.geometry.attributes.position.array,explicit.parts[i].geometry.attributes.position.array));first.dispose();second.dispose();explicit.dispose();
+ }
+});
+
 test('builds are deterministic, own their pieces, and never mutate or dispose shared sources',()=>{
  const sources=[naturalRockGeometry,wornStoneBlock],before=sources.map(g=>g.attributes.position.array.slice());let sharedDisposed=0;const onDispose=()=>sharedDisposed++;
  for(const g of sources)g.addEventListener('dispose',onDispose);
- for(const id of['ash','sand']){
-  const a=build(id),b=build(id);assert.deepEqual(a.solids,b.solids);assert.equal(a.parts.length,b.parts.length);const disposed=new Set();
+ for(const id of['ash','sand'])for(const variant of[0,1]){
+  const a=build(id,variant),b=build(id,variant);assert.deepEqual(a.solids,b.solids);assert.equal(a.parts.length,b.parts.length);const disposed=new Set();
   a.parts.forEach((part,i)=>{const other=b.parts[i];assert.notEqual(part.geometry,other.geometry);assert(!sources.includes(part.geometry));assert.equal(part.category,other.category);assert.equal(part.color,other.color);assert.deepEqual(part.geometry.attributes.position.array,other.geometry.attributes.position.array);part.geometry.addEventListener('dispose',()=>disposed.add(part.geometry));});
   a.dispose();assert.equal(disposed.size,a.parts.length);assert(b.parts.every(p=>p.geometry.attributes.position.count>0));b.dispose();
  }

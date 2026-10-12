@@ -23,13 +23,83 @@ function flowGeometry(points,width){
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setIndex(indices);g.computeVertexNormals();return g;
 }
 
-export function buildRuinPlace(biome,kit){
+export function buildRuinPlace(biome,kit,variant=0){
  if(biome!=='ash'&&biome!=='sand')return null;
  const piece=(category,geometry,color,transform)=>kit.piece(category,geometry,color,transform);
  const box=(category,color,x,y,z,sx,sy,sz,ry=0,rz=0)=>piece(category,wornStoneBlock.clone(),color,{x,y,z,sx,sy,sz,ry,rz});
  const wall=(profile,depth,color,x,z,angle=0)=>{piece('stone',wallGeometry(profile,depth),color,{x,z,ry:angle});kit.solidBox(x,z,profile.at(-1)[0]-profile[0][0],depth,Math.max(...profile.map(p=>p[1])),angle);};
  const rock=(color,x,y,z,sx,sy,sz,angle=0)=>{piece('stone',naturalRockGeometry.clone(),color,{x,y,z,sx,sy,sz,ry:angle});if(y+sy>.3)kit.solid(x,z,Math.max(sx,sz)*1.2,y+sy*1.1);};
  const floor=(color,x,z,sx,sz,angle=0)=>piece('ground',naturalRockGeometry.clone(),color,{x,y:.012,z,sx,sy:.08,sz,ry:angle});
+ if(biome==='ash'&&variant===1){
+  // The second yard follows a cooled outcrop into an open, broken round furnace.
+  // Long stepped beds replace the first yard's barrel roof and parallel walls.
+  wall([[-2.55,.37],[-2.15,1.17],[-1.40,1.40],[-.42,1.62],[.31,1.46],[1.20,1.57],[2.03,.90],[2.55,.28]],.84,0x504e48,-7.53,-2.80,Math.PI/2);
+  wall([[-2.25,.18],[-1.79,.49],[-.74,.65],[.18,.61],[1.34,.72],[2.25,.26]],.77,0x645c50,-6.52,-2.58,Math.PI/2);
+  wall([[-1.72,.29],[-1.16,.81],[-.27,.94],[.64,.75],[1.72,.22]],.60,0x504841,-5.78,6.16);
+  wall([[-2.10,.32],[-1.57,.90],[-.64,1.28],[.28,1.16],[1.34,.73],[2.10,.27]],.71,0x5b5147,7.55,3.95,Math.PI/2);
+  // An actual missing sector faces the street. Each short curved wall has a
+  // finite collider, so the open furnace is neither a solid cylinder nor a decal.
+  const furnace={x:5.68,z:-3.30};
+  for(let i=0;i<7;i++){
+   const start=-2.42+i*4.84/7,end=start+4.84/7,a=(start+end)*.5,height=[.72,1.02,.86,1.17,.94,.78,.58][i];
+   piece('stone',vaultGeometry(1.11,.30,height,start,end),i%2?0x6c5948:0x574a3e,{x:furnace.x,y:height*.5-.045,z:furnace.z,rx:Math.PI/2});
+   kit.solid(furnace.x+Math.cos(a)*1.26,furnace.z+Math.sin(a)*1.26,.58,height+.025);
+  }
+  // The shallow slag bed reaches .084m; keep the cold hearth visible above it
+  // without raising the walkable overlay beyond the existing .12m ground limit.
+  piece('metal',new T.CircleGeometry(1.07,22),0x343933,{x:furnace.x,y:.106,z:furnace.z,rx:-Math.PI/2});
+  // The cold drain, rail ends, and low casting bed all point back to the broken
+  // opening. These are passive scenery; they never add a vent or heat damage.
+  piece('ground',flowGeometry([[4.38,-3.3],[4.06,-2.37],[4.34,-1.02],[5.02,.18],[5.15,1.30]],.29),0x383d38,{});
+  for(const z of[1.14,2.49]){box('stone',0x625447,5.25,.165,z,2.81,.34,.25);kit.solidBox(5.25,z,2.81,.25,.34);}
+  box('metal',0x383d38,5.25,.032,1.82,2.70,.06,1.06);
+  for(let i=0;i<5;i++)box('metal',0x71604d,4.2+i*.53,.052,1.82,.055,.06,1.10);
+  for(const x of[-5.43,-4.12])box('metal',0x544d43,x,.062,-5.59,.09,.10,3.22,.08);
+  for(let i=0;i<6;i++)box('stone',i%2?0x564b42:0x6a5e4e,-4.78,.03,-7.12+i*.54,1.82,.06,.17,.08+Math.sin(i)*.026);
+  for(const[x,z,sx,sz,a]of[[-6.82,-2.78,1.45,2.31,.12],[-4.87,-5.45,1.36,1.80,.07],[5.69,-3.32,1.56,1.59,.18],[5.74,4.36,1.64,1.84,-.16]])floor(0x48473f,x,z,sx,sz,a);
+  for(const[x,z,sx,sy,sz]of[[-7.16,3.87,.86,.46,1.21],[-5.65,4.70,.88,.30,.74],[6.65,6.49,.76,.32,.52]])rock(0x5d574d,x,sy*.61,z,sx,sy,sz,x*.18);
+  for(let i=0;i<16;i++){
+   const side=i%2?-1:1,x=side*(4.02+(i*1.37)%3.55),z=-6.69+(i*2.13)%13.50;
+   rock(i%3?0x514b40:0x78634f,x,.035,z,.16+(i%3)*.044,.085,.14+(i%2)*.075,i*.69);
+  }
+  return{kind:'cooled-furnace-terraces',name:'冷渣断炉台',focus:{x:5.68,y:.7,z:-3.30}};
+ }
+ if(biome==='sand'&&variant===1){
+  // A collapsed entrance on one side faces a single U-shaped store court on
+  // the other. The first courtyard's two long parallel courts are not repeated.
+  wall([[-1.62,.30],[-1.21,1.18],[-.65,1.85],[-.08,2.18],[.53,1.74],[1.12,.80],[1.62,.29]],.68,0xb09a77,-7.53,-4.48,Math.PI/2);
+  wall([[-1.55,.24],[-.96,.67],[-.10,1.17],[.61,1.06],[1.55,.31]],.62,0xa99373,-6.22,-1.88);
+  wall([[-2.81,.29],[-2.11,.86],[-1.26,1.31],[-.46,1.64],[.26,1.43],[1.30,1.01],[2.14,.78],[2.81,.25]],.67,0xb59f7d,7.53,1.72,Math.PI/2);
+  wall([[-1.70,.28],[-.97,.83],[-.18,1.12],[.67,.89],[1.70,.27]],.63,0xaf9875,6.15,4.88);
+  wall([[-1.63,.21],[-.92,.65],[-.14,.91],[.81,.72],[1.63,.25]],.60,0xab9372,6.16,-1.53);
+  // The broken lintel rests on its fallen jamb. Inlay fragments remain part
+  // of the same stone volume, with no unsupported low overhangs in the street.
+  box('stone',0xc0a782,-5.43,.48,-4.88,3.06,.76,.87,.48,-.13);kit.solidBox(-5.43,-4.88,3.25,1.02,1.14,.48);
+  box('stone',0xb29a78,-6.67,.29,-5.69,1.38,.59,.86,-.26,.12);kit.solidBox(-6.67,-5.69,1.48,1.00,.78,-.26);
+  for(let i=0;i<5;i++)box('stone',i%2?0x7e8b78:0x829387,-6.32+i*.43,.74-(i-2)*.045,-4.50-i*.213,.28,.03,.37,.48,-.13);
+  // Broken approach slabs lead toward the old doorway, then widen into the
+  // court entrance. All of them remain low walkable ground cover.
+  for(let i=0;i<12;i++){
+   const x=-4.12-(i%2)*.89-Math.floor(i/4)*.17,z=5.81-Math.floor(i/2)*1.56+(i%2)*.20;
+   box('stone',i%3?0xad9573:0xc0aa86,x,.012,z,.74+(i%3)*.07,.064,.98,Math.sin(i*2.1)*.18);
+  }
+  for(let i=0;i<10;i++){
+   const x=4.22+(i%3)*.86,z=.01+Math.floor(i/3)*1.17+(i%2)*.16;
+   box('stone',i%2?0xa9906d:0xbca682,x,.008,z,.66+(i%3)*.05,.061,.89,Math.cos(i*2.7)*.15);
+  }
+  for(const[x,z,sx,sz,a]of[[-7.08,-4.45,1.05,2.28,.04],[-6.34,-1.38,1.68,.94,-.13],[7.04,1.91,1.21,2.37,.02],[5.82,4.35,1.93,.92,.10],[-5.43,-6.49,1.73,.75,.22]])floor(0xc6b089,x,z,sx,sz,a);
+  for(const[x,z,size,a]of[[6.42,3.74,.46,.4],[5.53,3.94,.36,2.1],[4.56,.82,.42,.8],[-6.07,-.76,.32,2.7]]){
+   const pot=new T.LatheGeometry([[.18,0],[.46,.10],[.54,.33],[.43,.61],[.30,.69]].map(([r,y])=>new T.Vector2(r*size,y*size)),10,a,Math.PI*1.54);
+   piece('ceramic',pot,0x9c7251,{x,y:.032,z});kit.solid(x,z,size*.6,.032+size*.70);
+   for(let i=0;i<3;i++)box('ceramic',i%2?0xb58a62:0x886249,x-.24-i*.12,.037,z+.15-i*.14,.15,.065,.12,a+i*.63,.08);
+  }
+  for(const[x,z,sx,sy,sz]of[[-7.23,5.64,.76,.26,.67],[6.45,-6.47,.79,.30,.57],[-4.41,-6.83,.61,.21,.57]])rock(0xb6a17f,x,sy*.58,z,sx,sy,sz,x*.23);
+  for(let i=0;i<13;i++){
+   const side=i%2?-1:1,x=side*(4.09+(i*1.29)%3.41),z=-6.78+(i*2.19)%13.55;
+   rock(i%3?0xa99170:0xc3ae87,x,.032,z,.14+(i%3)*.039,.076,.17+(i%2)*.059,i*.71);
+  }
+  return{kind:'fallen-gate-waystation',name:'断门旧驿',focus:{x:-5.9,y:.9,z:-4.4}};
+ }
  if(biome==='ash'){
   // A broad barrel kiln lies across the left side. Its mouth opens onto the
   // six-metre street; walls and roof have separate physical representations.

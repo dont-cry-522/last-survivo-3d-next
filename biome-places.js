@@ -4,9 +4,9 @@ import{batchedSurfaceMaterial,prepareBatchedSurface}from'./environment-props.js?
 import{waterDepth}from'./water.js?v=160';
 import{bridgeContains}from'./coast.js?v=114';
 import{segmentDistance}from'./rules.js?v=125';
-import{buildWoodlandPlace}from'./woodland-places.js?v=156';
-import{buildRuinPlace}from'./ruin-places.js?v=160';
-import{buildHarborPlace}from'./harbor-place.js?v=153';
+import{buildWoodlandPlace}from'./woodland-places.js?v=161';
+import{buildRuinPlace}from'./ruin-places.js?v=161';
+import{buildHarborPlace}from'./harbor-place.js?v=161';
 import{coastPlaceCandidates,harborPierPlan}from'./harbor-bank-layout.js?v=160';
 import{installHarborBank}from'./harbor-bank.js?v=160';
 
@@ -21,8 +21,9 @@ function finish(category){
 
 // Five authored places, combined once per category. No scene-sized textures or
 // per-frame work. Source pieces are owned here; installed copies use world cleanup.
-export function placeTemplate(id){
- if(templates.has(id))return templates.get(id);
+export function placeTemplate(id,variant=0){
+ variant=variant===1?1:0;const key=id+':'+variant;
+ if(templates.has(key))return templates.get(key);
  const parts=new Map(),solids=[],dummy=new T.Object3D(),tint=new T.Color();
  const kit={piece(category,geometry,color,transform={}){
   const{x=0,y=0,z=0,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1,overhead=false}=transform;
@@ -39,9 +40,9 @@ export function placeTemplate(id){
   const alongX=w>=d,length=Math.max(w,d),thick=Math.min(w,d),steps=Math.max(1,Math.ceil(length/.65)),span=length/steps,r=Math.hypot(span/2,thick/2),c=Math.cos(angle),s=Math.sin(angle);
   for(let i=0;i<steps;i++){const q=-length/2+(i+.5)*span,dx=alongX?q:0,dz=alongX?0:q;solids.push({x:x+c*dx+s*dz,z:z-s*dx+c*dz,r,height});}
  }};
- const info=id==='forest'||id==='snow'?buildWoodlandPlace(id,kit):id==='ash'||id==='sand'?buildRuinPlace(id,kit):buildHarborPlace(kit),batches=[];
+ const info=id==='forest'||id==='snow'?buildWoodlandPlace(id,kit,variant):id==='ash'||id==='sand'?buildRuinPlace(id,kit,variant):buildHarborPlace(kit,variant),batches=[];
  for(const part of parts.values()){const geometry=mergeGeometries(part.geometries);for(const g of part.geometries)g.dispose();geometry.computeBoundingBox();geometry.computeBoundingSphere();if(geometry.attributes.harborFlex?.array.some(v=>v>0))geometry.boundingSphere.radius+=.03;batches.push({geometry,material:finish(part.category),overhead:part.overhead});}
- const result={...info,batches,solids};templates.set(id,result);return result;
+ const result={...info,variant,batches,solids};templates.set(key,result);return result;
 }
 
 const local=(p,x,z)=>{const dx=x-p.x,dz=z-p.z,c=Math.cos(p.angle),s=Math.sin(p.angle);return{x:c*dx-s*dz,z:s*dx+c*dz};};
@@ -68,10 +69,10 @@ export function installBiomePlaces(world,mapId){
   return true;
  };
  for(const scope of world.regions||[{id:mapId,...world.spawn}]){
-  const id=scope.id,sites=world.sites.filter(s=>(!world.regions||s.biome===id)&&(s.type==='relic'||s.event)),start=world.regions?{x:scope.x,z:scope.z}:world.spawn,template=placeTemplate(id);
+  const id=scope.id,sites=world.sites.filter(s=>(!world.regions||s.biome===id)&&(s.type==='relic'||s.event)),start=world.regions?{x:scope.x,z:scope.z}:world.spawn;
   const shoreCandidates=id==='coast'?coastPlaceCandidates(world,scope):[];
   for(let n=0;n<2;n++){
-   const anchor=n===0?start:sites.find(s=>s.event)||sites[0]||start,candidates=[];
+   const template=placeTemplate(id,n),anchor=n===0?start:sites.find(s=>s.event)||sites[0]||start,candidates=[];
    for(const radius of[n===0?24:22,32,42,54,66])for(let i=0;i<24;i++){
     const a=-.75+i*Math.PI/12,p={x:anchor.x+Math.sin(a)*radius,z:anchor.z+Math.cos(a)*radius,angle:a};
     if(!safe(p,scope))continue;
@@ -95,7 +96,7 @@ export function installBiomePlaces(world,mapId){
    const group=new T.Group();group.name='SM_Place_'+id+'_'+n;group.position.set(p.x,0,p.z);group.rotation.y=p.angle;world.group.add(group);
    for(const b of template.batches){const mesh=new T.Mesh(b.geometry.clone(),b.material);mesh.name=group.name+'_'+group.children.length;mesh.castShadow=mesh.receiveShadow=true;mesh.userData.ownedGeometry=true;mesh.userData.placeOverhead=b.overhead;group.add(mesh);}
    const solids=[];for(const s of template.solids){const q=at(p,s.x,s.z),root=new T.Object3D();root.position.set(s.x,0,s.z);root.name='COL_'+id;group.add(root);const obstacle={...q,r:s.r,height:s.height,sceneryHeight:s.height,mesh:root,biome:id,place:true};world.obstacles.push(obstacle);if(world.regions)scope.obstacles.push(obstacle);solids.push(obstacle);}
-   const place={...p,biome:id,index:n,kind:template.kind,name:template.name,focus:{...at(p,template.focus.x,template.focus.z),y:template.focus.y},mesh:group,solids,removed:removed.length,entrance:at(p,0,-9),exit:at(p,0,9)};
+   const place={...p,biome:id,index:n,variant:template.variant,kind:template.kind,name:template.name,focus:{...at(p,template.focus.x,template.focus.z),y:template.focus.y},mesh:group,solids,removed:removed.length,entrance:at(p,0,-9),exit:at(p,0,9)};
    if(place.pier)place.solids.push(...installHarborBank(world,place));places.push(place);
   }
  }

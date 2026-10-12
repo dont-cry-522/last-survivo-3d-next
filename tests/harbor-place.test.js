@@ -4,7 +4,7 @@ import * as T from '../vendor/three.module.js';
 import {buildHarborPlace} from '../harbor-place.js';
 import {createOverheadQuery} from '../adventure-overheads.js';
 
-function build(){
+function build(variant=0){
  const pieces=[],solids=[],dummy=new T.Object3D();
  const kit={piece(category,geometry,color,transform={}){
   const {x=0,y=0,z=0,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1,overhead=false}=transform;
@@ -14,7 +14,7 @@ function build(){
   const alongX=w>=d,length=Math.max(w,d),thick=Math.min(w,d),steps=Math.max(1,Math.ceil(length/.65)),span=length/steps,r=Math.hypot(span/2,thick/2),c=Math.cos(angle),s=Math.sin(angle);
   for(let i=0;i<steps;i++){const q=-length/2+(i+.5)*span,dx=alongX?q:0,dz=alongX?0:q;solids.push({x:x+c*dx+s*dz,z:z-s*dx+c*dz,r,height});}
  }};
- const meta=buildHarborPlace(kit);return{pieces,solids,meta,dispose(){for(const p of pieces)p.geometry.dispose();}};
+ const meta=buildHarborPlace(kit,variant);return{pieces,solids,meta,dispose(){for(const p of pieces)p.geometry.dispose();}};
 }
 function contains(s,x,y,z){
  if(y>s.height+.015)return false;
@@ -23,9 +23,10 @@ function contains(s,x,y,z){
  return Math.abs(c*dx-n*dz)<=s.w/2+.015&&Math.abs(n*dx+c*dz)<=s.d/2+.015;
 }
 
-test('wreck wharf has a continuous long hull and an open net shed within its footprint and batch budget',()=>{
- const b=build(),categories=new Set(),batches=new Set();let triangles=0,hullVertices=0;
- assert.equal(b.meta.kind,'wreck-wharf');assert.equal(b.meta.name,'搁浅船坞');
+for(const variant of[0,1]){
+test(`harbor ${variant} has a continuous long hull and an open net shed within its footprint and batch budget`,()=>{
+ const b=build(variant),categories=new Set(),batches=new Set();let triangles=0,hullVertices=0;
+ assert.equal(b.meta.kind,variant?'loading-wharf':'wreck-wharf');assert.equal(b.meta.name,variant?'整备装卸埠':'搁浅船坞');
  for(const piece of b.pieces){
   categories.add(piece.category);batches.add(piece.category+':'+piece.overhead);
   const g=piece.geometry,p=g.attributes.position;triangles+=(g.index?.count??p.count)/3;
@@ -44,8 +45,8 @@ test('wreck wharf has a continuous long hull and an open net shed within its foo
  b.dispose();
 });
 
-test('all raised non-overhead vertices have registered solids, with no blocking floor or centre-line collider',()=>{
- const b=build(),a=new T.Vector3(),c=new T.Vector3(),d=new T.Vector3(),point=new T.Vector3();
+test(`harbor ${variant}: all raised non-overhead vertices have registered solids, with no blocking floor or centre-line collider`,()=>{
+ const b=build(variant),a=new T.Vector3(),c=new T.Vector3(),d=new T.Vector3(),point=new T.Vector3();
  const check=(x,y,z)=>assert(y<=.3||b.solids.some(s=>contains(s,x,y,z)),`unregistered solid at ${x.toFixed(3)}, ${y.toFixed(3)}, ${z.toFixed(3)}`);
  for(const piece of b.pieces){
   if(piece.overhead)continue;
@@ -66,8 +67,8 @@ test('all raised non-overhead vertices have registered solids, with no blocking 
  b.dispose();
 });
 
-test('both sides of the closed hull have outward winding for consistent wood lighting',()=>{
- const b=build(),a=new T.Vector3(),c=new T.Vector3(),d=new T.Vector3();
+test(`harbor ${variant}: both sides of the closed hull have outward winding for consistent wood lighting`,()=>{
+ const b=build(variant),a=new T.Vector3(),c=new T.Vector3(),d=new T.Vector3();
  for(const piece of b.pieces.slice(0,10)){
   const p=piece.geometry.attributes.position,index=piece.geometry.index;let volume=0;
   for(let i=0;i<index.count;i+=3){a.fromBufferAttribute(p,index.getX(i));c.fromBufferAttribute(p,index.getX(i+1));d.fromBufferAttribute(p,index.getX(i+2));volume+=a.dot(c.cross(d))/6;}
@@ -76,8 +77,8 @@ test('both sides of the closed hull have outward winding for consistent wood lig
  b.dispose();
 });
 
-test('only loose canvas and net move, with pinned attachments and the entire wind envelope inside existing solids',()=>{
- const b=build(),moving=b.pieces.filter(p=>p.geometry.attributes.harborFlex);assert(moving.length>20);
+test(`harbor ${variant}: only loose canvas and net move, with pinned attachments and the entire wind envelope inside existing solids`,()=>{
+ const b=build(variant),moving=b.pieces.filter(p=>p.geometry.attributes.harborFlex);assert(moving.length>20);
  const allowed=new Set(['SM_Harbor_GatheredSail_A','SM_Harbor_RepairSail_A','SM_Harbor_DryingNet_A']);
  for(const piece of moving){
   const g=piece.geometry,p=g.attributes.position,n=g.attributes.normal,w=g.attributes.harborFlex;
@@ -100,8 +101,8 @@ test('only loose canvas and net move, with pinned attachments and the entire win
  b.dispose();
 });
 
-test('repair hoist, suspended cargo and layered sailcloth provide a connected middle and upper silhouette',()=>{
- const b=build(),named=new Map(b.pieces.filter(p=>p.geometry.name).map(p=>[p.geometry.name,p]));
+test(`harbor ${variant}: repair hoist, suspended cargo and layered sailcloth provide a connected middle and upper silhouette`,()=>{
+ const b=build(variant),named=new Map(b.pieces.filter(p=>p.geometry.name).map(p=>[p.geometry.name,p]));
  for(const name of['SM_Harbor_WinchDrum_A','SM_Harbor_HoistSheave_A','SM_Harbor_SuspendedSling_A','SM_Harbor_RepairSail_A','SM_Harbor_GatheredSail_A','SM_Harbor_FurledSail_A','SM_Harbor_TiedCargo_1'])assert(named.has(name),name+' is absent');
  const sheave=named.get('SM_Harbor_HoistSheave_A'),sling=named.get('SM_Harbor_SuspendedSling_A'),sail=named.get('SM_Harbor_GatheredSail_A');
  sheave.geometry.computeBoundingBox();sling.geometry.computeBoundingBox();sail.geometry.computeBoundingBox();
@@ -121,11 +122,33 @@ test('repair hoist, suspended cargo and layered sailcloth provide a connected mi
  b.dispose();
 });
 
-test('each build transfers independent geometry without consuming layout randomness',()=>{
- const a=build(),random=Math.random;let b;
- try{Math.random=()=>.7;b=build();}finally{Math.random=random;}
+test(`harbor ${variant}: each build transfers independent geometry without consuming layout randomness`,()=>{
+ const a=build(variant),random=Math.random;let b;
+ try{Math.random=()=>.7;b=build(variant);}finally{Math.random=random;}
  assert.deepEqual(a.meta,b.meta);assert.deepEqual(a.solids,b.solids);assert.equal(a.pieces.length,b.pieces.length);
  for(let i=0;i<a.pieces.length;i++){assert.notEqual(a.pieces[i].geometry,b.pieces[i].geometry);assert.deepEqual(a.pieces[i].geometry.attributes.position.array,b.pieces[i].geometry.attributes.position.array);}
  let released=0;for(const p of a.pieces)p.geometry.addEventListener('dispose',()=>released++);a.dispose();assert.equal(released,a.pieces.length);
  assert(b.pieces.every(p=>p.geometry.attributes.position.count>0));b.dispose();
+});
+}
+
+test('loading berth relocates complete work and cargo areas without adding pieces, triangles or solid records',()=>{
+ const wreck=build(),loading=build(1),triangles=b=>b.pieces.reduce((n,p)=>n+p.geometry.index.count/3,0);
+ assert.equal(loading.pieces.length,wreck.pieces.length);assert.equal(triangles(loading),triangles(wreck));assert.equal(loading.solids.length,wreck.solids.length);
+ const blocked=(b,x,y,z)=>b.solids.some(s=>contains(s,x,y,z));
+ assert(blocked(wreck,7.72,1,1.82));assert(!blocked(loading,7.72,1,1.82),'old bench collider survived its move');
+ assert(!blocked(wreck,7.72,1,-2.10));assert(blocked(loading,7.72,1,-2.10),'new working station has no matching collider');
+ assert(blocked(wreck,4.92,1,-5.5));assert(!blocked(loading,4.92,1,-5.5),'pier-facing approach still carries the original stack');
+ assert(blocked(loading,5.08,1,-2.0));assert(!blocked(wreck,5.08,1,-2.0));
+ const looseNet=b=>b.solids.find(s=>s.r===.79&&s.height===.55);
+ assert.equal(looseNet(wreck).z,-2.48);assert(Math.abs(looseNet(loading).z-2.80)<1e-8,'low net did not move into the cleared shed');
+ // The low bundle stays jumpable; changing the activity must not erect a new wall.
+ assert.equal(looseNet(loading).height,looseNet(wreck).height);
+ const netFloor=b=>Math.min(...b.pieces.filter(p=>p.geometry.name==='SM_Harbor_DryingNet_A').flatMap(p=>Array.from(p.geometry.attributes.position.array).filter((_,i)=>i%3===1)));
+ assert(netFloor(loading)-netFloor(wreck)>.3,'drying net was only recoloured');
+ assert.notDeepEqual(loading.pieces[9].geometry.attributes.position.array,wreck.pieces[9].geometry.attributes.position.array,'repaired upper strake retained its broken notch');
+ // The camera reads a new activity focus, while all building roofs stay identical.
+ assert.notDeepEqual(loading.meta.focus,wreck.meta.focus);
+ const roofs=b=>b.pieces.filter(p=>p.overhead).map(p=>p.geometry.attributes.position.array);
+ assert.deepEqual(roofs(loading),roofs(wreck));wreck.dispose();loading.dispose();
 });

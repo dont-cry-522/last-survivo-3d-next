@@ -2,7 +2,8 @@ import * as T from './vendor/three.module.js';
 
 // Local, deterministic shipyard scenery. The centre lane stays empty; the kit
 // owns batching, material finishes and the matching world-space solid records.
-export function buildHarborPlace(kit){
+export function buildHarborPlace(kit,variant=0){
+ const loading=variant===1;
  const timber=0x817b65,dark=0x4b5752,cut=0xa59b7d,rope=0x96937b,iron=0x4d6260;
  const add=(geometry,color,transform={},category='wood')=>kit.piece(category,geometry,color,transform);
  const plank=(color,x,y,z,w,h,d,ry=0,rz=0,overhead=false)=>add(new T.BoxGeometry(w,h,d),color,{x,y,z,ry,rz,overhead});
@@ -38,7 +39,7 @@ export function buildHarborPlace(kit){
    for(const lift of[-.038,.038])for(const u of[low,high]){
     const v=hull(t,u,side);v[1]+=lift;
     // A missing upper plank opens the port quarter instead of a uniform rim.
-    if(side===1&&row===4&&j>10&&j<15)v[1]-=.38;
+    if(!loading&&side===1&&row===4&&j>10&&j<15)v[1]-=.38;
     p.push(...v);
    }
    if(j<steps){const n=j*4;for(const[a,b,c,d]of[[0,4,1,5],[2,3,6,7],[0,2,4,6],[1,5,3,7]])indices.push(n+a,n+b,n+c,n+c,n+b,n+d);}
@@ -124,11 +125,14 @@ export function buildHarborPlace(kit){
  // Sagging fishing net against the back wall: visible knots and open diamonds,
  // not a solid translucent sheet that competes with targets.
  const netFlex=(x,y)=>(1-T.MathUtils.smoothstep(y,.80,2.19))*T.MathUtils.smoothstep(x,4.44,4.95)*(1-T.MathUtils.smoothstep(x,6.94,7.36))*.55;
- for(let i=0;i<11;i++)curve([[4.40+i*.30,2.23,5.86],[4.37+i*.30,1.37,5.75],[4.40+i*.30,.56,5.81]],rope,.014,'cloth',false,netFlex);
- for(let i=0;i<7;i++)curve([[4.40,.60+i*.26,5.81],[5.88,.52+i*.26,5.70],[7.40,.60+i*.26,5.81]],rope,.014,'cloth',false,netFlex);
+ // In the loading berth the lower net has been lifted to clear sorted cargo.
+ // Its original pinned top and wall footprint remain fixed.
+ const netY=y=>loading?2.23-(2.23-y)*.76:y;
+ for(let i=0;i<11;i++)curve([[4.40+i*.30,2.23,5.86],[4.37+i*.30,netY(1.37),5.75],[4.40+i*.30,netY(.56),5.81]],rope,.014,'cloth',false,netFlex);
+ for(let i=0;i<7;i++)curve([[4.40,netY(.60+i*.26),5.81],[5.88,netY(.52+i*.26),5.70],[7.40,netY(.60+i*.26),5.81]],rope,.014,'cloth',false,netFlex);
  // Gathered sailcloth hangs above the drying net. Its uneven folds have depth
  // and an open lower edge rather than filling the shed with an opaque wall.
- canvas('SM_Harbor_GatheredSail_A',0x88968e,(u,v)=>[4.66+u*2.65,3.10-v*(.54+.22*Math.sin(u*Math.PI))+.018*Math.sin(u*28),5.79-.066*Math.sin(u*31)*(v*.45+.55)],(u,v)=>Math.sin(u*Math.PI)**2*v*v);
+ canvas('SM_Harbor_GatheredSail_A',0x88968e,(u,v)=>[4.66+u*2.65,3.10-v*(loading?.40+.15*Math.sin(u*Math.PI):.54+.22*Math.sin(u*Math.PI))+.018*Math.sin(u*28),5.79-.066*Math.sin(u*31)*(v*.45+.55)],(u,v)=>Math.sin(u*Math.PI)**2*v*v);
  for(const x of[4.71,7.24])bar(rope,[x,3.15,5.81],[x,2.42,5.77],.024,'cloth');
  const roll=new T.CylinderGeometry(.135,.135,2.52,14,4);roll.name='SM_Harbor_FurledSail_A';
  const rollPoints=roll.attributes.position;for(let i=0;i<rollPoints.count;i++){const y=rollPoints.getY(i),r=1+.08*Math.sin(y*12);rollPoints.setX(i,rollPoints.getX(i)*r);rollPoints.setZ(i,rollPoints.getZ(i)*r);}roll.computeVertexNormals();
@@ -153,8 +157,9 @@ export function buildHarborPlace(kit){
    for(const side of[-1,1])curve([[x+side*size*.44,y-.12,z],[x+side*size*.38,y+.20,z],[x,y+.29,z]],rope,.021,'cloth');
   }
  };
- crate(4.92,-5.50,1.15,true);crate(6.50,-5.75,.90);crate(7.51,4.79,1.05,true);
- for(const [x,z]of[[7.82,-4.38],[4.8,4.65]]){
+ const cargo=loading?[[5.08,-2.0,1.15,false],[7.37,-5.75,.90,true],[5.00,4.79,1.05,true]]:[[4.92,-5.50,1.15,true],[6.50,-5.75,.90,false],[7.51,4.79,1.05,true]];
+ for(const [x,z,w,tall]of cargo)crate(x,z,w,tall);
+ for(const [x,z]of loading?[[7.82,-4.38],[6.10,4.65]]:[[7.82,-4.38],[4.8,4.65]]){
   for(let level=0;level<(x>7?2:1);level++){
    const base=level*.90,body=new T.CylinderGeometry(.37,.37,.84,24,6),bp=body.attributes.position,bc=[];
    body.name='SM_Harbor_BarrelStaves_A';
@@ -169,24 +174,26 @@ export function buildHarborPlace(kit){
   }
   kit.solid(x,z,.42,x>7?1.86:.92);
  }
- // A narrow repair bench and leaning oars add a working edge within the shed,
- // keeping its inner approach and the full central route unobstructed.
- plank(cut,7.72,1.01,1.82,1.06,.12,2.72);
- for(const z of[.72,2.92])for(const x of[7.35,8.09])plank(dark,x,.50,z,.10,1,.13);
- bar(timber,[7.35,.27,.72],[8.09,.85,2.92],.065);
+ // The loading berth moves this whole station to the pier-facing edge. Its
+ // tools, leaning oars and collider travel together; the shed opens for cargo.
+ const benchZ=loading?-3.92:0;
+ plank(cut,7.72,1.01,1.82+benchZ,1.06,.12,2.72);
+ for(const z of[.72,2.92])for(const x of[7.35,8.09])plank(dark,x,.50,z+benchZ,.10,1,.13);
+ bar(timber,[7.35,.27,.72+benchZ],[8.09,.85,2.92+benchZ],.065);
  for(const z of[.86,1.67,2.48]){
-  bar(timber,[7.92,.12,z],[8.06,2.64,z+.20],.035);
-  plank(cut,8.05,2.38,z+.18,.24,.69,.042,0,-.055);
+  bar(timber,[7.92,.12,z+benchZ],[8.06,2.64,z+.20+benchZ],.035);
+  plank(cut,8.05,2.38,z+.18+benchZ,.24,.69,.042,0,-.055);
  }
- kit.solidBox(7.72,1.86,1.14,2.90,2.86);
- plank(iron,7.63,1.10,1.24,.40,.035,.24,.14);
- bar(timber,[7.53,1.12,1.53],[7.92,1.15,1.89],.037);
- bar(iron,[7.51,1.14,1.44],[7.59,1.14,1.65],.043,'metal');
+ kit.solidBox(7.72,1.86+benchZ,1.14,2.90,2.86);
+ plank(iron,7.63,1.10,1.24+benchZ,.40,.035,.24,.14);
+ bar(timber,[7.53,1.12,1.53+benchZ],[7.92,1.15,1.89+benchZ],.037);
+ bar(iron,[7.51,1.14,1.44+benchZ],[7.59,1.14,1.65+benchZ],.043,'metal');
  // Coiled lines lie below the step-free floor-detail limit.
  for(const [x,z]of[[7.47,-6.46],[4.91,-3.16]])for(let i=0;i<3;i++)add(new T.TorusGeometry(.22+i*.068,.023,4,18),rope,{x,y:.079,z,rx:Math.PI/2},'cloth');
  // A bundled net has its own low collider; it is not an invisible trip hazard.
- add(new T.SphereGeometry(.5,12,7),0x5f746a,{x:7.52,y:.25,z:-2.48,sx:1.5,sy:.47,sz:1.15},'cloth');
- for(let i=0;i<5;i++)bar(rope,[6.93+i*.29,.14,-2.92],[6.98+i*.25,.48,-2.13],.018,'cloth');
- kit.solid(7.52,-2.48,.79,.55);
- return{kind:'wreck-wharf',name:'搁浅船坞',focus:{x:cx,y:1.5,z:-.3}};
+ const netZ=loading?5.28:0;
+ add(new T.SphereGeometry(.5,12,7),0x5f746a,{x:7.52,y:.25,z:-2.48+netZ,sx:1.5,sy:.47,sz:1.15},'cloth');
+ for(let i=0;i<5;i++)bar(rope,[6.93+i*.29,.14,-2.92+netZ],[6.98+i*.25,.48,-2.13+netZ],.018,'cloth');
+ kit.solid(7.52,-2.48+netZ,.79,.55);
+ return loading?{kind:'loading-wharf',name:'整备装卸埠',focus:{x:6.1,y:1.5,z:-1.3}}:{kind:'wreck-wharf',name:'搁浅船坞',focus:{x:cx,y:1.5,z:-.3}};
 }

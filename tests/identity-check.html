@@ -1,0 +1,149 @@
+<!doctype html><meta charset="utf-8"><title>七英雄与十三武器身份检查</title>
+<style>body{margin:20px;background:#17262b;color:#e1e7e2;font:14px system-ui}canvas{max-width:100%;height:auto;display:block;margin:12px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#b6ddcf;margin-right:18px}</style>
+<h1>角色与武器 · 身份细节</h1>
+<p>正式角色、骨骼、材质与第一人称持握。角色图保留完整模型遮挡；武器每组为实际持握近景与 70° 第一人称。几何射线只检查可见性，造型与质感仍需看图。</p>
+<p id="status" data-state="loading">载入中</p><a id="save-heroes">保存角色局部图</a><a id="save-weapons">保存武器双视角图</a><a id="save-json">保存检查报告</a>
+<div id="heroes"></div><div id="weapons"></div><pre id="report"></pre>
+<script type="module">
+import * as T from '../vendor/three.module.js';
+import {actor,animateActor} from '../world.js?v=172';
+import {FirstPersonView} from '../first-person-view.js?v=172';
+import {HERO_LOADOUTS,WEAPONS} from '../rules.js?v=125';
+import {WEAPON_RECOVERY} from '../weapon-performance.js?v=170';
+
+const errors=[],results={heroes:[],weapons:[]},status=document.querySelector('#status'),report=document.querySelector('#report');
+addEventListener('error',e=>errors.push(e.message));addEventListener('unhandledrejection',e=>errors.push(String(e.reason)));
+const labels={scout:'游侠',silver:'霜影',wraith:'影裔',tide:'潮行者',lingya:'铃芽',wuling:'雾苓',mirage:'蜃影'};
+const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(1);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
+renderer.domElement.id='identity-live-render';
+const scene=new T.Scene(),fpScene=new T.Scene(),camera=new T.PerspectiveCamera(32,1,.015,50),fpCamera=new T.PerspectiveCamera(70,16/9,.015,50),fp=new FirstPersonView(fpCamera);fpCamera.layers.enable(1);fpScene.add(fpCamera);
+function lights(target,firstPerson=false){
+ target.background=new T.Color(0x34434a);const sky=new T.HemisphereLight(0x9cabb9,0x394a3f,1.3),sun=new T.DirectionalLight(0xffe0b5,3.4),rim=new T.DirectionalLight(0x9dbbcf,.9);
+ sun.position.set(-8,14,10);rim.position.set(4,7,-6);if(firstPerson){for(const light of[sky,sun,rim])light.layers.enable(1);}else{sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-3,right:3,top:3,bottom:-3});sun.shadow.normalBias=.012;}
+ target.add(sky,sun,rim);
+}
+lights(scene);lights(fpScene,true);
+const floor=new T.Mesh(new T.PlaneGeometry(20,20),new T.MeshStandardMaterial({color:0x566254,roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=-.015;floor.receiveShadow=true;scene.add(floor);
+function sheet(id,width,height,parent){const c=document.createElement('canvas');c.id=id;c.width=width;c.height=height;document.querySelector(parent).append(c);const ctx=c.getContext('2d');ctx.fillStyle='#17262b';ctx.fillRect(0,0,width,height);return[c,ctx];}
+const [heroSheet,hc]=sheet('hero-identity-sheet',1600,880,'#heroes'),[weaponSheet,wc]=sheet('weapon-identity-sheet',2048,2296,'#weapons');
+const visible=o=>{for(let p=o;p;p=p.parent)if(!p.visible)return false;return true;};
+const meshes=root=>{const list=[];root?.traverse(o=>{if(o.isMesh)list.push(o);});return list;};
+const marked=root=>meshes(root).filter(o=>o.userData.identityDetail);
+const materials=o=>Array.isArray(o.material)?o.material:[o.material];
+const finite=root=>{let good=true;root.updateMatrixWorld(true);root.traverse(o=>{good&&=o.matrixWorld.elements.every(Number.isFinite);if(o.isMesh){good&&=o.geometry.attributes.position.array.every(Number.isFinite);for(const m of materials(o))good&&=Number.isFinite(m.opacity);}});return good;};
+const isWithin=(node,root)=>{for(let p=node;p;p=p.parent)if(p===root)return true;return false;};
+function resources(list){const out=new Set();for(const mesh of list){out.add(mesh.geometry);for(const m of materials(mesh))out.add(m);}return out;}
+function watch(list){const counts={geometry:0,material:0},watched=resources(list),onDispose=e=>counts[e.target.isBufferGeometry?'geometry':'material']++;for(const resource of watched)resource.addEventListener('dispose',onDispose);return{counts,stop(){for(const resource of watched)resource.removeEventListener('dispose',onDispose);}};}
+function surfaceState(mesh){const m=mesh.material;return{opacity:m.opacity,depthWrite:m.depthWrite,castShadow:mesh.castShadow};}
+function caption(ctx,text,x,y,detail=''){ctx.fillStyle='#e1e7e2';ctx.font='16px system-ui';ctx.fillText(text,x+10,y+19);if(detail){ctx.fillStyle='#b0c1be';ctx.font='12px system-ui';ctx.fillText(detail,x+10,y+35);}}
+function frame(center,height,direction=[.22,.10,1]){camera.position.copy(center).add(new T.Vector3(...direction).normalize().multiplyScalar(height/(2*Math.tan(T.MathUtils.degToRad(camera.fov/2)))));camera.lookAt(center);camera.updateMatrixWorld(true);}
+function render(target,cam,width,height){renderer.setSize(width,height);cam.aspect=width/height;cam.updateProjectionMatrix();renderer.render(target,cam);return{calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,glError:renderer.getContext().getError(),shaders:renderer.info.programs.every(p=>p.diagnostics?.runnable!==false)};}
+let time=1;
+function pose(model,weapon,phase='idle',speed=0,frames=45,view=null){
+ const age=phase==='idle'?2:(phase==='attack'?.25:.82)*WEAPON_RECOVERY[weapon];
+ for(let i=0;i<frames;i++){
+  time+=1/60;const d=model.userData;Object.assign(d,{travelAngle:0,aimActive:true,shotSerial:1,lastShotSerial:1,reloadDuration:1,attackAge:age,reloadPhase:phase==='idle'?1:age});
+  animateActor(model,time,speed,phase==='attack'?.12:0);d.attackAge=age;
+  view?.update(time,1/60,{visible:true,moving:speed/4,attack:phase==='attack'?.12:0,attackDuration:1});
+ }
+ model.updateMatrixWorld(true);if(view)fpCamera.updateMatrixWorld(true);
+}
+function bounds(list){const box=new T.Box3();for(const mesh of list)box.union(new T.Box3().setFromObject(mesh));return box;}
+function projectedBox(list,cam){
+ const out={minX:Infinity,minY:Infinity,maxX:-Infinity,maxY:-Infinity};
+ for(const mesh of list){const g=mesh.geometry;if(!g.boundingBox)g.computeBoundingBox();for(const x of[g.boundingBox.min.x,g.boundingBox.max.x])for(const y of[g.boundingBox.min.y,g.boundingBox.max.y])for(const z of[g.boundingBox.min.z,g.boundingBox.max.z]){const p=new T.Vector3(x,y,z).applyMatrix4(mesh.matrixWorld).project(cam);if(p.z<=-1||p.z>=1)continue;out.minX=Math.min(out.minX,p.x);out.maxX=Math.max(out.maxX,p.x);out.minY=Math.min(out.minY,p.y);out.maxY=Math.max(out.maxY,p.y);}}
+ return Object.values(out).every(Number.isFinite)?out:null;
+}
+// Sample rays that actually hit a marked triangle, then compare the first
+// visible physical surface. Invisible parents and translucent aura shaders do
+// not occlude the fitting. No geometry/material is altered for this probe.
+function exposure(targets,root,cam){
+ root.updateMatrixWorld(true);cam.updateMatrixWorld(true);const selected=new Set(targets),physical=meshes(root).filter(o=>visible(o)&&materials(o).some(m=>!m.isShaderMaterial&&m.opacity>.20));
+ for(const o of physical)if(o.isSkinnedMesh){o.skeleton.update();o.computeBoundingSphere();o.computeBoundingBox();}
+ const ray=new T.Raycaster();ray.layers.mask=cam.layers.mask;let hits=0,clear=0,offscreen=0;const samples=new Set(),occluders={},surfaces={};
+ for(const mesh of targets){const box=projectedBox([mesh],cam);if(!box)continue;
+  for(let x=0;x<10;x++)for(let y=0;y<12;y++){
+   const u=T.MathUtils.lerp(box.minX,box.maxX,(x+.5)/10),v=T.MathUtils.lerp(box.minY,box.maxY,(y+.5)/12),key=u.toFixed(5)+':'+v.toFixed(5);if(samples.has(key))continue;samples.add(key);
+   if(Math.abs(u)>1||Math.abs(v)>1){offscreen++;continue;}ray.setFromCamera(new T.Vector2(u,v),cam);const mark=ray.intersectObjects(targets.filter(visible),false)[0];if(!mark)continue;hits++;
+   const surface=surfaces[mark.object.name]??={hits:0,clear:0};surface.hits++;
+   const first=ray.intersectObjects(physical,false)[0];if(first&&selected.has(first.object)){clear++;surface.clear++;}else if(first){const name=first.object.name||first.object.type;occluders[name]=(occluders[name]||0)+1;}
+  }
+ }
+ const box=projectedBox(targets,cam);return{hits,clear,fraction:hits?Number((clear/hits).toFixed(3)):0,offscreen,projectedBounds:box,occluders,surfaces};
+}
+function requireCheck(row,key,pass,detail){row.checks.push({key,pass:!!pass,...(detail===undefined?{}:{detail})});}
+function pass(row){return row.checks.every(c=>c.pass);}
+function publish(){report.textContent=JSON.stringify({state:status.dataset.state,results,errors},null,2);}
+function mechanismNodes(gun,id){
+ const d=gun.userData,out=[];const add=(key,node)=>out.push({key,node});
+ if(id==='crossbow'){(d.crossbowStrings||[]).forEach((node,i)=>add('string'+i,node));add('bolt',d.crossbowBolt);add('latch',d.crossbowLatch);}
+ if(id==='shotgun')add('pump',d.pump);if(id==='grimoire')add('page',d.page);if(id==='shade')add('focus',d.focus);
+ if(['sporelantern','miasmalantern'].includes(id))add('heart',d.heart);if(id==='miasmalantern')(d.petals||[]).forEach((node,i)=>add('petal'+i,node));return out;
+}
+function compareMaterial(a,b){
+ const failures=[];for(const key of['roughness','metalness','side','depthTest','depthWrite','transparent','opacity','normalMap','roughnessMap','map','vertexColors'])if(a[key]!==b[key])failures.push(key);
+ if(a.color&&!a.color.equals(b.color))failures.push('color');if(a.normalScale&&!a.normalScale.equals(b.normalScale))failures.push('normalScale');return failures;
+}
+try{
+ // Import the exact skinned-hero module used by world.js; never create a second
+ // asset/template cache, or patch integration locally to make the check pass.
+ const worldSource=await(await fetch('../world.js',{cache:'no-store'})).text(),entry=worldSource.match(/from['"](.\/skinned-hero\.js[^'"]*)['"]/)[1];
+ const {loadHeroAssets,disposeHero}=await import(new URL('../'+entry,location.href));await loadHeroAssets();
+ for(const [index,[kind,loadout]]of Object.entries(HERO_LOADOUTS).entries()){
+  status.textContent='角色身份：'+labels[kind];const weapon=loadout[0],row={kind,weapon,checks:[]};results.heroes.push(row);let a,b,watched;
+  try{
+   a=actor(kind,weapon);b=actor(kind,weapon);requireCheck(row,'actualSkinnedInstances',a.userData.skinned&&b.userData.skinned);scene.add(b);
+   const markA=a.getObjectByName('SM_Hero_Identity_'+kind),markB=b.getObjectByName('SM_Hero_Identity_'+kind),partsA=marked(markA),partsB=marked(markB);
+   let primaryCount=0;b.traverse(o=>{if(o.userData.identityRole==='primary')primaryCount++;});
+   requireCheck(row,'onePrimaryMark',!!markA&&!!markB&&primaryCount===1&&markB.userData.identityRole==='primary'&&partsB.length>0,{count:primaryCount,meshes:partsB.length,bone:markB?.parent?.name});
+   if(!markA||!markB)throw Error('Production hero identity is missing: '+kind);
+   requireCheck(row,'sharedGeometry',partsA.length===partsB.length&&partsA.every((m,i)=>m.geometry===partsB[i].geometry));
+   watched=watch(partsB);const before=partsB.map(surfaceState);
+   if(kind==='mirage'){
+    a.userData.mirageConceal=1;pose(a,weapon,'idle',0,75);const faded=partsA.map(surfaceState);
+    requireCheck(row,'mirageFadeIsolated',faded.every(s=>s.opacity<.25&&!s.depthWrite)&&partsB.every((m,i)=>JSON.stringify(surfaceState(m))===JSON.stringify(before[i])),{a:faded,b:partsB.map(surfaceState)});
+    a.userData.mirageConceal=0;pose(a,weapon,'idle',0,75);requireCheck(row,'mirageFadeRestores',partsA.every((m,i)=>Math.abs(m.material.opacity-before[i].opacity)<.002&&m.material.depthWrite===before[i].depthWrite));
+   }
+   disposeHero(a);a=null;requireCheck(row,'disposeADoesNotDisposeB',watched.counts.geometry===0&&watched.counts.material===0,{...watched.counts});
+   pose(b,weapon);camera.aspect=1;camera.updateProjectionMatrix();const center=bounds(partsB).getCenter(new T.Vector3());frame(center,.53);
+   const cost=render(scene,camera,400,400),visibility=exposure(partsB,b,camera);row.visibility=visibility;row.cost=cost;
+   requireCheck(row,'primaryHasUnoccludedSurface',visibility.clear>0,visibility);requireCheck(row,'finiteAfterOtherInstanceDisposed',finite(b));requireCheck(row,'render',cost.glError===0&&cost.shaders);
+   const x=index%4*400,y=Math.floor(index/4)*440;hc.drawImage(renderer.domElement,x,y);caption(hc,labels[kind]+' · 身份局部',x,y+397,'几何可见 '+visibility.clear+'/'+visibility.hits+' · '+partsB.length+' 个网格');
+   row.motion=[];for(const phase of['attack','recover']){pose(b,weapon,phase,3,24);requireCheck(row,'finite_'+phase,finite(b));row.motion.push({phase,markPosition:markB.getWorldPosition(new T.Vector3()).toArray()});}
+  }catch(error){row.error=String(error.stack||error);requireCheck(row,'exception',false,String(error));}
+  finally{watched?.stop();if(a)disposeHero(a);if(b){scene.remove(b);disposeHero(b);}row.pass=pass(row);publish();await new Promise(r=>setTimeout(r,0));}
+ }
+ let index=0;
+ for(const [kind,loadout]of Object.entries(HERO_LOADOUTS))for(const id of loadout){
+  status.textContent='武器身份：'+WEAPONS[id].name;const row={kind,weapon:id,checks:[]};results.weapons.push(row);let hero,watched;
+  try{
+   hero=actor(kind,id);const gun=hero.userData.gun;scene.add(hero);requireCheck(row,'actualSkinnedActor',hero.userData.skinned);requireCheck(row,'declaredIdentity',gun.userData.weaponIdentity?.hero===kind&&gun.userData.weaponIdentity?.weapon===id,gun.userData.weaponIdentity);
+   pose(hero,id);fp.setHero(hero,id);pose(hero,id,'idle',0,30,fp);const targets=marked(gun),pairs=targets.map(source=>[source,fp.parts.find(([s])=>s===source)?.[1]]);watched=watch(targets);
+   requireCheck(row,'hasIdentitySurfaces',targets.length>0,{meshes:targets.length,names:targets.map(o=>o.name)});
+   const copyFailures=pairs.flatMap(([source,copy])=>!copy?[source.name+': missing']:copy.geometry!==source.geometry?[source.name+': geometry replaced']:compareMaterial(source.material,copy.material).map(key=>source.name+': '+key));
+   requireCheck(row,'fpIdentityGeometryAndFinish',copyFailures.length===0,copyFailures);
+   const refs=mechanismNodes(gun,id),expected=id==='crossbow'?4:id==='miasmalantern'?1+(gun.userData.petals?.length||0):['shotgun','grimoire','shade','sporelantern'].includes(id)?1:0;
+   requireCheck(row,'mechanismReferences',refs.length===expected&&(id!=='miasmalantern'||expected>1)&&refs.every(({node})=>node?.isObject3D&&isWithin(node,gun)&&fp.parts.some(([source])=>source===node)),refs.map(({key,node})=>({key,name:node?.name,valid:!!node?.isObject3D})));
+   const tile=index%2*1024,y=Math.floor(index/2)*328;
+   camera.aspect=16/9;camera.updateProjectionMatrix();const box=bounds(meshes(gun).filter(visible)),size=box.getSize(new T.Vector3());frame(box.getCenter(new T.Vector3()),Math.max(.42,size.y*1.42,size.x/1.7778*1.42),[.28,.18,1]);
+   row.thirdPersonCost=render(scene,camera,512,288);wc.drawImage(renderer.domElement,tile,y);caption(wc,WEAPONS[id].name+' · 实际持握近景',tile,y+287);
+   row.firstPersonCost=render(fpScene,fpCamera,512,288);wc.drawImage(renderer.domElement,tile+512,y);
+   const fpTargets=pairs.map(([,copy])=>copy).filter(Boolean),visibility=exposure(fpTargets,fp.root,fpCamera);row.firstPersonVisibility=visibility;requireCheck(row,'fpIdentityHasUnoccludedSurface',visibility.clear>0,visibility);caption(wc,WEAPONS[id].name+' · 70° 第一人称',tile+512,y+287,'身份表面可见 '+visibility.clear+'/'+visibility.hits);
+   row.poses=[];for(const phase of['idle','attack','recover']){
+    pose(hero,id,phase,phase==='idle'?0:3,30,fp);let mirrored=true;
+    for(const {node}of refs){const copy=fp.parts.find(([source])=>source===node)?.[1];mirrored&&=!!copy&&copy.position.distanceTo(node.position)<1e-7&&1-Math.abs(copy.quaternion.dot(node.quaternion))<1e-7&&copy.scale.distanceTo(node.scale)<1e-7&&copy.visible===node.visible;}
+    const valid=finite(hero)&&finite(fp.root);requireCheck(row,'finite_'+phase,valid);requireCheck(row,'mechanismsMirror_'+phase,mirrored);row.poses.push({phase,finite:valid,mirrored});
+   }
+   requireCheck(row,'render',row.thirdPersonCost.glError===0&&row.firstPersonCost.glError===0&&row.thirdPersonCost.shaders&&row.firstPersonCost.shaders);
+   fp.clear();requireCheck(row,'fpClearRetainsSharedIdentity',watched.counts.geometry===0&&watched.counts.material===0,{...watched.counts});
+  }catch(error){row.error=String(error.stack||error);requireCheck(row,'exception',false,String(error));}
+  finally{fp.clear();watched?.stop();if(hero){scene.remove(hero);disposeHero(hero);}row.pass=pass(row);index++;publish();await new Promise(r=>setTimeout(r,0));}
+ }
+ const good=results.heroes.length===7&&results.weapons.length===13&&[...results.heroes,...results.weapons].every(r=>r.pass)&&!errors.length;status.dataset.state=good?'passed':'failed';status.textContent=(good?'完成':'有待处理项')+'：7 角色 / 13 武器；造型质量请结合截图判断。';
+}catch(error){errors.push(String(error.stack||error));status.dataset.state='failed';status.textContent='检查未完成：'+error.message;}
+finally{
+ publish();for(const [id,canvas,name]of[['#save-heroes',heroSheet,'hero-identity-check.png'],['#save-weapons',weaponSheet,'weapon-identity-check.png']]){const link=document.querySelector(id);link.href=canvas.toDataURL('image/png');link.download=name;}
+ const json=document.querySelector('#save-json');json.href=URL.createObjectURL(new Blob([report.textContent],{type:'application/json'}));json.download='identity-check.json';
+ fp.dispose();floor.geometry.dispose();floor.material.dispose();scene.traverse(o=>{if(o.isLight)o.dispose?.();});renderer.dispose();
+}
+</script>

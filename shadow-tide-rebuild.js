@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {smoothSeams} from './hero-finish.js?v=171';
+import {smoothSeams} from './hero-finish.js?v=172';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 
 const smooth=(a,b,x)=>T.MathUtils.smoothstep(x,a,b);

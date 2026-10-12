@@ -1,27 +1,28 @@
 import {createShadowAura,updateShadowAura,disposeShadowAura} from './shadow-aura.js?v=114';
-import {shadowOutfit,shadowAccessories,finishShadowTone} from './shadow-appearance.js?v=171';
-import {shadowFocus} from './shadow-gear.js?v=170';
+import {shadowOutfit,shadowAccessories,finishShadowTone} from './shadow-appearance.js?v=172';
+import {shadowFocus} from './shadow-gear.js?v=172';
 import {GRIP_POINTS,SCYTHE_SUPPORT,primaryGripFrame,fitWeaponToPalm,createHandGrips,restoreGripWrists,captureGripWrists,aimGrip,supportGripTarget,aimSupportGrip,poseGripFingers} from './weapon-grips.js?v=128';
-import {refineLingyaHead,lingyaHeadY} from './lingya-face.js?v=171';
-import {finishHeroSurface,smoothSeams,prepareSilverHair,animateSilverHair} from './hero-finish.js?v=171';
-import {rebuildRanger} from './ranger-rebuild.js?v=171';
-import {rebuildShadowTide} from './shadow-tide-rebuild.js?v=171';
+import {refineLingyaHead,lingyaHeadY} from './lingya-face.js?v=172';
+import {finishHeroSurface,smoothSeams,prepareSilverHair,animateSilverHair} from './hero-finish.js?v=172';
+import {rebuildRanger} from './ranger-rebuild.js?v=172';
+import {rebuildShadowTide} from './shadow-tide-rebuild.js?v=172';
 import {rebuildWildMist} from './wild-mist-rebuild.js?v=171';
+import {applyHeroIdentity,settleHeroIdentity} from './hero-identity.js?v=172';
 import{tideHarness}from'./tide-appearance.js?v=114';
-import{WULING_PALETTE,wulingOutfit,wulingAccessories,wulingMask,sporeLantern,sporeSatchel,sporePod}from'./wuling-appearance.js?v=114';
-import{MIRAGE_PALETTE,mirageOutfit,mirageHair,prepareMirageHair,animateMirageHair,mirageMask,mirageAccessories,miragePetalTails,miasmaLantern}from'./mirage-appearance.js?v=114';
+import{WULING_PALETTE,wulingOutfit,wulingAccessories,wulingMask,sporeLantern,sporeSatchel,sporePod}from'./wuling-appearance.js?v=172';
+import{MIRAGE_PALETTE,mirageOutfit,mirageHair,prepareMirageHair,animateMirageHair,mirageMask,mirageAccessories,miragePetalTails,miasmaLantern}from'./mirage-appearance.js?v=172';
 import{newHeroAttack,heroCarryPose,committedWeaponYaw}from'./new-hero-motion.js?v=114';
 import{heroDodgePose}from'./hero-dodge.js?v=114';
 import{lingyaHopPose}from'./lingya-motion.js?v=114';
 import{lingyaOutfit,lingyaAccessories,lingyaLegs}from'./lingya-appearance.js?v=114';
-import{boneBoomerang}from'./beast-model.js?v=114';
-import{makeHarpoon}from'./coast-models.js?v=146';
+import{boneBoomerang}from'./beast-model.js?v=172';
+import{makeHarpoon}from'./coast-models.js?v=172';
 import{weaponGesture,shotStarted,scythePose,crossbowMechanism}from'./weapon-performance.js?v=170';
 import{rollProgress,rollWeight}from'./dodge-motion.js?v=114';
 import * as T from './vendor/three.module.js';
 import {clone} from './vendor/SkeletonUtils.js';
 import {loadCharacterData} from './character-loader.js?v=114';
-import {makeHero as makePrototype,poseCrossbow} from './hero-model.js?v=170';
+import {makeHero as makePrototype,poseCrossbow} from './hero-model.js?v=172';
 
 const templates=new Map(),clips=new Map();
 let lingyaFace;
@@ -144,6 +145,7 @@ float weave=dot(diffuseColor.rgb,vec3(.21,.72,.07));diffuseColor.rgb=vec3(${tint
     rebuildRanger(root,kind);
     rebuildShadowTide(root,kind);
     rebuildWildMist(root,kind);
+    applyHeroIdentity(root,kind);
     finishHeroSurface(root,kind);
   }
   for(const c of bakedClips)clips.set(c.name,c);
@@ -329,6 +331,7 @@ export function createSkinnedHero(kind,weapon){
   if(['tide','mirage','wraith'].includes(kind))g.userData.attackBase.push(...[g.userData.spine,g.userData.swimHead].map(bone=>[bone,bone.quaternion.clone()]));
   if(kind==='wuling')g.userData.attackBase.push([g.userData.swimHead,g.userData.swimHead.quaternion.clone()]);
   if(kind==='lingya')g.userData.lingyaPoseBase=[g.userData.spine,g.userData.swimHead,g.userData.swimLeftLeg,g.userData.swimRightLeg,g.userData.swimLeftKnee,g.userData.swimRightKnee,g.userData.swimLeftFoot,g.userData.swimRightFoot,g.userData.aimArm,g.userData.offArm,g.userData.firingForearm,g.userData.offForearm].map(b=>[b,b.quaternion.clone()]);
+  settleHeroIdentity(g,kind);
   if(kind==='mirage'){
     // Cloaking must never fade another hero, a pooled lantern, or the lobby preview.
     const isolated=new Map(),unique=new Set(owned.map(o=>o.material)),surfaces=[];

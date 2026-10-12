@@ -1,6 +1,7 @@
-import {shadowFocus} from './shadow-gear.js?v=170';
+import {shadowFocus} from './shadow-gear.js?v=172';
 import{weaponGesture,shotStarted,crossbowMechanism}from'./weapon-performance.js?v=170';
-import{miasmaLantern}from'./mirage-appearance.js?v=114';
+import{miasmaLantern}from'./mirage-appearance.js?v=172';
+import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=172';
 import * as T from './vendor/three.module.js';
 // Shared smooth geometry: detail is concentrated on the two heroes, not multiplied across the forest.
 const geometries=new Map(),materials=new Map();
@@ -20,9 +21,9 @@ function weaponHull(parent,name,rings,color,metal=0,directions){
   for(const end of[0,rings.length-1]){const n=p.length/3;p.push(...rings[end].slice(0,3));for(let j=0;j<8;j++){const a=end*8+j,b=end*8+(j+1)%8;ix.push(...(end?[n,a,b]:[n,b,a]));}}
   const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(p,3));geo.setIndex(ix);geo.computeVertexNormals();geo.name=name;geometries.set(key,geo);
  }
- const mesh=new T.Mesh(geometries.get(key),material(color,metal));mesh.name=name;mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);return mesh;
+ const mesh=new T.Mesh(geometries.get(key),material(color,metal));mesh.name=name;mesh.userData.identityDetail=true;mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);return mesh;
 }
-function weaponLine(parent,name,points,radius,color,metal=0){const mesh=part(parent,'TubeGeometry',[new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),Math.max(6,points.length*3),radius,6,false],color,undefined,undefined,metal);mesh.name=name;return mesh;}
+function weaponLine(parent,name,points,radius,color,metal=0){const mesh=part(parent,'TubeGeometry',[new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),Math.max(6,points.length*3),radius,6,false],color,undefined,undefined,metal);mesh.name=name;mesh.userData.identityDetail=true;return mesh;}
 function tailored(p,c,profile,pos){const key='tailor'+JSON.stringify(profile);if(!geometries.has(key))geometries.set(key,new T.LatheGeometry(profile.map(([r,y])=>new T.Vector2(r,y)),24));const m=new T.Mesh(geometries.get(key),material(c));m.position.set(...pos);m.scale.z=.65;m.castShadow=m.receiveShadow=true;p.add(m);return m;}
 function cloth(p,color,width,length,z){const key=`cloth:${width}:${length}:${z}`;if(!geometries.has(key)){const vertices=[],indices=[];for(let y=0;y<=6;y++)for(let x=0;x<=6;x++){const u=x/6,v=y/6;vertices.push((u-.5)*width*(.62+.38*v),-length*v,z-Math.sin(v*Math.PI/2)*.18+Math.cos(u*Math.PI*4)*.035*v);}for(let y=0;y<6;y++)for(let x=0;x<6;x++){const a=y*7+x;indices.push(a,a+7,a+1,a+1,a+7,a+8);}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(vertices,3));g.setIndex(indices);g.computeVertexNormals();geometries.set(key,g);}const mat=material(color);mat.side=T.DoubleSide;const m=new T.Mesh(geometries.get(key),mat);m.castShadow=m.receiveShadow=true;p.add(m);return m;}
 function lock(p,color,x,y,z,length,bend=.12){const key=`lock:${length}:${bend}`;if(!geometries.has(key)){const v=[],ix=[];for(let i=0;i<=10;i++){const f=i/10,r=.069*Math.sin(Math.min(1,f*8)*Math.PI/2)*(1-f)+.001;for(let j=0;j<10;j++){const a=j*Math.PI/5;v.push(Math.cos(a)*r,-f*length,bend*f*f+Math.sin(a)*r*.58);}}for(let i=0;i<10;i++)for(let j=0;j<10;j++){const a=i*10+j,b=i*10+(j+1)%10;ix.push(a,b,a+10,b,b+10,a+10);}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.setIndex(ix);g.computeVertexNormals();geometries.set(key,g);}const m=new T.Mesh(geometries.get(key),material(color));m.position.set(x,y,z);m.castShadow=true;p.add(m);return m;}
@@ -80,18 +81,24 @@ export function makeHero(kind,weapon){
   }
   const gun=joint(d.rightElbow,[0,-.287,.025]);d.weapon=gun;
   if(weapon==='fire'||weapon==='dark'){
-    const accent=weapon==='fire'?0xffa55b:0xa68ee8;
-    tube(gun,0x675347,[0,.26,.045],[.027,1.3,.027]);for(const y of [-.23,.1,.52])tube(gun,trim,[0,y,.045],[.036,.06,.036],.7);
-    const head=joint(gun,[0,.98,.045]);for(const s of [-1,1]){const claw=part(head,'TorusGeometry',[.16,.028,8,20,Math.PI*.8],trim,[0,0,0]);claw.rotation.z=s<0?Math.PI:.2;}
-    part(head,'OctahedronGeometry',[.115,0],accent,[0,.07,0],[1,1.5,1],.35,.9);
-    part(head,'TorusGeometry',[.085,.013,6,20],trim,[0,.07,0],[1,1,1],.8);
+    const fire=weapon==='fire',accent=fire?0xff954f:0xa995cf,metal=fire?0x96724a:0x9ba9ba;
+    gun.name='SM_Weapon_'+(fire?'EmberwoodStaff':'NightfallStaff');
+    tube(gun,fire?0x57412e:0x252c42,[0,.26,.045],[.027,1.3,.027]);for(const y of [-.23,.1,.52])tube(gun,metal,[0,y,.045],[.036,.06,.036],.65);
+    const head=joint(gun,[0,.98,.045]);head.name='SM_Staff_'+(fire?'SplitEmberCrown':'CrescentCrown');head.scale.y=fire?.85:.91;
+    if(fire){
+      for(const s of[-1,1])weaponLine(head,'SM_EmberStaff_LeafProng_'+s,[[0,-.16,0],[s*.10,-.06,0],[s*.155,.095,0],[s*.075,.23,0],[s*.025,.27,0]],.018,metal,.6);
+      part(head,'OctahedronGeometry',[.096,1],accent,[0,.07,0],[.78,1.58,.7],.12,.8).name='SM_EmberStaff_EmberSeed';
+    }else{
+      weaponLine(head,'SM_NightfallStaff_MoonFrame',[[.085,.25,0],[-.11,.17,0],[-.16,.015,0],[-.07,-.13,0],[.085,-.10,0]],.019,metal,.64);
+      part(head,'OctahedronGeometry',[.087,1],accent,[0,.07,0],[.66,1.32,.66],.22,.5).name='SM_NightfallStaff_NightCore';
+    }
   }else if(weapon==='crossbow'){
     gun.name='SM_Weapon_Crossbow_A';
-    weaponHull(gun,'SM_Crossbow_WoodStock_A',[[0,.035,-.14,.075,.095],[0,.047,-.075,.13,.12],[0,.047,.24,.11,.092],[0,.065,.435,.057,.06]],0x695240);
+    weaponHull(gun,'SM_Crossbow_WoodStock_A',[[0,.035,-.14,.075,.095],[0,.047,-.075,.13,.12],[0,.047,.24,.11,.092],[0,.065,.435,.057,.06]],0x313d54);
     const grip=weaponHull(gun,'SM_Crossbow_Grip_A',[[0,0,-.095,.081,.070],[0,0,-.066,.095,.091],[0,0,.068,.091,.087],[0,0,.095,.083,.076]],0x242b32);grip.rotation.x=-Math.PI/2-.16;grip.position.set(0,-.077,.01);
     for(const side of[-1,1]){
       weaponHull(gun,'SM_Crossbow_SteelRail_'+(side<0?'L':'R'),[[side*.022,.112,-.075,.015,.014],[side*.022,.116,.21,.015,.019],[side*.018,.114,.44,.011,.010]],0xb0b9bf,.68);
-      weaponLine(gun,'SM_Crossbow_StockSeam_'+side,[[side*.047,.067,-.10],[side*.062,.074,-.02],[side*.050,.073,.20],[side*.030,.085,.35]],.0023,0x987a5a);
+      weaponLine(gun,'SM_Crossbow_StockSeam_'+side,[[side*.047,.067,-.10],[side*.062,.074,-.02],[side*.050,.073,.20],[side*.030,.085,.35]],.0023,0x75879d);
     }
     weaponLine(gun,'SM_Crossbow_TriggerGuard_A',[[0,.006,-.052],[0,-.073,-.053],[0,-.103,.085],[0,-.08,.14],[0,.002,.17]],.009,0x687880,.56);
     weaponLine(gun,'SM_Crossbow_Trigger_A',[[0,-.012,.053],[0,-.047,.043],[0,-.066,.075]],.007,0xa0acb4,.72);
@@ -112,21 +119,29 @@ export function makeHero(kind,weapon){
     const arrow=part(bolt,'ConeGeometry',[.027,.13,4],0xc8d1d5,[0,.16,.57],[1,1,1],.78);arrow.rotation.x=Math.PI/2;arrow.name='SM_Crossbow_BoltHead_A';
     for(const s of[-1,1])weaponHull(bolt,'SM_Crossbow_BoltFletching_'+s,[[s*.007,.16,.014,.007,.013],[s*.013,.16,.046,.007,.037],[s*.006,.16,.096,.005,.010]],0x718b98);
     gun.userData.crossbowStrings=strings;gun.userData.crossbowBolt=bolt;gun.userData.crossbowLatch=latch;gun.userData.stringPull=.30;
+    const feather=[];for(const s of[-1,1])for(const [x,z]of[[.19,.449],[.29,.441]])feather.push([[s*(x-.024),.130,z+.010],[s*x,.132,z],[s*(x+.035),.130,z-.019]]);
+    weaponInlay(gun,'SM_Crossbow_FeatherLimbEngraving',feather,0x9dabb9,.0016);
     poseCrossbow(gun,1);
   }else if(weapon==='shuriken'){
-    part(gun,'TorusGeometry',[.095,.022,8,20],trim,[0,0,.06],[1,1,1],.8).rotation.x=Math.PI/2;
-    for(let i=0;i<4;i++){const blade=part(gun,'ConeGeometry',[.09,.32,3],0xd6e5e6,[Math.sin(i*Math.PI/2)*.21,0,.06+Math.cos(i*Math.PI/2)*.21],[1,1,.26],.85);blade.rotation.set(Math.PI/2,i*Math.PI/2,0);}
+    gun.name='SM_Weapon_CrescentShuriken';
+    part(gun,'TorusGeometry',[.095,.016,8,24],0x53627d,[0,0,.06],[1,1,1],.64).rotation.x=Math.PI/2;
+    const bladeShape=new T.Shape();bladeShape.moveTo(-.068,-.12);bladeShape.quadraticCurveTo(-.11,.045,.035,.19);bladeShape.quadraticCurveTo(-.005,.055,.063,-.075);bladeShape.quadraticCurveTo(0,-.055,-.068,-.12);
+    const blades=joint(gun,[0,0,.06]);blades.name='SM_Shuriken_CrescentAssembly';blades.scale.set(.612,1,.98);
+    for(let i=0;i<4;i++){const blade=part(blades,'ExtrudeGeometry',[bladeShape,{depth:.018,bevelEnabled:true,bevelSize:.005,bevelThickness:.004,bevelSegments:2,steps:1,curveSegments:10}],0xc4cddd,[Math.sin(i*Math.PI/2)*.18,-.009,Math.cos(i*Math.PI/2)*.18],[1,1,1],.76);blade.rotation.set(Math.PI/2,0,-i*Math.PI/2);blade.name='SM_Shuriken_MoonBlade_'+i;blade.userData.identityDetail=true;}
   }else{
     const length=.69;
-    block(gun,0x253440,[0,.058,.19],[.112,.125,length]);block(gun,0x9caeb6,[0,.133,.23],[.099,.029,length*.83],.8);
+    gun.name='SM_Weapon_'+(weapon==='shotgun'?'RockbreakerShotgun':'RangerRepeater');
+    weaponHull(gun,'SM_Firearm_ForestReceiver_'+weapon,[[0,.058,-.155,.086,.10],[0,.058,-.12,.112,.125],[0,.058,.47,.112,.125],[0,.058,.535,.080,.10]],0x35483e,.22);block(gun,0x88948d,[0,.133,.23],[.099,.029,length*.83],.7);
     const barrel=tube(gun,0x435562,[0,.072,.2+length/2],[.036,.31,.036],.8);barrel.rotation.x=Math.PI/2;
     const bore=ell(gun,0x080f13,[0,.072,.21+length/2+.155],[.027,.027,.009]);
     const grip=block(gun,0x5c4a3e,[0,-.065,.075],[.096,.21,.13]);grip.rotation.x=-.22;
     block(gun,trim,[.061,.072,.19],[.008,.032,.16],.8);block(gun,0x192831,[0,.169,.13],[.028,.044,.061]);
-    block(gun,0x624f3d,[0,.03,-.24],[.115,.17,.22]);block(gun,dark,[0,-.098,.19],[.07,.18,.11]);
+    weaponHull(gun,'SM_Firearm_LeafwoodStock_'+weapon,[[0,.03,-.35,.088,.145],[0,.03,-.31,.115,.17],[0,.03,-.16,.115,.17],[0,.03,-.13,.085,.14]],0x6f5036);block(gun,dark,[0,-.098,.19],[.07,.18,.11]);
+    weaponInlay(gun,'SM_Firearm_LeafGrain_'+weapon,[[[0,.116,-.292],[.015,.117,-.25],[0,.116,-.193]],[[-.002,.117,-.272],[-.024,.117,-.25],[0,.117,-.227]]],0xb59868,.0018,.28);
     if(weapon==='rifle'){tube(gun,dark,[0,.193,.21],[.045,.14,.045]).rotation.x=Math.PI/2;}
     if(weapon==='shotgun'){const second=tube(gun,0x8c9ca6,[.075,.068,.47],[.032,.43,.032],.75);second.rotation.x=Math.PI/2;const pump=joint(gun,[0,0,0]);for(let i=0;i<4;i++)block(pump,0x8c6e48,[0,.025,.28+i*.037],[.14,.08,.022]);gun.userData.pump=pump;}
   }
+  nameWeapon(gun,silver?'silver':'scout',weapon);
   return g;
 }
 const stringUp=new T.Vector3(0,1,0),stringStart=new T.Vector3(),stringEnd=new T.Vector3();

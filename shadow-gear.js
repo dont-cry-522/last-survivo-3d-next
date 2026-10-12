@@ -1,4 +1,5 @@
 import * as T from './vendor/three.module.js';
+import {weaponInlay,nameWeapon} from './weapon-identity.js?v=172';
 
 const geometry=new Map(),materials=new Map();
 function part(parent,key,create,color,position=[0,0,0],scale=[1,1,1],glow=false){
@@ -51,19 +52,32 @@ export function shadowFocus(id){
   for(const side of[-1,1]){
    const pin=part(g,'scythe-pin',()=>new T.SphereGeometry(.018,10,6),0xa6b2ba,[.060,.72,.02+side*.045],[1,1,.45]);pin.name='SM_Scythe_Rivet_'+side;pin.material.roughness=.31;pin.material.metalness=.76;
   }
+  // Both faces carry the same small soul scar. Project it onto the forged
+  // surface so it never floats above, or disappears inside, the raised ridge.
+  const scars=[],ray=new T.Raycaster();blade.updateMatrixWorld(true);
+  for(const face of[-1,1]){
+   const points=[];
+   for(const [x,y]of[[.20,.79],[.225,.832],[.27,.839],[.30,.88]]){
+    ray.set(new T.Vector3(x,y,face),new T.Vector3(0,0,-face));const hit=ray.intersectObject(blade,false)[0];
+    if(hit)points.push([x,y,hit.point.z+face*.001]);
+   }
+   if(points.length>1)scars.push(points);
+  }
+  weaponInlay(g,'SM_Scythe_SoulRiftEngraving',scars,0xa09bac,.0017,.42);
  }else if(id==='grimoire'){
   for(const sign of [-1,1]){
    const leaf=new T.Group();leaf.rotation.z=sign*.18;leaf.position.set(0,.075,.06);g.add(leaf);
-   part(leaf,'box',()=>new T.BoxGeometry(1,1,1),0x18171e,[sign*.115,0,0],[.23,.028,.29]);
-   part(leaf,'box',()=>new T.BoxGeometry(1,1,1),0x36353e,[sign*.11,.022,0],[.21,.018,.26]);
+   const cover=part(leaf,'box',()=>new T.BoxGeometry(1,1,1),0x262332,[sign*.115,0,0],[.23,.028,.29]);cover.name='SM_Grimoire_SoulhideCover_'+sign;cover.material.userData.identityFinish=true;
+   part(leaf,'box',()=>new T.BoxGeometry(1,1,1),0x827e8a,[sign*.11,.022,0],[.21,.018,.26]).name='SM_Grimoire_AshenPages_'+sign;
    for(const z of [-.07,0,.07])line(leaf,0xbac5cc,[[sign*.040,.036,z],[sign*.090,.038,z],[sign*.105,.038,z+.010],[sign*.148,.036,z+.010]],.0014,true);
+   weaponInlay(leaf,'SM_Grimoire_SoulMargin_'+sign,[[[sign*.176,.0325,-.10],[sign*.167,.033,-.057],[sign*.177,.033,-.025]],[[sign*.182,.033,.016],[sign*.190,.033,.05],[sign*.181,.0325,.103]]],0x665c77,.0014,.22);
   }
   g.userData.page=part(g,'box',()=>new T.BoxGeometry(1,1,1),0x44434d,[.095,.12,.06],[.18,.004,.25]);
  }else{
-  const focus=part(g,'rift-shards',riftShards,0x101017,[0,.09,.12],[.052,.052,.052]);g.userData.focus=focus;focus.name='Shadow_compressed_rift';
+  const focus=part(g,'rift-shards',riftShards,0x262330,[0,.09,.12],[.052,.052,.052]);g.userData.focus=focus;focus.name='Shadow_compressed_rift';focus.userData.identityDetail=true;focus.material.metalness=.18;focus.material.roughness=.66;
   // The existing focus scale animation compresses the dark fragments and their narrow split together.
-  line(focus,0xc5ced4,[[-.005,.68,.205],[-.18,.19,.205],[-.075,-.08,.205]],.018,true);
-  line(focus,0xb4c0c8,[[.105,-.43,.205],[.20,-1.18,.205]],.018,true);
+  line(focus,0xc1b9cb,[[-.055,.80,.205],[-.19,.47,.205],[-.115,.18,.205],[-.12,-.12,.205]],.018,true);
+  line(focus,0xb4c0c8,[[.10,-.42,.205],[.15,-.72,.205],[.09,-1.15,.205]],.018,true);
  }
- return g;
+ return nameWeapon(g,'wraith',id);
 }

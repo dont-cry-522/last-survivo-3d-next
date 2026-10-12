@@ -84,6 +84,7 @@ function hullGeometry(rings,directions){
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setIndex(index);g.computeVertexNormals();return g;
 }
 function closeDetail(source,gun,id){
+ if(source.userData.identityDetail)return;
  let geometry;
  if(['rifle','shotgun'].includes(id)&&source.geometry.type==='BoxGeometry'){
   // Keep the authored contact points, but round receiver edges and taper the wooden stock.
@@ -169,7 +170,7 @@ export class FirstPersonView {
    batch.line([[.056,.102,.045],[.058,.106,.15],[.058,.065,.15]],.003,0x10181c);
    batch.line([[.06,.07,.055],[.06,.07,.115]],.004,0xb6a078);
    this.addDetail(batch,this.model,'machined-fittings');
-   for(const [source,node]of this.parts)if(node.isMesh&&node.material.isMeshStandardMaterial){const hex=source.material.color.getHex(),wood=[0x5c4a3e,0x624f3d,0x8c6e48].includes(hex);node.material.roughness=wood?.76:.34;node.material.metalness=wood?0:.68;}
+   for(const [source,node]of this.parts)if(node.isMesh&&node.material.isMeshStandardMaterial&&!source.userData.identityDetail&&!source.material.userData.identityFinish){const hex=source.material.color.getHex(),wood=[0x5c4a3e,0x624f3d,0x8c6e48].includes(hex);node.material.roughness=wood?.76:.34;node.material.metalness=wood?0:.68;}
   }else if(['fire','dark'].includes(id)){
    const batch=detailBatch(),wrap=[];
    for(let i=0;i<=48;i++){const a=i/48*Math.PI*12;wrap.push([Math.sin(a)*.031,-.18+i/48*.32,.045+Math.cos(a)*.031]);}
@@ -181,7 +182,7 @@ export class FirstPersonView {
    }
   }else if(id==='grimoire'){
    const batch=detailBatch();
-   for(const leaf of gun.children.filter(n=>n.isGroup)){
+   for(const leaf of gun.children.filter(n=>n.isGroup&&!n.userData.identityDetail&&!n.userData.identityMotif)){
     // Fine broken script and a small angular seal leave broad areas of quiet parchment.
     const sign=Math.sign(leaf.rotation.z),local=detailBatch();
     const strokes=[];
@@ -197,6 +198,7 @@ export class FirstPersonView {
    }
    this.addDetail(batch,this.model,'book-corners-and-script',{roughness:.63,metalness:.25});
    for(const [source,node]of this.parts){
+    if(source.userData.identityDetail||source.material?.userData.identityFinish)continue;
     if(source.geometry?.type==='BoxGeometry'){
      if(source.position.y>.01){node.material.color.setHex(source===gun.userData.page?0xaaa2b0:0x8b8392);node.material.roughness=.95;node.material.metalness=0;}
      if(source===gun.userData.page){node.material.side=T.DoubleSide;node.material.needsUpdate=true;}
@@ -204,7 +206,8 @@ export class FirstPersonView {
    }
   }else if(['sporelantern','miasmalantern'].includes(id)){
    const mist=id==='miasmalantern',heart=find(gun.userData.heart),batch=detailBatch();
-   for(let i=0;i<5;i++){const a=i*Math.PI*2/5,r=mist?.081:.115,y=mist?-.196:-.240;batch.stud(Math.sin(a)*r,y,Math.cos(a)*r,.011,mist?0xa6a1b7:0xd7b671);}
+   const ribs=mist?(gun.userData.petals?.length||4):5;
+   for(let i=0;i<ribs;i++){const a=i*Math.PI*2/ribs+(mist?Math.PI/4:0),r=mist?.081:.115,y=mist?-.196:-.240;batch.stud(Math.sin(a)*r,y,Math.cos(a)*r,.011,mist?0xa6a1b7:0xd7b671);}
    this.addDetail(batch,this.model,'lantern-rivets',{roughness:.31,metalness:.7});
    if(heart){
     const filaments=detailBatch();
@@ -212,7 +215,7 @@ export class FirstPersonView {
     const detail=this.addDetail(filaments,heart,'lantern-core-filaments',{roughness:.4,metalness:.1,emissive:mist?0x65457d:0x7d4421});
     heart.material.roughness=.29;heart.material.emissive.copy(heart.material.color);this.charged.push({material:heart.material,base:.20,power:.75},{material:detail.material,base:.15,power:.35});
    }
-  }else if(id==='boomerang'){
+  }else if(id==='boomerang'&&!gun.getObjectByName('SM_Boomerang_BadgerClawCarving')){
    const batch=detailBatch();
    for(const sign of[-1,1])for(let i=0;i<3;i++){const x=sign*(.16+i*.075),z=.008+i*.064;batch.line([[x-sign*.017,.030,z-.012],[x,.031,z+.015],[x+sign*.017,.030,z+.005]],.0023,0x8a7047);}
    this.addDetail(batch,this.model,'bone-carving',{roughness:.89,metalness:0});

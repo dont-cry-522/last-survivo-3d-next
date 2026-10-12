@@ -11,8 +11,37 @@ import {boneBoomerang} from '../beast-model.js';
 import {makeHarpoon} from '../coast-models.js';
 import {HERO_LOADOUTS} from '../rules.js';
 
-function weapon(id){return ['shade','shadowblade','grimoire'].includes(id)?shadowFocus(id):id==='miasmalantern'?miasmaLantern():id==='sporelantern'?sporeLantern():id==='boomerang'?boneBoomerang():id==='harpoon'?makeHarpoon():makeHero(id==='crossbow'?'silver':'scout',id).userData.weapon;}
+function weapon(id){return ['shade','shadowblade','grimoire'].includes(id)?shadowFocus(id):id==='miasmalantern'?miasmaLantern():id==='sporelantern'?sporeLantern():id==='boomerang'?boneBoomerang():id==='harpoon'?makeHarpoon():makeHero(['crossbow','shuriken','dark'].includes(id)?'silver':'scout',id).userData.weapon;}
 const hero=gun=>({visible:false,userData:{gun}});
+
+test('identity structure and material finish survive first-person copying for all thirteen weapons',()=>{
+ const view=new FirstPersonView(new T.PerspectiveCamera(70,16/9,.1,100));
+ try{for(const [kind,ids]of Object.entries(HERO_LOADOUTS))for(const id of ids){
+  const gun=weapon(id),model=hero(gun);model.userData.kind=kind;view.setHero(model,id);let details=0;
+  for(const [source,node]of view.parts){
+   if(!source.isMesh)continue;
+   if(source.userData.identityDetail){assert.equal(node.geometry,source.geometry,id+' replaces the actual identity geometry');details++;}
+   if(source.userData.identityDetail||source.material.userData.identityFinish){
+    assert(node.material.color.equals(source.material.color),id+' changes an identity tint');
+    for(const prop of['roughness','metalness','side','transparent','depthWrite','depthTest'])assert.equal(node.material[prop],source.material[prop],id+' changes '+prop);
+   }
+  }assert(details>0);
+  if(id==='boomerang')assert(!view.details.some(n=>n.name==='First_person_bone-carving'),'two carving patterns were overlaid');
+  for(let phase=0;phase<=1;phase+=.1){Object.assign(model.userData,{reloadPhase:phase,reloadDuration:1,attackAge:phase});view.update(phase,.016,{visible:true,attack:Math.max(0,.18-phase)});assert(view.parts.every(([,o])=>o.position.toArray().every(Number.isFinite)));}
+ }}finally{view.dispose();}
+});
+
+test('scythe and book soul engravings are on exposed surfaces rather than behind blade or paper',()=>{
+ const camera=new T.PerspectiveCamera(70,16/9,.1,100),view=new FirstPersonView(camera),ray=new T.Raycaster();ray.layers.set(1);
+ try{for(const id of['shadowblade','grimoire']){
+  view.setHero(hero(weapon(id)),id);view.update(2,.016,{visible:true});camera.updateMatrixWorld(true);
+  const identity=new Set(view.parts.filter(([s])=>s.userData.identityDetail).map(([,n])=>n)),origin=camera.getWorldPosition(new T.Vector3());let exposed=0;
+  for(const mesh of identity){const p=mesh.geometry.attributes.position,index=mesh.geometry.index;for(let i=0;i<(index?.count||p.count);i+=12){
+   const point=new T.Vector3();for(let k=0;k<3;k++)point.add(new T.Vector3().fromBufferAttribute(p,index?index.getX(i+k):i+k));point.multiplyScalar(1/3).applyMatrix4(mesh.matrixWorld);
+   ray.set(origin,point.sub(origin).normalize());if(identity.has(ray.intersectObject(view.root,true)[0]?.object))exposed++;
+  }}assert(exposed>0,id+' soul engraving is completely buried or on the hidden face');
+ }}finally{view.dispose();}
+});
 
 test('first-person sleeves reuse the rebuilt cloth micro-surface without disposing its shared maps',()=>{
  const view=new FirstPersonView(new T.PerspectiveCamera(70,16/9,.1,100)),model=hero(weapon('crossbow'));
@@ -296,11 +325,12 @@ test('close equipment adds bounded real structure across firearms, thrown blades
   view.setHero(hero(gun),id);view.update(1,.016,{visible:true});
   const changed=view.parts.filter(([source,clone])=>source.isMesh&&source.geometry!==clone.geometry),names=view.ownedGeometry.map(g=>g.name).join(' ');
   if(['rifle','shotgun'].includes(id)){
-   assert(changed.length>=7,'firearm still consists of unchanged cuboids');assert.match(names,/shaped-firearm/);
-   const wood=view.parts.find(([s])=>s.material?.color?.getHex()===0x624f3d)[1].material,metal=view.parts.find(([s])=>s.material?.color?.getHex()===0x253440)[1].material;
+   assert(changed.length>=5,'old firearm fittings were left as cuboids');assert.match(names,/shaped-firearm/);
+   const stock=view.parts.find(([s])=>s.name==='SM_Firearm_LeafwoodStock_'+id);assert(stock&&stock[0].geometry===stock[1].geometry);assert(stock[0].geometry.attributes.position.count>24,'shared stock has no tapered structure');
+   const wood=stock[1].material,metal=view.parts.find(([s])=>s.material?.color?.getHex()===0x88948d)[1].material;
    assert(wood.roughness>metal.roughness+.25);assert(metal.metalness>wood.metalness+.5);
-  }else if(id==='shuriken'){assert.equal(changed.length,4);assert.match(names,/ground-throwing-edge/);}
-  else if(id==='boomerang')assert.match(names,/bone-carving/);
+  }else if(id==='shuriken'){const blades=view.parts.filter(([s])=>s.name.startsWith('SM_Shuriken_MoonBlade_'));assert.equal(blades.length,4);for(const [s,n]of blades){assert.equal(n.geometry,s.geometry);assert(n.geometry.attributes.position.count>60,'moon blade is still a plain cone');}}
+  else if(id==='boomerang')assert(view.model.getObjectByName('SM_Boomerang_BadgerClawCarving'));
   else if(['fire','dark'].includes(id)){assert.match(names,/wrapped-staff-inlay/);assert.equal(view.charged.length,1);}
   else if(id==='grimoire'){
    assert.equal(changed.filter(([,n])=>n.geometry.name==='First_person_layered-pages').length,2);assert.match(names,/turning-page/);assert.match(names,/book-corners-and-script/);

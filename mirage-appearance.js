@@ -1,5 +1,6 @@
 import * as T from './vendor/three.module.js';
-import {wulingOutfit,wulingMask} from './wuling-appearance.js?v=114';
+import{mirrorPetalGeometry,nameWeapon}from'./weapon-identity.js?v=172';
+import {wulingOutfit,wulingMask} from './wuling-appearance.js?v=172';
 
 // Authored procedural prototype on the existing female rig; no extra model download.
 export const MIRAGE_PALETTE=Object.freeze({cloth:0x24142e,violet:0x4a2b63,mist:0xa78cc7,ivory:0xe9e3f2,silver:0x797484,glow:0x8f5cff});
@@ -127,14 +128,15 @@ export function miasmaLantern(){
  piece(g,'TorusGeometry',[.083,.007,6,24],MIRAGE_PALETTE.silver,0,-.196,0).rotation.x=Math.PI/2;
  const heart=oval(g,0xb98cff,0,-.298,0,.050,.088,.050);heart.name='Mirage_flower_core';
  const petals=[];
- for(let i=0;i<5;i++){
-  const a=i*Math.PI*2/5,petal=oval(g,i%2?MIRAGE_PALETTE.violet:0x594170,Math.sin(a)*.076,-.306,Math.cos(a)*.076,.039,.125,.017);
+ for(let i=0;i<4;i++){
+  const a=i*Math.PI/2+Math.PI/4,petal=oval(g,i%2?0x796486:0x594866,Math.sin(a)*.076,-.306,Math.cos(a)*.076,.039,.125,.017);
+  petal.geometry=mirrorPetalGeometry();petal.name='SM_Weapon_Mirage_MirrorPetal_'+i;petal.userData.identityDetail=true;petal.material.side=T.DoubleSide;petal.material.metalness=.44;petal.material.roughness=.40;
   petal.rotation.set(Math.cos(a)*.27,a,-Math.sin(a)*.27);petal.userData.rest=petal.quaternion.clone();petals.push(petal);
   const curve=new T.CatmullRomCurve3([new T.Vector3(Math.sin(a)*.080,-.19,Math.cos(a)*.080),new T.Vector3(Math.sin(a)*.112,-.29,Math.cos(a)*.112),new T.Vector3(Math.sin(a)*.060,-.392,Math.cos(a)*.060),new T.Vector3(0,-.43,0)]);
   piece(g,'TubeGeometry',[curve,12,.005,5,false],MIRAGE_PALETTE.silver,0,0,0);
  }
  oval(g,MIRAGE_PALETTE.silver,0,-.445,0,.013,.035,.013);
- g.userData.heart=heart;g.userData.petals=petals;return g;
+ g.userData.heart=heart;g.userData.petals=petals;return nameWeapon(g,'mirage','miasmalantern');
 }
 export function mirageAccessories(){
  const chest=new T.Group(),head=new T.Group();chest.name='Mirage_tailored_clasps';head.name='Mirage_flower_hairpin';

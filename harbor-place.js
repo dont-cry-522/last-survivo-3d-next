@@ -1,25 +1,27 @@
 import * as T from './vendor/three.module.js';
 
-// Three octagonal sections: rubbed arrises and a slightly weathered end, all
-// inside the original board. Metric bevels stay small on thin decking/sleeves.
-function harborBoard(w,h,d,phase){
+// Octagonal sections retain rubbed arrises and weathered end grain. Only roof
+// boards bow upward; thin decking and sleeves keep their original envelopes.
+function harborBoard(w,h,d,phase,bow=0){
  const dimensions=[w,h,d],axis=w>=h&&w>=d?0:d>=h?2:1,a=(axis+1)%3,b=(axis+2)%3;
  const length=dimensions[axis],u=dimensions[a]*.5,v=dimensions[b]*.5,bevel=Math.min(.018,u*.18,v*.18),positions=[],colors=[],indices=[];
  const corners=[[-u+bevel,-v],[u-bevel,-v],[u,-v+bevel],[u,v-bevel],[u-bevel,v],[-u+bevel,v],[-u,v-bevel],[-u,-v+bevel]];
- for(let row=0;row<3;row++)for(let j=0;j<8;j++){
-  const point=[0,0,0],end=row!==1,wear=end?Math.min(.025,length*.017)*(.3+.7*Math.sin(phase+j*.93+row)**2):0;
-  point[axis]=row===0?-length*.5+wear:row===2?length*.5-wear:0;
+ const rows=bow?5:3;
+ for(let row=0;row<rows;row++)for(let j=0;j<8;j++){
+  const point=[0,0,0],end=row===0||row===rows-1,wear=end?Math.min(.025,length*.017)*(.3+.7*Math.sin(phase+j*.93+row)**2):0;
+  point[axis]=-length*.5+length*row/(rows-1)+(row===0?wear:row===rows-1?-wear:0);
   point[a]=corners[j][0]*(end?.975:1);point[b]=corners[j][1]*(end?.975:1);positions.push(...point);
+  if(bow)positions[positions.length-2]+=bow*Math.sin(Math.PI*row/(rows-1));
   const shade=(end?.84:.98)+.035*Math.sin(phase+j*1.7);colors.push(shade,shade,shade);
   if(row){const n=row*8+j,k=row*8+(j+1)%8;indices.push(n-8,k-8,k,n-8,k,n);}
  }
  // End grain needs its own normals: long side faces must not flatten the short
  // end-cap normals into the grain direction, which causes inverted highlights.
- for(const ring of[0,16])for(let j=1;j<7;j++){
+ for(const ring of[0,(rows-1)*8])for(let j=1;j<7;j++){
   const base=positions.length/3;for(const k of ring?[0,j,j+1]:[0,j+1,j]){positions.push(...positions.slice((ring+k)*3,(ring+k)*3+3));colors.push(...colors.slice((ring+k)*3,(ring+k)*3+3));}
   indices.push(base,base+1,base+2);
  }
- const g=new T.BufferGeometry();g.name='SM_Harbor_WeatheredBoard_A';g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(indices);g.computeVertexNormals();return g;
+ const g=new T.BufferGeometry();g.name=bow?'SM_Harbor_CurvedRoofBoard_A':'SM_Harbor_WeatheredBoard_A';g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(indices);g.computeVertexNormals();return g;
 }
 
 // Local, deterministic shipyard scenery. The centre lane stays empty; the kit
@@ -28,7 +30,7 @@ export function buildHarborPlace(kit,variant=0){
  const loading=variant===1;
  const timber=0x817b65,dark=0x4b5752,cut=0xa59b7d,rope=0x96937b,iron=0x4d6260;
  const add=(geometry,color,transform={},category='wood')=>kit.piece(category,geometry,color,transform);
- const plank=(color,x,y,z,w,h,d,ry=0,rz=0,overhead=false)=>add(harborBoard(w,h,d,x*.71+y*.43+z*.29),color,{x,y,z,ry,rz,overhead});
+ const plank=(color,x,y,z,w,h,d,ry=0,rz=0,overhead=false,bow=0)=>add(harborBoard(w,h,d,x*.71+y*.43+z*.29,bow),color,{x,y,z,ry,rz,overhead});
  const bar=(color,a,b,r=.06,category='wood',overhead=false,flex=null)=>{
   const from=new T.Vector3(...a),to=new T.Vector3(...b),delta=to.clone().sub(from),g=new T.CylinderGeometry(r*.83,r,delta.length(),6);
   g.applyQuaternion(new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),delta.normalize()));
@@ -49,8 +51,11 @@ export function buildHarborPlace(kit,variant=0){
  };
  const cx=-6.30,cz=-.35,half=6.65;
  const hull=(t,u,side)=>{
-  const beam=.12+2.06*Math.max(0,1-t*t)**.58,keel=.08+t*t*.28,height=1.77+t*t*.84;
-  return[cx+side*beam*u,keel+height*(Math.max(0,u-.43)/.57)**1.6,cz+t*half];
+  const beam=.12+2.06*Math.max(0,1-t*t)**.58,keel=.08+t*t*.28,height=1.77+t*t*.84,flare=Math.max(0,u-.43)/.57;
+  // Hewn frames flare from a narrow keel, with a worked-in sheer and an
+  // inward-rolled gunwale instead of straight, symmetric bathtub sides.
+  const bend=1-.035*Math.sin(t*Math.PI)**2*flare,settle=(.07+.055*side)*Math.sin((t+.18)*Math.PI)**2*flare;
+  return[cx+side*beam*u*bend,keel+height*flare**1.6-settle,cz+t*half];
  };
  // Long curved strakes carry the whole silhouette. Closed, thin bands expose
  // the inner wood through the broken deck without depending on double-sided materials.
@@ -68,7 +73,7 @@ export function buildHarborPlace(kit,variant=0){
   }
   indices.push(0,1,2,2,1,3);const end=steps*4;indices.push(end,end+2,end+1,end+1,end+2,end+3);
   if(side===1)for(let i=0;i<indices.length;i+=3)[indices[i+1],indices[i+2]]=[indices[i+2],indices[i+1]];
-  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setIndex(indices);g.computeVertexNormals();add(g,row%2?timber:dark);
+  const g=new T.BufferGeometry(),colors=[];for(let i=0;i<p.length;i+=3){const wet=1-T.MathUtils.smoothstep(p[i+1],.12,.68),tone=.97-wet*.19+.025*Math.sin(p[i+2]*3.7+row);colors.push(tone,tone,tone*.985);}g.name='SM_Harbor_CarvelStrake_A';g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(indices);g.computeVertexNormals();add(g,row%2?timber:dark);
  }
  // Two side chains follow the taper; the flat middle remains open rather than
  // assigning a single solid to the boat's entire empty interior.
@@ -137,10 +142,12 @@ export function buildHarborPlace(kit,variant=0){
   const x=6.10+side*1.20;
   for(let row=0;row<13;row++){
    const z=-.52+row*.56,dy=.065*Math.sin(row*.8);
-   plank(row%3?0x597777:0x6d8581,x,3.88+dy,z,2.48,.12,.59,0,-side*.27,true);
+   // Broad bowed boards create a shallow swept canopy. Its worn eaves and
+   // raised middle are visible at gameplay distance, above the same headroom.
+   plank(row%3?0x597777:0x6d8581,x,3.86+dy,z,2.48,.12,.59,0,-side*.27,true,.18);
   }
  }
- for(const z of[-.50,6.23])bar(timber,[3.75,3.38,z],[8.45,3.38,z],.10,'wood',true);
+ for(const z of[-.50,6.23])for(const side of[-1,1])curve(Array.from({length:7},(_,i)=>{const t=i/6;return[6.10+side*t*2.35,4.12-.69*t+.16*Math.sin(t*Math.PI),z];}),timber,.10,'wood',true);
  bar(dark,[6.10,4.28,-.6],[6.10,4.28,6.4],.10,'wood',true);
  for(let i=0;i<10;i++)plank(i%2?timber:dark,4.20+i*.425,1.02,6.0,.37,1.87,.11,0,.025*Math.sin(i));
  kit.solidBox(6.11,5.9,4.30,.62,3.20);

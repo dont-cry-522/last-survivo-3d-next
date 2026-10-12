@@ -74,9 +74,9 @@ const leafSpray=(()=>{
  const ends=[[.14,.55],[.82,.51],[.17,.28],[.82,.23],[.32,.12],[.67,.07]];
  for(let twig=0;twig<6;twig++){
   const t=.15+twig*.145,start=[T.MathUtils.lerp(root[0],tip[0],t),T.MathUtils.lerp(root[1],tip[1],t)],end=ends[twig],dx=end[0]-start[0],dy=end[1]-start[1],heading=Math.atan2(dx,-dy);stems.push([start,end]);
-  for(let i=0;i<9;i++){
-   const along=.12+i*.093,length=.102+.038*(.5+.5*Math.sin(twig*2.8+i*1.7));
-   leaves.push({x:start[0]+dx*along,y:start[1]+dy*along,angle:heading+(i%2?1:-1)*(.70+.20*Math.sin(i*1.3+twig)),length,index:twig*9+i});
+  for(let i=0;i<11;i++){
+   const along=.10+i*.078,length=.108+.040*(.5+.5*Math.sin(twig*2.8+i*1.7));
+   leaves.push({x:start[0]+dx*along,y:start[1]+dy*along,angle:heading+(i%2?1:-1)*(.70+.20*Math.sin(i*1.3+twig)),length,index:twig*11+i});
   }
  }
  return{stems,leaves};
@@ -197,15 +197,17 @@ leafMaterial.onBeforeCompile=shader=>{
 };
 leafMaterial.customProgramCacheKey=()=> 'tree-branched-thin-leaves-breeze';
 function sprayPose(x,y,z,width,depth,height,phase,spray){
- const angle=phase+spray*2.399,tilt=[.30,.92,-.32,.54,.14][spray],normal=new T.Vector3(Math.cos(angle)*.72,tilt,Math.sin(angle)*.72).normalize();
+ // A twig carries a hanging skirt, two shoulders and a tilted top, with their
+ // edges overlapping. The crown reads as a volume even from ground level.
+ const angle=phase+[-.55,1.72,3.12,4.65,.48][spray],tilt=[-.34,.45,.29,.60,.95][spray],normal=new T.Vector3(Math.cos(angle)*.72,tilt,Math.sin(angle)*.72).normalize();
  const across=new T.Vector3().crossVectors(new T.Vector3(0,1,0),normal).normalize(),along=new T.Vector3().crossVectors(normal,across);
- const center=new T.Vector3(x+Math.cos(angle)*width*.30,y+height*(.19+.38*Math.sin(spray*1.9+phase)),z+Math.sin(angle)*depth*.36);
+ const center=new T.Vector3(x+Math.cos(angle)*width*[.38,.31,.26,.29,.12][spray],y+height*[-.08,.21,.09,.35,.52][spray],z+Math.sin(angle)*depth*[.38,.31,.26,.29,.12][spray]);
  return{center,normal,across,along};
 }
-const sprayBow=(u,v)=>.18-.20*(u*u+v*v)/(1.17*1.17);
+const sprayBow=(u,v)=>.23-.25*(u*u+v*v)/(1.17*1.17)-.07*v*v*v;
 function broadFan(x,y,z,width,depth,height,phase){
  // Five small curved sprays sit around a twig, rather than intersecting at one large card.
- // The six-triangle fans keep their alpha silhouette and use 25% fewer canopy triangles.
+ // The six-triangle fans retain leaf gaps without a solid outer shell.
  const vertices=[],indices=[],colors=[],uvs=[],normals=[],flex=[],point=new T.Vector3(),shading=new T.Vector3();
  for(let spray=0;spray<5;spray++){
   const first=vertices.length/3,{center,normal,across,along}=sprayPose(x,y,z,width,depth,height,phase,spray);
@@ -213,7 +215,7 @@ function broadFan(x,y,z,width,depth,height,phase){
    point.copy(center).addScaledVector(across,u*width*.72).addScaledVector(along,v*depth*.96).addScaledVector(normal,sprayBow(u,v)*height);
    vertices.push(point.x,point.y,point.z);uvs.push(.5+u*.5,.5+v*.5);flex.push(Math.min(1,Math.hypot(u,v)/1.17));
    // Continuous dome normals avoid six broad triangular highlights across one leaf cluster.
-   shading.copy(normal).addScaledVector(across,.40*height*u/(1.17*1.17*width*.72)).addScaledVector(along,.40*height*v/(1.17*1.17*depth*.96)).normalize();normals.push(shading.x,shading.y,shading.z);
+   shading.copy(normal).addScaledVector(across,.50*height*u/(1.17*1.17*width*.72)).addScaledVector(along,height*(.50*v/(1.17*1.17)+.21*v*v)/(depth*.96)).normalize();normals.push(shading.x,shading.y,shading.z);
    const shade=.83+(normal.y+1)*.075+spray*.012,warm=.5+.5*Math.sin(phase*2.7+spray);
    colors.push(Math.min(1,shade*(.97+warm*.06)),Math.min(1,shade),Math.min(1,shade*(.89-warm*.04)));
   };
@@ -225,7 +227,7 @@ function broadFan(x,y,z,width,depth,height,phase){
 }
 function rootFlare(angle,snow){
  if(!snow){
-  const g=limb([[0,.22,0],[.23,.13,.035],[.48,.06,-.025],[.74,.025,.015]],[.18,.14,.075,.004],5),p=g.attributes.position;
+  const g=limb([[0,.34,0],[.20,.17,.055],[.46,.07,-.035],[.71,.025,.035]],[.17,.15,.070,.004],5),p=g.attributes.position;
   for(let i=0;i<p.count;i++)p.setY(i,Math.max(.018,p.getY(i)*.8));
   g.computeVertexNormals();g.rotateY(angle);return g;
  }
@@ -234,7 +236,7 @@ function rootFlare(angle,snow){
  const g=surface(vertices,indices);g.rotateY(angle);return g;
 }
 function firFan(angle,height,reach,width,variant,level){
- // Unequal paired needle cushions carry a curved snow ridge. Close LODs include
+ // Overlapping needle wings carry a scalloped snow ridge. Close LODs include
  // the dark lower surface, so looking up sees foliage rather than white cards.
  const vertices=[],indices=[],colors=[],normals=[],c=new T.Color(),normal=new T.Vector3(),cos=Math.cos(angle),sin=Math.sin(angle),needles=new T.Color(0x55766b),snow=new T.Color(0xd0dfd9);
  const vertex=(x,y,z,nx,ny,nz,cover)=>{
@@ -243,10 +245,12 @@ function firFan(angle,height,reach,width,variant,level){
  };
  for(let leaf=0;leaf<6;leaf++){
   const start=.08+Math.floor(leaf/2)*.24+Math.sin(angle+leaf*1.9+variant)*.026,side=leaf%2?1:-1,spread=1-start*.45;
-  const x=(start+.19)*reach,z=side*spread*width*.43,y=height-(start+.17)*reach*.17,rx=reach*(.215+.015*Math.sin(angle+leaf)),rz=spread*width*.45,rise=reach*(.065+.02*Math.sin(angle*2+leaf+variant)),drop=reach*.035;
+  const x=(start+.19)*reach,z=side*spread*width*.46,y=height-(start+.17)*reach*.17,rx=reach*(.25+.015*Math.sin(angle+leaf)),rz=spread*width*.58,rise=reach*(.065+.02*Math.sin(angle*2+leaf+variant)),drop=reach*.050;
   const point=(u,v,depth=0,lower=false)=>{
-   const q=u*u+v*v,edge=q>.99,py=y-u*rx*.20-side*v*rz*.15+(lower?-drop:rise)*(1-q);
-   return vertex(x+u*rx,py,z+v*rz,edge?u/rx:.20+2*(lower?-drop:rise)*u/rx,edge?.10:lower?-1:1,edge?v/rz:side*.15+2*(lower?-drop:rise)*v/rz,level===2?.48+.045*Math.sin(leaf+u):lower?.06:edge?.22:.74-depth*.13);
+   // Needles hang below each ridge. Even the distant four-point fold has a
+   // raised spine and drooping wings, so conifers retain depth in side views.
+   const q=u*u+v*v,edge=q>.99,py=y-u*rx*.20-side*v*rz*.15+(lower?-drop:rise)*(1-q)-Math.abs(v)*reach*.16+(level===2?rise*(1-Math.abs(v)):0);
+   return vertex(x+u*rx,py,z+v*rz+side*u*width*.13,edge?u/rx:.20+2*(lower?-drop:rise)*u/rx,edge?.10:lower?-1:1,edge?v/rz:side*.15+2*(lower?-drop:rise)*v/rz,level===2?.48+.045*Math.sin(leaf+u):lower?.06:edge?.22:.74-depth*.13);
   };
   if(level===2){
    const first=vertices.length/3;for(let i=0;i<4;i++){const a=i*Math.PI*.5;point(Math.cos(a),Math.sin(a));}
@@ -254,7 +258,7 @@ function firFan(angle,height,reach,width,variant,level){
   }else{
    const sides=level===0?8:4,center=point(0,0),rings=[];
    for(const radius of level===0?[.55,1]:[1]){
-    const ring=[];for(let i=0;i<sides;i++){const a=i/sides*Math.PI*2;ring.push(point(Math.cos(a)*radius,Math.sin(a)*radius,radius));}rings.push(ring);
+    const ring=[];for(let i=0;i<sides;i++){const a=i/sides*Math.PI*2,edge=radius===1&&sides===8&&i%2?.84:1;ring.push(point(Math.cos(a)*radius*edge,Math.sin(a)*radius*edge,radius));}rings.push(ring);
    }
    for(let i=0;i<sides;i++)indices.push(center,rings[0][(i+1)%sides],rings[0][i]);
    if(rings.length===2)for(let i=0;i<sides;i++){const j=(i+1)%sides,a=rings[0],b=rings[1];indices.push(a[i],a[j],b[i],a[j],b[j],b[i]);}
@@ -270,9 +274,9 @@ function firFan(angle,height,reach,width,variant,level){
 }
 function firCrown(variant,level){
  const parts=[];
- for(let layer=0;layer<4;layer++)for(let j=0;j<4;j++){
-  const a=j*Math.PI*.5+layer*.75+variant*.57+Math.sin(j*2.8+layer+variant)*.10,reach=(1.42-layer*.23)*(1+Math.sin(j*2.2+variant+layer*.7)*.09),rise=Math.sin(j*1.8+variant+layer*2.4)*.105;
-  parts.push(firFan(a,.38+layer*.56+rise,reach,(.42-layer*.061)*1.12*(1+Math.cos(j*1.7+layer)*.08),(j+variant)%3,level));
+ for(let layer=0;layer<4;layer++)for(let j=0;j<6;j++){
+  const a=j*Math.PI/3+layer*.65+variant*.57+Math.sin(j*2.8+layer+variant)*.10,reach=(1.42-layer*.23)*(1+Math.sin(j*2.2+variant+layer*.7)*.09),rise=Math.sin(j*1.8+variant+layer*2.4)*.105;
+  parts.push(firFan(a,.38+layer*.56+rise,reach,(.56-layer*.080)*(1+Math.cos(j*1.7+layer)*.08),(j+variant)%3,level));
  }
  // Short, tapering sprays grow from one eccentric leader rather than carrying
  // detached snowballs. The sparse green tip continues the upper branch group.
@@ -302,7 +306,8 @@ function treeTemplate(id,variant){
   crowns.push(firCrown(variant,2));
  }else{
   // Open spreading, upright forked, and one-sided woodland crowns. The same
-  // fifteen sprays now form unequal branch groups, not four identical tridents.
+  // twenty clusters form uneven interlocking lobes, with middle leaves rooted
+  // on the forks instead of an empty hollow between the outer branch tips.
   const shape=[
    [[.15,.09,.90,1.00],[1.96,.50,.79,.96],[3.53,.28,.87,1.03],[5.05,.94,.65,.88]],
    [[.57,.15,.74,.90],[3.62,.44,.83,.96],[2.08,.99,.62,.83],[5.21,1.12,.59,.87]],
@@ -319,6 +324,10 @@ function treeTemplate(id,variant){
   for(let j=0;j<3;j++){
    const a=j*2.3+variant*.8,r=j===2?.14:.34;
    const x=Math.cos(a)*r+(variant===2?.12:variant===1?.16:0),z=Math.sin(a)*r,y=1.30+j*.21+Math.sin(a)*.11;sprays.push([x,y,z,.58-j*.07,.42-j*.025,.65,a]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:y+.65*.24,z,branch:4});
+  }
+  for(let j=0;j<5;j++){
+   const branch=j%4,[a,y]=shape[branch],angle=a+(j===4?.62:-.22),r=j===4?.22:.48+.04*Math.sin(a+variant),x=Math.cos(angle)*r+(variant===2?.13:0),z=Math.sin(angle)*r,leafY=j===4?1.08:y+.36,h=.76;
+   sprays.push([x,leafY,z,.60,.43,h,angle+.35]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:leafY+h*.24,z,branch});
   }
  }
  const canopy=merge(crowns),bottom=canopy.boundingBox.min.y;canopy.translate(0,-bottom,0);canopy.computeBoundingBox();
@@ -362,14 +371,14 @@ function detailedCrown(template,level){
   g.setAttribute('treeSurface',new T.Float32BufferAttribute(new Float32Array(p.count).fill(2),1));g.computeBoundingBox();g.computeBoundingSphere();return template.lods[level]=g;
  }
  const p=[],ix=[],uv=[],colors=[],flex=[],point=new T.Vector3();
- const u=.5,v=.5,count=level===0?16:6;
+ const u=.5,v=.5,count=level===0?14:5;
  for(const [x,y,z,width,depth,height,phase]of template.sprays)for(let spray=0;spray<5;spray++){
   const {center,normal,across,along}=sprayPose(x,y,z,width,depth,height,phase,spray);
   for(let leaf=0;leaf<count;leaf++){
    const a=leaf*2.399+phase,r=Math.sqrt((leaf+.5)/count),cx=Math.cos(a)*r*width*.68,cy=Math.sin(a)*r*depth*.91;
    const direction=a*.47+spray,co=Math.cos(direction),si=Math.sin(direction),length=.11+.055*(.5+.5*Math.sin(leaf*7+phase)),w=length*.24,first=p.length/3;
    const leafU=cx/(width*.72),leafV=cy/(depth*.96),leafCenter=center.clone().addScaledVector(across,cx).addScaledVector(along,cy).addScaledVector(normal,height*sprayBow(leafU,leafV));
-   const leafNormal=normal.clone().addScaledVector(across,.40*height*leafU/(1.17*1.17*width*.72)).addScaledVector(along,.40*height*leafV/(1.17*1.17*depth*.96)).normalize();
+   const leafNormal=normal.clone().addScaledVector(across,.50*height*leafU/(1.17*1.17*width*.72)).addScaledVector(along,height*(.50*leafV/(1.17*1.17)+.21*leafV*leafV)/(depth*.96)).normalize();
    const leafAcross=across.clone().addScaledVector(leafNormal,-across.dot(leafNormal)).normalize(),leafAlong=new T.Vector3().crossVectors(leafNormal,leafAcross);
    // Six vertices, six triangles: raised midrib and drooping tip retain a smooth folded profile.
    const shape=[[0,-length*.5,length*.07],[0,0,length*.12],[-w,0,length*.025],[0,length*.55,-length*.04],[w,0,length*.025],[0,length*.25,length*.065]];
@@ -441,8 +450,11 @@ export function installForestBackdrop(world,id,biomeAt=()=>id){
    const lean=(variant-1)*.16,parts=[tint(limb([[0,0,0],[lean-.12,2.5,.06],[lean,5,0]],[.35,.20,.025],5),0x665b43)];
    for(const side of[-1,1])parts.push(tint(limb([[0,2.7,0],[side*.6,3.6,side*.2],[side,4.3,side*.4]],[.12,.065,.008],4),0x665b43));
    template.backdropTrunk=merge(parts);template.backdropTrunk.setAttribute('treeSurface',new T.Float32BufferAttribute(new Float32Array(template.backdropTrunk.attributes.position.count),1));
+   // Interior lobes matter underneath a live crown; distant hills only need
+   // the original fifteen outer lobes. Keep the six backdrop batches' budget.
+   template.backdropCanopy=template.canopy.clone();template.backdropCanopy.setIndex(Array.from(template.canopy.index.array.slice(0,450*3)));
   }
-  source.children[0].geometry=template.backdropTrunk;
+  source.children[0].geometry=template.backdropTrunk;source.children[1].geometry=template.backdropCanopy;
   for(const part of source.children){
    part.updateMatrix();const batch=new T.InstancedMesh(part.geometry,part.material,list.length);batch.name=part.name+'-backdrop';batch.receiveShadow=true;
    for(const [i,p]of list.entries()){

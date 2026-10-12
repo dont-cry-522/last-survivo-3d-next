@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import{wornStoneBlock}from'./environment-props.js?v=165';
+import{wornStoneBlock}from'./environment-props.js?v=166';
 import{naturalRockGeometry}from'./biome-scenery.js?v=156';
 
 // Inset mortar and shallow chipped stone faces share one closed wall volume.
@@ -9,10 +9,34 @@ function wallGeometry(profile,depth,biome){
  const vertex=(p,tone=1)=>{positions.push(...p);const foot=1-T.MathUtils.smoothstep(p[1],.01,.35+.055*Math.sin(p[0]*2.2)),shade=(.82+Math.min(1,Math.max(0,p[1])/2.5)*.16+foot*(biome==='sand'?.11:-.085))*tone;colors.push(shade*1.025,shade,shade*.95);};
  const face=(points,tone=1)=>{const first=positions.length/3;for(const p of points)vertex(p,tone);for(let i=1;i<points.length-1;i++)indices.push(first,first+i,first+i+1);};
  const points=profile.map(([x,h])=>{const wear=.035*Math.sin(x*2.9),seam=Math.min(h*.44,.19+.055*Math.sin(x*2.3+.7)),inset=depth*(biome==='sand'?.465:.39);return{x,h,seam,front:[depth*.5,inset+wear*.2,depth*.46+wear],back:[-depth*.5,-inset+wear*.2,-depth*.46+wear]};});
- const skin=(p,y,side)=>{const values=side===1?p.front:p.back,t=y<p.seam?(y+.10)/(p.seam+.10):(y-p.seam)/(p.h-p.seam);return T.MathUtils.lerp(values[y<p.seam?0:1],values[y<p.seam?1:2],t)-side*recess;};
+ // A broad buried plinth and alternating quarry lifts give ash walls actual
+ // stepped cross-sections. Sand keeps thicker, rounded windward buttresses.
+ const erosion=(x,y)=>biome==='ash'?depth*(.16*T.MathUtils.smoothstep(y,.1,.48)+.07*(.5+.5*Math.sin(y*14.61))):depth*.15*T.MathUtils.smoothstep(y,.1,.52)*(.5+.5*Math.cos(x*3.4))**2;
+ const skin=(p,y,side)=>{const values=side===1?p.front:p.back,t=y<p.seam?(y+.10)/(p.seam+.10):(y-p.seam)/(p.h-p.seam);return T.MathUtils.lerp(values[y<p.seam?0:1],values[y<p.seam?1:2],t)-side*(recess+erosion(p.x,y));};
+ const neighbors=x=>{const next=points.findIndex((p,i)=>i&&x<=p.x+1e-7);return[points[Math.max(1,next)-1],points[Math.max(1,next)]];};
+ const heightAt=x=>{const[a,b]=neighbors(x);return T.MathUtils.lerp(a.h,b.h,(x-a.x)/(b.x-a.x));};
+ const at=(x,y,side)=>{const[a,b]=neighbors(x),t=(x-a.x)/(b.x-a.x),seam=T.MathUtils.lerp(a.seam,b.seam,t),values=(side===1?a.front:a.back).map((v,i)=>T.MathUtils.lerp(v,(side===1?b.front:b.back)[i],t)),below=y<seam;return T.MathUtils.lerp(values[below?0:1],values[below?1:2],below?(y+.1)/(seam+.1):(y-seam)/(heightAt(x)-seam))-side*(recess+erosion(x,y));};
+ const peak=profile.reduce((a,b)=>a[1]>b[1]?a:b),niche=[];
+ if(biome==='sand'&&peak[1]>1.45){
+  const r=.36,bottom=.40,spring=Math.min(1.27,peak[1]-.58),cx=peak[0];
+  niche.push([cx-r,bottom],[cx+r,bottom]);for(let i=0;i<=10;i++){const a=i*Math.PI/10;niche.push([cx+Math.cos(a)*r,spring+Math.sin(a)*r]);}
+  if(niche.some(([x,y])=>y>heightAt(x)-.14))niche.length=0;
+ }
+ // Subtract the convex arched recess from each masonry tile. The socket has a
+ // closed stone back and real reveal thickness; it never opens a walking path.
+ const nicheTop=Math.max(0,...niche.map(p=>p[1]));
+ const outsideNiche=polygon=>{
+  if(!niche.length||polygon.every(p=>p[0]<=niche[0][0])||polygon.every(p=>p[0]>=niche[1][0])||polygon.every(p=>p[1]<=niche[0][1])||polygon.every(p=>p[1]>=nicheTop))return[polygon];let inside=polygon;const fragments=[];
+  for(let i=0;i<niche.length&&inside.length;i++){
+   const a=niche[i],b=niche[(i+1)%niche.length],value=p=>(b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0]),front=[],back=[];
+   for(let j=0;j<inside.length;j++){const p=inside[j],q=inside[(j+1)%inside.length],pv=value(p),qv=value(q);(pv>=0?front:back).push(p);if((pv>=0)!==(qv>=0)){const t=pv/(pv-qv),cut=[p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t];front.push(cut);back.push(cut);}}
+   if(back.length>=3)fragments.push(back);inside=front;
+  }
+  return fragments;
+ };
  const clip=(polygon,y,above)=>{const out=[];for(let i=0;i<polygon.length;i++){const a=polygon[i],b=polygon[(i+1)%polygon.length],inside=above?a[1]>=y:a[1]<=y,next=above?b[1]>=y:b[1]<=y;if(inside)out.push(a);if(inside!==next){const t=(y-a[1])/(b[1]-a[1]);out.push([a[0]+(b[0]-a[0])*t,y]);}}return out;};
  for(let segment=1;segment<points.length;segment++){
-  const a=points[segment-1],b=points[segment],width=b.x-a.x,height=x=>T.MathUtils.lerp(a.h,b.h,(x-a.x)/width),at=(x,y,side)=>{const t=(x-a.x)/width,seam=T.MathUtils.lerp(a.seam,b.seam,t),values=(side===1?a.front:a.back).map((v,i)=>T.MathUtils.lerp(v,(side===1?b.front:b.back)[i],t)),below=y<seam;return T.MathUtils.lerp(values[below?0:1],values[below?1:2],below?(y+.1)/(seam+.1):(y-seam)/(height(x)-seam))-side*recess;};
+  const a=points[segment-1],b=points[segment],width=b.x-a.x,height=x=>T.MathUtils.lerp(a.h,b.h,(x-a.x)/width);
   // Staggered half-metre courses read as masonry instead of a smooth sheet.
   for(let row=0;row<Math.ceil((Math.max(a.h,b.h)+.1)/.43);row++){
    const low=-.10+row*.43,high=low+.43,offset=(row%2)*.38,first=Math.floor((a.x-offset)/.78),last=Math.ceil((b.x-offset)/.78);
@@ -21,10 +45,10 @@ function wallGeometry(profile,depth,biome){
     let polygon=clip([[left,-.1],[right,-.1],[right,height(right)],[left,height(left)]],low,true);polygon=clip(polygon,high,false);if(polygon.length<3)continue;
     // Keep the buried foot's existing crease along each tile boundary.
     const seamAt=x=>T.MathUtils.lerp(a.seam,b.seam,(x-a.x)/width),creased=[];for(let k=0;k<polygon.length;k++){const p=polygon[k],q=polygon[(k+1)%polygon.length],pa=p[1]-seamAt(p[0]),qa=q[1]-seamAt(q[0]);creased.push(p);if(pa*qa<0){const t=pa/(pa-qa);creased.push([p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t]);}}polygon=creased;
-    const cx=polygon.reduce((sum,p)=>sum+p[0],0)/polygon.length,cy=polygon.reduce((sum,p)=>sum+p[1],0)/polygon.length,ys=polygon.map(p=>p[1]),span=Math.max(...ys)-Math.min(...ys);if(span<.00001)continue;
-    const edgeX=Math.min(.033,(right-left)*.13),edgeY=Math.min(.028,span*.13),tone=.96+.035*Math.sin(column*5.21+row*2.73+segment*.4);
-    for(const side of[1,-1]){
-     const rim=polygon.map(([x,y])=>[x,y,at(x,y,side)]),inner=polygon.map(([x,y])=>{const inset=1-Math.min(edgeX*2/(right-left),edgeY*2/span),px=cx+(x-cx)*inset,py=cy+(y-cy)*inset;return[px,py,at(px,py,side)+side*(recess-.004-.003*(1+Math.sin(column*2.2+row)))];});
+    for(const side of[1,-1])for(const tile of outsideNiche(polygon)){
+     const cx=tile.reduce((sum,p)=>sum+p[0],0)/tile.length,cy=tile.reduce((sum,p)=>sum+p[1],0)/tile.length,ys=tile.map(p=>p[1]),span=Math.max(...ys)-Math.min(...ys);if(span<.00001)continue;
+     const edgeX=Math.min(.033,(right-left)*.13),edgeY=Math.min(.028,span*.13),tone=.96+.035*Math.sin(column*5.21+row*2.73+segment*.4);
+     const rim=tile.map(([x,y])=>[x,y,at(x,y,side)]),inner=tile.map(([x,y])=>{const inset=1-Math.min(edgeX*2/(right-left),edgeY*2/span),px=cx+(x-cx)*inset,py=cy+(y-cy)*inset;return[px,py,at(px,py,side)+side*(recess-.004-.003*(1+Math.sin(column*2.2+row)))];});
      face(side===1?inner:[...inner].reverse(),tone);
      for(let i=0;i<rim.length;i++){const j=(i+1)%rim.length,quad=[rim[i],rim[j],inner[j],inner[i]];face(side===1?quad:quad.reverse(),tone*.90);}
     }
@@ -34,8 +58,13 @@ function wallGeometry(profile,depth,biome){
   face([[a.x,a.h,skin(a,a.h,1)],[b.x,b.h,skin(b,b.h,1)],[b.x,b.h,skin(b,b.h,-1)],[a.x,a.h,skin(a,a.h,-1)]]);
   face([[a.x,-.1,skin(a,-.1,-1)],[b.x,-.1,skin(b,-.1,-1)],[b.x,-.1,skin(b,-.1,1)],[a.x,-.1,skin(a,-.1,1)]]);
  }
+ if(niche.length)for(const side of[1,-1]){
+  const surface=niche.map(([x,y])=>[x,y,at(x,y,side)]),back=surface.map(([x,y])=>[x,y,side*depth*.10]);
+  face(side===1?back:[...back].reverse(),.64);
+  for(let i=0;i<surface.length;i++){const j=(i+1)%surface.length,quad=[surface[i],surface[j],back[j],back[i]];face(side===1?quad:quad.reverse(),.79+.07*Math.sin(i*.9));}
+ }
  for(const [p,reverse]of[[points[0],false],[points.at(-1),true]])for(const[low,high]of[[-.1,p.seam],[p.seam,p.h]]){const quad=[[p.x,low,skin(p,low,-1)],[p.x,low,skin(p,low,1)],[p.x,high,skin(p,high,1)],[p.x,high,skin(p,high,-1)]];face(reverse?quad.reverse():quad);}
- const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();geometry.name='SM_Ruin_Masonry_'+biome;geometry.userData.ruinWall={profile,depth};return geometry;
+ const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();geometry.name='SM_Ruin_Masonry_'+biome;geometry.userData.ruinWall={profile,depth,niche};return geometry;
 }
 // A continuous fired-clay section: outer belly, chipped lip, inner wall and
 // closed base. The two fracture faces expose real thickness instead of paper.
@@ -53,9 +82,10 @@ function brokenPotGeometry(profile,size,start,span){
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(indices);g.computeVertexNormals();g.name='SM_Ruin_BrokenPot_Clay';g.userData.ruinPot={size,height:top,thickness:.052*size};return g;
 }
 function vaultGeometry(inner,thickness,depth,start=0,end=Math.PI){
- const points=[],steps=18;for(let i=0;i<=steps;i++){const a=start+(end-start)*i/steps,r=inner+thickness+.026*Math.sin(a*9);points.push(new T.Vector2(Math.cos(a)*r,Math.sin(a)*r));}
- for(let i=steps;i>=0;i--){const a=start+(end-start)*i/steps;points.push(new T.Vector2(Math.cos(a)*inner,Math.sin(a)*inner));}
- const geometry=new T.ExtrudeGeometry(new T.Shape(points),{depth,steps:1,bevelEnabled:false});geometry.translate(0,0,-depth*.5);geometry.clearGroups();return geometry;
+ const points=[],steps=36;for(let i=0;i<=steps;i++){const a=start+(end-start)*i/steps,seam=i%3===1?.055:0,r=inner+thickness+.026*Math.sin(a*9)-seam;points.push(new T.Vector2(Math.cos(a)*r,Math.sin(a)*r));}
+ for(let i=steps;i>=0;i--){const a=start+(end-start)*i/steps,r=inner+(i%3===1?.035:0);points.push(new T.Vector2(Math.cos(a)*r,Math.sin(a)*r));}
+ const geometry=new T.ExtrudeGeometry(new T.Shape(points),{depth,steps:1,bevelEnabled:false});geometry.translate(0,0,-depth*.5);geometry.clearGroups();
+ const p=geometry.attributes.position,colors=[];for(let i=0;i<p.count;i++){const r=Math.hypot(p.getX(i),p.getY(i)),shade=T.MathUtils.lerp(.61,1.02,T.MathUtils.smoothstep(r,inner,inner+thickness));colors.push(shade,shade*.985,shade*.95);}geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.name='SM_Ruin_WeatheredVoussoirs';geometry.userData.ruinVault={inner,thickness,depth,start,end};return geometry;
 }
 function flowGeometry(points,width){
  const curve=new T.CatmullRomCurve3(points.map(([x,z])=>new T.Vector3(x,.026,z))),positions=[],indices=[];

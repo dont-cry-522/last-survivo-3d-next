@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import * as T from '../vendor/three.module.js';
-import {buildWoodlandPlace} from '../woodland-places.js?v=164';
+import {buildWoodlandPlace} from '../woodland-places.js?v=166';
 import {naturalRockGeometry} from '../biome-scenery.js?v=156';
 
 function capture(biome,variant=0){

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
-import {buildHarborPlace} from '../harbor-place.js?v=164';
+import {buildHarborPlace} from '../harbor-place.js?v=166';
 import {createOverheadQuery} from '../adventure-overheads.js';
 
 function build(variant=0){
@@ -155,13 +155,25 @@ test('loading berth relocates complete work and cargo areas without adding piece
 
 test('weathered boards keep outward end-grain normals separate from their long side faces',()=>{
  const b=build(),a=new T.Vector3(),c=new T.Vector3(),d=new T.Vector3(),normal=new T.Vector3(),n=new T.Vector3();
- const boards=b.pieces.filter(p=>p.geometry.name==='SM_Harbor_WeatheredBoard_A');assert.equal(boards.length,200);
+ const boards=b.pieces.filter(p=>['SM_Harbor_WeatheredBoard_A','SM_Harbor_CurvedRoofBoard_A'].includes(p.geometry.name));assert.equal(boards.length,200);
  for(const {geometry:g}of boards){
-  const p=g.attributes.position,index=g.index;assert.equal(index.count/3,44);
+  const p=g.attributes.position,index=g.index;assert.equal(index.count/3,g.name==='SM_Harbor_CurvedRoofBoard_A'?76:44);
   for(let i=index.count-36;i<index.count;i+=3){
    const ids=[index.getX(i),index.getX(i+1),index.getX(i+2)];a.fromBufferAttribute(p,ids[0]);c.fromBufferAttribute(p,ids[1]);d.fromBufferAttribute(p,ids[2]);normal.crossVectors(c.sub(a),d.sub(a)).normalize();
    for(const id of ids){n.fromBufferAttribute(g.attributes.normal,id);assert(n.dot(normal)>.55,'long side faces skewed the end-cap highlight');}
   }
  }
  b.dispose();
+});
+
+test('swept shed boards form real curved overheads while both entrances retain headroom',()=>{
+ const b=build(),boards=b.pieces.filter(p=>p.geometry.name==='SM_Harbor_CurvedRoofBoard_A'),group=new T.Group(),material=new T.MeshBasicMaterial();assert.equal(boards.length,26);
+ for(const{geometry:g,overhead}of boards){
+  assert(overhead);const p=g.attributes.position;
+  for(let corner=0;corner<8;corner++)assert(p.getY(16+corner)-(p.getY(corner)+p.getY(32+corner))*.5>.16,'roof board is only a tilted straight box');
+  const mesh=new T.Mesh(g,material);mesh.userData.placeOverhead=true;group.add(mesh);
+ }
+ const query=createOverheadQuery({group});
+ for(const x of[4.0,4.9,7.3,8.2])for(const z of[-.45,5.95]){const hit=query.firstHit({x,y:6,z},{x,y:3.2,z});assert(hit&&hit.point.y>3.2,'the curved canopy has a hole or lowers entrance clearance');}
+ assert.equal(query.firstHit({x:0,y:6,z:3},{x:0,y:.2,z:3}),null);material.dispose();b.dispose();
 });

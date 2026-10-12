@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {biomeWeights} from './confluence.js?v=165';
+import {biomeWeights} from './confluence.js?v=166';
 
 // Build-time composition only: existing crowns, owned branches and floor colors.
 // No scene nodes, materials, listeners or animation work are installed.

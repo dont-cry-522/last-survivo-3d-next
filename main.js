@@ -9,41 +9,41 @@ import{MOBILITY,resetMobility,airborne,bodyHeight,attackReachesPlayer,beginJump,
 import{installAdventureCampfire,updateAdventureCampfire}from'./adventure-campfire.js?v=115';
 import{loadSurfaceTextures}from'./surface-textures.js?v=120';
 import{createOverheadQuery,mobilityCeiling as queryMobilityCeiling,needsMobilityCeiling}from'./adventure-overheads.js?v=157';
-import{installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail}from'./adventure-ground-detail.js?v=166';
+import{installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail}from'./adventure-ground-detail.js?v=167';
 import{AdventureCamera}from'./adventure-camera.js?v=157';
 import{FirstPersonView}from'./first-person-view.js?v=132';
-import{AdventureAtmosphere}from'./adventure-atmosphere.js?v=166';
+import{AdventureAtmosphere}from'./adventure-atmosphere.js?v=167';
 import{aimPoint,groundAim,launchVelocity,segmentHitsBody,bodyContact,segmentBodyEntry,segmentGroundEntry}from'./adventure-combat.js?v=157';
 import{CinematicRenderer}from'./cinematic-renderer.js?v=117';
-import{lobbyLandscape,entryLandscapeYaw}from'./lobby-landscape.js?v=166';
+import{lobbyLandscape,entryLandscapeYaw}from'./lobby-landscape.js?v=167';
 import{installForestHabitats}from'./forest-habitats.js?v=158';
-import{installExplorationRoutes}from'./exploration-routes.js?v=166';
-import{installBiomePlaces}from'./biome-places.js?v=166';
-import{installEnvironmentClusters}from'./environment-clusters.js?v=166';
+import{installExplorationRoutes}from'./exploration-routes.js?v=167';
+import{installBiomePlaces}from'./biome-places.js?v=167';
+import{installEnvironmentClusters}from'./environment-clusters.js?v=167';
 import{installEnvironmentGrounding}from'./environment-grounding.js?v=159';
-import{installForestTerrain}from'./forest-terrain.js?v=162';
+import{installForestTerrain}from'./forest-terrain.js?v=167';
 import{installForestFloorRelief}from'./forest-floor-relief.js?v=155';
 import{installExplorationLandmarks}from'./exploration-landmarks.js?v=145';
-import{installExplorationComposition}from'./exploration-composition.js?v=166';
-import{installForestVista}from'./forest-vista.js?v=166';
+import{installExplorationComposition}from'./exploration-composition.js?v=167';
+import{installForestVista}from'./forest-vista.js?v=167';
 import{installWorldLightShafts,updateWorldLightShafts,installForestMist}from'./world-light-shafts.js?v=157';
 import{mapBrief}from'./expedition-brief.js?v=157';
-import{polishEnvironmentModels}from'./environment-props.js?v=166';
-import{EnvironmentLighting,installDistantLandscape}from'./environment-lighting.js?v=166';
+import{polishEnvironmentModels}from'./environment-props.js?v=167';
+import{EnvironmentLighting,installDistantLandscape}from'./environment-lighting.js?v=167';
 import{MirageCombat}from'./mirage-combat.js?v=157';
-import{MirageVFX}from'./mirage-vfx.js?v=157';
+import{MirageVFX}from'./mirage-vfx.js?v=167';
 import{mirageSound}from'./mirage-audio.js?v=114';
 import{PoisonCombat}from'./poison-combat.js?v=157';
-import{PoisonVFX}from'./poison-vfx.js?v=157';
+import{PoisonVFX}from'./poison-vfx.js?v=167';
 import{poisonSound}from'./poison-audio.js?v=114';
 import {HeroPreview} from './hero-preview.js?v=114';
-import {knownMapPoints,mapWaypoint,waypointHint} from './map-navigation.js?v=166';
+import {knownMapPoints,mapWaypoint,waypointHint} from './map-navigation.js?v=167';
 import {createExploration,EXPLORATION_SIZE} from './map-exploration.js?v=114';
-import{REGIONS,biomeAt,biomeWeights,biomeColor,CONFLUENCE_TEXT}from'./confluence.js?v=166';
+import{REGIONS,biomeAt,biomeWeights,biomeColor,CONFLUENCE_TEXT}from'./confluence.js?v=167';
 import{observePlayer}from'./target-awareness.js?v=114';
 import{TERRAIN_TIPS,onIce,iceMotion,damageTerrain,updateTactics,terrainMesh}from'./map-tactics.js?v=158';
 import{advanceRoaming,roamingHint,courierDirection}from'./roaming-events.js?v=158';
-import{discoveryInfo,discoveryVariants,discoveryThreatened,advanceDiscovery,discoveryHint,animateDiscoveries}from'./map-discoveries.js?v=166';
+import{discoveryInfo,discoveryVariants,discoveryThreatened,advanceDiscovery,discoveryHint,animateDiscoveries}from'./map-discoveries.js?v=167';
 import{recordEnemyHit,EnemyDeaths}from'./enemy-feedback.js?v=114';
 import{sandWeather}from'./sand-weather.js?v=114';
 import{HERO_DODGES,HERO_ABILITY_TEXT,dodgeTravel}from'./hero-dodge.js?v=114';
@@ -56,7 +56,7 @@ import{inMeleeArc,meleeDamageScale}from'./melee.js?v=114';
 import{discoverSite}from'./site-discovery.js?v=114';
 import{MAP_EVENTS,createMapEvent,advanceMapEvent,eventProgress}from'./map-events.js?v=114';
 import{MAP_HALF as DEFAULT_HALF}from'./map-layout.js?v=114';
-import{terrainAt,updateWaterLighting}from'./water.js?v=166';
+import{terrainAt,updateWaterLighting}from'./water.js?v=167';
 import{crossedSwimPhase}from'./swim-motion.js?v=114';
 import{RELICS,relicChoices,equipRelic,relicEvent,incomingRelicDamage,readJournal,writeJournal,recordDiscovery,recordVictory}from'./expedition.js?v=114';
 import{EXPEDITION_BOSS_TIME,encounterPhase,enemyGrowth,encounterRole,HUNT_SQUAD,huntFormation,HUNT_BOONS,takeHuntBoon,enemyApproach,separation,attackSlotAvailable}from'./encounters.js?v=114';
@@ -70,15 +70,15 @@ import{EXTRA_BY_ID,skillPairState,skillPairHint}from'./skill-catalog.js?v=125';
 import{SCOUT_ROLL_DURATION,rollTravel}from'./dodge-motion.js?v=114';
 import{adventureDodgePose}from'./adventure-dodge.js?v=121';
 import{renderPixelRatio,RenderBudget}from'./render-budget.js?v=114';
-import{groundCue,disposeCue,fitGroundCue}from'./ground-cues.js?v=157';
+import{groundCue,disposeCue,fitGroundCue,fitGroundSurface,disposeGroundSurface}from'./ground-cues.js?v=167';
 import{weaponRouteEffect,WEAPON_ROUTE_LOOKS}from'./weapon-route-vfx.js?v=125';
-import{SkillVFX}from'./skill-vfx.js?v=157';
+import{SkillVFX}from'./skill-vfx.js?v=167';
 import{loadHeroAssets,disposeHero}from'./skinned-hero.js?v=146';
 import{GameAudio,SFX_STYLES}from'./audio.js?v=114';
 import{ENEMY_GUIDE,CIRCLE_GUIDE}from'./battle-guide.js?v=157';
 import * as T from './vendor/three.module.js';
 import{MAPS,WEAPONS,ENEMIES,HERO_LOADOUTS,heroHealth,weaponFor,experienceNeeded,grantExperience,chooseUpgrades,takeUpgrade,weaponStats,weaponReachText,WEAPON_PATHS,segmentDistance,registerCrossbowHit,registerShadowHit,UPGRADES}from'./rules.js?v=125';
-import{actor,animateActor,animateWorld,buildWorld,clearAt,moveActor,followTerrain,supportHeight,mesh,mat}from'./world.js?v=166';
+import{actor,animateActor,animateWorld,buildWorld,clearAt,moveActor,followTerrain,supportHeight,mesh,mat}from'./world.js?v=167';
 const $=s=>document.querySelector(s),touch=matchMedia('(pointer:coarse)').matches;
 document.body.classList.toggle('touch',touch);if(touch)$('#map>small').textContent='点击查看地图';
 const canvas=$('#world');let renderer;
@@ -94,7 +94,7 @@ const scene=new T.Scene(),camera=new T.PerspectiveCamera(40,innerWidth/innerHeig
 const adventureCamera=new AdventureCamera(camera),firstPerson=new FirstPersonView(camera),atmosphere=new AdventureAtmosphere(scene);
 let eyeHeight=1.55;
 try{if(localStorage.getItem('forest3d-next-view')==='first')adventureCamera.setMode('first');}catch{}
-window.addEventListener('pagehide',e=>{if(!e.persisted){firstPerson.dispose();atmosphere.dispose();}});
+window.addEventListener('pagehide',e=>{if(!e.persisted){firstPerson.dispose();atmosphere.dispose();disposeGroundSurface(contactShadow);}});
 const vfx=new SkillVFX(scene,{mobile:touch,groundHeight:groundAt});
 const poisonVFX=new PoisonVFX(scene,vfx);
 const mirageVFX=new MirageVFX(scene,vfx);
@@ -195,7 +195,7 @@ function updateCompanion(dt){if(!companion)return;companion.update(dt);companion
  if(d.waterDepth>.4&&d.waterBlend>.5&&crossedSwimPhase(d.lastWaterPhase,d.swimPhase)&&Math.hypot(companion.x-player.x,companion.z-player.z)<14)vfx.water(companion.x,companion.z,companion.angle,.30);d.lastWaterPhase=d.swimPhase;
  const cycle=Math.floor((d.idleClock||0)/8.6),phase=(d.idleClock||0)%8.6;if(d.waterBlend<.1&&companion.state==='sniff'&&phase>.5&&phase<1.7&&d.soundSniff!==cycle){d.soundSniff=cycle;sound.companion('sniff',companion.x-player.x,companion.z-player.z);}}
 }
-function clearObjects(){bossRun=createBossRun();hitConfirmUntil=0;mirage.reset();mirageVFX.clear();poison.reset();poisonVFX.clear();enemyDeaths.clear();if(companionMesh)scene.remove(companionMesh);companion=companionMesh=null;document.body.classList.remove('has-companion');$('#companion-status').hidden=true;relicBurst=false;heroSkills.reset();vfx.clear();fields=[];riftStrikes=[];for(const list of [enemies,bullets,orbs,effects,zones])for(const o of list){scene.remove(o.mesh);disposeCue(o.mesh);if(o.kind==='line'){o.mesh.geometry.dispose();o.mesh.material.dispose();}}if(boss)scene.remove(boss.mesh);enemies=[];bullets=[];orbs=[];effects=[];zones=[];boss=null;}
+function clearObjects(){disposeGroundSurface(contactShadow);bossRun=createBossRun();hitConfirmUntil=0;mirage.reset();mirageVFX.clear();poison.reset();poisonVFX.clear();enemyDeaths.clear();if(companionMesh)scene.remove(companionMesh);companion=companionMesh=null;document.body.classList.remove('has-companion');$('#companion-status').hidden=true;relicBurst=false;heroSkills.reset();vfx.clear();fields=[];riftStrikes=[];for(const list of [enemies,bullets,orbs,effects,zones])for(const o of list){scene.remove(o.mesh);disposeCue(o.mesh);if(o.kind==='line'){o.mesh.geometry.dispose();o.mesh.material.dispose();}}if(boss)scene.remove(boss.mesh);enemies=[];bullets=[];orbs=[];effects=[];zones=[];boss=null;}
 function mapHalf(){return world?.half||DEFAULT_HALF;}
 function localBiome(x=player.x,z=player.z){return world?.regions?biomeAt(x,z):mapId;}
 function build(){renderer.shadowMap.needsUpdate=true;renderBudget.reset();clearObjects();if(world){scene.remove(world.group);world.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();disposeCue(o);if(o.userData.ownedGeometry)o.geometry.dispose();});}if(hero){disposeHero(hero);scene.remove(hero);}world=buildWorld(mapId,Math.floor(Math.random()*1e8));polishEnvironmentModels(world);installForestVista(world,mapId);installForestHabitats(world,mapId);installBiomePlaces(world,mapId);installEnvironmentClusters(world,mapId);installExplorationRoutes(world);installExplorationLandmarks(world,mapId);installExplorationComposition(world,mapId);world.group.updateMatrixWorld(true);for(const o of world.obstacles)o.height=o.sceneryHeight??Math.max(.15,new T.Box3().setFromObject(o.mesh).max.y);installWorldLightShafts(world,mapId);installForestMist(world,mapId,{mobile:touch});installDistantLandscape(world,mapId,biomeAt);installAdventureGroundDetail(world,mapId);installHabitatDetail(world,mapId);installForestTerrain(world,mapId);installEnvironmentGrounding(world);installForestFloorRelief(world,mapId);world.group.traverse(o=>{if(o.userData.groundCue)fitGroundCue(o,world.groundHeightAt);});world.overhead=createOverheadQuery(world);installAdventureCampfire(world,vfx.flameTexture);world.exploration=createExploration(mapHalf(),mapVisibility);world.exploration.reveal(world.spawn.x,world.spawn.z);scene.add(world.group);scene.background=new T.Color(world.theme.fog);scene.fog=new T.FogExp2(world.theme.fog,.014);environmentLighting.timeOffset=0;environmentLighting.update(mapId,world.regions?biomeWeights(world.spawn.x,world.spawn.z):null,0,0);hero=actor(heroId,weaponFor(heroId,weaponIndex).id);scene.add(hero);if(heroId==='mirage')animateActor(hero,0,0);player={...world.spawn,heroId,weaponId:weaponFor(heroId,weaponIndex).id,weaponPath:null,hp:heroHealth(heroId),maxHp:heroHealth(heroId),level:1,xp:0,pending:0,upgrades:{},attack:0,dash:0,dashTime:0,inv:0,hurt:0,hexSlow:0,angle:0,spell:{fire:3,ice:3,storm:3,veil:3,chain:3,rift:3},distance:0};world.solidActors=function*(){yield player;yield* enemies;if(boss?.alive)yield boss;};if(state==='menu'){world.lobbyView=lobbyLandscape(world,mapId);player.x=world.lobbyView.x;player.z=world.lobbyView.z;heroPreview.landscapeYaw=world.lobbyView.yaw;}hero.position.set(player.x,0,player.z);hero.updateMatrixWorld(true);const head=hero.userData.swimHead;eyeHeight=head?Math.max(1,head.getWorldPosition(temp).y+.03):1.55;player.standHeight=eyeHeight+.13;resetMobility(player,groundAt(player.x,player.z));hero.position.y=player.y;firstPerson.setHero(hero,player.weaponId);adventureCamera._ready=false;if(state==='playing'){adventureCamera.yaw=entryLandscapeYaw(world);adventureCamera.pitch=-.08;}createCompanion();updateCamera(1);syncViewUI();}
@@ -845,5 +845,5 @@ catch(e){$('#asset-loading span').textContent='角色资源加载失败，请检
 let sceneryTime=0;
 function renderWorld(){if(state==='menu'){heroPreview.render(scene,hero,companionMesh);return;}const visible=hero.visible,shadow=contactShadow.visible;if(adventureCamera.mode==='first'||viewDodge()?.concealed||camera.position.distanceTo(new T.Vector3(player.x,(player.y||0)+eyeHeight*.84,player.z))<.9){hero.visible=false;contactShadow.visible=false;}try{renderer.render(scene,camera);firstPerson.render(renderer,scene);}finally{hero.visible=visible;contactShadow.visible=shadow;}}
 function frame(now){const frameSeconds=(now-last)/1000,dt=Math.max(0,Math.min(.04,frameSeconds));last=now;const active=state==='playing'||state==='menu';if(renderWidth!==innerWidth||renderHeight!==innerHeight||renderDpr!==devicePixelRatio){resizeRendering();renderBudget.reset();}else if(renderBudget.sample(frameSeconds))resizeRendering();if(active){shadowClock+=dt;const shadowInterval=state==='menu'||touch||renderBudget.quality<.8?1/20:1/30;if(shadowClock>=shadowInterval){renderer.shadowMap.needsUpdate=true;shadowClock%=shadowInterval;}}if(state==='playing'||state==='menu'){sceneryTime+=dt;animateWorld(world,sceneryTime,player.x,player.z);}sound.update(dt,{map:world.activeBiome||localBiome(),seamless:!!world.regions,mode:state,boss:!!boss?.alive,pressure:state==='playing'?Math.max(world.roaming?.some(s=>s.state==='running')?.5:0,localBiome()==='sand'&&world.sandstorm?.active ? .42 : localBiome()==='coast'&&world.tide?.high ? .30 : 0,battlePhase.mood,Math.min(1,enemies.filter(e=>e.alive&&Math.hypot(e.x-player.x,e.z-player.z)<12).length/12)):0});if(state==='playing'){update(dt);updateEffects(dt);}else if(state==='menu'){if(companionMesh){companionMesh.rotation.y=heroPreview.landscapeYaw-.2;animateBadger(companionMesh,now/1000,0);}animateActor(hero,now/1000,0);hero.rotation.y=heroPreview.landscapeYaw+heroPreview.yaw+Math.sin(now/3000)*.07;world.light.intensity=9+Math.sin(now/100)*1.5;}for(let i=0;i<world.motes.length;i++){const m=world.motes[i];m.position.y+=Math.sin(now/1200+i)*dt*.15;m.scale.setScalar(.5+Math.sin(now/550+i)*.3);}updateAdventureCampfire(world,sceneryTime);animateAdventureGroundDetail(sceneryTime);
- if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0){$('#toast').style.opacity=0;syncMobileNotices();}}if(state==='playing'){if(encounterTime>0){encounterTime-=dt;if(encounterTime<=0){$('#encounter').hidden=true;currentIntroduction=null;nextIntroductionAt=time+(touch?35:20);syncMobileNotices();}}else showNextIntroduction();}shake=Math.max(0,shake-dt);if(active){environmentLighting.update(mapId,world.regions?biomeWeights(player.x,player.z):null,dt,state==='menu'?0:time);updateWaterLighting(mapId,environmentLighting);updateWorldLightShafts(world,sceneryTime,environmentLighting);if(world.forestMist)world.forestMist.visible=renderBudget.quality>=.8;}updateCamera(dt);uiTime+=dt;if(uiTime>.1&&state!=='menu'){uiTime=0;updateHUD();}contactShadow.position.set(player.x,(player.groundHeight||0)+.018,player.z);contactShadow.visible=(player.waterDepth||0)<.08;contactShadow.material.opacity=(heroId==='wraith'?.24:.52)*(heroId==='tide'?1-(viewDodge()?.weight||0):heroId==='mirage'?1-(hero.userData.mirageFade||0):1);firstPerson.update(time,active?dt:0,{moving:player.dashTime>0||airborne(player)?0:Math.min(1,Math.hypot(player.vx||0,player.vz||0)/6.5),strafe:player.dashTime>0?0:(-(player.vx||0)*Math.cos(adventureCamera.yaw)+(player.vz||0)*Math.sin(adventureCamera.yaw))/6.5,yaw:adventureCamera.yaw,pitch:adventureCamera.pitch,attack:hero.userData.shoot,dodgePose:viewDodge(),visible:state!=='menu'&&adventureCamera.mode==='first'});if(state==='playing'&&dt>0)vfx.trackMelee(player.dashTime>0?null:adventureCamera.mode==='first'?firstPerson.model:hero.userData.gun,player.weaponId,hero.userData.shotSerial,hero.userData.attackAge,hero.userData.reloadDuration);else if(state!=='paused')vfx.meleeEdge=null;atmosphere.update(sceneryTime,camera,{mapId:world.activeBiome||localBiome(),visible:state!=='menu',skyColor:hemisphere.color,fogColor:scene.fog.color,sunColor:sun.color,sunDirection:environmentLighting.direction,sunStrength:Math.min(1,sun.intensity/3.25),skyStrength:.55+.45*environmentLighting.day});$('#crosshair').hidden=state!=='playing';$('#crosshair').classList.toggle('confirmed',time<hitConfirmUntil);if(state!=='playing'&&document.pointerLockElement===canvas)document.exitPointerLock();syncViewUI();cinema.render(renderWorld,renderBudget.quality);requestAnimationFrame(frame);}requestAnimationFrame(frame);
+ if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0){$('#toast').style.opacity=0;syncMobileNotices();}}if(state==='playing'){if(encounterTime>0){encounterTime-=dt;if(encounterTime<=0){$('#encounter').hidden=true;currentIntroduction=null;nextIntroductionAt=time+(touch?35:20);syncMobileNotices();}}else showNextIntroduction();}shake=Math.max(0,shake-dt);if(active){environmentLighting.update(mapId,world.regions?biomeWeights(player.x,player.z):null,dt,state==='menu'?0:time);updateWaterLighting(mapId,environmentLighting);updateWorldLightShafts(world,sceneryTime,environmentLighting);if(world.forestMist)world.forestMist.visible=renderBudget.quality>=.8;}updateCamera(dt);uiTime+=dt;if(uiTime>.1&&state!=='menu'){uiTime=0;updateHUD();}contactShadow.position.set(player.x,(player.groundHeight||0)+.018,player.z);fitGroundSurface(contactShadow,world.groundHeightAt,{centerHeight:true});contactShadow.visible=(player.waterDepth||0)<.08;contactShadow.material.opacity=(heroId==='wraith'?.24:.52)*(heroId==='tide'?1-(viewDodge()?.weight||0):heroId==='mirage'?1-(hero.userData.mirageFade||0):1);firstPerson.update(time,active?dt:0,{moving:player.dashTime>0||airborne(player)?0:Math.min(1,Math.hypot(player.vx||0,player.vz||0)/6.5),strafe:player.dashTime>0?0:(-(player.vx||0)*Math.cos(adventureCamera.yaw)+(player.vz||0)*Math.sin(adventureCamera.yaw))/6.5,yaw:adventureCamera.yaw,pitch:adventureCamera.pitch,attack:hero.userData.shoot,dodgePose:viewDodge(),visible:state!=='menu'&&adventureCamera.mode==='first'});if(state==='playing'&&dt>0)vfx.trackMelee(player.dashTime>0?null:adventureCamera.mode==='first'?firstPerson.model:hero.userData.gun,player.weaponId,hero.userData.shotSerial,hero.userData.attackAge,hero.userData.reloadDuration);else if(state!=='paused')vfx.meleeEdge=null;atmosphere.update(sceneryTime,camera,{mapId:world.activeBiome||localBiome(),visible:state!=='menu',skyColor:hemisphere.color,fogColor:scene.fog.color,sunColor:sun.color,sunDirection:environmentLighting.direction,sunStrength:Math.min(1,sun.intensity/3.25),skyStrength:.55+.45*environmentLighting.day});$('#crosshair').hidden=state!=='playing';$('#crosshair').classList.toggle('confirmed',time<hitConfirmUntil);if(state!=='playing'&&document.pointerLockElement===canvas)document.exitPointerLock();syncViewUI();cinema.render(renderWorld,renderBudget.quality);requestAnimationFrame(frame);}requestAnimationFrame(frame);
 window.game3d={surfaceReady,get environmentLighting(){return environmentLighting;},get adventureCamera(){return adventureCamera;},get firstPerson(){return firstPerson;},get atmosphere(){return atmosphere;},setView,get cinema(){return cinema;},get mirage(){return mirage;},get mirageVFX(){return mirageVFX;},get poison(){return poison;},get poisonVFX(){return poisonVFX;},get companion(){return companion;},get companionMesh(){return companionMesh;},get encounter(){return{...battlePhase,hunt:hunt?{cycle:hunt.cycle,remaining:hunt.members.filter(e=>e.alive).length,rewarded:hunt.rewarded}:null};},get orbs(){return orbs;},get heroSkills(){return heroSkills;},get renderQuality(){return renderBudget.quality;},get audio(){return sound;},get hero(){return hero;},get state(){return state;},get player(){return player;},get enemies(){return enemies;},get boss(){return boss;},get bossRun(){return {...bossRun};},get world(){return world;},get time(){return time;},get renderer(){return renderer;},get camera(){return camera;},get controls(){return aimInput;},get vfx(){return vfx;},get bullets(){return bullets;},get fields(){return fields;},get riftStrikes(){return riftStrikes;},get zones(){return zones;},start,pause,resume,menu,dash,jump,spawn,spawnBoss,step(dt){if(state==='playing')update(dt);},grant(n){collectExperience(n);upgrade();},damage:hitPlayer,hurtEnemy,select(hero,map,index){heroId=Object.hasOwn(HERO_LOADOUTS,hero)?hero:'silver';mapId=Object.hasOwn(MAPS,map)?map:'forest';weaponIndex=Number.isInteger(index)&&index>=0&&index<HERO_LOADOUTS[heroId].length?index:0;renderChoices();build();}};

@@ -22,7 +22,7 @@ function refineOverlay(mesh,bounds,spacing,budget,sample,floorY){
   // after the long spans have been split, reserving the shared budget for crests.
   if(Math.max(ab,bc,ca)<=4){
    const ya=pa.y+sample(pa.x,pa.z),yb=pb.y+sample(pb.x,pb.z),yc=pc.y+sample(pc.x,pc.z);
-   let clear=true;for(const [u,v]of[[.5,.5],[.5,0],[0,.5],[1/3,1/3],[.25,.25],[.5,.25],[.25,.5]]){const w=1-u-v,x=pa.x*u+pb.x*v+pc.x*w,z=pa.z*u+pb.z*v+pc.z*w;if(ya*u+yb*v+yc*w<floorY+sample(x,z)+.010){clear=false;break;}}
+   let clear=true;for(let i=0;i<=4&&clear;i++)for(let j=0;j<=4-i;j++){const u=i/4,v=j/4,w=1-u-v,x=pa.x*u+pb.x*v+pc.x*w,z=pa.z*u+pb.z*v+pc.z*w;if(ya*u+yb*v+yc*w<floorY+sample(x,z)+.010){clear=false;break;}}
    if(clear){indices.push(a,b,c);return;}
   }
   added++;
@@ -39,6 +39,7 @@ function refineOverlay(mesh,bounds,spacing,budget,sample,floorY){
 
 const BIOMES=['forest','snow','ash','sand','coast'];
 const fade=T.MathUtils.smoothstep;
+const HEIGHT=1.2,AXIS_GRADE=.12,OVERLAY_BUDGET=4096;
 
 function corridor(points,biome,from=0,extent=48){
  const segments=[];let walked=0,length=0;
@@ -55,12 +56,14 @@ function corridor(points,biome,from=0,extent=48){
 function corridorWeight(route,x,z){
  let distance=Infinity,progress=0,across=0;
  for(const s of route.segments){const t=T.MathUtils.clamp(((x-s.a.x)*s.dx+(z-s.a.z)*s.dz)/(s.l*s.l),0,1),d=Math.hypot(x-s.a.x-s.dx*t,z-s.a.z-s.dz*t);if(d<distance){distance=d;progress=(s.start+t*s.l)/route.length;across=((x-s.a.x)*s.dz-(z-s.a.z)*s.dx)/s.l;}}
- if(distance>=15)return 0;
- const envelope=(1-fade(distance,4,15))*Math.sin(Math.PI*progress)**2;
+ if(distance>=18||progress<=0||progress>=1)return 0;
+ // Leave the walking lane low. Broad, unequal shoulders give the route a
+ // valley silhouette rather than putting a speed bump under the player.
+ const side=Math.abs(across),envelope=fade(side,2.8,6.5)*(1-fade(side,10,18))*Math.sin(Math.PI*progress)**2;
  // Broad, static climate shapes. Valleys remain at the old datum, so water,
  // projectile floors and jump/platform rules keep their existing semantics.
  const shape=route.biome==='sand'?.78+.22*Math.cos(across*.22+progress*1.8)**2:route.biome==='snow'?.82+.18*Math.sin(across*.18-progress*2.2)**2:route.biome==='ash'?.80+.20*Math.cos(progress*Math.PI*2.0)**2:route.biome==='coast'?.86+.14*Math.sin(progress*Math.PI*.5):1;
- return envelope*shape;
+ return envelope*shape*(across<0?1:.82);
 }
 
 // A bounded set of real, walkable route shoulders on the existing ground mesh.
@@ -121,10 +124,10 @@ export function installForestTerrain(world,mapId){
  for(let i=0;i<p.count;i++){
   const x=p.getX(i)+ground.position.x,z=-p.getY(i)+ground.position.z;
   let weight=0;for(const route of corridors)weight=Math.max(weight,corridorWeight(route,x,z));
-  if(weight>0)heights[i]=.25*Math.min(weight,protection(x,z));
+  if(weight>0)heights[i]=HEIGHT*Math.min(weight,protection(x,z));
  }
  // Bound both triangle gradients. Only lower peaks; protected zeroes never rise.
- const stepX=dx*.035,stepZ=dz*.035;
+ const stepX=dx*AXIS_GRADE,stepZ=dz*AXIS_GRADE;
  for(let pass=0;pass<2;pass++){
   for(let z=0;z<=rows;z++)for(let x=0;x<=cols;x++){const i=z*(cols+1)+x;if(x)heights[i]=Math.min(heights[i],heights[i-1]+stepX);if(z)heights[i]=Math.min(heights[i],heights[i-cols-1]+stepZ);}
   for(let z=rows;z>=0;z--)for(let x=cols;x>=0;x--){const i=z*(cols+1)+x;if(x<cols)heights[i]=Math.min(heights[i],heights[i+1]+stepX);if(z<rows)heights[i]=Math.min(heights[i],heights[i+cols+1]+stepZ);}
@@ -141,8 +144,8 @@ export function installForestTerrain(world,mapId){
  const state={heights,cols,rows,width,height,sample,corridors,disposed:false,maxHeight:Math.max(...heights),instances:0,draped:0,overlayTrianglesAdded:0};
  world.forestTerrain=state;world.groundHeightAt=sample;
  const matrix=new T.Matrix4(),point=new T.Vector3();world.group.updateMatrixWorld(true);
- // Existing vegetation remains the same plants and batches. Buried roots have
- // enough overlap for this <=5% slope; no per-frame instance work is added.
+ // Existing plants retain their placement, shared geometry and buried roots.
+ // All height attachment happens at build time, with no per-frame instance work.
  const batches=[...(world.scenery?.batches||[]),...(world.adventureGroundDetail?.children||[]),...(world.habitatDetail?.children||[])];
  for(const mesh of batches){let changed=false;if(!mesh.isInstancedMesh)continue;
   for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,matrix);point.setFromMatrixPosition(matrix).applyMatrix4(mesh.matrixWorld);const h=sample(point.x,point.z);if(h<=0)continue;matrix.elements[13]+=h;mesh.setMatrixAt(i,matrix);state.instances++;changed=true;}
@@ -162,9 +165,9 @@ export function installForestTerrain(world,mapId){
   let attr=mesh.geometry.attributes.position;if(!attr)continue;
   let flat=true;for(let i=0;i<attr.count;i++){point.fromBufferAttribute(attr,i).applyMatrix4(mesh.matrixWorld);if(point.y<-.06||point.y>.08){flat=false;break;}}
   if(!flat)continue;let changed=false;
-  // At the bounded 5% grade, sub-60cm edges stay within the existing 3.8cm
-  // floor clearance even between vertices. Cap setup work at 4096 new triangles.
-  state.overlayTrianglesAdded+=refineOverlay(mesh,bounds,Math.min(.6,dx*.4,dz*.4),4096-state.overlayTrianglesAdded,sample,ground.position.y);attr=mesh.geometry.attributes.position;
+  // Tighter edges at crests keep worn soil above the steeper rendered surface;
+  // most interiors pass unchanged. No extra meshes or per-frame subdivision.
+  state.overlayTrianglesAdded+=refineOverlay(mesh,bounds,Math.min(.25,dx*.4,dz*.4),OVERLAY_BUDGET-state.overlayTrianglesAdded,sample,ground.position.y);attr=mesh.geometry.attributes.position;
   for(let i=0;i<attr.count;i++){point.fromBufferAttribute(attr,i).applyMatrix4(mesh.matrixWorld);const h=sample(point.x,point.z);if(h<=0)continue;point.y+=h;mesh.worldToLocal(point);attr.setXYZ(i,point.x,point.y,point.z);changed=true;}
   if(changed){attr.needsUpdate=true;mesh.geometry.computeVertexNormals();mesh.geometry.computeBoundingSphere();state.draped++;}
  }

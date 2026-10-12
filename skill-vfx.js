@@ -1,7 +1,7 @@
 import{meleeSwing}from'./weapon-performance.js?v=130';
 import{boneBoomerang}from'./beast-model.js?v=114';
 import * as T from './vendor/three.module.js';
-import {flatGround,fitGroundSurface,disposeGroundSurface} from './ground-cues.js?v=157';
+import {flatGround,fitGroundSurface,disposeGroundSurface} from './ground-cues.js?v=167';
 import{shadowCrescentGeometry}from'./shadow-weapons.js?v=114';
 import{spellShapes,streakTexture,crestTexture}from'./spell-shapes.js?v=131';
 

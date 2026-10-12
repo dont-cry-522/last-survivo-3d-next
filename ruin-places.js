@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import{wornStoneBlock}from'./environment-props.js?v=166';
+import{wornStoneBlock}from'./environment-props.js?v=167';
 import{naturalRockGeometry}from'./biome-scenery.js?v=156';
 
 // Inset mortar and shallow chipped stone faces share one closed wall volume.

@@ -12,8 +12,8 @@ import {installForestTerrain} from '../forest-terrain.js';
 import {installEnvironmentGrounding} from '../environment-grounding.js';
 import {installForestFloorRelief} from '../forest-floor-relief.js';
 import {installForestVista} from '../forest-vista.js';
-import {installBiomePlaces} from '../biome-places.js?v=166';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=166';
+import {installBiomePlaces} from '../biome-places.js?v=167';
+import {installEnvironmentClusters} from '../environment-clusters.js?v=167';
 import {installExplorationLandmarks} from '../exploration-landmarks.js';
 import {installExplorationComposition} from '../exploration-composition.js';
 
@@ -42,10 +42,10 @@ function gameplay(w){
  return JSON.stringify(Object.fromEntries(['spawn','obstacles','ponds','bridges','fords','ice','sites','discoveries','roaming','patches','biomePlaces','explorationRoutes'].map(key=>[key,pick(w[key])])));
 }
 
-test('forest approach uses its rendered triangles for bounded shallow ground without moving solid footprints',()=>{
+test('forest approach uses its rendered triangles for bounded valley shoulders without moving solid footprints',()=>{
  for(const seed of [7,522,43837033]){
   const w=forest(seed),snapshot=JSON.stringify({spawn:w.spawn,obstacles:w.obstacles.map(o=>[o.x,o.z,o.r,o.height]),ponds:w.ponds.map(p=>[p.x,p.z,p.rx,p.rz]),sites:w.sites.map(s=>[s.x,s.z])});
-  const old=w.ground.geometry;let released=0;old.addEventListener('dispose',()=>released++);const t=installForestTerrain(w,'forest');assert(t&&t.maxHeight>.04&&t.maxHeight<=.25);assert.equal(released,1);assert.equal(installForestTerrain(w,'forest'),t);
+  const old=w.ground.geometry;let released=0;old.addEventListener('dispose',()=>released++);const t=installForestTerrain(w,'forest');assert(t&&t.maxHeight>.4&&t.maxHeight<=1.2);assert.equal(released,1);assert.equal(installForestTerrain(w,'forest'),t);
   assert.equal(JSON.stringify({spawn:w.spawn,obstacles:w.obstacles.map(o=>[o.x,o.z,o.r,o.height]),ponds:w.ponds.map(p=>[p.x,p.z,p.rx,p.rz]),sites:w.sites.map(s=>[s.x,s.z])}),snapshot);
   assert.equal(w.ground.geometry.index.count/3,144*144*2);assert.equal(w.groundHeightAt(w.spawn.x,w.spawn.z),0);
   for(const o of w.obstacles)for(let i=0;i<8;i++)assert.equal(w.groundHeightAt(o.x+Math.sin(i*Math.PI/4)*o.r,o.z+Math.cos(i*Math.PI/4)*o.r),0,'terrain entered a protected solid');
@@ -55,7 +55,7 @@ test('forest approach uses its rendered triangles for bounded shallow ground wit
    const a=z*(t.cols+1)+x;if(!t.heights[a]&&!t.heights[a+1]&&!t.heights[a+t.cols+1]&&!t.heights[a+t.cols+2])continue;
    for(const [u,v]of [[.2,.3],[.8,.7]]){const px=-t.width/2+(x+u)*t.width/t.cols,pz=-t.height/2+(z+v)*t.height/t.rows;ray.set(origin.set(px,5,pz),down);const hit=ray.intersectObject(w.ground)[0];assert(hit);assert(Math.abs(hit.point.y+.03-w.groundHeightAt(px,pz))<1e-6,'feet do not follow rendered ground');checked++;}
   }
-  assert(checked>8);for(let z=0;z<=t.rows;z++)for(let x=0;x<=t.cols;x++){const i=z*(t.cols+1)+x;if(x)assert(Math.abs(t.heights[i]-t.heights[i-1])<=t.width/t.cols*.035+1e-7);if(z)assert(Math.abs(t.heights[i]-t.heights[i-t.cols-1])<=t.height/t.rows*.035+1e-7);}
+  assert(checked>8);for(let z=0;z<=t.rows;z++)for(let x=0;x<=t.cols;x++){const i=z*(t.cols+1)+x;if(x)assert(Math.abs(t.heights[i]-t.heights[i-1])<=t.width/t.cols*.12+1e-7);if(z)assert(Math.abs(t.heights[i]-t.heights[i-t.cols-1])<=t.height/t.rows*.12+1e-7);}
   cleanup(w);
  }
 });
@@ -69,6 +69,20 @@ test('grass roots and owned ground overlays rise once; ground contact and root c
 
 test('worlds without authored routes keep the original ground and allocate no height field',()=>{
  for(const id of ['snow','ash','sand','coast','confluence','forest']){const w=buildWorld(id,522),g=w.ground.geometry,positions=g.attributes.position.array.slice();assert.equal(installForestTerrain(w,id),null);assert.equal(w.ground.geometry,g);assert.deepEqual(g.attributes.position.array,positions);assert.equal(w.groundHeightAt,undefined);cleanup(w);}
+});
+
+test('unobstructed routes keep a low walking lane between unequal, climate-shaped shoulders',()=>{
+ const profiles=[];
+ for(const biome of ['forest','snow','ash','sand','coast']){
+  const group=new T.Group(),ground=new T.Mesh(new T.PlaneGeometry(64,64,16,16));ground.rotation.x=-Math.PI/2;ground.position.y=-.03;ground.userData.ownedGeometry=true;group.add(ground);
+  const w={group,ground,spawn:{x:25,z:25},explorationRoutes:[{biome,points:[{x:0,z:-24},{x:0,z:24}]}]},t=installForestTerrain(w,biome);
+  for(const z of [-12,-6,0,6,12])assert.equal(t.sample(0,z),0,'walking lane became a road hump');
+  assert(t.sample(-8,0)>.6&&t.sample(8,0)>.6,'route shoulders lack a readable cross-section');
+  assert(t.sample(-8,0)>t.sample(8,0),'both shoulders became mechanically symmetrical');
+  assert.equal(t.sample(20,0),0);assert.equal(t.sample(8,25),0);
+  profiles.push([-12,-6,0,6,12].map(z=>Number(t.sample(8,z).toFixed(4))).join(','));cleanup(w);
+ }
+ assert.equal(new Set(profiles).size,5,'climate profiles were reduced to one repeated shape');
 });
 
 test('real forest route and soil triangles stay above the floor internally without adding meshes or losing worn edges',()=>{
@@ -110,12 +124,12 @@ test('all five climates and their joined regions have bounded visible relief whi
   const samples=wet.flatMap(q=>Array.from({length:16},(_,i)=>{assert(q.rx>0&&q.rz>0);const a=i*Math.PI/8,u=Math.cos(a)*q.rx,v=Math.sin(a)*q.rz,c=Math.cos(q.angle||0),s=Math.sin(q.angle||0);return{x:q.x+c*u+s*v,z:q.z-s*u+c*v};}));
   const kinds=samples.map(p=>terrainAt(w,p.x,p.z));
   const t=installForestTerrain(w,id);assert(t,`${id}/${seed} did not install`);assert.equal(gameplay(w),before);const after=[];w.group.traverse(o=>after.push(o));assert.deepEqual(after,children);
-  assert(t.maxHeight>.06&&t.maxHeight<=.25);assert.equal(t.cols,id==='confluence'?160:144);assert.equal(w.ground.geometry.index.count/3,t.cols*t.rows*2);assert(t.overlayTrianglesAdded<=4096);
+  assert(t.maxHeight>.4&&t.maxHeight<=1.2);assert.equal(t.cols,id==='confluence'?160:144);assert.equal(w.ground.geometry.index.count/3,t.cols*t.rows*2);assert(t.overlayTrianglesAdded<=4096);
   for(const biome of id==='confluence'?maps:[id]){
    const region=w.regions?.find(r=>r.id===biome),routes=t.corridors.filter(r=>r.biome===biome);assert(routes.length>=1&&routes.length<=2,`${id}/${seed}/${biome}: corridor count`);
    let peak=0,area=0;
-   for(let i=0;i<t.heights.length;i++){const x=i%(t.cols+1)*t.width/t.cols-t.width/2,z=Math.floor(i/(t.cols+1))*t.height/t.rows-t.height/2;if(region&&!region.contains(x,z))continue;peak=Math.max(peak,t.heights[i]);if(t.heights[i]>.04)area+=t.width/t.cols*t.height/t.rows;}
-   assert(peak>.06&&area>35,`${id}/${seed}/${biome}: relief was protected down to an invisible patch (${peak}m/${area}m2)`);
+   for(let i=0;i<t.heights.length;i++){const x=i%(t.cols+1)*t.width/t.cols-t.width/2,z=Math.floor(i/(t.cols+1))*t.height/t.rows-t.height/2;if(region&&!region.contains(x,z))continue;peak=Math.max(peak,t.heights[i]);if(t.heights[i]>(region?.3:.5))area+=t.width/t.cols*t.height/t.rows;}
+   assert(peak>(region?.4:.65)&&area>(region?20:50),`${id}/${seed}/${biome}: relief was protected down to an invisible patch (${peak}m/${area}m2)`);
   }
   if(id==='forest')assert.equal(t.corridors.length,2,'forest retains its approach and gains a second route');
   for(const [i,p] of samples.entries()){assert.equal(t.sample(p.x,p.z),0,`${id}/${seed}: highest tide or ice edge raised`);assert.deepEqual(terrainAt(w,p.x,p.z),kinds[i]);}
@@ -123,7 +137,7 @@ test('all five climates and their joined regions have bounded visible relief whi
    const c=Math.cos(q.angle||0),s=Math.sin(q.angle||0);for(const u of[-q.hx,0,q.hx])for(const v of[-q.hz,0,q.hz])assert.equal(t.sample(q.x+c*u+s*v,q.z-s*u+c*v),0,`${id}/${seed}: place/bridge/ford approach raised`);
   }
   for(const o of w.obstacles)for(let a=0;a<8;a++)assert.equal(t.sample(o.x+Math.cos(a*Math.PI/4)*o.r,o.z+Math.sin(a*Math.PI/4)*o.r),0,`${id}/${seed}: collider raised`);
-  for(let z=0;z<=t.rows;z++)for(let x=0;x<=t.cols;x++){const i=z*(t.cols+1)+x;assert(Number.isFinite(t.heights[i])&&t.heights[i]>=0);if(x)assert(Math.abs(t.heights[i]-t.heights[i-1])<=t.width/t.cols*.035+1e-7);if(z)assert(Math.abs(t.heights[i]-t.heights[i-t.cols-1])<=t.height/t.rows*.035+1e-7);}
+  for(let z=0;z<=t.rows;z++)for(let x=0;x<=t.cols;x++){const i=z*(t.cols+1)+x;assert(Number.isFinite(t.heights[i])&&t.heights[i]>=0);if(x)assert(Math.abs(t.heights[i]-t.heights[i-1])<=t.width/t.cols*.12+1e-7);if(z)assert(Math.abs(t.heights[i]-t.heights[i-t.cols-1])<=t.height/t.rows*.12+1e-7);}
   const active=w.ground.geometry;let disposed=0;active.addEventListener('dispose',()=>disposed++);assert.equal(installForestTerrain(w,id),t);cleanup(w);assert(t.disposed);assert.equal(w.groundHeightAt,undefined);assert.equal(disposed,1);
  }
 });
@@ -158,7 +172,9 @@ test('existing feet, jump and spatial projectile queries use the same raised tri
   const foe={x:x-.5,z,y:0},pet={x,z:z-.5,y:0};moveActor(w,foe,1,0);moveActor(w,pet,0,1);assert.equal(foe.y,t.sample(foe.x,foe.z));assert.equal(pet.y,t.sample(pet.x,pet.z));
   assert(beginJump(hero));let airborne=false;for(let frame=0;frame<65;frame++){moveActor(w,hero,.01,0);tickMobility(hero,1/60,{ground:supportHeight(w,hero)});airborne||=hero.y>hero.groundHeight+.5;}assert(airborne);assert.equal(hero.y,t.sample(hero.x,hero.z));
   const ray={origin:{x,y:2,z},direction:{x:0,y:-1,z:0}},aim=groundAim(ray,{x,z},12,0,t.sample),hit=segmentGroundEntry(ray.origin,{x,y:-1,z},t.sample);
-  assert(Math.abs(aim.y-t.sample(x,z))<1e-6);assert(hit!==null&&Math.abs(2-hit*3-t.sample(x,z))<.001);assert.equal(segmentGroundEntry({x:x-1,y:1,z},{x:x+1,y:1,z},t.sample),null);
+  assert(Math.abs(aim.y-t.sample(x,z))<1e-6);assert(hit!==null&&Math.abs(2-hit*3-t.sample(x,z))<.001);assert.equal(segmentGroundEntry({x:x-1,y:t.maxHeight+.2,z},{x:x+1,y:t.maxHeight+.2,z},t.sample),null);
+  // A low, horizontal shot must stop at a real shoulder, not pass through it.
+  let blocked=false;for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){const a={x:x+dx*16,y:t.maxHeight*.7,z:z+dz*16};if(t.sample(a.x,a.z)<a.y){assert(segmentGroundEntry(a,{x,y:a.y,z},t.sample)!==null);blocked=true;}}assert(blocked);
   cleanup(w);
  }
 });

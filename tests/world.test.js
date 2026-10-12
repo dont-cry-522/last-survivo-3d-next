@@ -20,6 +20,28 @@ test('weather stays at world positions when the player moves and renews over tim
 test('restarting a map reuses its weather material',()=>{for(const id of ['forest','snow','ash']){const a=buildWorld(id,1),b=buildWorld(id,2);assert.strictEqual(a.weather.mesh.material,b.weather.mesh.material,`${id} created another GPU material`);for(const w of [a,b])w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});}});
 test('fireflies have a shared soft core instead of opaque polygon faces',()=>{const a=buildWorld('forest',3),b=buildWorld('forest',4),material=a.weather.mesh.material,texture=material.map;assert.equal(a.weather.mesh.count,42);assert.equal(a.weather.mesh.geometry.type,'PlaneGeometry');assert.strictEqual(texture,b.weather.mesh.material.map);assert.equal(material.depthWrite,false);const {data,width}=texture.image;assert.equal(data[3],0);assert(data[((width/2)*width+width/2)*4+3]>200);for(const w of [a,b])w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});});
 
+test('all five weather layers follow raised soil and joined regions share its sampler without changing particle motion',()=>{
+ const ground=(x,z)=>.6+.3*Math.sin(x*.4)+.3*Math.cos(z*.4);
+ for(const id of['forest','snow','ash','sand','coast','confluence']){
+  const raised=buildWorld(id,522),flat=buildWorld(id,522),scopes=raised.regions||[raised],flatScopes=flat.regions||[flat];raised.groundHeightAt=ground;
+  for(const time of[0,.04,.08,1,3]){
+   animateWorld(raised,time,raised.spawn.x,raised.spawn.z);animateWorld(flat,time,flat.spawn.x,flat.spawn.z);
+   for(const [index,scope]of scopes.entries()){
+    const a=scope.weather,b=flatScopes[index].weather,matrix=new a.mesh.matrix.constructor(),baseline=matrix.clone();
+    assert.deepEqual(a.particles,b.particles,'terrain altered particle lifetimes, velocities or renewal');assert.equal(a.mesh.count,b.mesh.count);assert.equal(a.mesh.geometry,b.mesh.geometry);assert.equal(a.mesh.material,b.mesh.material);
+    for(let i=0;i<a.mesh.count;i++){
+     a.mesh.getMatrixAt(i,matrix);b.mesh.getMatrixAt(i,baseline);
+     assert(Math.abs(matrix.elements[13]-baseline.elements[13]-ground(matrix.elements[12],matrix.elements[14]))<3e-6,id+' weather did not follow its rendered world position');
+     for(let k=0;k<16;k++)if(k!==13)assert.equal(matrix.elements[k],baseline.elements[k],'terrain changed weather scale, orientation or horizontal position');
+    }
+   }
+  }
+  delete raised.groundHeightAt;animateWorld(raised,3,raised.spawn.x,raised.spawn.z);
+  for(const [i,scope]of scopes.entries()){assert.equal(scope.groundHeightAt,undefined,'regional world retained a stale terrain sampler');assert.deepEqual(scope.weather.mesh.instanceMatrix.array,flatScopes[i].weather.mesh.instanceMatrix.array,'flat-world weather retained its previous terrain offset');}
+  for(const w of[raised,flat])w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
+ }
+});
+
 test('each expedition has five separated, seeded landmarks and a reachable early relic',()=>{const positions=new Set();for(let seed=1;seed<=30;seed++){const w=buildWorld('forest',seed),r=w.sites.find(s=>s.type==='relic');assert.equal(w.sites.length,5);assert(w.sites.slice(3).every(s=>Math.hypot(s.x,s.z)>65&&clearAt(w,s.x,s.z,3)));assert(Math.hypot(r.x-w.spawn.x,r.z-w.spawn.z)<33);for(const a of w.sites)for(const b of w.sites)if(a!==b)assert(Math.hypot(a.x-b.x,a.z-b.z)>15);positions.add(r.x+':'+r.z);w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});}assert.equal(positions.size,30);});
 
 test('new map districts keep spawn, rewards and all bridge entrances reachable',()=>{for(const id of ['sand','coast'])for(let seed=0;seed<12;seed++){const w=buildWorld(id,seed);assert(w.districts.length>=1);assert(clearAt(w,w.spawn.x,w.spawn.z,1));for(const s of w.sites)assert(clearAt(w,s.x,s.z,3));const bound=w.half-2,size=bound+1,seen=new Set(),queue=[],cell=(x,z)=>[Math.round((x+bound)/2),Math.round((z+bound)/2)],start=cell(w.spawn.x,w.spawn.z);queue.push(start);seen.add(start.join(','));for(let i=0;i<queue.length;i++){const [x,z]=queue[i];for(const [dx,dz]of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,nz=z+dz,key=nx+','+nz;if(nx<0||nz<0||nx>=size||nz>=size||seen.has(key)||!clearAt(w,nx*2-bound,nz*2-bound,.5))continue;seen.add(key);queue.push([nx,nz]);}}for(const s of w.sites)assert(seen.has(cell(s.x,s.z).join(',')),id+' unreachable reward');for(const b of w.bridges||[])for(const side of[-1,1]){const x=b.x+Math.cos(b.angle||0)*(b.width/2+.6)*side,z=b.z-Math.sin(b.angle||0)*(b.width/2+.6)*side;assert(clearAt(w,x,z,.6),'blocked bridge entrance');assert(seen.has(cell(x,z).join(',')),'unreachable bridge entrance');}w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose()});}});

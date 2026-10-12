@@ -13,18 +13,28 @@ export function fitGroundSurface(mesh,groundHeight=flatGround,{centerHeight=fals
  let state=groundSurfaces.get(mesh),source=mesh.geometry;
  if(state&&source===state.geometry)source=state.source;
  if(state?.source!==source){disposeGroundSurface(mesh);state=null;}
- if(!state){const params=source.parameters,isPlane=source.type==='PlaneGeometry',base=isPlane?new Float32Array(81*3):source.attributes.position.array.slice();
-  if(isPlane)for(let z=0;z<=8;z++)for(let x=0;x<=8;x++){const i=(z*9+x)*3;base[i]=(x/8-.5)*params.width;base[i+1]=(.5-z/8)*params.height;}
-  state={source,geometry:null,base,fitted:new Float32Array(base.length),matrix:[],height:null,centerHeight:null,isPlane};groundSurfaces.set(mesh,state);
+ if(!state){const isPlane=source.type==='PlaneGeometry',base=isPlane?null:source.attributes.position.array.slice();
+  state={source,geometry:null,base,fitted:isPlane?null:new Float32Array(base.length),segments:0,matrix:[],height:null,centerHeight:null,isPlane};groundSurfaces.set(mesh,state);
  }
  const matrix=mesh.matrixWorld.elements;
  if(state.height===groundHeight&&state.centerHeight===centerHeight&&state.matrix.every((v,i)=>v===matrix[i])&&state.matrix.length===16){mesh.geometry=state.draped?state.geometry:state.source;return mesh;}
+ if(state.isPlane){
+  const params=source.parameters,width=params.width*Math.hypot(matrix[0],matrix[1],matrix[2]),height=params.height*Math.hypot(matrix[4],matrix[5],matrix[6]);
+  // Half-metre grid cells keep triangle edges within about .7 m until the cap.
+  // Three retained tiers avoid rebuilding buffers for every animation frame.
+  const segments=Math.max(state.segments,Math.min(24,Math.max(8,Math.ceil(Math.max(width,height)/4)*8)));
+  if(segments!==state.segments){
+   state.base=new Float32Array((segments+1)**2*3);state.fitted=new Float32Array(state.base.length);state.segments=segments;
+   for(let z=0;z<=segments;z++)for(let x=0;x<=segments;x++){const i=(z*(segments+1)+x)*3;state.base[i]=(x/segments-.5)*params.width;state.base[i+1]=(.5-z/segments)*params.height;}
+   state.geometry?.dispose();state.geometry=null;
+  }
+ }
  state.height=groundHeight;state.centerHeight=centerHeight;state.matrix=matrix.slice();
  const origin=centerHeight?groundHeight(matrix[12],matrix[14])||0:0;inverse.copy(mesh.matrixWorld).invert();let draped=false;
  for(let i=0;i<state.base.length/3;i++){point.fromArray(state.base,i*3).applyMatrix4(mesh.matrixWorld);const h=(groundHeight(point.x,point.z)||0)-origin;draped||=Math.abs(h)>.000001;point.y+=h;point.applyMatrix4(inverse);point.toArray(state.fitted,i*3);}
  state.draped=draped;
  // No extra GPU geometry on flat maps (including zero-returning world callbacks).
- if(draped){state.geometry||=state.isPlane?new T.PlaneGeometry(source.parameters.width,source.parameters.height,8,8):source.clone();const pos=state.geometry.attributes.position;pos.array.set(state.fitted);pos.needsUpdate=true;state.geometry.computeBoundingSphere();}
+ if(draped){state.geometry||=state.isPlane?new T.PlaneGeometry(source.parameters.width,source.parameters.height,state.segments,state.segments):source.clone();const pos=state.geometry.attributes.position;pos.array.set(state.fitted);pos.needsUpdate=true;state.geometry.computeBoundingSphere();}
  mesh.geometry=draped?state.geometry:state.source;
  return mesh;
 }

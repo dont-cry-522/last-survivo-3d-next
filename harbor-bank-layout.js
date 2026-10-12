@@ -1,4 +1,4 @@
-import {waterDepth} from './water.js?v=166';
+import {waterDepth} from './water.js?v=167';
 
 const HALF_X=9.4,HALF_Z=8.4,PIER_START=-7.6,PIER_MAX=35,PIER_BREADTH=2.8;
 const shore=a=>1+.07*Math.sin(a*3)+.045*Math.cos(a*5);

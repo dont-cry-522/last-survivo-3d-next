@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
-import {groundCue,fitGroundCue,disposeCue} from '../ground-cues.js';
+import {groundCue,fitGroundCue,disposeCue,fitGroundSurface,disposeGroundSurface} from '../ground-cues.js';
 import {SkillVFX} from '../skill-vfx.js';
 import {PoisonVFX} from '../poison-vfx.js';
 import {MirageVFX} from '../mirage-vfx.js';
@@ -15,7 +15,7 @@ function onGround(mesh,clearance,epsilon=2e-6){
 
 test('ground cues drape private bounded buffers after final parent/scale/rotation and release exactly once',()=>{
  const mesh=groundCue(0xff0000,2),shared=mesh.geometry,before=Array.from(shared.attributes.position.array),parent=new T.Group();parent.position.set(3,0,-2);parent.rotation.y=.4;parent.add(mesh);mesh.position.set(1,.07,2);mesh.rotation.z=.35;
- fitGroundCue(mesh,ground);const owned=mesh.geometry;assert.notEqual(owned,shared);assert(owned.attributes.position.count<=81);onGround(mesh,.07);
+ fitGroundCue(mesh,ground);const owned=mesh.geometry;assert.notEqual(owned,shared);assert.equal(owned.attributes.position.count,81);onGround(mesh,.07);
  const version=owned.attributes.position.version;fitGroundCue(mesh,ground);assert.equal(mesh.geometry,owned);assert.equal(owned.attributes.position.version,version);
  mesh.scale.setScalar(.7);fitGroundCue(mesh,ground);assert.equal(mesh.geometry,owned);onGround(mesh,.07);
  assert.deepEqual(Array.from(shared.attributes.position.array),before);
@@ -23,13 +23,51 @@ test('ground cues drape private bounded buffers after final parent/scale/rotatio
  const flat=groundCue(0xffffff);flat.position.y=.07;fitGroundCue(flat,()=>0);assert.equal(flat.geometry,shared);disposeCue(flat);
 });
 
+test('contact shadow follows a twelve-percent slope without lifting twice and releases its private map buffer',()=>{
+ const slope=(x,z)=>Math.max(0,Math.min(1.2,.65+.12*x-.08*z)),mesh=new T.Mesh(new T.PlaneGeometry(1.8,1.35),new T.MeshBasicMaterial()),source=mesh.geometry,point=new T.Vector3();mesh.rotation.x=-Math.PI/2;
+ for(const platform of[0,.7]){
+  mesh.position.set(.2,slope(.2,-.3)+platform+.018,-.3);fitGroundSurface(mesh,slope,{centerHeight:true});mesh.updateMatrixWorld();const p=mesh.geometry.attributes.position;
+  for(let i=0;i<p.count;i++){point.fromBufferAttribute(p,i).applyMatrix4(mesh.matrixWorld);assert(Math.abs(point.y-slope(point.x,point.z)-platform-.018)<1e-6,'contact shadow sank into the slope or changed platform elevation');}
+ }
+ const privateGeometry=mesh.geometry,version=privateGeometry.attributes.position.version;fitGroundSurface(mesh,slope,{centerHeight:true});assert.equal(privateGeometry.attributes.position.version,version);assert.notEqual(privateGeometry,source);
+ let disposed=0;privateGeometry.addEventListener('dispose',()=>disposed++);disposeGroundSurface(mesh);disposeGroundSurface(mesh);assert.equal(disposed,1);assert.equal(mesh.geometry,source);
+ mesh.position.set(0,.018,0);fitGroundSurface(mesh,()=>0,{centerHeight:true});assert.equal(mesh.geometry,source,'flat rebuild allocated another draped shadow');disposeGroundSurface(mesh);source.dispose();mesh.material.dispose();
+});
+
+test('wide ground cues clear sharp triangle crests internally and grow one bounded reusable buffer',()=>{
+ let samples=0;const crest=(x,z)=>{samples++;return Math.max(0,1.2-.12*Math.abs(x-.625)-.12*Math.abs(z-.625));},mesh=groundCue(0xffffff,1),source=mesh.geometry,a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3(),point=new T.Vector3();mesh.position.y=.07;
+ assert((crest(0,1.25)+crest(1.25,0))/2+.07<crest(.625,.625)-.03,'fixture must reproduce the old eight-cell triangle sinking into a crest');
+ fitGroundCue(mesh,crest);const small=mesh.geometry;let smallDisposed=0,largeDisposed=0;small.addEventListener('dispose',()=>smallDisposed++);
+ for(const radius of[5,3,5]){
+  mesh.scale.set(radius,radius,1);fitGroundCue(mesh,crest);mesh.updateMatrixWorld();const g=mesh.geometry,p=g.attributes.position;
+  assert(g.attributes.position.count<=625&&g.attributes.position.count>81,'wide cue ignored its world-space footprint or exceeded the buffer cap');
+  for(let i=0;i<g.index.count;i+=3){
+   a.fromBufferAttribute(p,g.index.getX(i)).applyMatrix4(mesh.matrixWorld);b.fromBufferAttribute(p,g.index.getX(i+1)).applyMatrix4(mesh.matrixWorld);c.fromBufferAttribute(p,g.index.getX(i+2)).applyMatrix4(mesh.matrixWorld);
+   for(const [u,v]of[[.5,.5],[.5,0],[0,.5],[1/3,1/3],[.25,.25],[.5,.25],[.25,.5]]){point.copy(a).multiplyScalar(u).addScaledVector(b,v).addScaledVector(c,1-u-v);assert(point.y>=crest(point.x,point.z)-.03,'cue triangle interior is buried even though its vertices clear the ground');}
+  }
+ }
+ const large=mesh.geometry;large.addEventListener('dispose',()=>largeDisposed++);assert.equal(smallDisposed,1);const before=samples,version=large.attributes.position.version;fitGroundCue(mesh,crest);assert.equal(samples,before,'stationary cue repeated terrain sampling');assert.equal(large.attributes.position.version,version);
+ mesh.scale.set(2,2,1);fitGroundCue(mesh,crest);assert.equal(mesh.geometry,large,'shrinking effect discarded its reusable high-resolution buffer');disposeCue(mesh);disposeCue(mesh);assert.equal(largeDisposed,1);assert.equal(smallDisposed,1);assert.equal(mesh.geometry,source);
+ const flat=groundCue(0xffffff,20);flat.position.y=.07;fitGroundCue(flat,()=>0);assert.equal(flat.geometry,source,'large flat-ground cue allocated GPU geometry');disposeCue(flat);
+});
+
+test('growing cues retain three resolution tiers and release each replaced buffer once',()=>{
+ const mesh=groundCue(0xffffff,.5),owned=new Map();let previous=null,resizes=0;
+ for(let radius=.5;radius<=7;radius+=.05){
+  mesh.scale.set(radius,radius,1);fitGroundCue(mesh,ground);const geometry=mesh.geometry;
+  if(geometry!==previous){if(previous)resizes++;owned.set(geometry,0);geometry.addEventListener('dispose',()=>owned.set(geometry,owned.get(geometry)+1));previous=geometry;}
+  assert.equal(geometry.attributes.position.count,radius<=2?81:radius<=4?289:625);
+ }
+ assert.equal(resizes,2);disposeCue(mesh);disposeCue(mesh);assert.deepEqual([...owned.values()],[1,1,1]);
+});
+
 test('poison fields, turned curtains and bands follow the surface, reuse fitting and keep world-space pod launches',()=>{
  const scene=new T.Scene(),v=new PoisonVFX(scene,null,{groundHeight:ground}),cloud={id:1,x:1,z:2,r:1.6,stillRank:3,settledAt:0,expires:9,angle:.6,curtainUntil:0},points=[{x:-1,z:0},{x:0,z:.4},{x:1,z:.6}],combat={now:2,clouds:[cloud],bands:[{id:2,points,r:.65,expires:5}],pods:[{startX:0,startZ:0,startY:1.31,x:3,z:2,releaseAt:2,landAt:3}],shield:{amount:10,until:6}};
- v.update(combat,{x:1,z:2,y:.6});onGround(v.fog[0],.07);const field=v.fog[0].geometry,fieldVersion=field.attributes.position.version,band=v.bands[0].geometry,bandVersion=band.attributes.position.version;
+ v.update(combat,{x:1,z:2,y:.6});onGround(v.fog[0],.07);let field=v.fog[0].geometry;const fieldVersion=field.attributes.position.version,band=v.bands[0].geometry,bandVersion=band.attributes.position.version;
  for(let i=0;i<points.length*2;i++){const p=band.attributes.position;assert(Math.abs(p.getY(i)-ground(p.getX(i),p.getZ(i))-.061)<1e-6);}
  const matrix=new T.Matrix4();v.pods.getMatrixAt(0,matrix);assert(Math.abs(matrix.elements[13]-1.31)<1e-6,'world muzzle is not lifted twice');v.guard.getMatrixAt(0,matrix);assert(matrix.elements[13]>1.2,'shield uses airborne player y');
  combat.now=2.1;v.update(combat,{x:1,z:2,y:.6});assert.equal(v.fog[0].geometry,field);assert.equal(field.attributes.position.version,fieldVersion);assert.equal(band.attributes.position.version,bandVersion);
- cloud.curtainUntil=4;cloud.x=2;v.update(combat,{x:1,z:2});assert.equal(v.fog[0].geometry,field);onGround(v.fog[0],.07);assert.equal(v.fog[0].scale.x,3.6);
+ let resized=0;field.addEventListener('dispose',()=>resized++);cloud.curtainUntil=4;cloud.x=2;v.update(combat,{x:1,z:2});assert.equal(resized,1);assert.notEqual(v.fog[0].geometry,field);field=v.fog[0].geometry;onGround(v.fog[0],.07);assert.equal(v.fog[0].scale.x,3.6);
  combat.now=3;v.update(combat,{x:1,z:2});v.pods.getMatrixAt(0,matrix);assert(Math.abs(matrix.elements[13]-ground(3,2))<1e-6,'pod ends on terrain');
  let disposed=0;field.addEventListener('dispose',()=>disposed++);v.clear();assert.equal(disposed,1);assert.equal(v.bands[0].userData.bandFit,undefined);v.dispose();assert.equal(disposed,1);assert.equal(scene.children.length,0);
 });
@@ -45,10 +83,10 @@ test('mirage fog and decoy root follow terrain; explicit high burst contacts sta
 
 test('spell ground layers drape through animation while particles and supplied contacts are lifted only once',()=>{
  const scene=new T.Scene(),v=new SkillVFX(scene,{mobile:true,groundHeight:ground});v.ice(2,1,3);
- const veil=v.active.find(p=>p.shape==='veil'),geometry=veil.mesh.geometry;onGround(veil.mesh,.06);
+ const veil=v.active.find(p=>p.shape==='veil'),initial=veil.mesh.geometry;let initialDisposed=0;initial.addEventListener('dispose',()=>initialDisposed++);onGround(veil.mesh,.06);
  const shard=v.active.find(p=>p.shape==='shard');assert(Math.abs(shard.mesh.position.y-ground(shard.mesh.position.x,shard.mesh.position.z)-.06)<1e-6);
- v.update(.1);assert.equal(veil.mesh.geometry,geometry);onGround(veil.mesh,.06);const version=geometry.attributes.position.version;v.update(0);assert.equal(geometry.attributes.position.version,version);
- let disposed=0;geometry.addEventListener('dispose',()=>disposed++);v.clear();assert.equal(disposed,1);
+ v.update(.1);const geometry=veil.mesh.geometry;assert.equal(geometry,initial,'normal spell growth should stay within its retained resolution tier');onGround(veil.mesh,.06);const version=geometry.attributes.position.version;v.update(0);assert.equal(veil.mesh.geometry,geometry);assert.equal(geometry.attributes.position.version,version);
+ let disposed=0;geometry.addEventListener('dispose',()=>disposed++);v.clear();assert.equal(disposed,1);assert.equal(initialDisposed,1);
  const raw=v.particle('ember',0xffffff,2,1.5,1);assert.equal(raw.position.y,1.5);const lifted=v.groundParticle('ember',0xffffff,2,.5,1);assert.equal(lifted.position.y,.5+ground(2,1));v.update(.1);assert.equal(lifted.position.y,.5+ground(2,1));
  v.clear();v.muzzle({id:'crossbow'},2,1,0,1.4,true);assert(v.active.every(p=>Math.abs(p.mesh.position.y-1.4)<1e-6));
  v.clear();const contact={x:2,y:1.4,z:1,normal:{x:0,y:1,z:0}},flat=new SkillVFX(new T.Scene());v.boltImpact(2,1,false,0,contact);flat.boltImpact(2,1,false,0,contact);assert.deepEqual(v.active.map(p=>p.mesh.position.toArray()),flat.active.map(p=>p.mesh.position.toArray()));v.clear();flat.clear();assert.equal(scene.children.length,0);
@@ -56,6 +94,6 @@ test('spell ground layers drape through animation while particles and supplied c
 
 test('draped particles remain within the existing mobile pool through repeat casts and cleanup',()=>{
  const v=new SkillVFX(new T.Scene(),{mobile:true,groundHeight:ground});
- for(let frame=0;frame<600;frame++){if(frame%25===0){v.ice(-2,3,4);v.fire(3,2,2);v.dark(-3,-1,2);}v.update(1/60);assert(v.active.length+v.pool.length<=110);for(const p of v.active){assert(p.mesh.position.toArray().every(Number.isFinite));if(p.groundHeight)assert(p.mesh.geometry.attributes.position.count<=81);}}
+ for(let frame=0;frame<600;frame++){if(frame%25===0){v.ice(-2,3,4);v.fire(3,2,2);v.dark(-3,-1,2);}v.update(1/60);assert(v.active.length+v.pool.length<=110);for(const p of v.active){assert(p.mesh.position.toArray().every(Number.isFinite));if(p.groundHeight)assert(p.mesh.geometry.attributes.position.count<=625);}}
  v.clear();assert.equal(v.scene.children.length,0);for(const mesh of v.pool)assert(Object.values(v.geometry).includes(mesh.geometry),'clear restored shared geometry');
 });

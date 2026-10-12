@@ -1,8 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
-import {installWorldLightShafts,updateWorldLightShafts} from '../world-light-shafts.js';
+import {installWorldLightShafts,installForestMist,updateWorldLightShafts} from '../world-light-shafts.js';
 import {buildWorld} from '../world.js';
+import {installForestVista} from '../forest-vista.js';
+import {installForestHabitats} from '../forest-habitats.js';
+import {installBiomePlaces} from '../biome-places.js';
+import {installEnvironmentClusters} from '../environment-clusters.js';
+import {installExplorationRoutes} from '../exploration-routes.js';
+import {installExplorationLandmarks} from '../exploration-landmarks.js';
+import {installExplorationComposition} from '../exploration-composition.js';
+import {installAdventureGroundDetail,installHabitatDetail} from '../adventure-ground-detail.js';
+import {installForestTerrain} from '../forest-terrain.js';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 
@@ -37,6 +46,28 @@ test('world cleanup releases its clock material while shared geometry and anothe
   updateWorldLightShafts(a,4);updateWorldLightShafts(b,9);assert.equal(one.material.uniforms.shaftTime.value,4);assert.equal(two.material.uniforms.shaftTime.value,9);
   one.dispose();one.dispose();assert.equal(released,1);assert.equal(sharedReleased,0);updateWorldLightShafts(a,20);assert.equal(one.material.uniforms.shaftTime.value,4);updateWorldLightShafts(b,11);assert.equal(two.material.uniforms.shaftTime.value,11);
  }finally{one.geometry.removeEventListener('dispose',onGeometry);two.dispose();}
+});
+
+test('composed joined maps cover all five regions before extra forest shafts and attach low mist to real terrain',()=>{
+ let raisedMist=0;
+ for(const seed of[7,522,43837033]){
+  const world=buildWorld('confluence',seed);
+  for(const install of[installForestVista,installForestHabitats,installBiomePlaces,installEnvironmentClusters,installExplorationRoutes,installExplorationLandmarks,installExplorationComposition])install(world,'confluence');
+  const shafts=installWorldLightShafts(world,'confluence'),mist=installForestMist(world,'confluence'),before=new Map([shafts,mist].map(layer=>[layer,Array.from(layer.instanceMatrix.array)]));
+  assert.equal(shafts.count,6);
+  for(const region of world.regions){const anchors=shafts.userData.anchors.filter(p=>p.biome===region.id);assert(anchors.length>0,region.id+' lost its shaft to an earlier forest focus');assert(anchors.every(p=>region.contains(p.x,p.z)));}
+  installAdventureGroundDetail(world,'confluence');installHabitatDetail(world,'confluence');installForestTerrain(world,'confluence');updateWorldLightShafts(world,10);
+  for(const[layer,offset]of[[shafts,.4],[mist,.08]]){
+   const matrix=new T.Matrix4();
+   for(const[i,p]of layer.userData.anchors.entries()){
+    layer.getMatrixAt(i,matrix);const h=world.groundHeightAt(p.x,p.z);assert(Math.abs(matrix.elements[13]-offset-h)<1e-6,'air layer remained underneath the raised soil');if(layer===mist&&h>.01)raisedMist++;
+    for(let k=0;k<16;k++)if(k!==13)assert.equal(matrix.elements[k],before.get(layer)[i*16+k],'terrain attachment moved the horizontal anchor or orientation');
+   }
+   const version=layer.instanceMatrix.version;updateWorldLightShafts(world,10);assert.equal(layer.instanceMatrix.version,version,'paused attachment rewrote its instance buffer');
+  }
+  world.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
+ }
+ assert(raisedMist>0,'test must cover actual mist anchors on raised terrain');
 });
 
 test('fully blocked and unsupported maps stay empty',()=>{

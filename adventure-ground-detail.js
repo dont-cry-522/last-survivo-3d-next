@@ -1,6 +1,6 @@
 import {applyFernSurface} from './fern-surfaces.js?v=156';
 import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=166';
-import{sceneryRhythmAt}from'./exploration-composition.js?v=167';
+import{sceneryRhythmAt}from'./exploration-composition.js?v=168';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
@@ -379,6 +379,17 @@ function connectForestCover(world,mapId,records,footprint,allowed){
    add(a.x+dx*t-dz/length*offset*side,a.z+dz*t+dx/length*offset*side,Math.atan2(dx,dz),'shoulder');
   }
  }
+ // Give the real opening path two connected, unequal banks of existing plants.
+ // A very short shore spur cannot carry both; use its existing relic route.
+ const lengthOf=route=>route?.points.reduce((n,p,i,points)=>n+(i?Math.hypot(p.x-points[i-1].x,p.z-points[i-1].z):0),0)||0;
+ const approach=lengthOf(habitat.approach)>=14?habitat.approach:(world.explorationRoutes||[]).find(r=>r.biome==='forest'&&r.site===habitat.relic);
+ const path=[],end=Math.min(24,lengthOf(approach)-1);let walked=0;
+ if(end>=13)for(let i=1;i<approach.points.length;i++){
+  const a=approach.points[i-1],b=approach.points[i],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);if(length<.001)continue;
+  path.push({a,dx,dz,length,start:walked});walked+=length;
+ }
+ const focused=path.length?2:0;
+ if(focused)sources.unshift({zone:'approach',side:-1,from:8,to:Math.min(20,end)},{zone:'approach',side:1,from:Math.min(13,end-3),to:end});
  if(!sources.length)return;
  const region=habitat.region,quadrant=p=>Number(p.x>=0)+Number(p.z>=0)*2,donors=new Map(),budget=Math.floor(records.filter(p=>p.biome==='forest').length*.18);
  for(let i=0;i<records.length;i++){
@@ -387,21 +398,33 @@ function connectForestCover(world,mapId,records,footprint,allowed){
  }
  const lanes=[...(world.explorationRoutes||[]),...(habitat.approach?[habitat.approach]:[])].flatMap(r=>r.points.slice(1).map((b,i)=>({a:r.points[i],b}))),shoulderAllowed=floor?placementFilter(world,footprint,true):allowed;
  const passages=(world.biomePlaces||[]).map(p=>({...p,c:Math.cos(p.angle||0),s:Math.sin(p.angle||0)}));
- let moved=0;
+ const shares=sources.slice(focused).map(s=>s.zone==='root'?6:s.zone==='shoulder'&&near(s.x,s.z,world.spawn,20)?3:1),totalShares=shares.reduce((n,w)=>n+w,0);
+ let moved=0,remainder=budget,share=0;
  for(const [sourceIndex,source]of sources.entries()){
-  const quota=Math.max(2,Math.ceil(budget/sources.length)),kinds=floor?['tuft','litter']:source.zone==='bank'?['reed','stone']:source.zone==='shade'?['fern']:source.zone==='root'?['fern','shrub']:['shrub'];
+  if(focused&&sourceIndex===focused)remainder=budget-moved;
+  // Reserve half for the old habitats. Apportion it across the complete source
+  // list, so early groves cannot consume the later root, shore and path shares.
+  const index=sourceIndex-focused,nextShare=share+(shares[index]||0);
+  const quota=!focused?Math.max(2,Math.ceil(budget/sources.length)):sourceIndex<focused?Math.floor(budget*(sourceIndex===0?.32:.18)):Math.floor(nextShare*remainder/totalShares)-Math.floor(share*remainder/totalShares);
+  if(sourceIndex>=focused)share=nextShare;
+  const kinds=floor?['tuft','litter']:source.zone==='bank'?['reed','stone']:source.zone==='shade'?['fern']:source.zone==='root'||source.zone==='approach'?['fern','shrub']:['shrub'];
   let planted=0;
   for(let attempt=0;attempt<quota*16&&planted<quota&&moved<budget;attempt++){
-   const along=(random()-.5)*7.5,across=(random()-.5)*2.8,x=source.x+Math.sin(source.angle)*along+Math.cos(source.angle)*across,z=source.z+Math.cos(source.angle)*along-Math.sin(source.angle)*across;
+   let x,z;
+   if(source.zone==='approach'){
+    const t=random(),distance=source.from+(source.to-source.from)*t,s=path.find(s=>s.start+s.length>=distance),u=(distance-s.start)/s.length;
+    const offset=source.side*(4.8+random()*(1.2+Math.sin(t*Math.PI)*2.2));
+    x=s.a.x+s.dx*u+s.dz/s.length*offset;z=s.a.z+s.dz*u-s.dx/s.length*offset;
+   }else{const along=(random()-.5)*7.5,across=(random()-.5)*2.8;x=source.x+Math.sin(source.angle)*along+Math.cos(source.angle)*across;z=source.z+Math.cos(source.angle)*along-Math.sin(source.angle)*across;}
    if(region&&!region.contains(x,z))continue;
    const h=forestHabitatAt(world,x,z),rhythm=sceneryRhythmAt(world,x,z);
    if(source.zone==='shade'&&h.shade<.2||source.zone==='bank'&&h.bank<.22||rhythm.opening>.78&&!habitat.approach)continue;
    if(lanes.some(({a,b})=>segmentDistance(x,z,a.x,a.z,b.x,b.z)<2+footprint))continue;
    if(passages.some(p=>{const dx=x-p.x,dz=z-p.z;return Math.abs(p.c*dx-p.s*dz)<3.1+footprint&&Math.abs(p.s*dx+p.c*dz)<10+footprint;}))continue;
-   if(!(source.zone==='shoulder'?shoulderAllowed:allowed)(x,z)||records.some(p=>near(x,z,p,floor?(source.zone==='shade'||source.zone==='bank'?.64:.9):.62)))continue;
+   if(!(['shoulder','approach'].includes(source.zone)?shoulderAllowed:allowed)(x,z)||records.some(p=>near(x,z,p,floor?(source.zone==='shade'||source.zone==='bank'||source.zone==='approach'?.64:.9):.62)))continue;
    const kind=kinds[Math.floor(random()*kinds.length)],list=donors.get(kind+':'+quadrant({x,z}));if(!list?.length)continue;
    const record=records[list.pop()];record.x=x;record.z=z;record.transition=source.zone;record.transitionIndex=sourceIndex;
-   if(floor&&source.zone==='shoulder')record.shoulder=true;
+   if(floor&&(source.zone==='shoulder'||source.zone==='approach'))record.shoulder=true;
    planted++;moved++;
   }
  }

@@ -43,3 +43,19 @@ test('the current sun, atmosphere and shafts agree, with fixed anchors and dispo
  let disposed=0;mist.material.addEventListener('dispose',()=>disposed++);mist.dispose();mist.dispose();updateWorldLightShafts(world,800,light);assert.equal(disposed,1);assert.equal(mist.material.uniforms.mistTime.value,720);shafts.dispose();sky.dispose();
  const mobile=installForestMist({...world,group:new T.Group(),forestMist:null},'forest',{mobile:true});assert(mobile.count<=3);mobile.dispose();
 });
+
+test('air layers sample terrain once per sampler and preserve their ground height as sunlight rotates',()=>{
+ const world={half:96,group:new T.Group(),spawn:{x:0,z:0},sites:[],obstacles:[],patches:[],ponds:[]},shafts=installWorldLightShafts(world,'forest'),mist=installForestMist(world,'forest'),light=rig(),matrix=new T.Matrix4();
+ const layers=[[shafts,.4],[mist,.08]],flat=layers.map(([layer])=>Array.from(layer.instanceMatrix.array));let calls=0;
+ world.groundHeightAt=(x,z)=>{calls++;return Math.max(0,Math.min(1.2,.6+.012*x-.008*z));};
+ updateWorldLightShafts(world,5);assert.equal(calls,shafts.count+mist.count);
+ const check=()=>{for(const[layer,offset]of layers)for(const[i,p]of layer.userData.anchors.entries()){layer.getMatrixAt(i,matrix);assert(Math.abs(matrix.elements[13]-offset-Math.max(0,Math.min(1.2,.6+.012*p.x-.008*p.z)))<1e-6);assert(Math.abs(matrix.elements[12]-p.x)<1e-5&&Math.abs(matrix.elements[14]-p.z)<1e-5);}};
+ check();const sampled=calls;
+ for(const time of[5,5,120,430,720]){light.update('forest',null,0,time);updateWorldLightShafts(world,time,light);check();}
+ assert.equal(calls,sampled,'sun movement or repeated time resampled stationary terrain');
+ world.groundHeightAt=()=>{calls++;return 0;};updateWorldLightShafts(world,720);assert.equal(calls,sampled+shafts.count+mist.count);
+ for(const[layer,offset]of layers)for(let i=0;i<layer.count;i++){layer.getMatrixAt(i,matrix);assert(Math.abs(matrix.elements[13]-offset)<1e-6);}
+ delete world.groundHeightAt;updateWorldLightShafts(world,720);assert.equal(calls,sampled+shafts.count+mist.count);
+ assert.deepEqual(Array.from(mist.instanceMatrix.array),flat[1],'returning to flat terrain changed the original mist transforms');
+ shafts.dispose();mist.dispose();world.groundHeightAt=()=>{throw new Error('disposed layers sampled terrain');};updateWorldLightShafts(world,721,light);assert.equal(shafts.material.uniforms.shaftTime.value,720);assert.equal(mist.material.uniforms.mistTime.value,720);
+});

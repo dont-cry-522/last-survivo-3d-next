@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
-import {buildWorld} from '../world.js?v=167';
-import {placeTemplate} from '../biome-places.js?v=167';
-import {waterDepth,terrainAt} from '../water.js?v=167';
+import {buildWorld} from '../world.js?v=168';
+import {placeTemplate} from '../biome-places.js?v=168';
+import {waterDepth,terrainAt} from '../water.js?v=168';
 import {bridgeContains,updateTide} from '../coast.js?v=114';
 import {coastPlaceCandidates,harborPierPlan} from '../harbor-bank-layout.js';
 

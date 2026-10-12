@@ -77,13 +77,14 @@ function openGround(world,x,z,region){
 export function installWorldLightShafts(world,mapId){
  if(world.lightShafts&&!world.lightShafts.userData.disposed)return world.lightShafts;
  if(!tones[mapId]&&mapId!=='confluence')return null;
- const focuses=[{point:world.spawn,biome:mapId==='confluence'?'forest':mapId}];
+ const focuses=[];
+ // Cover the five actual regions before spending the final slot on forest vistas.
+ if(mapId==='confluence')for(const region of world.regions||[])focuses.push({point:(world.sites||[]).find(s=>s.biome===region.id)||region,biome:region.id,region});
+ focuses.push({point:world.spawn,biome:mapId==='confluence'?'forest':mapId});
  if(world.forestHabitats?.approach?.shore)focuses.push({point:world.forestHabitats.approach.shore,biome:'forest'});
  else if(world.forestHabitats?.ponds[0]){const p=world.forestHabitats.ponds[0],a=p.angle||0;focuses.push({point:{x:p.x+Math.cos(a)*(p.rx+2),z:p.z-Math.sin(a)*(p.rx+2)},biome:'forest'});}
  if(world.forestVista?.gateCenter)focuses.push({point:world.forestVista.gateCenter,biome:'forest'});
- if(mapId==='confluence'){
-  for(const region of world.regions||[])focuses.push({point:(world.sites||[]).find(s=>s.biome===region.id)||region,biome:region.id,region});
- }else for(const site of world.sites||[])focuses.push({point:site,biome:mapId});
+ if(mapId!=='confluence')for(const site of world.sites||[])focuses.push({point:site,biome:mapId});
  const anchors=[],limit=mapId==='confluence'?6:mapId==='ash'?2:mapId==='sand'?3:4;
  const offsets=[[3.8,2.8],[-3.8,-2.8],[3.8,-3.2],[-3.8,3.2],[5.6,0],[0,-5.6]];
  for(const focus of focuses){
@@ -107,13 +108,22 @@ export function installWorldLightShafts(world,mapId){
  shafts.userData.anchors=anchors;shafts.userData.disposed=false;shafts.userData.direction=direction.clone();
  // Existing world cleanup already disposes InstancedMesh objects. Keep only the static geometry cached.
  shafts.addEventListener('dispose',()=>{if(shafts.userData.disposed)return;shafts.userData.disposed=true;shafts.visible=false;material.dispose();});
- world.group.add(shafts);world.lightShafts=shafts;return shafts;
+ world.group.add(shafts);world.lightShafts=shafts;attachGround(world,shafts,.40);return shafts;
 }
 
 const shaftMatrix=new T.Matrix4(),shaftRotation=new T.Quaternion(),shaftUp=new T.Vector3(0,1,0),shaftPosition=new T.Vector3(),shaftScale=new T.Vector3(),shaftColor=new T.Color();
+// Terrain is installed after these layers. Reattach only when its sampler changes.
+function attachGround(world,layer,offset){
+ const sample=world.groundHeightAt;if(layer.userData.groundSampler===sample)return;
+ for(const [i,p]of layer.userData.anchors.entries()){
+  layer.getMatrixAt(i,shaftMatrix);shaftMatrix.elements[13]=offset+(sample?.(p.x,p.z)||0);layer.setMatrixAt(i,shaftMatrix);
+ }
+ layer.userData.groundSampler=sample;layer.instanceMatrix.needsUpdate=true;layer.computeBoundingSphere();
+}
 export function updateWorldLightShafts(world,gameTime,lighting=null){
  const shafts=world.lightShafts;
  if(shafts&&!shafts.userData.disposed&&Number.isFinite(gameTime)){
+  attachGround(world,shafts,.40);
   shafts.material.uniforms.shaftTime.value=gameTime;
   if(lighting){
    shafts.material.uniforms.shaftStrength.value=lighting.shaftStrength;
@@ -135,6 +145,7 @@ export function updateWorldLightShafts(world,gameTime,lighting=null){
  }
  const mist=world.forestMist;
  if(mist&&!mist.userData.disposed&&Number.isFinite(gameTime)){
+  attachGround(world,mist,.08);
   mist.material.uniforms.mistTime.value=gameTime;
   if(lighting){mist.material.uniforms.mistColor.value.copy(lighting.scene.fog.color);mist.material.uniforms.mistOpacity.value=.055+.025*(1-lighting.day);}
  }
@@ -169,5 +180,5 @@ export function installForestMist(world,mapId,{mobile=false}={}){
  }
  mist.instanceMatrix.needsUpdate=true;mist.computeBoundingSphere();mist.userData.anchors=anchors;mist.userData.disposed=false;
  mist.addEventListener('dispose',()=>{if(mist.userData.disposed)return;mist.userData.disposed=true;mist.visible=false;material.dispose();});
- world.group.add(mist);world.forestMist=mist;return mist;
+ world.group.add(mist);world.forestMist=mist;attachGround(world,mist,.08);return mist;
 }

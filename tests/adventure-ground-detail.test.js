@@ -8,11 +8,12 @@ import {segmentDistance} from '../rules.js';
 import {installForestHabitats,forestHabitatAt} from '../forest-habitats.js';
 import {polishEnvironmentModels} from '../environment-props.js';
 import {installForestVista} from '../forest-vista.js';
-import {installBiomePlaces} from '../biome-places.js?v=167';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=167';
+import {installBiomePlaces} from '../biome-places.js?v=168';
+import {installEnvironmentClusters} from '../environment-clusters.js?v=168';
 import {installExplorationRoutes} from '../exploration-routes.js';
 import {installExplorationLandmarks} from '../exploration-landmarks.js';
 import {installExplorationComposition} from '../exploration-composition.js';
+import {installForestTerrain} from '../forest-terrain.js';
 import {installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
 import {naturalRockGeometry} from '../biome-scenery.js?v=156';
 import {surfaceUniforms} from '../surface-textures.js?v=120';
@@ -471,6 +472,48 @@ test('near-shore approaches retain a clear walking strip while the same cover bu
     assert(distance>=1.65+footprint-1e-7,'new cover fills the dry walking approach');if(distance<9)framed++;
    }
    assert(framed>8,'the walking approach lost its foreground vegetation');
+  }
+  cleanup(world);
+ }
+});
+
+test('opening forest cover forms two bounded path-side masses and keeps roots, gameplay and terrain attachment',()=>{
+ const matrix=new T.Matrix4(),point=new T.Vector3();
+ for(const [id,seed,highCount]of[['forest',7,1142],['forest',522,1123],['forest',43837033,1126],['confluence',7,2115],['confluence',522,2145],['confluence',43837033,2114]]){
+  const world=scenicWorld(id,seed),before=state(world),habitat=world.forestHabitats;
+  const length=route=>route?.points.reduce((n,p,i,points)=>n+(i?Math.hypot(p.x-points[i-1].x,p.z-points[i-1].z):0),0)||0;
+  const route=length(habitat.approach)>=14?habitat.approach:world.explorationRoutes.find(r=>r.site===habitat.relic);
+  assert(route);if(id==='confluence'||seed===7)assert.equal(route.site,habitat.relic,'short or missing shore approach did not use the existing relic route');
+  const layers=[installAdventureGroundDetail(world,id),installHabitatDetail(world,id)];
+  assert.equal(layers[0].userData.records.length,id==='forest'?1200:2200);assert.equal(layers[1].userData.records.length,highCount);
+  installForestTerrain(world,id);assert.equal(state(world),before);
+  for(const [layer,group]of layers.entries()){
+   const footprint=layer?1.15:.55,records=group.userData.records,forest=records.filter(p=>p.biome==='forest'),focused=forest.filter(p=>p.transition==='approach'),budget=Math.floor(forest.length*.18);
+   assert(forest.filter(p=>p.transition).length<=budget);assert(forest.filter(p=>p.transition==='root').length>=4,'focused planting stripped existing tree roots');
+   assert(forest.some(p=>p.transition==='shade')&&forest.some(p=>p.transition==='bank'),'focused planting consumed the entire habitat budget');
+   for(const side of[0,1]){
+    const mass=focused.filter(p=>p.transitionIndex===side);assert(mass.length>=8&&mass.length<=Math.floor(budget*(side===0?.32:.18)),'missing or unbounded opening mass');
+    assert(mass.filter(p=>mass.some(q=>q!==p&&Math.hypot(p.x-q.x,p.z-q.z)<2.2)).length>mass.length*.8,'opening mass scattered into isolated plants');
+   }
+   const pending=new Set(focused);
+   for(const p of focused){
+    assert(!p.edge);assert.equal(p.biome,'forest');let nearPath=false,walked=0;
+    for(let i=1;i<route.points.length;i++){
+     const a=route.points[i-1],b=route.points[i],dx=b.x-a.x,dz=b.z-a.z,l=Math.hypot(dx,dz);if(!l)continue;
+     const t=((p.x-a.x)*dx+(p.z-a.z)*dz)/(l*l),along=walked+t*l,across=((p.x-a.x)*dz-(p.z-a.z)*dx)/l;walked+=l;
+     if(t>=-1e-7&&t<=1+1e-7&&along>=8-1e-7&&along<=24+1e-7&&Math.abs(across)>=4.8-1e-7&&Math.abs(across)<=8.2+1e-7)nearPath=true;
+    }
+    assert(nearPath,'opening plants left the actual first 8–24 m of the route');far(p,world.spawn,4+footprint);
+    for(const o of world.obstacles)far(p,o,o.r+footprint+.2);
+    for(const pond of world.ponds)for(let i=0;i<8;i++)assert.equal(waterDepth(pond,p.x+Math.sin(i*Math.PI/4)*footprint,p.z+Math.cos(i*Math.PI/4)*footprint),0);
+    for(const r of world.explorationRoutes)for(let i=1;i<r.points.length;i++)assert(segmentDistance(p.x,p.z,r.points[i-1].x,r.points[i-1].z,r.points[i].x,r.points[i].z)>=2+footprint-1e-7);
+   }
+   for(const mesh of group.children)for(let i=0;i<mesh.count;i++){
+    mesh.getMatrixAt(i,matrix);point.setFromMatrixPosition(matrix);const record=focused.find(p=>Math.hypot(point.x-p.x,point.z-p.z)<1e-5);if(!record)continue;
+    pending.delete(record);const bottom=point.y+mesh.geometry.boundingBox.min.y*record.height;
+    assert(Math.abs(bottom-world.groundHeightAt(record.x,record.z)+.042)<1e-5,'plant metadata no longer matches its grounded instance');
+   }
+   assert.equal(pending.size,0,'focused records were lost from their culling batches');
   }
   cleanup(world);
  }

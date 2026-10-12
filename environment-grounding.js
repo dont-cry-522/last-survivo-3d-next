@@ -89,7 +89,9 @@ export function installEnvironmentGrounding(world){
  const ground=world.ground;
  if(!ground?.userData.ownedGeometry||!ground.material?.isMeshStandardMaterial)return null;
  if(world.environmentGrounding&&!world.environmentGrounding.disposed)return world.environmentGrounding;
- const sources=(world.obstacles||[]).filter(o=>(o.place||o.environmentCluster)&&!o.tactic&&Number.isFinite(o.x+o.z+o.r)&&o.r>0);
+ // Ruin columns reuse tree colliders rather than place/cluster records. Their
+ // permanent plinths need the same ground contact; falling timber still does not.
+ const sources=(world.obstacles||[]).filter(o=>(o.place||o.environmentCluster||o.mesh?.userData.forestVistaTrunk&&!world.breakables?.includes(o))&&!o.tactic&&Number.isFinite(o.x+o.z+o.r)&&o.r>0);
  const plants=[];
  for(const group of [world.adventureGroundDetail,world.habitatDetail])for(const p of group?.userData.records||[]){
   if(plants.length>=4096)break;

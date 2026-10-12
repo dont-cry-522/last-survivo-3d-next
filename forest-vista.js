@@ -88,12 +88,13 @@ export function installForestVista(world,mapId){
   o.position.set(x,y,z);o.rotation.set(.75+Math.sin(phase)*.38,angle,-.18+Math.sin(phase*1.7)*.3);o.scale.set(.115*size,.045*size,.15*size);parts.leaf.add(o);leaves++;
  };
  for(const [i,o]of selected.entries()){
+  const firstStone=parts.stone.children.length;
   const height=i===0?3.1:i===1?2.7:1.4+i*.37,angle=Math.atan2(relic.x-o.x,relic.z-o.z),s=Math.sin(angle),c=Math.cos(angle);
   block('stone',0x66725f,o.x,.10,o.z,.88,.25,.86,angle);
   const courses=[0,.29+Math.sin(i)*.035,.48+Math.cos(i)*.03,.77-Math.sin(i)*.03,1];
   for(let row=0;row<4;row++){
    const h=height*(courses[row+1]-courses[row]),lean=Math.sin(row*1.8+i)*.026;
-   const stone=block('stone',row%2?0x949d8e:0x88917e,o.x+lean,height*(courses[row]+courses[row+1])*.5,o.z,.65,h+.14,.61,angle+lean);
+   const stone=block('stone',row%2?0x8f9687:0x818977,o.x+lean,height*(courses[row]+courses[row+1])*.5,o.z+Math.sin(row*2.4+i)*.018,.65,h+.14,.61,angle+lean);
    // Each course loses a different upper corner. The cut stays inside the
    // old stone volume, catching real light without a painted crack/decal.
    stone.geometry=wornStoneBlock.clone();stone.userData.ownedGeometry=true;
@@ -101,18 +102,31 @@ export function installForestVista(world,mapId){
    for(let v=0;v<p.count;v++){
     const x=p.getX(v),y=p.getY(v),z=p.getZ(v),chip=Math.max(0,side*x+z*.45-.40);
     // Preserve the main bearing surface; only the outer corner is fractured.
-    p.setY(v,Math.min(y,.52-chip*(.65+Math.sin(i+row)*.12)));
+    const outer=T.MathUtils.smoothstep(Math.max(Math.abs(x),Math.abs(z)),.16,.48),scar=Math.max(0,Math.sin(x*5-z*4+row*1.7+i));
+    // A broad diagonal erosion seam crosses the existing inner face vertices.
+    // Keep side bearings and the center core, instead of bending whole courses.
+    const seamZ=(1-T.MathUtils.smoothstep(.06,.36,Math.abs(y+x*.38-.10*Math.sin(row+i))))*(1-T.MathUtils.smoothstep(.25,.48,Math.abs(x)))*T.MathUtils.smoothstep(.28,.45,Math.abs(z));
+    const seamX=(1-T.MathUtils.smoothstep(.06,.36,Math.abs(y-z*.32+.07*Math.cos(row+i))))*(1-T.MathUtils.smoothstep(.25,.48,Math.abs(z)))*T.MathUtils.smoothstep(.28,.45,Math.abs(x));
+    p.setXYZ(v,x*(1-outer*(.018+scar*.065))-Math.sign(x)*seamX*.068,Math.min(y,.52-chip*(.65+Math.sin(i+row)*.12))+outer*Math.sin(x*4+z*3+i+row)*.023,z*(1-outer*(.025+scar*.075))-Math.sign(z)*seamZ*.075);
    }
    stone.geometry.computeVertexNormals();
   }
-  block('stone',0x959b80,o.x,height+.025,o.z,.83,.15,.78,angle-.045);
+  const cap=block('stone',0x92967f,o.x,height+.025,o.z,.79,.15,.75,angle-.045);cap.geometry=wornStoneBlock.clone();cap.userData.ownedGeometry=true;
+  const capPosition=cap.geometry.attributes.position;for(let v=0;v<capPosition.count;v++){
+   const x=capPosition.getX(v),y=capPosition.getY(v),z=capPosition.getZ(v);capPosition.setXYZ(v,x*(.95+.04*Math.sin(z*4+i)),y-Math.max(0,y+.08)*Math.max(0,x*.38-z*.22),z);
+  }cap.geometry.computeVertexNormals();
   // An off-centre, eroded capital rather than a perfect square cap.
   const broken=new T.Mesh(ruinFragmentGeometry,mat(0x819076));broken.position.set(o.x-.07,height+.16,o.z+.025);broken.scale.set(.36,.21,.31);broken.rotation.y=angle;parts.stone.add(broken);
   // Ivy grows in uneven pockets, leaving bare stretches of stone readable.
   // Sampling is positional: no new draws from the world's random stream.
-  const vinePoints=[];
+  const vinePoints=[],columnStones=parts.stone.children.slice(firstStone),vineRay=new T.Raycaster(),rayPoint=new T.Vector3(),rayDirection=new T.Vector3(),vineHits=[];
+  for(const stone of columnStones)stone.updateWorldMatrix(true,false);
   for(let n=0;n<13;n++){
-   const y=.04+(n/12)**1.25*(height+.13),turn=n*.31+.17*Math.sin(n*.85+i),a=angle+turn,cap=T.MathUtils.smoothstep(y,height-.18,height+.10),radius=1/Math.max(Math.abs(Math.sin(turn))/(.334+cap*.08),Math.abs(Math.cos(turn))/(.309+cap*.08)),p=new T.Vector3(o.x+Math.sin(a)*radius,y,o.z+Math.cos(a)*radius);vinePoints.push(p);
+   const y=.04+(n/12)**1.25*(height+.13),turn=.14+1.10*T.MathUtils.smoothstep(n,3,9)+.12*Math.sin(n*.72+i*.8),a=angle+turn,p=new T.Vector3(o.x+Math.sin(a)*.33,y,o.z+Math.cos(a)*.33);
+   // Cross one corner between two neighboring faces. Existing leaf pockets
+   // catch the silhouette without making a full spiral around the column.
+   vineRay.set(rayPoint.set(o.x+Math.sin(a)*2,y,o.z+Math.cos(a)*2),rayDirection.set(-Math.sin(a),0,-Math.cos(a)));vineHits.length=0;vineRay.intersectObjects(columnStones,false,vineHits);
+   if(vineHits.length)p.copy(vineHits[0].point).addScaledVector(rayDirection,-.012);vinePoints.push(p);
    if([1,2,3,6,7,10,11].includes(n))for(let j=0;j<3+(n%3===1?1:0);j++){
     const fan=(j-1.5)*.67+Math.sin(n+i)*.3,offset=(j-1.5)*.035;
     leaf(p.x+Math.cos(a)*offset,p.y+.02+j*.018,p.z-Math.sin(a)*offset,a+fan,.70+.17*Math.sin(n*2+j+i)+(n<4?.30:0));
@@ -141,10 +155,19 @@ export function installForestVista(world,mapId){
   for(const [origin,side]of origins){
    archFragments++;
    for(let n=0;n<3;n++){
-    const offset=.32+n*.48,peak=(origin===a?3.22:2.84)+n*.22;
-    // Pitch along the arch's local span, after its world heading is applied.
-    // Adjacent eroded ends overlap so the broken halves remain supported.
-    const voussoir=block('stone',n===2?0x929881:0x7e8974,origin.x+dx*offset*side,peak,origin.z+dz*offset*side,.48,.42,.82,angle,0);voussoir.rotation.order='YXZ';voussoir.rotation.x=-side*.42;
+    const offset=.32+n*.48,base=origin===a?3.22:2.84,u=offset-.32,peak=base+.66*u-.13*u*u;
+    // Wedge-shaped stones follow one rising, flattening arch. Worn overlapping
+    // joints support the span; the terminal fracture interrupts its outer end.
+    const voussoir=block('stone',n===2?0x929881:0x7e8974,origin.x,base,origin.z,1,1,1,angle,0);
+    voussoir.geometry=wornStoneBlock.clone();voussoir.geometry.type='RuinVoussoirGeometry';voussoir.userData.ownedGeometry=true;
+    const p=voussoir.geometry.attributes.position;
+    for(let v=0;v<p.count;v++){
+     const x=p.getX(v),y=p.getY(v),z=p.getZ(v),span=offset+z*.82-(n===2?Math.max(0,z)*(.10+x*.12):0),t=span-.32,rise=.66*t-.13*t*t;
+     p.setXYZ(v,x*.48*(1+y*.12-n*.025),rise+y*.42,span*side);
+    }
+    // Mirroring the opposite half reverses winding as well as its span.
+    if(side<0){const index=voussoir.geometry.index;for(let t=0;t<index.count;t+=3){const b=index.getX(t+1);index.setX(t+1,index.getX(t+2));index.setX(t+2,b);}}
+    voussoir.geometry.computeVertexNormals();
     const x=origin.x+dx*offset*side,z=origin.z+dz*offset*side;
     if(n<2)for(let j=0;j<3;j++)leaf(x+(j-1)*.15,peak+.23,z,angle+j*.7);
    }
@@ -178,8 +201,9 @@ export function installForestVista(world,mapId){
    for(let i=0;i<position.count;i++){
     const existing=g.attributes.color,shade=new T.Color().copy(o.material.color);if(existing)shade.multiply(new T.Color().setRGB(existing.getX(i),existing.getY(i),existing.getZ(i)));
     if(kind==='stone'){
-     const x=position.getX(i),y=position.getY(i),z=position.getZ(i),patch=.5+.5*Math.sin(x*2.1+z*1.7+y*.8),damp=(1-T.MathUtils.smoothstep(y,.02,1.1))*.20,lichen=Math.max(0,g.attributes.normal.getY(i))*.09*patch;
-     shade.multiplyScalar(.94+patch*.06).lerp(new T.Color(0x3d5034),damp).lerp(new T.Color(0x8b9272),lichen);
+     const x=position.getX(i),y=position.getY(i),z=position.getZ(i),patch=.5+.5*Math.sin(x*2.1+z*1.7+y*.8),normal=g.attributes.normal,shelter=.5+.5*(normal.getX(i)*.64+normal.getZ(i)*.76),soilLine=.28+.15*patch;
+     const damp=(1-T.MathUtils.smoothstep(y,.02,soilLine+.42))*(.13+.15*shelter),lichen=Math.max(0,normal.getY(i))*(.025+.075*patch*patch);
+     shade.multiplyScalar(.94+patch*.06).lerp(new T.Color(0x4d4b36),damp*.58).lerp(new T.Color(0x526047),damp*.42).lerp(new T.Color(0x8b9272),lichen);
     }
     color.push(shade.r,shade.g,shade.b);
    }

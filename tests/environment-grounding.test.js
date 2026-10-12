@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import * as T from '../vendor/three.module.js';
 import {buildWorld} from '../world.js';
+import {installForestVista} from '../forest-vista.js';
 import {installForestHabitats} from '../forest-habitats.js';
 import {installExplorationRoutes} from '../exploration-routes.js';
 import {polishEnvironmentModels} from '../environment-props.js';
@@ -39,6 +40,40 @@ test('overlapping contacts take the strongest stain, transient obstacles are exc
  const source={x:0,z:0,r:1,place:true},a=make([source]),b=make([source,{...source}]),c=make([{x:4,z:4,r:1,tactic:'timber'}]);
  const first=installEnvironmentGrounding(a),second=installEnvironmentGrounding(b);assert.deepEqual(first.texture.image.data,second.texture.image.data);assert.equal(installEnvironmentGrounding(c),null);
  a.ground.geometry.dispose();b.ground.geometry.dispose();c.ground.geometry.dispose();
+});
+
+test('real ruin plinths join only the existing red contact mask, with no changes to other maps or floor channels',()=>{
+ for(const id of ['forest','confluence','snow','ash','sand','coast']){
+  const world=buildWorld(id,522);polishEnvironmentModels(world);const vista=installForestVista(world,id);
+  installForestHabitats(world,id);installBiomePlaces(world,id);installEnvironmentClusters(world,id);installExplorationRoutes(world);
+  const anchors=world.obstacles.filter(o=>o.mesh?.userData.forestVistaTrunk),source=world.ground.material,positions=world.ground.geometry.attributes.position.array.slice(),children=world.group.children.length,layout=JSON.stringify(world.obstacles.map(o=>[o.x,o.z,o.r,o.height]));
+  const ground=world.ground.clone();ground.geometry=world.ground.geometry.clone();
+  const baseline=installEnvironmentGrounding({...world,ground,obstacles:world.obstacles.filter(o=>!anchors.includes(o))}),state=installEnvironmentGrounding(world);
+  assert.equal(state.sources,baseline.sources+anchors.length);assert.equal(world.group.children.length,children);assert.equal(JSON.stringify(world.obstacles.map(o=>[o.x,o.z,o.r,o.height])),layout);assert.deepEqual(world.ground.geometry.attributes.position.array,positions);
+  for(const c of[1,2,3])assert.deepEqual(channel(state,c),channel(baseline,c),'ruin contact changed plant, road or wet-bank data');
+  if(vista){
+   assert.equal(anchors.length,vista.anchors.length);assert(anchors.length>=2&&anchors.length<=4);
+   for(const a of anchors){assert(sample(state,world,a.x,a.z,0)>150,'permanent ruin plinth has no ground contact');assert(sample(state,world,a.x,a.z,0)>sample(baseline,world,a.x,a.z,0));}
+   const pixel=2*(world.half+8)/512;let changed=0;
+   for(let i=0;i<512*512;i++)if(state.texture.image.data[i*4]!==baseline.texture.image.data[i*4]){
+    const x=(i%512+.5)*pixel-world.half-8,z=(Math.floor(i/512)+.5)*pixel-world.half-8;
+    assert(anchors.some(a=>Math.hypot(x-a.x,z-a.z)<=a.r+.72),'new shading escaped the existing contact radius');changed++;
+   }assert(changed>0&&changed<256,'ruin contact enlarged the mask across the scene');
+  }else{assert.equal(anchors.length,0);assert.deepEqual(state.texture.image.data,baseline.texture.image.data);}
+  assert.equal(state.texture.image.data.byteLength,512*512*4);assert.strictEqual(installEnvironmentGrounding(world),state);
+  const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};state.material.onBeforeCompile(shader);
+  assert.equal(shader.fragmentShader.match(/texture2D\(sceneryContact/g).length,1);
+  let released=0;state.texture.addEventListener('dispose',()=>released++);cleanup(world);ground.geometry.dispose();
+  assert(state.disposed&&baseline.disposed);assert.equal(released,1);assert.strictEqual(world.ground.material,source);
+ }
+});
+
+test('duplicate ruin anchors use max shading while destructible or tactical anchors remain excluded',()=>{
+ const make=obstacles=>{const ground=new T.Mesh(new T.PlaneGeometry(48,48),new T.MeshStandardMaterial());ground.userData.ownedGeometry=true;return{half:16,ground,obstacles};};
+ const source={x:0,z:0,r:.65,mesh:{userData:{forestVistaTrunk:true}}},a=make([source]),b=make([source,{...source}]),falling=make([source]),tactical=make([{...source,tactic:'timber'}]);falling.breakables=[source];
+ const first=installEnvironmentGrounding(a),second=installEnvironmentGrounding(b);assert.deepEqual(first.texture.image.data,second.texture.image.data);
+ assert.equal(installEnvironmentGrounding(falling),null);assert.equal(installEnvironmentGrounding(tactical),null);
+ for(const w of[a,b,falling,tactical])w.ground.geometry.dispose();
 });
 test('two live worlds never overwrite each other or dispose shared ground resources',()=>{
  const source=new T.MeshStandardMaterial(),make=x=>{const ground=new T.Mesh(new T.PlaneGeometry(48,48),source);ground.userData.ownedGeometry=true;return{half:16,ground,obstacles:[{x,z:0,r:1,environmentCluster:true}]};};

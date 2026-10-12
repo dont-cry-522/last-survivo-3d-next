@@ -36,10 +36,50 @@ test('ruin batches have bounded opaque geometry, finite shared materials and exi
   for(const m of r.group.children){
    materials.add(m.material);assert(!m.material.transparent);assert(m.userData.ownedGeometry);
    const p=m.geometry.attributes.position;for(let i=0;i<p.count;i++){assert(Number.isFinite(p.getX(i)+p.getY(i)+p.getZ(i)));assert(p.getY(i)<5,'ruin obstructs the whole camera');}
+   assert([...m.geometry.attributes.color.array].every(v=>Number.isFinite(v)&&v>=0&&v<=1),'soil and lichen shading generated invalid vertex colors');
    let disposed=0;m.geometry.addEventListener('dispose',()=>disposed++);m.geometry.dispose();assert.equal(disposed,1);
   }
  }
  assert.equal(materials.size,3,'new builds create permanent material variants');
+});
+
+test('both broken arch halves have a supported curved top, outward faces and a clear low passage',()=>{
+ for(const seed of[7,43837033]){
+  const world=buildWorld('forest',seed),r=installForestVista(world,'forest'),stone=r.group.getObjectByName('forest-vista-stone'),ray=new T.Raycaster();stone.updateMatrixWorld(true);assert.equal(r.arches,1);
+  const[a,b]=r.anchors,span=new T.Vector3(b.x-a.x,0,b.z-a.z).normalize();
+  for(const[anchor,side,base]of[[a,1,3.22],[b,-1,2.84]]){
+   const tops=[];
+   for(const offset of[.32,.80,1.28]){
+    const p=new T.Vector3(anchor.x,4.9,anchor.z).addScaledVector(span,side*offset);ray.set(p,new T.Vector3(0,-1,0));ray.far=3;
+    const hit=ray.intersectObject(stone)[0];assert(hit,'arch top disappears when viewed from above');assert(hit.face.normal.y>.75,'mirrored arch winding faces inward');tops.push(hit.point.y);
+   }
+   assert(tops[0]>base+.12&&tops[2]>tops[0]+.4);assert(tops[0]-2*tops[1]+tops[2]<-.035,'arch remains three equally tilted boxes');
+  }
+  // The existing gap remains open at player/chest height; no fallen ornament
+  // or hanging stone changes the old route under the arch.
+  const middle=new T.Vector3(r.gateCenter.x,0,r.gateCenter.z),cross=new T.Vector3(span.z,0,-span.x);
+  for(const y of[.45,1.1,1.75]){ray.set(middle.clone().setY(y).addScaledVector(cross,-.85),cross);ray.far=1.7;assert.equal(ray.intersectObject(stone).length,0);}
+  assert(clearAt(world,middle.x,middle.z,.75));
+ }
+});
+
+test('ivy follows real irregular stone faces instead of a detached spiral at unchanged geometry cost',()=>{
+ const world=buildWorld('forest',43837033),originalDispose=T.BufferGeometry.prototype.dispose,paths=new Set();
+ T.BufferGeometry.prototype.dispose=function(){if(this.type==='TubeGeometry')paths.add(this.parameters.path);return originalDispose.call(this);};
+ let r;try{r=installForestVista(world,'forest');}finally{T.BufferGeometry.prototype.dispose=originalDispose;}
+ assert.equal(paths.size,r.columns);assert.equal(r.triangles,13632);assert.equal(r.leaves,128);assert.equal(r.drawCalls,3);
+ const stone=r.group.getObjectByName('forest-vista-stone'),ray=new T.Raycaster();stone.updateMatrixWorld(true);
+ for(const path of paths){
+  const points=path.points,first=points[0],anchor=r.anchors.reduce((best,a)=>Math.hypot(first.x-a.x,first.z-a.z)<Math.hypot(first.x-best.x,first.z-best.z)?a:best),angles=[];
+  assert.equal(points.length,13,'ivy detail cost grew');
+  for(const p of points){
+   const direction=new T.Vector3(anchor.x-p.x,0,anchor.z-p.z).normalize();ray.set(p.clone().addScaledVector(direction,-.12),direction);ray.far=.22;
+   const hit=ray.intersectObject(stone)[0];assert(hit,'vine has no nearby stone support');assert(Math.abs(hit.distance-.12)<.05,'vine floats too far from its stone face');
+   angles.push(Math.atan2(p.x-anchor.x,p.z-anchor.z));
+  }
+  // Unwrap around the first point so a face across -pi/pi is treated normally.
+  const base=angles[0],turns=angles.map(a=>Math.atan2(Math.sin(a-base),Math.cos(a-base))),turn=Math.max(...turns)-Math.min(...turns);assert(turn>.9&&turn<1.5,'ivy must cross one corner without returning to a full-column helix');
+ }
 });
 
 test('the actual browser seed finds a gateway pair before choosing a lone nearest tree',()=>{

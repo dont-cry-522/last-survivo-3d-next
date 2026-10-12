@@ -15,22 +15,36 @@ function finish(kind){
 }
 const bent=(points,radius=.05)=>new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),6,radius,5,false);
 
-function forestStone(fragment){
+function forestStone(fragment,variant){
  const source=naturalRockGeometry.clone(),p=source.attributes.position;
- // Keep the buried base and original envelope. Two sloping fracture faces
- // replace the smooth dome, while the old low-poly skirt keeps weathered edges.
+ // Keep the buried skirt and topology. One stone is a broad, stepped slab;
+ // the other is an oblique wedge with a broken corner, not a resized copy.
  for(let i=0;i<p.count;i++){
-  let x=p.getX(i)*.95,z=p.getZ(i)*.94;
-  x=T.MathUtils.clamp(x,-.83+.11*z,.83-.14*z);
-  z=T.MathUtils.clamp(z,-.79-.10*x,.81+.12*x);
-  const ridge=fragment?.48:.54,tilt=fragment?-.24:.18;
-  const y=Math.min(p.getY(i),ridge+tilt*x-.20*z,.53-tilt*x+.16*z);
+  const originalY=p.getY(i),layer=T.MathUtils.smoothstep(originalY,-.32,-.04)*(1-T.MathUtils.smoothstep(originalY,.04,.34));
+  let x=p.getX(i)*(fragment?.83:.95)*(1-layer*.085),z=p.getZ(i)*(fragment?.98:.91)*(1-layer*.045);
+  x=T.MathUtils.clamp(x,fragment?-.66-.22*z:-.86+.13*z,fragment?.84-.13*z:.79-.12*z);
+  z=T.MathUtils.clamp(z,fragment?-.81+.20*x:-.76-.05*x,fragment?.68-.27*x:.83+.18*x);
+  const tilt=variant?.055:-.025;
+  const y=fragment?Math.min(originalY,.40-.24*x-(.12+tilt)*z,.58+.30*x+.14*z,.61+.28*x-.29*z):Math.min(originalY,.53+(.11+tilt)*x-.23*z,.53-.26*x+.06*z,.64+.32*x+.10*z);
   p.setXYZ(i,x,y,z);
  }
  // Preserve broken edges without turning the whole stone into a flat-shaded
  // gem. This splits normals only: the triangle count and shared source stay put.
  const g=toCreasedNormals(source,.62);source.dispose();
  g.setIndex(Array.from({length:g.attributes.position.count},(_,i)=>i));
+ // Quiet mineral strata and patchy lower-face staining sit below the existing
+ // scanned rock finish. No extra decal, material or per-frame surface lookup.
+ const vertices=g.attributes.position,normals=g.attributes.normal,colors=[];
+ for(let i=0;i<vertices.count;i++){
+  const x=vertices.getX(i),y=vertices.getY(i),z=vertices.getZ(i),up=Math.max(0,normals.getY(i));
+  const patch=.5+.25*Math.sin(x*5.2+z*3.1+variant)+.25*Math.sin(x*-3.3+z*4.7-y*1.9+fragment);
+  const strata=.5+.5*Math.sin((y+x*.16-z*.09)*20+Math.sin(x*3.1+z*2.7)*.30);
+  const damp=(1-T.MathUtils.smoothstep(y,-.18,.30))*T.MathUtils.smoothstep(patch,.30,.78);
+  const moss=(1-T.MathUtils.smoothstep(y,.08,.36))*T.MathUtils.smoothstep(patch,.68,.91)*T.MathUtils.smoothstep(up,.08,.65);
+  const shade=(.86+up*.09+strata*.065)*(1-damp*.18);
+  colors.push(shade*(1-moss*.34),shade*(1-moss*.13),shade*(1-moss*.40));
+ }
+ g.setAttribute('color',new T.Float32BufferAttribute(colors,3));
  return g;
 }
 
@@ -116,8 +130,8 @@ function clusterTemplate(id,variant){
  };
  if(id==='forest'){
   for(const part of forestUndergrowth(variant))add(part.geometry,part.material,part.color);
-  add(forestStone(0),finish('stone'),0x807b6e,{x:-.42,y:.21,z:.27,sx:.78,sy:.35,sz:.69});
-  add(forestStone(1),finish('stone'),0x8b8476,{x:.65,y:.16,z:-.24,sx:.59,sy:.27,sz:.50});
+  add(forestStone(0,variant),finish('stone'),0x807b6e,{x:-.42,y:.21,z:.27,sx:.78,sy:.35,sz:.69});
+  add(forestStone(1,variant),finish('stone'),0x8b8476,{x:.65,y:.16,z:-.24,sx:.59,sy:.27,sz:.50});
  }else if(id==='snow'){
   tree('snow',-.48,-.30,.48,.34);tree('snow',.57,.38,.34,.26);
   for(const [x,z,s]of[[-.65,.45,.76],[.55,-.31,.87],[.0,.61,.51]]){

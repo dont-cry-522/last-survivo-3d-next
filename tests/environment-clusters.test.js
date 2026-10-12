@@ -68,7 +68,7 @@ test('forest stones have low fractured mineral faces, buried bases and the uncha
   assert.equal(index.count/3,240,'the two low stones exceeded their original 120 triangles each');
   assert(g.boundingBox.max.y<.43,'the soft olive-shaped domes returned');
   for(let fragment=0;fragment<2;fragment++){
-   let bottom=Infinity,top=-Infinity;const faces=[];
+   let bottom=Infinity,top=-Infinity,mossVertices=0,minTint=Infinity,maxTint=0;const faces=[];
    for(let i=fragment*360;i<(fragment+1)*360;i+=3){
     const ia=index.getX(i),ib=index.getX(i+1),ic=index.getX(i+2);
     a.fromBufferAttribute(p,ia);b.fromBufferAttribute(p,ib);c.fromBufferAttribute(p,ic);
@@ -76,16 +76,41 @@ test('forest stones have low fractured mineral faces, buried bases and the uncha
     if(Math.min(a.y,b.y,c.y)>.24&&normal.y>.7)faces.push(normal);
     for(const v of[ia,ib,ic]){
      bottom=Math.min(bottom,p.getY(v));top=Math.max(top,p.getY(v));
-     assert(color.getX(v)>=color.getY(v)&&color.getY(v)>=color.getZ(v),'forest stone has returned to green moss foam');
+     const r=color.getX(v),green=color.getY(v),blue=color.getZ(v);
+     minTint=Math.min(minTint,r);maxTint=Math.max(maxTint,r);
+     assert(green>=blue&&green/r<1.12,'stone lost its muted mineral palette');
+     if(green>r){mossVertices++;assert(p.getY(v)<.30,'moss has covered the exposed upper fracture');}
      assert(Math.abs(Math.hypot(n.getX(v),n.getY(v),n.getZ(v))-1)<.00001,'fracture normal is invalid');
     }
    }
    assert(bottom<-.035&&bottom>-.06,'stone base must still sit below the actual -.03 ground');
    assert(top>.28&&top<.43,'stone should have a low visible broken crown');
+   assert(mossVertices<360*.05,'localized damp moss became an all-over green coating');
+   assert(maxTint-minTint>.04,'mineral strata and damp lower-face variation disappeared');
    assert(faces.some(normal=>faces.filter(other=>normal.dot(other)>.9999).length>=6),'upper surface should contain a broad real fracture face, not just a recolored sphere');
   }
+  let difference=0;
+  for(let i=0;i<360;i++)difference+=((p.getX(i)+.42)/.78-(p.getX(i+360)-.65)/.59)**2+((p.getY(i)-.21)/.35-(p.getY(i+360)-.16)/.27)**2+((p.getZ(i)-.27)/.69-(p.getZ(i+360)+.24)/.50)**2;
+  assert(Math.sqrt(difference/360)>.08,'the slab and wedge returned to two scaled copies of one pebble');
  }
  cleanup(w);
+});
+
+test('forest fracture shapes reuse the existing scanned stone finish without altering the other four biomes',()=>{
+ const baseline={snow:'d2b028a6da31790cf88e48726a43638b1cb30fd124810e555dff8bfd7e045ec0',ash:'d5be8e02fbfdd64c682180fb10227b46ba2fc52a63ac051af282af83fd12f537',sand:'17c79a42d098b1d345cb498870f2636df82e93aa65cf15229b2a879d76b2662d',coast:'2f190ba9372a365c596649e469009934454811f1e7cb822752c6505eae9e84a4'};
+ const forest=create('forest',7),state=installEnvironmentClusters(forest,'forest'),material=state.group.children.find(o=>o.material?.userData.propSurface==='stone-placed').material;
+ for(const [id,expected]of Object.entries(baseline)){
+  const w=create(id,7),other=installEnvironmentClusters(w,id),hash=createHash('sha256');
+  for(const mesh of other.group.children.filter(o=>o.isInstancedMesh)){
+   if(mesh.material.userData.propSurface==='stone-placed')assert.strictEqual(mesh.material,material,'forest allocated its own scanned stone material');
+   for(const name of Object.keys(mesh.geometry.attributes).sort()){
+    const a=mesh.geometry.attributes[name];hash.update(name);hash.update(Buffer.from(a.array.buffer,a.array.byteOffset,a.array.byteLength));
+   }
+   hash.update(Buffer.from(mesh.geometry.index.array.buffer));
+  }
+  assert.equal(hash.digest('hex'),expected,id+' geometry, normals or surface colors changed');cleanup(w);
+ }
+ cleanup(forest);
 });
 
 test('six maps add broad, distinct midground groups within one-pass rendering and collision budgets',()=>{

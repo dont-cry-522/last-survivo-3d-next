@@ -18,7 +18,7 @@ test('shadow fill keeps sunlight directional and retains the existing fog and ex
  const scene=new T.Scene(),renderer={toneMappingExposure:1},hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();
  scene.fog=new T.FogExp2();scene.background=new T.Color();scene.add(hemi,sun,rim);
  const shadow=sun.shadow,camera=shadow.camera,size=shadow.mapSize.clone(),lighting=new EnvironmentLighting(scene,renderer,hemi,sun,rim);
- const atmosphere={forest:[.0085,1.02],snow:[.012,1.02],ash:[.014,1.08],sand:[.009,1.04],coast:[.011,1.06]};
+ const atmosphere={forest:[.0078,1.02],snow:[.0105,1.02],ash:[.0125,1.08],sand:[.0078,1.04],coast:[.0092,1.06]};
  for(const [id,[density,exposure]]of Object.entries(atmosphere)){
   lighting.update(id);assert.equal(scene.fog.density,density);assert.equal(renderer.toneMappingExposure,exposure);
   assert(sun.shadow.intensity>=.85&&sun.shadow.intensity<1,'cast shadows still erase all direct detail');
@@ -42,6 +42,32 @@ test('forest-to-border light changes stay bounded and take the same time at 30 a
   }
   assert.equal(slow.scene.children.length,3);assert.equal(fast.scene.children.length,3);
  }
+});
+
+test('five palettes separate warm sunlight from cool sky without concealing nearby combat',()=>{
+ const colors=Object.fromEntries(Object.entries(CLIMATE_LIGHT).map(([id,p])=>[id,Object.fromEntries(['sky','sun','bounce','fog','ridge'].map(k=>[k,new T.Color(p[k])]))]));
+ const luminance=c=>c.r*.2126+c.g*.7152+c.b*.0722;
+ for(const [id,p]of Object.entries(CLIMATE_LIGHT)){
+  const c=colors[id];assert(c.sky.b>c.sky.r&&c.sun.r>c.sun.b,id+' lost directional warm/cool separation');
+  assert(luminance(c.sun)*p.key>luminance(c.sky)*p.ambient*3,id+' sky fill washes out the sunlit shape');
+  assert(Math.exp(-((p.density*20)**2))>.93,id+' fog obscures the normal battle distance');
+  const far=Math.exp(-((p.density*80)**2));assert(far>.30&&far<.70,id+' distance fog is opaque or leaves the horizon flat');
+ }
+ assert(colors.snow.fog.b>colors.snow.fog.r&&luminance(colors.snow.fog)>.55,'snow haze should read as cold white');
+ assert(luminance(colors.snow.bounce)>luminance(colors.coast.bounce)*1.5,'snow and harbor use the same dark ground fill');
+ assert(colors.ash.bounce.r>colors.ash.bounce.b&&colors.ash.ridge.r>colors.ash.ridge.b,'ash regains a purple rather than charred warm-gray ground');
+ assert(colors.sand.bounce.r>colors.sand.bounce.b*2&&colors.sand.fog.r>colors.sand.fog.b,'sand loses its golden reflected light');
+ assert(colors.coast.bounce.b>colors.coast.bounce.r*2&&colors.coast.ridge.b>colors.coast.ridge.r*2,'harbor loses its deeper blue shadow');
+});
+
+test('the all-biome junction blends the actual palette contributions without adding lights',()=>{
+ const scene=new T.Scene(),renderer={toneMappingExposure:1},hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();scene.fog=new T.FogExp2();scene.background=new T.Color();scene.add(hemi,sun,rim);
+ const light=new EnvironmentLighting(scene,renderer,hemi,sun,rim),weights={forest:.12,snow:.19,ash:.23,sand:.29,coast:.17};light.update('confluence',weights);
+ for(const [field,value]of[['sky',hemi.color],['bounce',hemi.groundColor],['sun',sun.color],['rim',rim.color],['fog',scene.fog.color]]){
+  const expected=new T.Color(0);for(const [id,w]of Object.entries(weights))expected.add(new T.Color(CLIMATE_LIGHT[id][field]).multiplyScalar(w));
+  assert(Math.hypot(value.r-expected.r,value.g-expected.g,value.b-expected.b)<1e-12,field+' is not a continuous weighted mixture');
+ }
+ const density=Object.entries(weights).reduce((sum,[id,w])=>sum+CLIMATE_LIGHT[id].density*w,0);assert(Math.abs(scene.fog.density-density)<1e-12);assert.equal(scene.children.length,3);
 });
 test('distant scenery stays beyond map bounds and scenery finish preserves playable layouts',()=>{
  for(const id of ['forest','snow','ash','sand','coast','confluence']){

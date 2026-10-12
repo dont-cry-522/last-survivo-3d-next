@@ -1,13 +1,14 @@
 import * as T from './vendor/three.module.js';
+import {biomeWeights} from './confluence.js?v=160';
 
-// Build-time composition only. It reuses existing tree crowns and owned ground
-// colors; no scene nodes, GPU assets, listeners or animation work are installed.
+// Build-time composition only: existing crowns, owned branches and floor colors.
+// No scene nodes, materials, listeners or animation work are installed.
 const tones={
- forest:{closed:[.80,.91,.86],open:[1.08,1.07,.96]},
- snow:{closed:[.92,.96,1.01],open:[1.04,1.03,1.015]},
- ash:{closed:[.91,.88,.90],open:[1.08,1.03,.96]},
- sand:{closed:[.93,.90,.86],open:[1.045,1.03,.985]},
- coast:{closed:[.91,.96,.98],open:[1.06,1.055,1.02]}
+ forest:{closed:[.80,.91,.86],open:[1.08,1.07,.96],flow:[.062,.038],layer:[.025,.034,.025]},
+ snow:{closed:[.92,.96,1.01],open:[1.04,1.03,1.015],flow:[-.056,.080],layer:[.013,.019,.028]},
+ ash:{closed:[.91,.88,.90],open:[1.08,1.03,.96],flow:[.044,.064],layer:[.033,.016,.012]},
+ sand:{closed:[.93,.90,.86],open:[1.045,1.03,.985],flow:[.030,-.052],layer:[.030,.020,.010]},
+ coast:{closed:[.91,.96,.98],open:[1.06,1.055,1.02],flow:[.070,.012],layer:[.013,.026,.034]}
 };
 const smooth=T.MathUtils.smoothstep;
 
@@ -65,7 +66,7 @@ export function installExplorationComposition(world,mapId){
  const landmarks=(world.explorationLandmarks||[]).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.z));
  const state={mapId,routes,landmarks,approach:!!approach,trees:0,skippedLowTrees:0,groundVertices:0};world.explorationComposition=state;
  const protectedMeshes=new Set(landmarks.flatMap(p=>[p.mesh,p.obstacle?.mesh])),protectedObstacles=new Set([...(world.breakables||[]),...landmarks.map(p=>p.obstacle)]);
- const gate=world.forestVista?.gateCenter,box=new T.Box3(),oldScale=new T.Vector3();world.group.updateMatrixWorld(true);
+ const gate=world.forestVista?.gateCenter,box=new T.Box3(),oldScale=new T.Vector3(),oldCrown=new T.Matrix4(),branchDelta=new T.Matrix4(),branchPoint=new T.Vector3();world.group.updateMatrixWorld(true);
  // Reserve the existing .034-radian canopy sway as well as its resting bounds.
  const headroom=canopy=>{box.setFromObject(canopy);return box.min.y-Math.hypot(box.max.x-box.min.x,box.max.z-box.min.z)*.024;};
  for(const obstacle of world.obstacles||[]){
@@ -76,11 +77,26 @@ export function installExplorationComposition(world,mapId){
   const canopy=root.getObjectByName('tree-canopy');if(!canopy)continue;
   const rhythm=sceneryRhythmAt(world,obstacle.x,obstacle.z);if(!rhythm.enclosure&&!rhythm.opening)continue;
   if(headroom(canopy)<3.2){state.skippedLowTrees++;continue;}
-  oldScale.copy(canopy.scale);
+  oldScale.copy(canopy.scale);canopy.updateMatrix();oldCrown.copy(canopy.matrix);
   const width=1+rhythm.enclosure*.30-rhythm.opening*.28;
   canopy.scale.x*=width;canopy.scale.z*=width;canopy.scale.y*=1+rhythm.enclosure*.09-rhythm.opening*.055;
   canopy.updateWorldMatrix(false,false);
   if(headroom(canopy)<3.2){canopy.scale.copy(oldScale);canopy.updateWorldMatrix(false,false);state.skippedLowTrees++;continue;}
+  if(canopy.scale.equals(oldScale))continue;
+  const trunk=root.getObjectByName('tree-trunk');
+  if(trunk){
+   // Carry the existing upper branch pose through the same crown transform.
+   // Habitats already owns forest trunks; clone shared trees/snow just once.
+   if(!trunk.userData.ownedGeometry){trunk.geometry=trunk.geometry.clone();trunk.userData.ownedGeometry=true;}
+   trunk.updateMatrix();branchDelta.copy(trunk.matrix).invert().multiply(canopy.matrix).multiply(oldCrown.invert()).multiply(trunk.matrix);
+   const p=trunk.geometry.attributes.position,original=canopy.userData.treeTemplate?.trunk.attributes.position;
+   for(let i=0;i<p.count;i++){
+    const weight=smooth(original?.getY(i)??p.getY(i),1.8,3.3);if(!weight)continue;
+    branchPoint.fromBufferAttribute(p,i).applyMatrix4(branchDelta);
+    p.setXYZ(i,T.MathUtils.lerp(p.getX(i),branchPoint.x,weight),T.MathUtils.lerp(p.getY(i),branchPoint.y,weight),T.MathUtils.lerp(p.getZ(i),branchPoint.z,weight));
+   }
+   p.needsUpdate=true;trunk.geometry.computeVertexNormals();trunk.geometry.computeBoundingBox();trunk.geometry.computeBoundingSphere();
+  }
   state.trees++;
  }
  const ground=world.ground,positions=ground?.geometry.attributes.position,colors=ground?.geometry.attributes.color,point=new T.Vector3();
@@ -89,7 +105,11 @@ export function installExplorationComposition(world,mapId){
   for(let i=0;i<positions.count;i++){
    point.fromBufferAttribute(positions,i).applyMatrix4(ground.matrixWorld);
    const rhythm=sceneryRhythmAt(world,point.x,point.z),tone=tones[rhythm.biome];if(!tone||!rhythm.enclosure&&!rhythm.opening)continue;
-   colors.setXYZ(i,...[colors.getX(i),colors.getY(i),colors.getZ(i)].map((v,j)=>v*(1+(tone.closed[j]-1)*rhythm.enclosure+(tone.open[j]-1)*rhythm.opening)));state.groundVertices++;
+   // Low-contrast, broad irregular patches, not repeated stripes or new decals.
+   // Fade the extra layer out through the joined map's existing climate blend.
+   const u=point.x*tone.flow[0]+point.z*tone.flow[1],v=-point.x*tone.flow[1]+point.z*tone.flow[0],border=world.regions?smooth(biomeWeights(point.x,point.z)[rhythm.biome]||0,.55,.85):1;
+   const layer=Math.sin(u+.7*Math.sin(v*.63))*Math.cos(v*.78+.5*Math.sin(u*.49))*Math.max(rhythm.enclosure,rhythm.opening)*border;
+   colors.setXYZ(i,...[colors.getX(i),colors.getY(i),colors.getZ(i)].map((value,j)=>value*(1+(tone.closed[j]-1)*rhythm.enclosure+(tone.open[j]-1)*rhythm.opening+tone.layer[j]*layer)));state.groundVertices++;
   }
   colors.needsUpdate=true;
  }

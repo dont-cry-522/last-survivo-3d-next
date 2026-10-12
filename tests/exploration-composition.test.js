@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
 import {addTree} from '../tree-scenery.js';
 import {buildWorld,animateWorld} from '../world.js';
+import {biomeWeights,REGIONS} from '../confluence.js';
 import {installForestVista} from '../forest-vista.js';
 import {installForestHabitats} from '../forest-habitats.js';
 import {polishEnvironmentModels} from '../environment-props.js';
@@ -42,7 +43,9 @@ test('forest and snow crowns frame routes while keeping roots, tactical trees, v
   const tactical=tree(w,46,-7,id),elder=tree(w,58,-7,id),vista=tree(w,28,7,id),landmark=tree(w,100,-7,id);
   tactical.tactic='timber';w.breakables.push(tactical);w.forestHabitats={elder};w.forestVista={gateCenter:{x:28,z:4}};
   w.explorationLandmarks[0].obstacle=landmark;w.explorationLandmarks[0].mesh=landmark.mesh;
-  const before=new Map(),meshes=[];w.group.traverse(o=>{before.set(o,transforms(o));if(o.isMesh)meshes.push([o,o.geometry,o.material]);});
+  w.group.updateMatrixWorld(true);
+  const before=new Map(),meshes=[],branches=new Map();w.group.traverse(o=>{before.set(o,transforms(o));if(o.isMesh)meshes.push([o,o.geometry,o.material]);});
+  for(const o of w.obstacles){const trunk=o.mesh.getObjectByName('tree-trunk'),canopy=o.mesh.getObjectByName('tree-canopy');branches.set(o,{positions:trunk.geometry.attributes.position.clone(),matrix:trunk.matrixWorld.clone(),crown:canopy.matrixWorld.clone()});}
   const stateBefore=snapshot(w),ground=w.ground.geometry.attributes.position.array.slice(),state=installExplorationComposition(w,id);
   assert.equal(state.trees,3);assert.equal(state.skippedLowTrees,1);assert.equal(snapshot(w),stateBefore);assert.deepEqual(w.ground.geometry.attributes.position.array,ground);
   for(const o of w.obstacles){
@@ -51,10 +54,16 @@ test('forest and snow crowns frame routes while keeping roots, tactical trees, v
    if([low,tactical,elder,vista,landmark].includes(o))assert.deepEqual(transforms(canopy),before.get(canopy));
    else{
     assert(o===closed?canopy.scale.x>before.get(canopy)[1][0]*1.25:canopy.scale.x<before.get(canopy)[1][0]*.8);
+    const old=branches.get(o),positions=trunk.geometry.attributes.position,delta=canopy.matrixWorld.clone().multiply(old.crown.clone().invert()).multiply(old.matrix);let roots=0,upper=0;
+    for(let i=0;i<positions.count;i++){
+     if(old.positions.getY(i)<=1.8){assert.equal(positions.getX(i),old.positions.getX(i));assert.equal(positions.getY(i),old.positions.getY(i));assert.equal(positions.getZ(i),old.positions.getZ(i));roots++;}
+     if(old.positions.getY(i)>=3.3){const expected=new T.Vector3().fromBufferAttribute(old.positions,i).applyMatrix4(delta),actual=trunk.localToWorld(new T.Vector3().fromBufferAttribute(positions,i));assert(actual.distanceTo(expected)<1e-5,'upper branches do not follow the accepted crown transform');upper++;}
+    }assert(roots>20&&upper>20);
     for(const tilt of[-.034,0,.034]){canopy.rotation.z=tilt;w.group.updateMatrixWorld(true);assert(new T.Box3().setFromObject(canopy).min.y>=3.2,'moving foliage drops below the headroom budget');}canopy.rotation.z=0;
    }
   }
-  const after=[];w.group.traverse(o=>{if(o.isMesh)after.push([o,o.geometry,o.material]);});assert.deepEqual(after,meshes,'composition added or cloned GPU assets');
+  const after=[];w.group.traverse(o=>{if(o.isMesh)after.push([o,o.geometry,o.material]);});assert.equal(after.length,meshes.length,'composition added scene meshes');
+  for(let i=0;i<after.length;i++){assert.equal(after[i][0],meshes[i][0]);assert.equal(after[i][2],meshes[i][2]);if(after[i][1]!==meshes[i][1])assert(after[i][0].name==='tree-trunk'&&after[i][0].userData.ownedGeometry,'composition cloned a non-branch asset');}
   const colors=w.ground.geometry.attributes.color.array.slice(),scales=w.obstacles.map(o=>o.mesh.getObjectByName('tree-canopy').scale.toArray());
   assert.strictEqual(installExplorationComposition(w,id),state);assert.deepEqual(w.ground.geometry.attributes.color.array,colors);assert.deepEqual(w.obstacles.map(o=>o.mesh.getObjectByName('tree-canopy').scale.toArray()),scales);
   cleanup(w);
@@ -72,6 +81,48 @@ test('five climates use broad distinct ground transitions without moving vertice
  assert.equal(new Set(colors).size,5);
 });
 
+test('wide floor patches vary gently within each climate and fade before joined climate boundaries',()=>{
+ const closed={forest:[.80,.91,.86],snow:[.92,.96,1.01],ash:[.91,.88,.90],sand:[.93,.90,.86],coast:[.91,.96,.98]};
+ const sample=(id,x,z,joined=false)=>{
+  const w=corridor(id);w.ground.position.x=0;const p=w.ground.geometry.attributes.position;
+  for(let i=0;i<p.count;i++)p.setXYZ(i,x,-z,0);
+  w.explorationRoutes=[{biome:id,points:[{x:x-50,z},{x:x+50,z}]}];w.explorationLandmarks=[];
+  if(joined)w.regions=[{id,contains:()=>true}];
+  installExplorationComposition(w,id);const c=w.ground.geometry.attributes.color,result=[c.getX(0),c.getY(0),c.getZ(0)];cleanup(w);return result;
+ };
+ for(const [index,region]of REGIONS.entries()){
+  const id=region.id,values=[];
+  for(let x=-30;x<=30;x+=5){const a=sample(id,x,4),b=sample(id,x+.01,4.01);values.push(a[0]);for(let c=0;c<3;c++){assert(Math.abs(a[c]-.5*closed[id][c])<.018,'broad patch overwhelms the climate palette');assert(Math.abs(a[c]-b[c])<.0001,'patch creates a fine stripe or seam');}}
+  assert(Math.max(...values)-Math.min(...values)>.002,'existing ground has no broad variation inside a uniform route section');
+  const next=REGIONS[(index+1)%REGIONS.length];let lo=0,hi=1;
+  for(let i=0;i<40;i++){const t=(lo+hi)/2,x=T.MathUtils.lerp(region.x,next.x,t),z=T.MathUtils.lerp(region.z,next.z,t);if(biomeWeights(x,z)[id]>.525)lo=t;else hi=t;}
+  const x=T.MathUtils.lerp(region.x,next.x,(lo+hi)/2),z=T.MathUtils.lerp(region.z,next.z,(lo+hi)/2),actual=sample(id,x,z,true);
+  assert(biomeWeights(x,z)[id]>.50&&biomeWeights(x,z)[id]<.55);
+  for(let c=0;c<3;c++)assert(Math.abs(actual[c]-.5*closed[id][c])<1e-7,'new floor layer crossed the existing blended climate boundary');
+ }
+});
+
+test('full forest pipeline keeps every terminal spray and branch join attached after route framing',()=>{
+ for(const id of['forest','confluence'])for(const seed of[522,43837033]){
+  const w=buildWorld(id,seed);installForestVista(w,id);installForestHabitats(w,id);installExplorationRoutes(w);installExplorationLandmarks(w,id);
+  const owned=new Map();w.group.traverse(o=>{if(o.name==='tree-trunk'&&o.userData.ownedGeometry)owned.set(o,o.geometry);});
+  const state=installExplorationComposition(w,id);assert(state.trees>0);w.group.updateMatrixWorld(true);let tips=0,joins=0;
+  for(const o of w.obstacles){const canopy=o.mesh.getObjectByName('tree-canopy'),trunk=o.mesh.getObjectByName('tree-trunk'),template=canopy?.userData.treeTemplate;if(!template||template.snow||!owned.has(trunk))continue;
+   assert.equal(trunk.geometry,owned.get(trunk),'route framing cloned an already-owned habitat trunk');
+   const p=trunk.geometry.attributes.position,start=p.count-template.sprays.length*11,ends=[new T.Vector3().fromBufferAttribute(p,41),...[0,1,2,3].map(i=>new T.Vector3().fromBufferAttribute(p,130+i*20+19))];
+   if(o!==w.forestHabitats.elder){
+    const stem=[];for(let ring=0;ring<5;ring++){const center=new T.Vector3();for(let i=0;i<8;i++)center.add(new T.Vector3().fromBufferAttribute(p,ring*8+i));stem.push(center.multiplyScalar(1/8));}
+    for(let branch=0;branch<4;branch++){const base=new T.Vector3().fromBufferAttribute(p,130+branch*20+18),near=new T.Vector3();let gap=Infinity;for(let i=1;i<stem.length;i++){new T.Line3(stem[i-1],stem[i]).closestPointToPoint(base,true,near);gap=Math.min(gap,near.distanceTo(base));}assert(gap<.16,'primary fork escaped its supporting trunk');}
+   }
+   for(const[i,[x,y,z,,,height]]of template.sprays.entries()){
+    const end=trunk.localToWorld(new T.Vector3().fromBufferAttribute(p,start+i*11+10)),target=canopy.localToWorld(new T.Vector3(x,y+height*.24-template.bottom,z));
+    assert(end.distanceTo(target)<1e-5,'route framing detached a terminal twig');tips++;
+    const base=new T.Vector3().fromBufferAttribute(p,start+i*11+9);assert(Math.min(...ends.map(e=>e.distanceTo(base)))<1e-5,'terminal twig detached from its primary fork');joins++;
+   }
+  }assert(tips>500&&joins===tips);cleanup(w);
+ }
+});
+
 test('real map composition preserves layouts, shared tree templates and rebuild cleanup without crossing climate borders',()=>{
  let releases=0;
  for(const id of['forest','snow','ash','sand','coast','confluence']){
@@ -80,12 +131,13 @@ test('real map composition preserves layouts, shared tree templates and rebuild 
   w.explorationLandmarks=w.explorationRoutes.map(r=>({biome:r.biome,...r.points.at(-1)}));
   const gameplay=snapshot(w),before=new Map();w.group.traverse(o=>{if(o.isMesh)before.set(o,[o.geometry,o.material]);});
   const state=installExplorationComposition(w,id);assert(state);assert.equal(snapshot(w),gameplay);
-  w.group.traverse(o=>{if(o.isMesh)assert.deepEqual([o.geometry,o.material],before.get(o));});
+  w.group.traverse(o=>{if(o.isMesh){const[g,m]=before.get(o);assert.equal(o.material,m);if(o.geometry!==g)assert(o.name==='tree-trunk'&&o.userData.ownedGeometry,'composition replaced a non-branch asset');}});
   const geometries=new Set();for(const o of w.obstacles)for(const mesh of o.mesh.children)if(mesh.userData.treeCanopy)geometries.add(mesh.geometry);
   if(id==='confluence')for(const r of w.regions)assert.equal(sceneryRhythmAt(w,r.x,r.z).biome,r.id);
   const colors=w.ground.geometry.attributes.color.array.slice();animateWorld(w,2,w.spawn.x,w.spawn.z);assert.deepEqual(w.ground.geometry.attributes.color.array,colors,'composition requires per-frame ground work');
   const listen=()=>releases++;for(const geometry of geometries)geometry.addEventListener('dispose',listen);
-  cleanup(w);for(const geometry of geometries)geometry.removeEventListener('dispose',listen);assert.equal(releases,0,'world cleanup releases a shared tree template');
+  const owned=new Set();w.group.traverse(o=>{if(o.name==='tree-trunk'&&o.userData.ownedGeometry)owned.add(o.geometry);});let ownedReleased=0;for(const g of owned)g.addEventListener('dispose',()=>ownedReleased++);
+  cleanup(w);for(const geometry of geometries)geometry.removeEventListener('dispose',listen);assert.equal(releases,0,'world cleanup releases a shared tree template');assert.equal(ownedReleased,owned.size,'owned branches were leaked or disposed twice');
  }
  const empty=corridor();empty.explorationRoutes=[];assert.equal(installExplorationComposition(empty,'forest'),null);assert.equal(empty.explorationComposition,undefined);cleanup(empty);
 });

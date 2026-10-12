@@ -1,14 +1,14 @@
-import{installHarborHorizon,harborBayLayout,harborBayCut}from'./harbor-horizon.js?v=158';
+import{installHarborHorizon,harborBayLayout,harborBayCut}from'./harbor-horizon.js?v=160';
 import{installForestBackdrop}from'./tree-scenery.js?v=158';
 import * as T from './vendor/three.module.js';
 
 // The same three lights serve every climate; transitions do not allocate lights or shadow maps.
 export const CLIMATE_LIGHT={
- forest:{sky:0x9bbbd2,bounce:0x71816a,sun:0xffe1ad,rim:0xaac8c6,fog:0x829b91,ambient:1.22,key:3.25,edge:.70,density:.0085,exposure:1.02,ridge:0x39554e,height:20},
- snow:{sky:0xbcd5e8,bounce:0x647c8b,sun:0xffe5c5,rim:0x97c5ed,fog:0x99b8c7,ambient:1.30,key:3.10,edge:1.0,density:.012,exposure:1.02,ridge:0x6e919f,height:23},
- ash:{sky:0xada7bc,bounce:0x36333e,sun:0xffc18b,rim:0xb599c1,fog:0x6f5964,ambient:1.04,key:3.4,edge:1.2,density:.014,exposure:1.08,ridge:0x4a3d49,height:17},
- sand:{sky:0xb8cddc,bounce:0x86735d,sun:0xffdfaf,rim:0xb0c5d5,fog:0xbba789,ambient:1.15,key:3.9,edge:.8,density:.009,exposure:1.04,ridge:0x9c8361,height:12},
- coast:{sky:0x9bbfd0,bounce:0x5a7484,sun:0xffdeb3,rim:0x95bdd5,fog:0x769ba3,ambient:1.28,key:3.50,edge:1.28,density:.011,exposure:1.06,ridge:0x4a6972,height:10}
+ forest:{sky:0x91b6cd,bounce:0x657560,sun:0xffdfa8,rim:0x99b8c0,fog:0x8fa99d,ambient:1.12,key:3.25,edge:.58,density:.0078,exposure:1.02,ridge:0x385249,height:20},
+ snow:{sky:0xb4d4ed,bounce:0x7891a1,sun:0xffe9d0,rim:0xb4d7ef,fog:0xb4cedd,ambient:1.22,key:3.10,edge:.82,density:.0105,exposure:1.02,ridge:0x678797,height:23},
+ ash:{sky:0x8d98ad,bounce:0x3d302b,sun:0xffb77f,rim:0xc5a08a,fog:0x716966,ambient:.96,key:3.4,edge:.82,density:.0125,exposure:1.08,ridge:0x493e3a,height:17},
+ sand:{sky:0xa9c6df,bounce:0x9a805c,sun:0xffd39e,rim:0xc3cbd0,fog:0xc5b08e,ambient:1.10,key:3.9,edge:.65,density:.0078,exposure:1.04,ridge:0x9f7d51,height:12},
+ coast:{sky:0x8cb4d0,bounce:0x486b7b,sun:0xffe0b9,rim:0xa1c4d6,fog:0x84a6b2,ambient:1.18,key:3.50,edge:.92,density:.0092,exposure:1.06,ridge:0x3e6072,height:10}
 };
 const colorKeys=['sky','bounce','sun','rim','fog'],scalarKeys=['ambient','key','edge','density','exposure'];
 const tones=Object.fromEntries(Object.entries(CLIMATE_LIGHT).map(([id,p])=>[id,Object.fromEntries(colorKeys.map(k=>[k,new T.Color(p[k])]))]));
@@ -111,8 +111,9 @@ export function installDistantLandscape(world,id,biomeAt=()=>id){
   if(biome==='ash')shade.lerp(basalt,(.14+.12*(.5+.5*fold))*T.MathUtils.smoothstep(t,.15,.92)).multiplyScalar(.89+.11*(1-gully));
   if(biome==='sand')shade.lerp(sand,.13+.12*(.5+.5*Math.sin(angle*7-t*2+phase))).multiplyScalar(.95+.05*Math.sin(angle*11+t*3));
   if(biome==='coast')shade.lerp(cliff,T.MathUtils.smoothstep(t,.32,.82)*(.22+.08*fold)).multiplyScalar(1-.06*gully*T.MathUtils.smoothstep(t,.35,.9));
-  // Keep the second silhouette quieter; the existing scene fog still applies.
-  shade.lerp(haze,(ring?.56:.04)+t*.17).multiplyScalar(.90+t*.11);
+  // Separate the two silhouettes without washing both in the same fog color;
+  // distance fog still supplies the continuous atmospheric transition.
+  shade.lerp(haze,(ring?.48:.025)+t*(ring?.16:.13)).multiplyScalar(.90+t*.11);
   return{y,shade};
  };
  for(let ring=0;ring<2;ring++){

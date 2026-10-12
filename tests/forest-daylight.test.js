@@ -15,6 +15,18 @@ test('forest day/night loops on game time, preserves other palettes, and adds no
  for(let time=0;time<720;time+=.5){const s=sampleForestDay(time);assert(s.direction.y>0&&Math.abs(s.direction.length()-1)<1e-10);assert(s.day>=0&&s.day<=1&&s.horizon>=0&&s.horizon<=1);light.update('forest',null,0,time);assert(light.sun.intensity>=0&&light.sun.intensity<=3.25);assert(light.renderer.toneMappingExposure<=1.08);}
  assert.equal(light.scene.children.length,3);
 });
+
+test('forest night replaces only its share at a five-biome junction and freezes on pause',()=>{
+ const light=rig(),forest=rig(),weights={forest:.2,snow:.2,ash:.2,sand:.2,coast:.2},nightTime=(Math.PI*1.5-FOREST_CYCLE.startAngle)/Math.PI/2*FOREST_CYCLE.seconds;
+ forest.update('forest',null,0,nightTime);light.update('confluence',weights,0,nightTime);
+ for(const[field,actual,night]of[['sky',light.hemi.color,forest.hemi.color],['bounce',light.hemi.groundColor,forest.hemi.groundColor],['sun',light.sun.color,forest.sun.color],['rim',light.rim.color,forest.rim.color],['fog',light.scene.fog.color,forest.scene.fog.color]]){
+  const expected=night.clone().multiplyScalar(.2);for(const id of['snow','ash','sand','coast'])expected.add(new T.Color(CLIMATE_LIGHT[id][field]).multiplyScalar(.2));
+  assert(Math.hypot(actual.r-expected.r,actual.g-expected.g,actual.b-expected.b)<1e-12,'forest cycle changed the neighboring '+field+' contribution');
+ }
+ const state=[...light.direction.toArray(),...light.hemi.color.toArray(),...light.sun.color.toArray(),...light.scene.fog.color.toArray(),light.sun.intensity,light.scene.fog.density];
+ light.update('confluence',weights,0,nightTime);const paused=[...light.direction.toArray(),...light.hemi.color.toArray(),...light.sun.color.toArray(),...light.scene.fog.color.toArray(),light.sun.intensity,light.scene.fog.density];assert(paused.every((value,i)=>Math.abs(value-state[i])<1e-12),'paused cycle changed the five-biome blend');
+ assert.equal(light.scene.children.length,3);
+});
 test('the current sun, atmosphere and shafts agree, with fixed anchors and disposal',()=>{
  const world={half:96,group:new T.Group(),spawn:{x:0,z:0},sites:[],obstacles:[],patches:[],ponds:[]};
  const shafts=installWorldLightShafts(world,'forest'),mist=installForestMist(world,'forest'),light=rig(),sky=new AdventureAtmosphere(light.scene),camera=new T.PerspectiveCamera();

@@ -324,7 +324,7 @@ test('scenery edges reassign existing cover across six maps, keeping original sh
     for(const pond of w.ponds){const k=pond.baseRx===undefined?1:1.19,tide={...pond,rx:(pond.baseRx??pond.rx)*k,rz:(pond.baseRz??pond.rz)*k};for(let j=0;j<8;j++)assert.equal(waterDepth(tide,p.x+Math.cos(j*Math.PI/4)*footprint,p.z+Math.sin(j*Math.PI/4)*footprint),0,'edge cover enters high water');}
    }
    const nearest=rs=>clusters.records.reduce((n,a)=>n+Math.min(...rs.map(p=>Math.hypot(p.x-a.x,p.z-a.z)-a.footprint)),0)/clusters.records.length;
-   assert(nearest(records)<nearest(old)*.8,id+' did not materially reduce empty ground beside real scenery');
+   assert(nearest(records)<nearest(old)*.8,`${id} seed ${seed} layer ${layer} did not materially reduce empty ground beside real scenery: ${nearest(records)}/${nearest(old)}`);
    assert(new Set(edge.map(p=>p.edge+':'+p.edgeIndex)).size>=(id==='confluence'?30:12),'redistribution only affects a few scenery islands');
    const distances=edge.filter(p=>p.edge==='cluster').map(p=>{const a=clusters.records[p.edgeIndex];return Math.hypot(p.x-a.x,p.z-a.z)-a.footprint;});
    assert(Math.max(...distances)-Math.min(...distances)>1.4,'edge cover forms a regular narrow ring');
@@ -344,6 +344,45 @@ test('edge redistribution is deterministic after cleanup and leaves a surviving 
   for(let i=0;i<rebuilt.length;i++){assert.deepEqual(rebuilt[i].userData.records,records[i]);assert.deepEqual(rebuilt[i].children.map(b=>b.instanceMatrix.array),matrices[i]);}
   assert.equal(disposedMaterial,0);assert(alive.every(g=>!g.userData.disposed&&g.children.every(b=>b.visible)));
  }finally{Math.random=random;shared.removeEventListener('dispose',onDispose);cleanup(first);cleanup(other);}
+});
+
+test('biome edges connect both cover layers with lee pockets, broken scree, wind trails and shoreline bands',()=>{
+ for(const id of maps){
+  const world=scenicWorld(id,522),low=installAdventureGroundDetail(world,id).userData.records,high=installHabitatDetail(world,id).userData.records;
+  for(const biome of id==='confluence'?maps.slice(0,5):[id]){
+   const floor=low.filter(p=>p.biome===biome),upper=high.filter(p=>p.biome===biome&&p.edge),cluster=floor.filter(p=>p.edge==='cluster');
+   assert(cluster.length>12,biome+' has no visible transition beside its scenery groups');
+   const connected=upper.filter(p=>floor.some(q=>q.edge===p.edge&&q.edgeIndex===p.edgeIndex&&Math.hypot(p.x-q.x,p.z-q.z)<3.5));
+   assert(connected.length>upper.length*.65,biome+' upper plants sit apart from the low ground layer');
+   if(biome==='forest'){
+    for(const records of[low,high]){
+     const roots=records.filter(p=>p.transition==='root');assert(roots.length>=4,'vista tree bases are still isolated from both cover layers');
+     for(const p of roots)assert(world.forestVista.anchors.some(a=>Math.hypot(p.x-a.x,p.z-a.z)<8),'root cover moved away from the existing vista trees');
+    }
+    continue;
+   }
+   let along=0,across=0,lee=0,inner=0,outer=0;
+   for(const p of cluster){
+    const source=world.environmentClusters.records[p.edgeIndex],dx=p.x-source.x,dz=p.z-source.z;
+    let axis=biome==='sand'?-.7:biome==='snow'?source.angle+2.7:source.angle+Math.sin(source.x*.27+source.z*.19)*.7;
+    if(biome==='coast'){
+     const pond=world.ponds.reduce((best,q)=>!best||Math.hypot(source.x-q.x,source.z-q.z)-Math.max(q.rx,q.rz)<Math.hypot(source.x-best.x,source.z-best.z)-Math.max(best.rx,best.rz)?q:best,null);
+     axis=Math.atan2(source.z-pond.z,pond.x-source.x);
+    }
+    const forward=dx*Math.sin(axis)+dz*Math.cos(axis),side=dx*Math.cos(axis)-dz*Math.sin(axis);along+=forward**2;across+=side**2;if(forward>0)lee++;
+    if(biome==='ash'){
+     const distance=Math.hypot(dx,dz)-source.footprint-.55-.24;
+     assert(distance<.95||distance>1.77,'charred rubble lost its bare interval between loose bands');
+     if(distance<.95)inner++;else outer++;
+    }
+   }
+   if(biome==='snow')assert(lee>cluster.length*.6&&across/along>.10,'snow cover is a thin straight border instead of broad lee pockets');
+   else assert(across/along<.10,biome+' ground cover lost its shared directional shape');
+   if(biome==='ash')assert(inner>5&&outer>5,'one of the separated scree bands disappeared');
+   if(biome==='sand')for(const p of floor.filter(p=>p.edge))assert(Math.abs(p.angle+.7)<.31,'desert plants no longer follow the prevailing wind');
+  }
+  cleanup(world);
+ }
 });
 
 test('forest transitions join low cover and understory at real banks and groves within the existing instance budget',()=>{

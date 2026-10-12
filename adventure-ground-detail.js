@@ -1,6 +1,6 @@
 import {applyFernSurface} from './fern-surfaces.js?v=156';
 import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=158';
-import{sceneryRhythmAt}from'./exploration-composition.js?v=157';
+import{sceneryRhythmAt}from'./exploration-composition.js?v=160';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
@@ -288,9 +288,17 @@ function softenSceneryEdges(world,mapId,records,footprint,allowed){
   lanes.push({a,b,r,minX:Math.min(a.x,b.x)-r,maxX:Math.max(a.x,b.x)+r,minZ:Math.min(a.z,b.z)-r,maxZ:Math.max(a.z,b.z)+r});
  }
  const passages=places.map(p=>({...p,c:Math.cos(p.angle||0),s:Math.sin(p.angle||0)}));
+ const banks=(world.ponds||[]).map(p=>{const tide=p.baseRx===undefined?1:1.19;return{x:p.x,z:p.z,c:Math.cos(p.angle||0),s:Math.sin(p.angle||0),rx:(p.baseRx??p.rx)*tide*1.12+footprint*1.42+.15,rz:(p.baseRz??p.rz)*tide*1.12+footprint*1.42+.15};});
  let moved=0;
  for(const source of sources){
-  const quota=Math.floor(budget*source.weight/weight),region=world.regions?.find(r=>r.id===source.biome),axis=(source.angle||0)+Math.sin(source.x*.27+source.z*.19)*.7;
+  const quota=Math.floor(budget*source.weight/weight),region=world.regions?.find(r=>r.id===source.biome),biome=source.biome;
+  let axis=(source.angle||0)+Math.sin(source.x*.27+source.z*.19)*.7;
+  if(biome==='snow')axis=(source.angle||0)+2.7;
+  if(biome==='sand')axis=-.7+Math.sin(source.x*.07+source.z*.09)*.12;
+  if(biome==='coast'){
+   const shore=(world.ponds||[]).reduce((best,p)=>!best||Math.hypot(source.x-p.x,source.z-p.z)-Math.max(p.rx,p.rz)<Math.hypot(source.x-best.x,source.z-best.z)-Math.max(best.rx,best.rz)?p:best,null);
+   if(shore)axis=Math.atan2(source.z-shore.z,shore.x-source.x);
+  }
   // Every candidate lies inside these fixed bounds; prefilter nearby solids
   // once per scenery source instead of rescanning the whole map per attempt.
   const reach=footprint+2.94,minX=Math.min(...source.solids.map(p=>p.x-p.r))-reach,maxX=Math.max(...source.solids.map(p=>p.x+p.r))+reach,minZ=Math.min(...source.solids.map(p=>p.z-p.r))-reach,maxZ=Math.max(...source.solids.map(p=>p.z+p.r))+reach;
@@ -300,13 +308,27 @@ function softenSceneryEdges(world,mapId,records,footprint,allowed){
   let planted=0;
   for(let attempt=0;attempt<Math.min(180,quota*20)&&planted<quota&&moved<budget;attempt++){
    const solid=source.solids[Math.floor(random()*source.solids.length)];
-   const angle=source.edge==='place'?Math.atan2(solid.x-source.x,solid.z-source.z)+(random()-.5)*1.25:axis+(random()<.78?0:2.3)+(random()-.5)*1.35;
-   const radius=solid.r+footprint+.24+random()**2*2.7,x=solid.x+Math.sin(angle)*radius,z=solid.z+Math.cos(angle)*radius;
+   let angle=source.edge==='place'?Math.atan2(solid.x-source.x,solid.z-source.z)+(random()-.5)*1.25:axis+(random()<.78?0:2.3)+(random()-.5)*1.35;
+   let distance=random()**2*2.7;
+   if(biome!=='forest'){
+    // The same two layers follow one habitat axis: lee-side snow pockets,
+    // broken scree, wind-drawn sand trails, or tangential shoreline wrack.
+    const outward=Math.atan2(solid.x-source.x,solid.z-source.z),heading=source.edge==='place'?outward+Math.sin(axis-outward)*.65:axis;
+    const spread=biome==='snow'?1.15:biome==='ash'?.55:biome==='sand'?.34:.72;
+    const other=random()<(biome==='ash'?.27:biome==='coast'?.38:.16);
+    angle=heading+(other?(biome==='snow'?1.8:Math.PI):0)+(random()-.5)*spread;
+    const depth=random();distance=2.7*(biome==='ash'?(depth<.6?depth*.58:.66+(depth-.6)*.85):depth**1.35);
+    if(planted===0)distance*=.18;
+   }
+   const radius=solid.r+footprint+.24+distance,x=solid.x+Math.sin(angle)*radius,z=solid.z+Math.cos(angle)*radius;
    const list=donors.get(key({x,z,biome:source.biome}));if(!list?.length||region&&!region.contains(x,z))continue;
    if(passages.some(p=>{const dx=x-p.x,dz=z-p.z;return Math.abs(p.c*dx-p.s*dz)<3.1+footprint&&Math.abs(p.s*dx+p.c*dz)<10+footprint;}))continue;
+   if(banks.some(p=>{const dx=x-p.x,dz=z-p.z;return Math.hypot((p.c*dx-p.s*dz)/p.rx,(p.s*dx+p.c*dz)/p.rz)<1;}))continue;
    if(lanes.some(l=>x>l.minX&&x<l.maxX&&z>l.minZ&&z<l.maxZ&&segmentDistance(x,z,l.a.x,l.a.z,l.b.x,l.b.z)<l.r))continue;
-   if(!allowed(x,z,obstacles)||records.some(p=>near(x,z,p,footprint===FOOTPRINT?.9:.62)))continue;
-   const record=records[list.pop()];record.x=x;record.z=z;record.edge=source.edge;record.edgeIndex=source.index;planted++;moved++;
+   if(!allowed(x,z,obstacles)||records.some(p=>near(x,z,p,footprint===FOOTPRINT?(biome==='snow'||biome==='coast'?.72:.9):.62)))continue;
+   const record=records[list.pop()];record.x=x;record.z=z;record.edge=source.edge;record.edgeIndex=source.index;
+   if(biome==='sand')record.angle=axis+Math.sin(x*.63+z*.41)*.18;
+   planted++;moved++;
   }
  }
 }
@@ -320,6 +342,12 @@ function connectForestCover(world,mapId,records,footprint,allowed){
  const add=(x,z,angle,zone)=>{if(!habitat.region||habitat.region.contains(x,z))sources.push({x,z,angle,zone});};
  for(const grove of habitat.groves)for(let i=0;i<3;i++){
   const a=random()*Math.PI*2,r=5+random()*7;add(grove.x+Math.sin(a)*r,grove.z+Math.cos(a)*r,a,'shade');
+ }
+ // The existing vista trees meet the same low layer instead of rising from a
+ // bare circular hole. Keep openings between their roots and the nearby path.
+ for(const [i,tree]of(world.forestVista?.anchors||[]).slice(0,12).entries()){
+  const a=i*2.399+Math.sin(tree.x*.19+tree.z*.13),r=tree.r+2.5;
+  add(tree.x+Math.sin(a)*r,tree.z+Math.cos(a)*r,a+Math.PI/2,'root');
  }
  for(const pond of habitat.ponds)for(let i=0;i<7;i++){
   // Unequal arcs have breaks and varying inland depth, rather than an even ring.
@@ -348,7 +376,7 @@ function connectForestCover(world,mapId,records,footprint,allowed){
  const passages=(world.biomePlaces||[]).map(p=>({...p,c:Math.cos(p.angle||0),s:Math.sin(p.angle||0)}));
  let moved=0;
  for(const [sourceIndex,source]of sources.entries()){
-  const quota=Math.max(2,Math.ceil(budget/sources.length)),kinds=floor?['tuft','litter']:source.zone==='bank'?['reed','stone']:source.zone==='shade'?['fern']:['shrub'];
+  const quota=Math.max(2,Math.ceil(budget/sources.length)),kinds=floor?['tuft','litter']:source.zone==='bank'?['reed','stone']:source.zone==='shade'?['fern']:source.zone==='root'?['fern','shrub']:['shrub'];
   let planted=0;
   for(let attempt=0;attempt<quota*16&&planted<quota&&moved<budget;attempt++){
    const along=(random()-.5)*7.5,across=(random()-.5)*2.8,x=source.x+Math.sin(source.angle)*along+Math.cos(source.angle)*across,z=source.z+Math.cos(source.angle)*along-Math.sin(source.angle)*across;

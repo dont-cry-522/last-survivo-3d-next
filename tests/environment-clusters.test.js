@@ -20,17 +20,26 @@ const cleanup=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.user
 const gameplay=w=>JSON.stringify({spawn:w.spawn,sites:w.sites.map(s=>[s.x,s.z,s.type,s.event,s.availableAt,s.claimed,s.discovered,s.mesh.visible,s.trail.visible]),patches:w.patches.map(p=>[p.x,p.z,p.rx,p.rz,p.r,p.kind]),breakables:w.breakables.map(p=>[p.x,p.z,p.state]),roads:w.road,places:w.biomePlaces.map(p=>[p.x,p.z,p.angle,p.entrance,p.exit])});
 const records=s=>s.records.map(({obstacle,...p})=>p);
 
-test('forest undergrowth keeps the v161 authored-place seeded positions, angles and collision envelopes',()=>{
- // Cluster layout seeds include place solids. v161 intentionally rearranges those
- // solids; old place builders reproduce all six former hashes. Reward anchors,
- // roads and non-place obstacles were compared independently and remain unchanged.
- const before={
-  forest:['d680edaeb4508341a02db8bfb2084c70c3b3d924d48c088e116d207227c03643','67a96b11428a838bceea5c3f4136a92dfb436895b19592ac38768f8a701c147d','3bc78a44074a5d5ee404448e72de6fa38232e3297522e5d3e9912a911b4a523b'],
-  confluence:['a02b5037beff86dd86bdbb9ec2787fff133e4ab222518b82fa9e946d6aa015bc','aafb1c7be1c0264b7803d5028aaf3e0dc2f8c4b4c04633299d3419e16531d7d2','cce9090ede628fe4ca45008fe71e3e49675e5c38d66cf73210f5cb201c891d58']
- };
- for(const id of Object.keys(before))for(const [i,seed]of[7,522,43837033].entries()){
-  const w=create(id,seed),state=installEnvironmentClusters(w,id);
-  assert.equal(createHash('sha256').update(JSON.stringify(records(state))).digest('hex'),before[id][i],id+' seed '+seed+' changed gameplay placement');cleanup(w);
+test('all biomes compose deterministic open-sided place groups, actual trail shoulders and sparse groves',()=>{
+ for(const id of maps)for(const seed of[7,522,43837033]){
+  const w=create(id,seed),copy=create(id,seed),state=installEnvironmentClusters(w,id),other=installEnvironmentClusters(copy,id),lines=[];
+  assert.deepEqual(records(state),records(other),id+' seed '+seed+' layout is not repeatable');
+  if(w.road)for(let i=1;i<w.road.length;i++)lines.push({a:w.road[i-1],b:w.road[i],width:5.8});
+  for(const site of w.sites){const p=site.trail.geometry.attributes.position;let previous;for(let i=0;i+3<p.count;i+=4){const next={x:(p.getX(i+1)+p.getX(i+2))/2,z:(p.getZ(i+1)+p.getZ(i+2))/2};if(previous)lines.push({a:previous,b:next,width:2});previous=next;}}
+  for(const biome of w.regions?.map(r=>r.id)||[id]){
+   const local=state.records.filter(r=>r.biome===biome),attached=local.filter(r=>r.composition==='place'),shoulders=local.filter(r=>r.composition==='shoulder');
+   assert(attached.length>=(w.regions?3:4),biome+' scenery is still scattered away from its places');
+   assert(shoulders.length>=1,biome+' has no actual trail-side scenery');
+   assert.equal(local.filter(r=>r.composition==='grove').length,2,'retain a sparse grove allowance rather than making one solid corridor');
+   for(const r of attached){
+    const p=w.biomePlaces[r.anchorIndex],c=Math.cos(p.angle),s=Math.sin(p.angle),dx=r.x-p.x,dz=r.z-p.z,u=c*dx-s*dz,v=s*dx+c*dz;
+    assert.equal(p.biome,biome);assert(Math.abs(u)>9.4+r.footprint+1.29&&Math.abs(u)<9.4+r.footprint+4.11,'cluster lost its place shoulder');assert(Math.abs(v)<7,'cluster closed a place entrance or exit');
+    assert(Math.abs(r.angle-p.angle)<(biome==='coast'||biome==='sand'?.141:.451),'cargo or strata no longer follow the place orientation');
+    assert(attached.filter(q=>q.anchorIndex===r.anchorIndex).length<=3,'one place consumed the whole map budget');
+   }
+   for(const r of shoulders)assert(lines.some(l=>{const d=segmentDistance(r.x,r.z,l.a.x,l.a.z,l.b.x,l.b.z);return d>=l.width+r.footprint+1.49&&d<=l.width+r.footprint+3.91;}),'shoulder is not beside an actual rendered trail');
+  }
+  cleanup(w);cleanup(copy);
  }
 });
 

@@ -1,6 +1,6 @@
 import {applyFernSurface} from './fern-surfaces.js?v=156';
 import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=158';
-import{sceneryRhythmAt}from'./exploration-composition.js?v=160';
+import{sceneryRhythmAt}from'./exploration-composition.js?v=163';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
@@ -265,16 +265,19 @@ function placementFilter(world,footprint=FOOTPRINT,shoulder=false){
 // Separate randomness leaves the original sampling, kinds and draw counts intact.
 function softenSceneryEdges(world,mapId,records,footprint,allowed){
  const places=world.biomePlaces||[],sources=[
-  ...(world.environmentClusters?.records||[]).map((p,index)=>({...p,edge:'cluster',index,weight:1,solids:[{x:p.x,z:p.z,r:p.footprint}]})),
-  ...places.map((p,index)=>({...p,edge:'place',index,weight:3}))
+  ...places.map((p,index)=>({...p,edge:'place',index,weight:3})),
+  ...(world.environmentClusters?.records||[]).map((p,index)=>({...p,edge:'cluster',index,weight:1,solids:[{x:p.x,z:p.z,r:p.footprint}]}))
  ].filter(p=>p.solids?.length);
  if(!sources.length)return;
+ // Some scenery gets a fuller apron and some stays quiet. Both cover layers
+ // share this slow spatial field instead of outlining every object equally.
+ for(const source of sources)source.weight*=.48+(1+Math.sin(source.x*.085+Math.sin(source.z*.10)*1.4))*.55;
  const approach=world.forestHabitats?.approach;
  if(approach)for(const source of sources)if(source.biome==='forest'){
   let distance=Infinity;for(let i=1;i<approach.points.length;i++){const a=approach.points[i-1],b=approach.points[i];distance=Math.min(distance,segmentDistance(source.x,source.z,a.x,a.z,b.x,b.z));}
   source.weight*=1+(1-T.MathUtils.smoothstep(distance,5,15))*.65;
  }
- const random=seeded(layoutSeed(world,mapId)^(footprint===FOOTPRINT?0x2ce459:0x7ab913)),budget=Math.floor(records.length*.22),weight=sources.reduce((n,p)=>n+p.weight,0),donors=new Map();
+ const random=seeded(layoutSeed(world,mapId)^(footprint===FOOTPRINT?0x2ce459:0x7ab913)),budget=Math.floor(records.length*.32),weight=sources.reduce((n,p)=>n+p.weight,0),donors=new Map();
  const quadrant=p=>Number(p.x>=0)+Number(p.z>=0)*2,key=p=>p.biome+':'+quadrant(p);
  // Keep road shoulders, near-spawn cover, and existing scenery-edge growth.
  // Keeping each donor's quadrant also preserves the habitat's culling batches.
@@ -282,6 +285,8 @@ function softenSceneryEdges(world,mapId,records,footprint,allowed){
   const p=records[i];if(p.shoulder||p.transition||p.biome==='forest'&&['reed','stone'].includes(p.kind)||near(p.x,p.z,world.spawn,20)||sources.some(s=>near(p.x,p.z,s,s.edge==='place'?17:s.footprint+5)))continue;
   const k=key(p);if(!donors.has(k))donors.set(k,[]);donors.get(k).push(i);
  }
+ const localWeights=new Map();for(const source of sources){const k=key(source);localWeights.set(k,(localWeights.get(k)||0)+source.weight);}
+ const available=new Map([...donors].map(([k,list])=>[k,list.length]));
  const lanes=[];
  for(const route of [...(world.explorationRoutes||[]),...(approach?[approach]:[])])for(let i=1;i<route.points.length;i++){
   const a=route.points[i-1],b=route.points[i],r=2+footprint;
@@ -291,7 +296,7 @@ function softenSceneryEdges(world,mapId,records,footprint,allowed){
  const banks=(world.ponds||[]).map(p=>{const tide=p.baseRx===undefined?1:1.19;return{x:p.x,z:p.z,c:Math.cos(p.angle||0),s:Math.sin(p.angle||0),rx:(p.baseRx??p.rx)*tide*1.12+footprint*1.42+.15,rz:(p.baseRz??p.rz)*tide*1.12+footprint*1.42+.15};});
  let moved=0;
  for(const source of sources){
-  const quota=Math.floor(budget*source.weight/weight),region=world.regions?.find(r=>r.id===source.biome),biome=source.biome;
+  const quota=Math.min(Math.floor(budget*source.weight/weight),Math.floor((available.get(key(source))||0)*source.weight/localWeights.get(key(source)))),region=world.regions?.find(r=>r.id===source.biome),biome=source.biome;
   let axis=(source.angle||0)+Math.sin(source.x*.27+source.z*.19)*.7;
   if(biome==='snow')axis=(source.angle||0)+2.7;
   if(biome==='sand')axis=-.7+Math.sin(source.x*.07+source.z*.09)*.12;
@@ -325,8 +330,16 @@ function softenSceneryEdges(world,mapId,records,footprint,allowed){
    if(passages.some(p=>{const dx=x-p.x,dz=z-p.z;return Math.abs(p.c*dx-p.s*dz)<3.1+footprint&&Math.abs(p.s*dx+p.c*dz)<10+footprint;}))continue;
    if(banks.some(p=>{const dx=x-p.x,dz=z-p.z;return Math.hypot((p.c*dx-p.s*dz)/p.rx,(p.s*dx+p.c*dz)/p.rz)<1;}))continue;
    if(lanes.some(l=>x>l.minX&&x<l.maxX&&z>l.minZ&&z<l.maxZ&&segmentDistance(x,z,l.a.x,l.a.z,l.b.x,l.b.z)<l.r))continue;
-   if(!allowed(x,z,obstacles)||records.some(p=>near(x,z,p,footprint===FOOTPRINT?(biome==='snow'||biome==='coast'?.72:.9):.62)))continue;
+   // Overlapping leaf tips make a patch, while the reserved footprint still
+   // protects gameplay. Reuse the forest bank's dense ground-cover spacing.
+   if(!allowed(x,z,obstacles)||records.some(p=>near(x,z,p,footprint===FOOTPRINT?.64:.54)))continue;
    const record=records[list.pop()];record.x=x;record.z=z;record.edge=source.edge;record.edgeIndex=source.index;
+   // A low, broken fringe joins the open floor; taller cover gathers nearer
+   // the sheltered solid. Geometry can only shrink within its tested footprint.
+   const growth=1-T.MathUtils.smoothstep(distance+Math.sin(x*.63+z*.41)*.24,.15,2.7);
+   record.edgeGrowth=growth;record.height*=.58+growth*.42;
+   if(footprint===FOOTPRINT)record.size*=.76+growth*.24;else record.width*=.76+growth*.24;
+   record.color=new T.Color(record.color).lerp(new T.Color(profiles[biome].litter[0]),(1-growth)*.28).getHex();
    if(biome==='sand')record.angle=axis+Math.sin(x*.63+z*.41)*.18;
    planted++;moved++;
   }

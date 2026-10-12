@@ -1,16 +1,46 @@
 import * as T from './vendor/three.module.js';
-import {biomeWeights} from './confluence.js?v=160';
+import {biomeWeights} from './confluence.js?v=163';
 
 // Build-time composition only: existing crowns, owned branches and floor colors.
 // No scene nodes, materials, listeners or animation work are installed.
 const tones={
- forest:{closed:[.80,.91,.86],open:[1.08,1.07,.96],flow:[.062,.038],layer:[.025,.034,.025]},
- snow:{closed:[.92,.96,1.01],open:[1.04,1.03,1.015],flow:[-.056,.080],layer:[.013,.019,.028]},
- ash:{closed:[.91,.88,.90],open:[1.08,1.03,.96],flow:[.044,.064],layer:[.033,.016,.012]},
- sand:{closed:[.93,.90,.86],open:[1.045,1.03,.985],flow:[.030,-.052],layer:[.030,.020,.010]},
- coast:{closed:[.91,.96,.98],open:[1.06,1.055,1.02],flow:[.070,.012],layer:[.013,.026,.034]}
+ forest:{closed:[.80,.91,.86],open:[1.08,1.07,.96],flow:[.062,.038],layer:[.025,.034,.025],bed:[-.025,-.085,-.13]},
+ snow:{closed:[.92,.96,1.01],open:[1.04,1.03,1.015],flow:[-.056,.080],layer:[.013,.019,.028],bed:[-.08,-.035,.005]},
+ ash:{closed:[.91,.88,.90],open:[1.08,1.03,.96],flow:[.044,.064],layer:[.033,.016,.012],bed:[-.13,-.10,-.07]},
+ sand:{closed:[.93,.90,.86],open:[1.045,1.03,.985],flow:[.030,-.052],layer:[.030,.020,.010],bed:[.018,-.038,-.078]},
+ coast:{closed:[.91,.96,.98],open:[1.06,1.055,1.02],flow:[.070,.012],layer:[.013,.026,.034],bed:[-.13,-.08,-.065]}
 };
 const smooth=T.MathUtils.smoothstep;
+
+// Later-added places were missing from the original ground-colour pass. Blend
+// their feet and nearby scenery into the same soil; never mark hidden rewards.
+function sceneryBeds(world){
+ const beds=[],places=world.biomePlaces||[];
+ const add=(a,b,biome,width)=>beds.push({x:a.x,z:a.z,dx:b.x-a.x,dz:b.z-a.z,lengthSq:(b.x-a.x)**2+(b.z-a.z)**2,biome,width});
+ const at=(p,x,z)=>({x:p.x+Math.cos(p.angle)*x+Math.sin(p.angle)*z,z:p.z-Math.sin(p.angle)*x+Math.cos(p.angle)*z});
+ for(const p of places)for(const side of[-1,1])add(at(p,side*7,-6),at(p,side*7,6),p.biome,5.2);
+ for(const cluster of world.environmentClusters?.records||[]){
+  let nearest,from,distance=Infinity;
+  for(const p of places){
+   if(p.biome!==cluster.biome)continue;
+   const c=Math.cos(p.angle),s=Math.sin(p.angle),dx=cluster.x-p.x,dz=cluster.z-p.z,point=at(p,T.MathUtils.clamp(c*dx-s*dz,-7,7),T.MathUtils.clamp(s*dx+c*dz,-6,6)),d=Math.hypot(cluster.x-point.x,cluster.z-point.z);
+   if(d<distance){distance=d;nearest=p;from=point;}
+  }
+  if(nearest&&distance<=16)add(from,cluster,cluster.biome,4.2);
+  else{const s=Math.sin(cluster.angle),c=Math.cos(cluster.angle),r=cluster.footprint;add({x:cluster.x-s*r,z:cluster.z-c*r},{x:cluster.x+s*r,z:cluster.z+c*r},cluster.biome,r+3.5);}
+ }
+ return beds;
+}
+function bedWeight(beds,biome,x,z){
+ let weight=0;
+ for(const b of beds){
+  if(b.biome!==biome)continue;
+  const t=b.lengthSq?T.MathUtils.clamp(((x-b.x)*b.dx+(z-b.z)*b.dz)/b.lengthSq,0,1):0,d=Math.hypot(x-b.x-b.dx*t,z-b.z-b.dz*t);
+  const width=b.width*(1+.13*Math.sin(x*.24+z*.13)+.08*Math.sin(z*.31-x*.12));
+  weight=Math.max(weight,(1-smooth(d,width*.2,width))*(.80+.20*Math.sin(x*.15-z*.19)**2));
+ }
+ return weight;
+}
 
 // This is queried while placing the existing low-detail records, never per frame.
 // cover <= 1 preserves their old collision-free footprint and height budgets.
@@ -99,17 +129,19 @@ export function installExplorationComposition(world,mapId){
   }
   state.trees++;
  }
- const ground=world.ground,positions=ground?.geometry.attributes.position,colors=ground?.geometry.attributes.color,point=new T.Vector3();
+ const ground=world.ground,positions=ground?.geometry.attributes.position,colors=ground?.geometry.attributes.color,point=new T.Vector3(),beds=sceneryBeds(world);state.sedimentBeds=beds.length;state.bedVertices=0;
  if(ground?.userData.ownedGeometry&&positions&&colors){
   ground.updateWorldMatrix(true,false);
   for(let i=0;i<positions.count;i++){
    point.fromBufferAttribute(positions,i).applyMatrix4(ground.matrixWorld);
-   const rhythm=sceneryRhythmAt(world,point.x,point.z),tone=tones[rhythm.biome];if(!tone||!rhythm.enclosure&&!rhythm.opening)continue;
+   const rhythm=sceneryRhythmAt(world,point.x,point.z),tone=tones[rhythm.biome];if(!tone)continue;
    // Low-contrast, broad irregular patches, not repeated stripes or new decals.
    // Fade the extra layer out through the joined map's existing climate blend.
    const u=point.x*tone.flow[0]+point.z*tone.flow[1],v=-point.x*tone.flow[1]+point.z*tone.flow[0],border=world.regions?smooth(biomeWeights(point.x,point.z)[rhythm.biome]||0,.55,.85):1;
    const layer=Math.sin(u+.7*Math.sin(v*.63))*Math.cos(v*.78+.5*Math.sin(u*.49))*Math.max(rhythm.enclosure,rhythm.opening)*border;
-   colors.setXYZ(i,...[colors.getX(i),colors.getY(i),colors.getZ(i)].map((value,j)=>value*(1+(tone.closed[j]-1)*rhythm.enclosure+(tone.open[j]-1)*rhythm.opening+tone.layer[j]*layer)));state.groundVertices++;
+   const bed=bedWeight(beds,rhythm.biome,point.x,point.z)*border;
+   if(!rhythm.enclosure&&!rhythm.opening&&!bed)continue;
+   colors.setXYZ(i,...[colors.getX(i),colors.getY(i),colors.getZ(i)].map((value,j)=>value*(1+(tone.closed[j]-1)*rhythm.enclosure+(tone.open[j]-1)*rhythm.opening+tone.layer[j]*layer)*(1+tone.bed[j]*bed)));state.groundVertices++;if(bed)state.bedVertices++;
   }
   colors.needsUpdate=true;
  }

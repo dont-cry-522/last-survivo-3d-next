@@ -1,5 +1,5 @@
 import {MAP_EVENTS} from './map-events.js?v=114';
-import {discoveryInfo} from './map-discoveries.js?v=160';
+import {discoveryInfo} from './map-discoveries.js?v=163';
 import {ROAMING_REWARDS} from './roaming-events.js?v=158';
 
 export function knownMapPoints(world){

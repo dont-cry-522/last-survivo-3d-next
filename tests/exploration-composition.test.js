@@ -178,3 +178,33 @@ test('short forest approaches frame a sheltered middle and a small open shore wi
  }
  cleanup(world);
 });
+
+test('late scenery shares a soft soil bed without extra assets, raised ground or compounded dark seams',()=>{
+ for(const id of['forest','snow','ash','sand','coast']){
+  const plain=corridor(id),w=corridor(id);
+  w.biomePlaces=[{x:50,z:20,angle:0,biome:id}];
+  w.environmentClusters={records:[{x:65,z:20,angle:.2,footprint:2,biome:id},{x:65,z:20,angle:.2,footprint:2,biome:id}]};
+  const positions=w.ground.geometry.attributes.position.array.slice(),geometry=w.ground.geometry,material=w.ground.material,count=w.group.children.length;
+  installExplorationComposition(plain,id);const state=installExplorationComposition(w,id);
+  assert(state.bedVertices>10);assert.equal(w.group.children.length,count);assert.equal(w.ground.geometry,geometry);assert.equal(w.ground.material,material);assert.deepEqual(geometry.attributes.position.array,positions);
+  const base=plain.ground.geometry.attributes.color,c=geometry.attributes.color,p=geometry.attributes.position;let bridge=0,untouched=0;
+  for(let i=0;i<p.count;i++){
+   const x=p.getX(i)+50,z=-p.getY(i),delta=Math.abs(c.getX(i)-base.getX(i))+Math.abs(c.getY(i)-base.getY(i))+Math.abs(c.getZ(i)-base.getZ(i));
+   for(let channel=0;channel<3;channel++){const ratio=c.array[i*3+channel]/base.array[i*3+channel];assert(ratio>=.869999&&ratio<=1.018001,'overlapping soil beds multiply or overpower the ground colour');}
+   if(x>=55&&x<=65&&z===20){assert(delta>.005,'a bare seam separates place and nearby scenery');bridge++;}
+   if(x<30||x>80){assert(delta===0,'soil tint spread beyond its actual scenery');untouched++;}
+  }
+  assert(bridge>=3&&untouched>100);const color=c.array.slice();installExplorationComposition(w,id);assert.deepEqual(c.array,color);cleanup(w);cleanup(plain);
+ }
+});
+
+test('late scenery soil fades out before joined climate boundaries',()=>{
+ for(const [i,region]of REGIONS.entries()){
+  const next=REGIONS[(i+1)%REGIONS.length];let lo=0,hi=1;
+  for(let j=0;j<40;j++){const t=(lo+hi)/2,x=T.MathUtils.lerp(region.x,next.x,t),z=T.MathUtils.lerp(region.z,next.z,t);if(biomeWeights(x,z)[region.id]>.525)lo=t;else hi=t;}
+  const x=T.MathUtils.lerp(region.x,next.x,(lo+hi)/2),z=T.MathUtils.lerp(region.z,next.z,(lo+hi)/2),plain=corridor(region.id),w=corridor(region.id);
+  for(const q of[plain,w]){q.regions=[{id:region.id,contains:()=>true}];q.ground.position.x=0;const p=q.ground.geometry.attributes.position;for(let n=0;n<p.count;n++)p.setXYZ(n,x,-z,0);}
+  w.biomePlaces=[{x:x-7,z,angle:0,biome:region.id}];w.environmentClusters={records:[{x,z,biome:region.id,angle:0,footprint:2}]};
+  installExplorationComposition(plain,region.id);installExplorationComposition(w,region.id);assert.deepEqual(w.ground.geometry.attributes.color.array,plain.ground.geometry.attributes.color.array,'soil colour makes a hard climate seam');cleanup(plain);cleanup(w);
+ }
+});

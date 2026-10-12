@@ -4,7 +4,7 @@ import{createHash}from'node:crypto';
 import * as T from'../vendor/three.module.js';
 import{buildRuinPlace}from'../ruin-places.js';
 import{naturalRockGeometry}from'../biome-scenery.js?v=156';
-import{wornStoneBlock}from'../environment-props.js?v=160';
+import{wornStoneBlock}from'../environment-props.js?v=163';
 
 function build(id,variant=0){
  const parts=[],solids=[],dummy=new T.Object3D();

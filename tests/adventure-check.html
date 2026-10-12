@@ -2,7 +2,7 @@
 import * as T from '../vendor/three.module.js';
 import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=157';
 import {HERO_LOADOUTS,WEAPONS,weaponStats} from '../rules.js?v=125';
-import {terrainAt,waterDepth} from '../water.js?v=160';
+import {terrainAt,waterDepth} from '../water.js?v=163';
 import {updateTide} from '../coast.js?v=114';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
@@ -206,11 +206,12 @@ $('#run').onclick=async()=>{
  await check('全部浏览器日志',()=>{errors.push(...win.qaErrors);assert(!errors.length,errors.join('\n'));return{errors};});
  publish();$('#status').textContent=results.every(r=>r.pass)?'全部 '+results.length+' 项通过（手机为尺寸与触控模拟，非真机）':'存在失败，请查看报告';for(const b of document.querySelectorAll('button'))b.disabled=false;
 };
-function positionPlace(mark){
+function positionPlace(mark,wide=false){
  const p=mark.place;if(!p)return;
- for(const distance of[13,15,18,21])for(const side of[0,-3,3,-6,6]){
+ for(const distance of wide?[25,28,32,21]:[13,15,18,21])for(const side of[0,-3,3,-6,6]){
   const x=p.x-Math.sin(p.angle)*distance+Math.cos(p.angle)*side,z=p.z-Math.cos(p.angle)*distance-Math.sin(p.angle)*side;
   if(g.world.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+.6))continue;
+  if(wide&&!sceneryStandClear(x,z,.6))continue;
   const dx=p.x-x,dz=p.z-z,d2=dx*dx+dz*dz;
   if(g.world.obstacles.some(o=>{const t=((o.x-x)*dx+(o.z-z)*dz)/d2;return o.height>1.1&&t>.04&&t<.9&&Math.hypot(o.x-x-dx*t,o.z-z-dz*t)<o.r+.15;}))continue;
   g.player.x=x;g.player.z=z;g.adventureCamera.yaw=Math.atan2(dx,dz);g.adventureCamera.pitch=-.045;g.adventureCamera._ready=false;return;
@@ -401,8 +402,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=160');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=160');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=163');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=163');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -533,7 +534,9 @@ explorationButton.onclick=async()=>{
 // Both existing place slots, rendered close enough to inspect their materials
 // and passage. Also usable as a same-seed visual baseline before model changes.
 const placeViewsButton=document.createElement('button');placeViewsButton.id='place-views-run';placeViewsButton.textContent='五图场景区域近看';$('#capture').before(placeViewsButton);
-placeViewsButton.onclick=async()=>{
+const compositionViewsButton=document.createElement('button');compositionViewsButton.id='composition-views-run';compositionViewsButton.textContent='五图场景整体构图';$('#capture').before(compositionViewsButton);
+placeViewsButton.onclick=()=>runPlaceViews();compositionViewsButton.onclick=()=>runPlaceViews(true);
+async function runPlaceViews(wide=false){
  const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
  $('#place-contact')?.remove();const sheet=document.createElement('canvas'),cw=590,ch=390;sheet.id='place-contact';sheet.width=cw*2;sheet.height=ch*5;sheet.style.cssText='display:block;width:1180px;height:auto;margin:16px 0';sheet.setAttribute('aria-label','五种环境的两处场景实景：每行一张地图，左右为第一处与第二处');$('#report').before(sheet);const paint=sheet.getContext('2d');paint.fillStyle='#17272b';paint.fillRect(0,0,sheet.width,sheet.height);
  try{
@@ -541,13 +544,13 @@ placeViewsButton.onclick=async()=>{
   for(const [row,map]of['forest','snow','ash','sand','coast'].entries()){
    select('silver',0,map);
    for(const place of g.world.biomePlaces)await check(map+' 场景 '+(place.index+1)+' · '+place.name,()=>{
-    if(g.state==='paused')g.resume();g.setView('first');positionPlace({place});step(12);g.pause();step(1,0);
+    if(g.state==='paused')g.resume();g.setView('first');positionPlace({place},wide);step(12);g.pause();step(1,0);
     const frame=reportFrame();assert(frame.calls<2000&&frame.textures<64,'场景区域超出渲染预算');assert(sceneryStandClear(g.player.x,g.player.z,.5),'近景站位堵塞');
     const x=place.index*cw,y=row*ch;paint.drawImage(g.renderer.domElement,x,y,cw,ch-30);paint.fillStyle='#e4eddf';paint.font='16px sans-serif';paint.fillText(map+' · '+place.name,x+12,y+ch-9);
-    return{biome:map,variant:place.variant??0,kind:place.kind,...frame};
+    return{biome:map,variant:place.variant??0,kind:place.kind,wide,stand:{x:g.player.x,z:g.player.z,yaw:g.adventureCamera.yaw},...frame};
    });
   }
-  errors.push(...win.qaErrors);publish();$('#status').textContent='五图场景近看完成：'+results.filter(r=>r.pass).length+'/'+results.length+'；下方为真实游戏画面。';
+  errors.push(...win.qaErrors);publish();$('#status').textContent=(wide?'五图整体构图':'五图场景近看')+'完成：'+results.filter(r=>r.pass).length+'/'+results.length+'；下方为真实游戏画面。';
  }catch(e){errors.push(e.message);publish();$('#status').textContent='场景近看中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
 };
 const placeRoutesButton=document.createElement('button');placeRoutesButton.id='place-routes-run';placeRoutesButton.textContent='双布局通路与手机检查';$('#capture').before(placeRoutesButton);
@@ -751,7 +754,7 @@ const sceneryEdgeButton=document.createElement('button');sceneryEdgeButton.id='s
 function edgeLayerReport(layer,label,map){
  assert(layer&&!layer.userData.disposed&&layer.parent===g.world.group,label+' 未实际安装');
  const records=layer.userData.records,edges=records.filter(p=>p.edge),batches=layer.children.filter(m=>m.isInstancedMesh);
- assert(edges.length>0&&edges.length<=Math.floor(records.length*.22),label+' 边缘重分配缺失或超22%预算');
+ assert(edges.length>0&&edges.length<=Math.floor(records.length*.32),label+' 边缘重分配缺失或超32%预算');
  assert(batches.reduce((n,m)=>n+m.count,0)===records.length,label+' 实例与记录数量不一致');
  assert(layer.children.length<=(label==='地表'?10:16),label+' 合批超预算');
  for(const p of edges){

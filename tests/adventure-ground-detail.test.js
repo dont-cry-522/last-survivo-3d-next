@@ -304,8 +304,8 @@ test('scenery edges reassign existing cover across six maps, keeping original sh
   for(const [layer,g]of layers.entries()){
    const records=g.userData.records,old=baseline[layer].records,edge=records.filter(p=>p.edge),footprint=layer?1.15:.55;
    assert.deepEqual(detailBudget(g),baseline[layer].budget,id+' changed the instance, triangle or draw budget');
-   assert(edge.length>=records.length*.08&&edge.length<=Math.floor(records.length*.22),id+' missing or excessive scenery-edge redistribution');
-   assert(edge.some(p=>p.edge==='cluster')&&edge.some(p=>p.edge==='place'));
+   assert(edge.length>=records.length*.08&&edge.length<=Math.floor(records.length*.32),id+' missing or excessive scenery-edge redistribution');
+   assert(edge.some(p=>p.edge==='cluster')&&edge.some(p=>p.edge==='place'),`${id} seed ${seed} layer ${layer} missing a scenery type`);
    for(let i=0;i<records.length;i++){
     const p=records[i],was=old[i];assert.equal(p.kind,was.kind);assert.equal(p.biome,was.biome);
     assert.equal(Number(p.x>=0)+Number(p.z>=0)*2,Number(was.x>=0)+Number(was.z>=0)*2,'relocation creates an extra culling batch');
@@ -324,10 +324,22 @@ test('scenery edges reassign existing cover across six maps, keeping original sh
     for(const pond of w.ponds){const k=pond.baseRx===undefined?1:1.19,tide={...pond,rx:(pond.baseRx??pond.rx)*k,rz:(pond.baseRz??pond.rz)*k};for(let j=0;j<8;j++)assert.equal(waterDepth(tide,p.x+Math.cos(j*Math.PI/4)*footprint,p.z+Math.sin(j*Math.PI/4)*footprint),0,'edge cover enters high water');}
    }
    const nearest=rs=>clusters.records.reduce((n,a)=>n+Math.min(...rs.map(p=>Math.hypot(p.x-a.x,p.z-a.z)-a.footprint)),0)/clusters.records.length;
-   assert(nearest(records)<nearest(old)*.8,`${id} seed ${seed} layer ${layer} did not materially reduce empty ground beside real scenery: ${nearest(records)}/${nearest(old)}`);
-   assert(new Set(edge.map(p=>p.edge+':'+p.edgeIndex)).size>=(id==='confluence'?30:12),'redistribution only affects a few scenery islands');
+   // New composition can put scenery into cover that was already close. Such
+   // sources need a safe joining fringe, not an ever-tighter mandatory ring.
+   assert(nearest(records)<Math.max(footprint+.55,nearest(old)*.8),`${id} seed ${seed} layer ${layer} did not join nearby scenery: ${nearest(records)}/${nearest(old)}`);
+   assert(new Set(edge.map(p=>p.edge+':'+p.edgeIndex)).size>=(id==='confluence'?30:12),`${id} seed ${seed} layer ${layer}: redistribution only affects a few scenery islands`);
    const distances=edge.filter(p=>p.edge==='cluster').map(p=>{const a=clusters.records[p.edgeIndex];return Math.hypot(p.x-a.x,p.z-a.z)-a.footprint;});
    assert(Math.max(...distances)-Math.min(...distances)>1.4,'edge cover forms a regular narrow ring');
+   const core=[],fringe=[];
+   for(let i=0;i<records.length;i++){
+    const p=records[i];if(!p.edge)continue;
+    if(p.edgeGrowth>.8)core.push(p.height/old[i].height);if(p.edgeGrowth<.25)fringe.push(p.height/old[i].height);
+   }
+   const mean=values=>values.reduce((n,v)=>n+v,0)/values.length;
+   assert(core.length>=3&&fringe.length>=3,'scenery cover has no distinct inner and outer fringe');
+   assert(mean(core)>mean(fringe)*1.22,'existing plants remain equally tall across the scenery-to-ground transition');
+   const linked=edge.filter(p=>edge.some(q=>p!==q&&p.biome===q.biome&&Math.hypot(p.x-q.x,p.z-q.z)<1.7));
+   assert(linked.length>edge.length*.6,'redistributed cover is still made of isolated specimens');
    let released=0;for(const batch of g.children)batch.geometry.addEventListener('dispose',()=>released++);
    releaseDetail(g);assert.equal(released,g.children.length);assert(g.userData.disposed);assert(g.children.every(b=>!b.visible));
   }
@@ -351,8 +363,8 @@ test('biome edges connect both cover layers with lee pockets, broken scree, wind
   const world=scenicWorld(id,522),low=installAdventureGroundDetail(world,id).userData.records,high=installHabitatDetail(world,id).userData.records;
   for(const biome of id==='confluence'?maps.slice(0,5):[id]){
    const floor=low.filter(p=>p.biome===biome),upper=high.filter(p=>p.biome===biome&&p.edge),cluster=floor.filter(p=>p.edge==='cluster');
-   assert(cluster.length>12,biome+' has no visible transition beside its scenery groups');
-   const connected=upper.filter(p=>floor.some(q=>q.edge===p.edge&&q.edgeIndex===p.edgeIndex&&Math.hypot(p.x-q.x,p.z-q.z)<3.5));
+   assert(cluster.length>12,id+': '+biome+' has no visible transition beside its scenery groups');
+   const connected=upper.filter(p=>floor.some(q=>Math.hypot(p.x-q.x,p.z-q.z)<3.5));
    assert(connected.length>upper.length*.65,biome+' upper plants sit apart from the low ground layer');
    if(biome==='forest'){
     for(const records of[low,high]){

@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries,toCreasedNormals} from './vendor/BufferGeometryUtils.js';
 import {naturalRockGeometry} from './biome-scenery.js?v=156';
-import {batchedSurfaceMaterial,prepareBatchedSurface,wornStoneBlock} from './environment-props.js?v=160';
+import {batchedSurfaceMaterial,prepareBatchedSurface,wornStoneBlock} from './environment-props.js?v=163';
 import {addTree} from './tree-scenery.js?v=158';
 import {bridgeContains} from './coast.js?v=114';
 import {seeded,segmentDistance} from './rules.js?v=125';
@@ -207,20 +207,34 @@ export function installEnvironmentClusters(world,mapId){
   const biome=scope.id;if(!BIOMES.includes(biome))continue;
   const start=world.regions?{x:scope.x,z:scope.z}:world.spawn,sites=world.sites.filter(s=>!world.regions||s.biome===biome),paths=sites.map(s=>[start,s]);
   for(const p of world.biomePlaces||[])if(p.biome===biome){paths.push([start,p]);if(p.site)paths.push([p,p.site]);}
-  const anchors=existing.filter(o=>!o.place&&!o.tactic&&(!world.regions||scope.contains(o.x,o.z))),target=world.regions?6:14;let count=0;
-  // Round-robin across destinations prevents the first short trail consuming
-  // every cluster; the latter passes use existing groves near those corridors.
+  const anchors=existing.filter(o=>!o.place&&!o.tactic&&(!world.regions||scope.contains(o.x,o.z))),places=(world.biomePlaces||[]).map((place,index)=>({place,index})).filter(p=>p.place.biome===biome),shoulders=lines.filter(l=>!world.regions||scope.contains((l.a.x+l.b.x)/2,(l.a.z+l.b.z)/2)),target=world.regions?6:14,placeTarget=world.regions?3:6,placeCounts=new Map();let count=0,placed=0;
+  // Spend the same instance budget in open-sided groups: scenery belongs to
+  // a place or real trail shoulder, instead of uniformly dotting a broad band.
+  // The final passes keep isolated groves and fill unusually obstructed seeds.
   for(let attempt=0;attempt<1800&&count<target;attempt++){
-   const variant=count%2,template=clusterTemplate(biome,variant),scale=.88+random()*.13,r=template.footprint*scale;let x,z;
-   if(attempt<900&&paths.length){
-    const [a,b]=paths[attempt%paths.length],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);if(length<1)continue;
-    const t=.13+random()*.78,side=(Math.floor(attempt/paths.length)%2?1:-1)*(6+random()*7);x=a.x+dx*t-dz/length*side;z=a.z+dz*t+dx/length*side;
-   }else if(anchors.length){
+   const variant=count%2,template=clusterTemplate(biome,variant),scale=.88+random()*.13,r=template.footprint*scale;let x,z,angle,composition='grove',anchorIndex;
+   if(attempt<600&&places.length){
+    if(placed>=placeTarget)continue;
+    const entry=places[attempt%places.length],p=entry.place,slot=placeCounts.get(entry.index)||0;if(slot>=3)continue;
+    // Stay outside the full authored footprint, with both entrance and exit
+    // open. Cargo/strata follow the place axis; natural growth is less regular.
+    const side=(Math.sin(p.x*.19+p.z*.13)>0?1:-1)*(attempt<300?1:-1),u=side*(9.4+r+1.3+random()*2.8),v=-5.8+slot*5.8+(random()-.5)*2.2,c=Math.cos(p.angle),s=Math.sin(p.angle);
+    x=p.x+c*u+s*v;z=p.z-s*u+c*v;angle=p.angle+(random()-.5)*(biome==='coast'||biome==='sand'?.28:.9);composition='place';anchorIndex=entry.index;
+   }else if(attempt<1050&&shoulders.length){
+    if(count>=target-2)continue;
+    const l=shoulders[attempt%shoulders.length],dx=l.b.x-l.a.x,dz=l.b.z-l.a.z,length=Math.hypot(dx,dz);if(length<.01)continue;
+    const t=.15+random()*.70,side=(Math.floor(attempt/shoulders.length)%2?1:-1)*(l.width+r+1.5+random()*2.4);
+    x=l.a.x+dx*t-dz/length*side;z=l.a.z+dz*t+dx/length*side;angle=Math.atan2(dx,dz)+(random()-.5)*.8;composition='shoulder';
+   }else if(attempt<1500&&anchors.length){
     const o=anchors[Math.floor(random()*anchors.length)],a=random()*Math.PI*2,d=o.r+r+1.1+random()*2.4;x=o.x+Math.sin(a)*d;z=o.z+Math.cos(a)*d;
     if(paths.length&&Math.min(...paths.map(([a,b])=>segmentDistance(x,z,a.x,a.z,b.x,b.z)))>23)continue;
+   }else if(paths.length){
+    const [a,b]=paths[attempt%paths.length],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);if(length<1)continue;
+    const t=.13+random()*.78,side=(Math.floor(attempt/paths.length)%2?1:-1)*(6+random()*7);x=a.x+dx*t-dz/length*side;z=a.z+dz*t+dx/length*side;
    }else break;
    if(!safe(x,z,r,scope))continue;
-   records.push({x,z,biome,variant,scale,angle:random()*Math.PI*2,footprint:r,height:template.height*scale,template});count++;
+   records.push({x,z,biome,variant,scale,angle:angle??random()*Math.PI*2,footprint:r,height:template.height*scale,composition,...(anchorIndex===undefined?{}:{anchorIndex}),template});count++;
+   if(composition==='place'){placed++;placeCounts.set(anchorIndex,(placeCounts.get(anchorIndex)||0)+1);}
   }
  }
  if(!records.length){world.environmentClusters={group:null,records,draws:0,triangles:0};return world.environmentClusters;}

@@ -2,7 +2,7 @@
 import * as T from '../vendor/three.module.js';
 import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=157';
 import {HERO_LOADOUTS,WEAPONS,weaponStats} from '../rules.js?v=125';
-import {terrainAt,waterDepth} from '../water.js?v=157';
+import {terrainAt,waterDepth} from '../water.js?v=158';
 import {updateTide} from '../coast.js?v=114';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
@@ -240,6 +240,10 @@ function positionClusterEdge(mode){
 }
 function positionPreview(mode,place){
  if(place==='terrain-approach'||place==='terrain-bank'){positionTerrainApproach(mode,place==='terrain-bank');return;}
+ if(place==='timber'){
+  const timber=g.world.breakables?.find(o=>o.tactic==='timber');assert(timber,'当前地图没有可倒伏枯木');
+  for(let i=0;i<16;i++){const a=i*Math.PI/8,x=timber.x+Math.sin(a)*4,z=timber.z+Math.cos(a)*4;if(!sceneryStandClear(x,z))continue;g.player.x=x;g.player.z=z;g.adventureCamera.yaw=a+Math.PI;g.adventureCamera.pitch=.05;g.adventureCamera._ready=false;break;}
+ }
  if(place==='grass'){const plant=g.world.adventureGroundDetail.userData.records.find(p=>p.kind==='tuft'&&p.biome==='forest'&&Math.hypot(p.x-g.world.spawn.x,p.z-g.world.spawn.z)<16);assert(plant,'缺少草层');g.player.x=plant.x;g.player.z=plant.z+2;g.adventureCamera.yaw=Math.PI;g.adventureCamera.pitch=-.58;}
  if(place==='cluster-edge')positionClusterEdge(mode);
  if(place==='fern'){const plant=g.world.habitatDetail.userData.records.find(p=>p.kind==='fern'&&Math.hypot(p.x-g.world.spawn.x,p.z-g.world.spawn.z)<24);assert(plant,'缺少近景蕨草');g.player.x=plant.x;g.player.z=plant.z+2.6;g.adventureCamera.yaw=Math.PI;g.adventureCamera.pitch=-.62;}
@@ -389,8 +393,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=157');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=157');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=158');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=158');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -692,6 +696,7 @@ const mobileUIRun=document.createElement('button');mobileUIRun.id='mobile-ui-run
 $('#preview-place').add(new Option('景物边缘近景','cluster-edge'));
 $('#preview-place').add(new Option('蕨草材质近景','fern'));
 $('#preview-place').add(new Option('细草接地近景','grass'));
+$('#preview-place').add(new Option('可倒伏枯木近景','timber'));
 const sceneryEdgeButton=document.createElement('button');sceneryEdgeButton.id='scenery-edge-run';sceneryEdgeButton.textContent='景物边缘与雪松检查';$('#capture').before(sceneryEdgeButton);
 function edgeLayerReport(layer,label,map){
  assert(layer&&!layer.userData.disposed&&layer.parent===g.world.group,label+' 未实际安装');

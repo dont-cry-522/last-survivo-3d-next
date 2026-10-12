@@ -1,10 +1,10 @@
 import {applyFernSurface} from './fern-surfaces.js?v=156';
-import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=157';
+import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=158';
 import{sceneryRhythmAt}from'./exploration-composition.js?v=157';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {seeded,segmentDistance} from './rules.js?v=125';
-import {forestHabitatAt} from './forest-habitats.js?v=139';
+import {forestHabitatAt} from './forest-habitats.js?v=158';
 import {bridgeContains} from './coast.js?v=114';
 import {naturalRockGeometry} from './biome-scenery.js?v=156';
 import {surfaceUniforms} from './surface-textures.js?v=120';

@@ -4,7 +4,7 @@ import * as T from'../vendor/three.module.js';
 import{polishEnvironmentModels,prepareBatchedSurface,batchedSurfaceMaterial}from'../environment-props.js';
 import{placeTemplate}from'../biome-places.js';
 import{installEnvironmentClusters}from'../environment-clusters.js';
-import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=157';
+import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=158';
 import{buildWorld}from'../world.js';
 import{boulderRockGeometry}from'../biome-scenery.js?v=156';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};

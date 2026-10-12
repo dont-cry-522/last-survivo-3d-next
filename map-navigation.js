@@ -1,6 +1,6 @@
 import {MAP_EVENTS} from './map-events.js?v=114';
-import {discoveryInfo} from './map-discoveries.js?v=157';
-import {ROAMING_REWARDS} from './roaming-events.js?v=156';
+import {discoveryInfo} from './map-discoveries.js?v=158';
+import {ROAMING_REWARDS} from './roaming-events.js?v=158';
 
 export function knownMapPoints(world){
  const points=[],known=p=>world.exploration.known(p.x,p.z);

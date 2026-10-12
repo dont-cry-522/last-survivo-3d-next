@@ -1,4 +1,4 @@
-import {MathUtils} from './vendor/three.module.js';
+import {MathUtils,Matrix4,Vector3} from './vendor/three.module.js';
 
 // Static weights follow the existing random terrain. No new collision, rewards,
 // lights, timers or per-frame spatial searches are introduced.
@@ -28,24 +28,24 @@ export function installForestHabitats(world,id){
   const canopy=o.mesh.getObjectByName('tree-canopy'),trunk=o.mesh.getObjectByName('tree-trunk');if(!canopy||!trunk)continue;
   const {shade,bank,ruin}=forestHabitatAt(world,o.x,o.z),elder=o===h.elder;
   // Keep the ground-level trunk footprint: only height and overhead foliage change.
-  const oldTrunkHeight=trunk.scale.y,oldCrownBase=canopy.position.y;
-  const height=elder?1.65:1+shade*.17-bank*.04,width=elder?1.70:1+shade*.34-ruin*.18-bank*.12;
-  trunk.scale.y*=height;canopy.position.y*=height;canopy.scale.y*=elder?1.32:1+shade*.12;
+  const height=elder?1.65:1+shade*.17-bank*.04,width=elder?1.70:1+shade*.34-ruin*.18-bank*.12,crownStretch=elder?1.32:1+shade*.12;
+  trunk.scale.y*=height;canopy.position.y*=height;canopy.scale.y*=crownStretch;
   const depth=elder?1.38:width;
   canopy.scale.x*=width;canopy.scale.z*=depth;o.mesh.userData.forestHabitat=elder?'elder':bank>.5?'bank':shade>.4?'thicket':'clearing';h.trees++;
-  if(elder){
-   o.mesh.name='SM_Tree_Elder_A';
-   // A thick taper below the forks, not a stretched sapling. Roots and branch
-   // ends keep their old positions; the lower bole stays inside the collider.
+  if(elder)o.mesh.name='SM_Tree_Elder_A';
+  {
+   // Match the actual crown, including pre-existing ruin thinning and the tree's
+   // individual lean/width. Clone once at world creation;
+   // the normal ownedGeometry cleanup releases it, leaving shared templates intact.
    trunk.geometry=trunk.geometry.clone();trunk.userData.ownedGeometry=true;
-   const p=trunk.geometry.attributes.position;
-   for(let i=0;i<p.count;i++){const y=p.getY(i),r=Math.hypot(p.getX(i),p.getZ(i)),weight=MathUtils.smoothstep(y,.25,.7)*(1-MathUtils.smoothstep(y,2.1,3.6)),scale=1+weight*.8;
-    const radius=Math.min(r*scale,Math.max(r,o.r*.89)),fork=MathUtils.smoothstep(y,1.8,4.1);
-    // Upper limbs follow the same affine transform as the crown; blend into
-    // the unmoved lower bole so enlarged leaves remain attached to their twigs.
-    const crownY=(oldCrownBase*height+(y*oldTrunkHeight-oldCrownBase)*1.32)/(oldTrunkHeight*height);
-    p.setY(i,MathUtils.lerp(y,crownY,fork));
-    if(r>1e-6){p.setX(i,p.getX(i)*radius/r*(1+fork*(width-1)));p.setZ(i,p.getZ(i)*radius/r*(1+fork*(depth-1)));}
+   trunk.updateMatrix();canopy.updateMatrix();
+   const crownTransform=new Matrix4().copy(trunk.matrix).invert().multiply(canopy.matrix),target=new Vector3(),template=canopy.userData.treeTemplate,p=trunk.geometry.attributes.position;
+   for(let i=0;i<p.count;i++){const y=p.getY(i),r=Math.hypot(p.getX(i),p.getZ(i)),weight=elder?MathUtils.smoothstep(y,.25,.7)*(1-MathUtils.smoothstep(y,2.1,3.6)):0,scale=1+weight*.8;
+    const radius=Math.min(r*scale,Math.max(r,o.r*.89)),fork=MathUtils.smoothstep(y,1.8,3.3),thickness=r>1e-6?radius/r:1;
+    // Inverse of treeTemplate's tipPosition: trunk template -> crown coordinates.
+    // Finish the blend below every terminal twig, so low sprays also stay attached.
+    target.set(p.getX(i)/2.04,(y*.8496/5-.53)*template.canopyHeight/.47,p.getZ(i)/(2.04*(.94+template.variant*.035))).applyMatrix4(crownTransform);
+    p.setXYZ(i,MathUtils.lerp(p.getX(i)*thickness,target.x,fork),MathUtils.lerp(y,target.y,fork),MathUtils.lerp(p.getZ(i)*thickness,target.z,fork));
    }
    trunk.geometry.computeVertexNormals();trunk.geometry.computeBoundingBox();trunk.geometry.computeBoundingSphere();
   }

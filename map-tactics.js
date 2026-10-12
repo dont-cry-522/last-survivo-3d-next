@@ -13,35 +13,68 @@ const fallenBounds=new T.Box3();
 export function terrainMesh(parent,kind,args,color,x=0,y=0,z=0){const key=kind+args.join(',');if(!geometries.has(key))geometries.set(key,new T[kind](...args));if(!materials.has(color))materials.set(color,new T.MeshStandardMaterial({color,roughness:.94}));const m=new T.Mesh(geometries.get(key),materials.get(color));m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;parent.add(m);return m;}
 function deadTimber(parent){
  if(!geometries.has('dead-timber')){
-  const parts=[],bark=new T.Color(0x746348),cut=new T.Color(0xd3b27c);
-  const color=(g,base)=>{const p=g.attributes.position,c=[];for(let i=0;i<p.count;i++){const shade=.84+.10*Math.sin(Math.atan2(p.getZ(i),p.getX(i))*5)+.045*Math.cos(p.getY(i)*6);c.push(base.r*shade,base.g*shade,base.b*shade);}g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.deleteAttribute('uv');return g;};
+  const parts=[],bark=new T.Color(0x665d4b),cut=new T.Color(0xb6a07b);
+  const color=(g,base)=>{const p=g.attributes.position,c=[],exposed=base===cut;for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getZ(i),p.getX(i)),shade=.84+.11*Math.sin(a*7+.4*Math.sin(y*1.7))+.055*Math.cos(a*13-y*.6),damp=exposed?0:.10*(1-T.MathUtils.smoothstep(y,.03,.6));c.push(base.r*(shade-damp),base.g*(shade-damp*.4),base.b*(shade-damp*.2));}g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('timberGrain',new T.BufferAttribute(p.array.slice(),3));g.setAttribute('timberCut',new T.Float32BufferAttribute(new Float32Array(p.count).fill(exposed?1:0),1));g.deleteAttribute('uv');return g;};
+  const bend=h=>({x:.055*Math.sin(h*1.7)+.035*Math.sin(h*3.1),z:.026*Math.sin(h*1.2)});
+  const radius=(h,a,base,tip,height)=>(base+(tip-base)*h/height)*(1+.07*Math.sin(a*7+.4*Math.sin(h*1.7))+.028*Math.cos(a*13-h*.6));
   const stem=(height,base,tip,sides,steps,x,y,z,turn,azimuth)=>{
    const g=new T.CylinderGeometry(tip,base,height,sides,steps,true),p=g.attributes.position;
    for(let i=0;i<p.count;i++){
-    const h=p.getY(i)+height/2,a=Math.atan2(p.getZ(i),p.getX(i)),grain=1+.045*Math.sin(a*5)+.025*Math.cos(h*2);
-    p.setXYZ(i,p.getX(i)*grain+.065*Math.sin(h*1.7),h+(h>height-.001?-.07+.07*Math.sin(a*3)+.055*Math.cos(a*5):0),p.getZ(i)*grain+.025*Math.sin(h*1.2));
+    const h=p.getY(i)+height/2,a=Math.atan2(p.getZ(i),p.getX(i)),r=radius(h,a,base,tip,height),curve=bend(h);
+    p.setXYZ(i,Math.cos(a)*r+curve.x,h+(h>height-.001?-.12+.085*Math.sin(a*3)+.03*Math.cos(a*5):0),Math.sin(a)*r+curve.z);
    }
    const matrix=new T.Matrix4().compose(new T.Vector3(x,y,z),new T.Quaternion().setFromEuler(new T.Euler(0,azimuth,turn)),new T.Vector3(1,1,1));
    // Uneven exposed end grain follows the splintered ring, including the end visible after falling.
    for(const row of[0,steps]){
     const vertices=[],indices=[],start=row*(sides+1),center=new T.Vector3();
-    for(let i=0;i<sides;i++){const v=new T.Vector3().fromBufferAttribute(p,start+i);center.add(v);vertices.push(v.x,v.y,v.z);}center.divideScalar(sides);vertices.push(center.x,center.y,center.z);
-    for(let i=0;i<sides;i++)indices.push(...(row?[sides,(i+1)%sides,i]:[sides,i,(i+1)%sides]));
+    for(let i=0;i<sides;i++){const v=new T.Vector3().fromBufferAttribute(p,start+i);center.add(v);vertices.push(v.x,v.y,v.z);}center.divideScalar(sides);
+    // Broken fibres surround a shallow, eccentric heartwood recess, not a saw-cut disk or spike.
+    for(let i=0;i<sides;i++){const v=new T.Vector3().fromBufferAttribute(p,start+i).lerp(center,.44);vertices.push(v.x,v.y-(row?0:.035),v.z);}
+    vertices.push(center.x,center.y-(row?0:.075),center.z);
+    const face=(a,b,c)=>indices.push(...(row?[a,c,b]:[a,b,c]));
+    for(let i=0;i<sides;i++){const j=(i+1)%sides;face(i,j,sides+i);face(j,sides+j,sides+i);face(sides*2,sides+i,sides+j);}
     const cap=new T.BufferGeometry();cap.setAttribute('position',new T.Float32BufferAttribute(vertices,3));cap.setIndex(indices);cap.computeVertexNormals();parts.push(color(cap,cut).applyMatrix4(matrix));
    }
    g.computeVertexNormals();parts.push(color(g,bark).applyMatrix4(matrix));
   };
-  stem(3.4,.39,.14,9,6,0,0,0,0,0);
-  stem(1.08,.13,.025,6,3,-.025,1.57,.015,.78,-.20);
-  stem(1.04,.115,.034,6,3,.01,2.10,.01,-.85,.45);
+  stem(3.4,.37,.22,14,9,0,0,0,0,0);
+  stem(.93,.14,.070,8,4,-.025,1.57,.015,.78,-.20);
+  stem(.89,.13,.061,8,4,.01,2.10,.01,-.85,.45);
   for(let i=0;i<4;i++){
-   const a=i*Math.PI/2+.37,root=new T.ConeGeometry(.16,.68,4);root.scale(1,1,.64);root.rotateZ(Math.PI*.39);root.rotateY(a);root.translate(-Math.cos(a)*.29,.15,Math.sin(a)*.29);parts.push(color(root,bark));
+   const a=i*Math.PI/2+.37,vertices=[],indices=[],sides=7;
+   for(let row=0;row<4;row++)for(let j=0;j<sides;j++){
+    const t=row/3,angle=j/sides*Math.PI*2,r=[.15,.13,.065,.008][row],x=.16+t*(.36+.025*Math.sin(i*2.1)),y=[.19,.12,.045,-.026][row]+Math.sin(angle)*r*.55,z=Math.cos(angle)*r+Math.sin(t*Math.PI)*.035;
+    vertices.push(Math.cos(a)*x-Math.sin(a)*z,y,Math.sin(a)*x+Math.cos(a)*z);
+    if(row<3){const p=row*sides+j,q=row*sides+(j+1)%sides;indices.push(p,q,p+sides,q,q+sides,p+sides);}
+   }
+   const root=new T.BufferGeometry();root.setAttribute('position',new T.Float32BufferAttribute(vertices,3));root.setIndex(indices);root.computeVertexNormals();parts.push(color(root,bark));
   }
   // A pale, narrow bark wound keeps the existing breakable-timber cue legible.
-  const scar=new T.PlaneGeometry(.07,.92,1,4),p=scar.attributes.position;
-  for(let i=0;i<p.count;i++){const y=p.getY(i)+.75,x=p.getX(i)*(.65+.3*Math.sin(y*7))+.065*Math.sin(y*1.7);p.setXYZ(i,x,y,(.39-.25*y/3.4)*(1.045+.025*Math.cos(y*2))+.025*Math.sin(y*1.2)+.009);}
+  const scar=new T.PlaneGeometry(.075,.86,1,8),p=scar.attributes.position;
+  for(let i=0;i<p.count;i++){const y=p.getY(i)+.75,curve=bend(y),x=p.getX(i)*(.62+.30*Math.sin(y*17))+curve.x+.02*Math.sin(y*9);p.setXYZ(i,x,y,radius(y,Math.PI/2,.37,.22,3.4)+curve.z+.008);}
   scar.computeVertexNormals();parts.push(color(scar,cut));
-  const geometry=mergeGeometries(parts,false);for(const part of parts)part.dispose();geometry.computeBoundingBox();geometry.computeBoundingSphere();geometries.set('dead-timber',geometry);materials.set('dead-timber',new T.MeshStandardMaterial({vertexColors:true,roughness:1}));
+  const geometry=mergeGeometries(parts,false);for(const part of parts)part.dispose();geometry.computeBoundingBox();geometry.computeBoundingSphere();geometries.set('dead-timber',geometry);
+  const material=new T.MeshStandardMaterial({vertexColors:true,roughness:1});
+  // Small object-space grooves follow the timber when it falls. No textures,
+  // time uniforms or per-log updates; fade grain before it becomes pixel noise.
+  material.onBeforeCompile=shader=>{
+   shader.vertexShader='attribute vec3 timberGrain; attribute float timberCut; varying vec3 timberPoint; varying float timberEnd;\n'+shader.vertexShader;
+   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntimberPoint=timberGrain;timberEnd=timberCut;');
+   shader.fragmentShader='varying vec3 timberPoint; varying float timberEnd;\n'+shader.fragmentShader;
+   shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+    float timberPixel=max(length(dFdx(timberPoint)),length(dFdy(timberPoint))),timberDetail=1.0-smoothstep(.018,.085,timberPixel);
+    float timberFurrow=.5+.25*(sin(timberPoint.x*65.0+sin(timberPoint.y*2.7+timberPoint.z*9.0)*.75)+sin(timberPoint.z*58.0+sin(timberPoint.y*1.9-timberPoint.x*12.0)*.7));
+    float timberRidge=smoothstep(.25,.80,timberFurrow),timberRing=.5+.5*sin(length(timberPoint.xz)*95.0+sin(atan(timberPoint.z,timberPoint.x)*3.0)*.3);
+    diffuseColor.rgb*=mix(1.0,mix(.70+timberRidge*.38,.84+timberRing*.16,timberEnd),timberDetail);
+    float timberRelief=timberRidge*.009*timberDetail*(1.0-timberEnd);
+   `);
+   shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+    vec3 timberDx=dFdx(-vViewPosition),timberDy=dFdy(-vViewPosition),timberRx=cross(timberDy,normal),timberRy=cross(normal,timberDx);
+    float timberDet=dot(timberDx,timberRx);
+    normal=normalize(abs(timberDet)*normal-sign(timberDet)*(dFdx(timberRelief)*timberRx+dFdy(timberRelief)*timberRy));
+   `);
+  };
+  material.customProgramCacheKey=()=> 'timber-broken-bark';materials.set('dead-timber',material);
  }
  const m=new T.Mesh(geometries.get('dead-timber'),materials.get('dead-timber'));m.name='breakable-dead-timber';m.castShadow=m.receiveShadow=true;parent.add(m);
 }

@@ -287,9 +287,13 @@ function firCrown(variant,level){
 }
 function treeTemplate(id,variant){
  const key=id+variant;if(templates.has(key))return templates.get(key);const snow=id==='snow',wood=snow?0x687675:0x665b43;
- const trunkHeight=5,lean=(variant-1)*.16,branches=[tint(limb([[0,0,0],[.05,.42,-.015],[lean-.16,1.65,.085],[lean*.6+.10,3.35,-.075],[lean-.04,5,.09]],snow?[.35,.25,.18,.10,.035]:[.49,.31,.245,.15,.035],8),wood)];
+ const trunkHeight=5,lean=(variant-1)*.16;
+ // The root and first two rings stay unchanged; mature trunks develop their
+ // different lean above walking height instead of scaling the whole tree wider.
+ const stem=[[0,0,0],[.05,.42,-.015],[lean-.16,1.65,.085],snow?[lean*.6+.10,3.35,-.075]:[[.05,3.35,-.16],[.20,3.35,.10],[-.08,3.35,.23]][variant],snow?[lean-.04,5,.09]:[[-.25,5,.22],[.46,5,-.05],[-.48,5,.38]][variant]];
+ const branches=[tint(limb(stem,snow?[.35,.25,.18,.10,.035]:[.49,.31,.285,.19,.07],8),wood)];
  for(let i=0;i<4;i++)branches.push(tint(rootFlare(i*Math.PI*.5+variant*.67,snow),wood));
- for(let i=0;i<(snow?3:4);i++){
+ if(snow)for(let i=0;i<3;i++){
   const a=i*2.15+variant*.71,cos=Math.cos(a),sin=Math.sin(a),start=snow?2.8+i*.42:1.88+i*.48,reach=snow?.62:1.18-(i%2)*.12,tip=snow?start+.65:3.64+i*.31;
   branches.push(tint(limb([[lean*.7,start,0],[cos*reach*.38,start+.48,sin*reach*.30],[cos*reach*.78,tip-.12,sin*reach*.74],[cos*reach,tip,sin*reach]],snow?[.09,.052,.018]:[.19-i*.018,.105,.017],snow?4:6),wood));
  }
@@ -297,28 +301,41 @@ function treeTemplate(id,variant){
  if(snow){
   crowns.push(firCrown(variant,2));
  }else{
-  // Each fork carries three uneven terminal sprays. Their offsets expose branches between them.
+  // Open spreading, upright forked, and one-sided woodland crowns. The same
+  // fifteen sprays now form unequal branch groups, not four identical tridents.
+  const shape=[
+   [[.15,.09,.90,1.00],[1.96,.50,.79,.96],[3.53,.28,.87,1.03],[5.05,.94,.65,.88]],
+   [[.57,.15,.74,.90],[3.62,.44,.83,.96],[2.08,.99,.62,.83],[5.21,1.12,.59,.87]],
+   [[-.12,.20,.97,.96],[1.08,.66,.85,1.00],[2.71,.31,.66,.85],[4.68,1.03,.61,.87]],
+  ][variant],twigs=[[4,3,3,2],[3,4,2,3],[4,3,2,3]][variant];
   for(let branch=0;branch<4;branch++){
-   const a=branch*2.15+variant*.71,y=[.09,.57,.36,.94][branch]+Math.sin(a*1.7+variant)*.13,r=.77+(branch%2)*.09;
-   for(let twig=0;twig<3;twig++){
-    const side=twig-1,angle=a+side*(.48+variant*.07),reach=r+(twig===1?.16:-.09)+Math.sin(branch*2.7+twig+variant)*.045,rise=y+(twig===1?.25:side*.19)+Math.cos(twig*2.1+a)*.075;
-    const spread=variant===1?.86:1,depth=variant===2?.81:1;
-    const x=Math.cos(angle)*reach*spread,z=Math.sin(angle)*reach*depth,leafY=rise+(variant===2?Math.sin(a)*.19:0),h=(.64+(branch%2)*.09)*(variant===1?1.12:1);
-    sprays.push([x,leafY,z,(twig===1?.66:.57)*spread,(twig===1?.45:.39)*depth,h,angle+.16*side]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:leafY+h*.24,z,branch});
+   const[a,y,r,spread]=shape[branch],count=twigs[branch];
+   for(let twig=0;twig<count;twig++){
+    const side=twig-(count-1)*.5,central=1-Math.abs(side)/(count*.5),angle=a+side*(.38+variant*.055),reach=r+central*.13+Math.sin(branch*2.7+twig+variant)*.045;
+    const inset=variant===0?.975:1,x=(Math.cos(angle)*reach+(variant===2?.08:0))*inset,z=Math.sin(angle)*reach*(variant===1?.9:1)*inset,leafY=y+central*.20+side*.12+Math.cos(twig*2.1+a)*.075,h=(.61+central*.12)*(variant===1?1.13:1);
+    sprays.push([x,leafY,z,(.51+central*.12)*spread*inset,(.37+central*.06)*spread*inset,h,angle+.16*side]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:leafY+h*.24,z,branch});
    }
   }
   for(let j=0;j<3;j++){
-   const a=j*2.3+variant*.8,r=j===2?.14:.36;
-   const x=Math.cos(a)*r,z=Math.sin(a)*r,y=1.29+j*.23+Math.sin(a)*.12;sprays.push([x,y,z,.59-j*.07,.42-j*.025,.65,a]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:y+.65*.24,z,branch:4});
+   const a=j*2.3+variant*.8,r=j===2?.14:.34;
+   const x=Math.cos(a)*r+(variant===2?.12:variant===1?.16:0),z=Math.sin(a)*r,y=1.30+j*.21+Math.sin(a)*.11;sprays.push([x,y,z,.58-j*.07,.42-j*.025,.65,a]);crowns.push(broadFan(...sprays.at(-1)));tips.push({x,y:y+.65*.24,z,branch:4});
   }
  }
  const canopy=merge(crowns),bottom=canopy.boundingBox.min.y;canopy.translate(0,-bottom,0);canopy.computeBoundingBox();
  // Match twig tips to the same normalized crown coordinates used by addTree.
  // Thus tall trees keep supported leaf groups without changing their overall height or collision radius.
- if(!snow)for(const tip of tips){
-  const b=tip.branch,a=b*2.15+variant*.71,reach=1.18-b%2*.12,base=b===4?[lean*.6,4.5,0]:[Math.cos(a)*reach*.58,3.64+b*.31-.24,Math.sin(a)*reach*.58];
-  const end=[tip.x*2.04,((tip.y-bottom)/canopy.boundingBox.max.y*.47+.53)*5/.8496,tip.z*2.04*(.94+variant*.035)],middle=base.map((v,i)=>T.MathUtils.lerp(v,end[i],.55)+(i===1?.10:0));
-  branches.push(tint(limb([base,middle,end],[.044,.024,.006],3),wood));
+ if(!snow){
+  const tipPosition=tip=>[tip.x*2.04,((tip.y-bottom)/canopy.boundingBox.max.y*.47+.53)*5/.8496,tip.z*2.04*(.94+variant*.035)],stemCurve=new T.CatmullRomCurve3(stem.map(p=>new T.Vector3(...p))),forkEnds=[];
+  for(let b=0;b<4;b++){
+   const ends=tips.filter(t=>t.branch===b).map(tipPosition),end=[0,0,0];for(const p of ends)for(let i=0;i<3;i++)end[i]+=p[i]/ends.length;
+   end[0]*=.72;end[2]*=.72;end[1]-=.42;
+   const base=stemCurve.getPoint([.56,.64,.73,.80][b]).toArray(),middle=base.map((v,i)=>T.MathUtils.lerp(v,end[i],.5)+(i===1?.13:0));forkEnds.push(end);
+   branches.push(tint(limb([base,middle,end],[.215-b*.021,.115-b*.009,.067-b*.004],6),wood));
+  }
+  for(const tip of tips){
+   const base=tip.branch===4?stem.at(-1):forkEnds[tip.branch],end=tipPosition(tip),middle=base.map((v,i)=>T.MathUtils.lerp(v,end[i],.54)+(i===1?.08:0));
+   branches.push(tint(limb([base,middle,end],[.066,.032,.006],3),wood));
+  }
  }
  const trunk=merge(branches);
  for(const [geometry,kind]of[[trunk,0],[canopy,snow?2:1]])geometry.setAttribute('treeSurface',new T.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count).fill(kind),1));
@@ -401,12 +418,20 @@ export function installForestBackdrop(world,id,biomeAt=()=>id){
  if(id!=='forest'&&id!=='confluence')return null;
  if(world.forestBackdrop&&!world.forestBackdrop.userData.disposed)return world.forestBackdrop;
  const group=new T.Group(),records=[],dummy=new T.Object3D(),matrix=new T.Matrix4(),color=new T.Color();group.name='SM_Forest_Backdrop_A';group.userData={records,disposed:false};
+ const landscape=world.group.getObjectByName('distant-landscape'),ray=landscape?new T.Raycaster():null,origin=new T.Vector3(),down=new T.Vector3(0,-1,0),inverse=new T.Matrix4(),hits=[];
+ if(landscape){landscape.updateWorldMatrix(true,false);inverse.copy(world.group.matrixWorld).invert();down.transformDirection(world.group.matrixWorld);}
  for(let i=0;i<240;i++){
-  const base=i/240*Math.PI*2,angle=base+.07*Math.sin(base*7)+.025*Math.sin(base*13)+Math.sin(i*13.7)*.007,s=Math.sin(angle),c=Math.cos(angle),edge=world.half/Math.max(Math.abs(s),Math.abs(c));
+  const grove=Math.floor(i/20),member=i%20,center=(grove+.5)/12*Math.PI*2+.10*Math.sin(grove*2.1),spread=.15+.085*(.5+.5*Math.sin(grove*1.7+.6));
+  const angle=center+((member*.61803398875)%1-.5)*spread*2+Math.sin(i*13.7)*.022,s=Math.sin(angle),c=Math.cos(angle),edge=world.half/Math.max(Math.abs(s),Math.abs(c));
   if(id==='confluence'&&biomeAt(s*edge,c*edge)!=='forest')continue;
-  // Irregular thickets and openings replace three evenly spaced fence-like rows.
-  const radius=edge+11+Math.sin(angle*9+.4)**2*8+Math.sin(i*5.7)*1.5;
-  records.push({x:s*radius,z:c*radius,y:-.35,scale:1.25+.18*Math.sin(i*1.7)+.12*(i%3),angle,variant:i%3});
+  // Sparse fronts and deeper overlapping clumps keep the same 240-tree budget,
+  // with gaps between uneven groves rather than a single circular fence.
+  const depth=(member*.754877666)%1,radius=edge+11+depth*22+Math.sin(grove*2.3)**2*5;
+  const x=s*radius,z=c*radius;let y=-.35;
+  // Sample the already-built hill triangles once; no duplicate hill formula or
+  // animation raycasts, and deep clumps cannot disappear inside the ridgeline.
+  if(ray){ray.set(origin.set(x,80,z).applyMatrix4(world.group.matrixWorld),down);hits.length=0;ray.intersectObject(landscape,false,hits);if(hits.length)y=origin.copy(hits[0].point).applyMatrix4(inverse).y-.025;}
+  records.push({x,z,y,scale:1.21+.17*Math.sin(grove*1.9)+.22*depth+.05*Math.sin(i*1.7),angle,variant:i%3});
  }
  for(let variant=0;variant<3;variant++){
   const list=records.filter(p=>p.variant===variant);if(!list.length)continue;

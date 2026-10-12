@@ -5,7 +5,8 @@ import{readFileSync}from'node:fs';
 import * as T from'../vendor/three.module.js';
 import{addTree,updateTreeDetail,animateTreeCanopy,installForestBackdrop}from'../tree-scenery.js';
 import{buildWorld,animateWorld}from'../world.js';
-import{damageTerrain,updateTactics}from'../map-tactics.js?v=149';
+import{damageTerrain,updateTactics}from'../map-tactics.js?v=158';
+import{installDistantLandscape}from'../environment-lighting.js';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const dispose=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
@@ -128,6 +129,37 @@ test('every terminal forest twig follows its uneven leaf cluster in all three te
    assert(end.distanceTo(target)<.00001,'branch is detached from its repositioned foliage');
   }
   assert.equal(leaf.geometry.index.count/3,450,'rounded crowns added extra far-LOD triangles');
+ }
+});
+
+test('mature forest forks connect to their leaves without widening roots or adding geometry',()=>{
+ const roots=['9969f7ab150c7a4701cf9cc3fb6c142efc5e3f09374582de7c3d44d8ced4da4f','6baab4862bcf4f6df8184be47cc7cbdd8fcd51f22071d8c6297753091faebf9d','6b0e42198fee3218e97ceeef093c6c573ba7498998c90d59c4a8e5f9f0430cb4'],centroids=[];
+ for(const [variant,angle]of[0,1,1.5].entries()){
+  const root=new T.Group(),leaf=addTree(root,'forest',4,{angle}),trunk=root.children[0],p=trunk.geometry.attributes.position,center=new T.Vector3(),ends=[new T.Vector3().fromBufferAttribute(p,41)],stem=[];
+  assert.equal(trunk.geometry.index.count/3,654,'new forks expanded the trunk budget');
+  assert.equal(createHash('sha256').update(Buffer.from(p.array.slice(42*3,130*3).buffer)).digest('hex'),roots[variant],'roots moved outside their existing collision footprint');
+  for(let ring=0;ring<5;ring++){center.set(0,0,0);for(let i=0;i<8;i++)center.add(new T.Vector3().fromBufferAttribute(p,ring*8+i));stem.push(center.clone().multiplyScalar(1/8));}
+  for(let branch=0;branch<4;branch++){
+   const base=new T.Vector3().fromBufferAttribute(p,130+branch*20+18),near=new T.Vector3();let gap=Infinity;
+   for(let i=0;i<4;i++){new T.Line3(stem[i],stem[i+1]).closestPointToPoint(base,true,near);gap=Math.min(gap,near.distanceTo(base));}
+   assert(gap<.16,'primary fork floats away from its supporting trunk');ends.push(new T.Vector3().fromBufferAttribute(p,130+branch*20+19));
+  }
+  const counts=new Map();
+  for(let twig=0;twig<15;twig++){
+   const base=new T.Vector3().fromBufferAttribute(p,210+twig*11+9),distances=ends.map(e=>e.distanceTo(base)),nearest=Math.min(...distances),branch=distances.indexOf(nearest);
+   assert(nearest<1e-6,'terminal twig starts in empty space');counts.set(branch,(counts.get(branch)||0)+1);
+  }
+  assert.equal(counts.size,5);assert.equal(new Set([...counts.values()]).size,3,'all forks regained the same three-leaf rhythm');
+  const sprays=leaf.userData.treeTemplate.sprays;centroids.push(sprays.reduce((sum,s)=>sum+s[0],0)/sprays.length);
+  for(const [distance,triangles]of[[40,450],[20,3150],[5,7650]]){updateTreeDetail(leaf,distance,0);assert.equal(leaf.geometry.index.count/3,triangles);}
+ }
+ assert(Math.max(...centroids)-Math.min(...centroids)>.25,'three tree silhouettes differ only by rotation');
+});
+
+test('forest reshaping leaves all snow trunk vertices unchanged',()=>{
+ const hashes=['2789106696da13518e711f0c077aa7a08c1d0bcc3682d4fa4fdafc74f1dc4b2d','3f7345fa86477ee4edaf4d2700e8cd8d7fb74872825cbe36e820ae20a3345e8d','78c3c591631af37252fccb4bedeea8e1a918d3e3db8fd4685fc0b693cefa9656'];
+ for(const [i,angle]of[0,1,1.5].entries()){
+  const root=new T.Group();addTree(root,'snow',4,{angle});assert.equal(createHash('sha256').update(Buffer.from(root.children[0].geometry.attributes.position.array.buffer)).digest('hex'),hashes[i]);
  }
 });
 
@@ -300,6 +332,30 @@ test('forest backdrop stays beyond play bounds, batches at most 240 trees and re
  assert.equal(geometries.size,6);assert.equal(materials.size,2);
  const joined={group:new T.Group(),half:144},group=installForestBackdrop(joined,'confluence',(x,z)=>x>0&&z<0?'forest':'snow');assert(group.userData.records.every(p=>p.x>0&&p.z<0));
  assert.equal(installForestBackdrop({group:new T.Group(),half:96},'snow'),null);
+});
+
+test('distant trees form uneven groves with depth instead of an equally spaced narrow ring',()=>{
+ const build=()=>installForestBackdrop({group:new T.Group(),half:96},'forest'),a=build(),b=build(),records=a.userData.records;
+ assert.deepEqual(records,b.userData.records,'backdrop consumes the world random sequence or changes between restarts');
+ const angles=records.map(p=>(p.angle+Math.PI*2)%(Math.PI*2)).sort((a,b)=>a-b),gaps=angles.map((a,i)=>(angles[(i+1)%angles.length]-a+Math.PI*2)%(Math.PI*2));
+ assert(gaps.filter(g=>g>.06).length>=5,'groves have no visible gaps');assert(gaps.filter(g=>g<.012).length>60,'groves remain evenly spaced');
+ const depth=records.map(p=>Math.hypot(p.x,p.z)-96/Math.max(Math.abs(Math.sin(p.angle)),Math.abs(Math.cos(p.angle))));
+ assert(Math.max(...depth)-Math.min(...depth)>18,'backdrop remains a single thin radial band');assert(Math.min(...depth)>=10.99);
+ assert.equal(records.length,240);assert.equal(a.children.length,6);for(const group of[a,b])for(const mesh of group.children)mesh.dispose();
+});
+
+test('distant grove roots sample the actual hill triangles once and survive transformed world parents',()=>{
+ const world={group:new T.Group(),half:96};world.group.position.set(9,2,-7);world.group.rotation.y=.31;
+ const ridge=installDistantLandscape(world,'forest'),group=world.forestBackdrop,records=group.userData.records,ray=new T.Raycaster(),point=new T.Vector3(),down=new T.Vector3(0,-1,0),inverse=world.group.matrixWorld.clone().invert();
+ assert.equal(records.length,240);let min=Infinity,max=-Infinity;
+ for(const p of records){
+  ray.set(point.set(p.x,80,p.z).applyMatrix4(world.group.matrixWorld),down);const hit=ray.intersectObject(ridge)[0];assert(hit,'distant tree has no supporting terrain');
+  const height=point.copy(hit.point).applyMatrix4(inverse).y;assert(Math.abs(height-p.y-.025)<1e-6,'tree root is floating above or buried in the hill');min=Math.min(min,p.y);max=Math.max(max,p.y);
+ }
+ assert(max-min>5,'the depth groups did not follow the actual rising landscape');
+ const before=ridge.raycast;let calls=0;ridge.raycast=function(...args){calls++;return before.apply(this,args);};
+ assert.strictEqual(installForestBackdrop(world,'forest'),group);assert.equal(calls,0,'repeated install repeats terrain sampling');ridge.raycast=before;
+ for(const batch of group.children)batch.dispose();ridge.geometry.dispose();
 });
 
 

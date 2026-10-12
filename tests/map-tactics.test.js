@@ -35,6 +35,23 @@ test('fallen timber proxies retain their layout and use the real rotated mesh he
   updateTactics(w,7,context);assert(!w.obstacles.some(b=>b.owner===o));dispose(w);
  }
 });
+test('broken timber has a broad fractured end, bounded roots and shared bark detail across world rebuilds',()=>{
+ const first=buildWorld('forest',9),second=buildWorld('forest',31),model=first.breakables[0].mesh.getObjectByName('breakable-dead-timber'),geometry=model.geometry,material=model.material;
+ assert(geometry.index.count/3<=800,'a six-log detail pass exceeded the small shared geometry budget');
+ const box=geometry.boundingBox;assert(box.min.x>=-.782&&box.max.x<=.784&&box.min.y>=-.116&&box.max.y<=3.420&&box.min.z>=-.569&&box.max.z<=.569,'new timber escaped its original safe envelope');
+ const p=geometry.attributes.position,cut=geometry.attributes.timberCut,grain=geometry.attributes.timberGrain;assert.equal(grain.count,p.count);assert.equal(cut.count,p.count);
+ for(const attr of Object.values(geometry.attributes))assert(Array.from(attr.array).every(Number.isFinite),'bark or end-grain attributes contain invalid vertices');
+ const top=[];for(let i=0;i<p.count;i++)if(cut.getX(i)===1&&p.getY(i)>3)top.push({y:p.getY(i),r:Math.hypot(p.getX(i),p.getZ(i))});
+ assert(top.length>=20&&Math.max(...top.map(v=>v.r))>.20,'snapped trunk narrowed back into a pointed pole');
+ assert(Math.max(...top.map(v=>v.y))-Math.min(...top.map(v=>v.y))>.15,'exposed end became a flat saw-cut disk');
+ const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};material.onBeforeCompile(shader);
+ assert(shader.vertexShader.includes('timberPoint=timberGrain'),'grooves will slide when the timber falls');
+ assert(shader.fragmentShader.includes('smoothstep(.018,.085,timberPixel)'),'distant bark grain can shimmer');
+ assert.equal(Object.keys(shader.uniforms).length,0,'static timber introduced timers or texture uniforms');assert.equal(material.map,null);assert.equal(material.bumpMap,null);
+ for(const w of[first,second])for(const o of w.breakables){const m=o.mesh.getObjectByName('breakable-dead-timber');assert.equal(m.geometry,geometry);assert.equal(m.material,material);assert.equal(o.hp,42);assert.equal(o.state,'standing');assert.equal(o.r,.65);assert(m.castShadow&&m.receiveShadow);assert.equal(o.mesh.children.length,1,'timber detail added draw calls');assert(!m.userData.ownedGeometry);}
+ let released=0;const onDispose=()=>released++;geometry.addEventListener('dispose',onDispose);dispose(first);assert.equal(released,0,'one world disposed another world\'s timber');
+ const third=buildWorld('forest',9);assert.equal(third.breakables[0].mesh.children[0].geometry,geometry);dispose(second);dispose(third);assert.equal(released,0);geometry.removeEventListener('dispose',onDispose);
+});
 test('damaged walls remain solid until they collapse and repeated hits do not restart collapse',()=>{
  const w=buildWorld('sand',12),o=w.breakables[0],context={player:w.spawn,foes:[],clear:()=>true,fx(){}};assert(damageTerrain(o,40,w.spawn));assert.equal(o.state,'standing');assert(w.obstacles.includes(o));damageTerrain(o,60,w.spawn);updateTactics(w,.3,context);assert(!damageTerrain(o,10,w.spawn));updateTactics(w,.3,context);assert.equal(o.state,'spent');assert(!w.obstacles.includes(o));dispose(w);
 });

@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {smoothSeams} from './hero-finish.js?v=170';
+import {smoothSeams} from './hero-finish.js?v=171';
 
 // Reuse the Ranger's authored cloth, UVs and skinning; each template owns its tints.
 export function shadowOutfit(root){
@@ -35,32 +35,33 @@ function clothForm(weapon){
  if(scarves.has(weapon))return scarves.get(weapon);
  let panels,claspPanel,claspV;
  if(weapon==='shadowblade'){
-  // Two thin lengths lie over the shoulders; neither wraps the upper arms.
+  // Soft shoulder cloth narrows at each hanging end and drapes down the outer
+  // shoulder. Curved hems avoid reading as two rectangular armor plates.
   panels=[1,-1].map(side=>(u,v)=>{
-   const bend=v*2-1,fold=Math.sin(u*Math.PI*3+v)*.004*Math.sin(v*Math.PI);
-   return[side*(.067+.166*u+.006*Math.sin(v*Math.PI)),1.566-.025*u-(bend<0?.080:.090)*bend*bend+fold,-.174+.278*v];
+   const bend=v*2-1,width=.095+.067*Math.sin(v*Math.PI),fold=Math.sin(u*Math.PI*3+v*.7)*(.002+.006*Math.abs(bend))*(1-u*.5);
+   return[side*(.069+width*u+.006*Math.sin(v*Math.PI)),1.566-.074*u**1.6-(bend<0?.079:.108)*Math.abs(bend)**1.8+fold,-.161+.294*v+.010*Math.sin(u*Math.PI)*bend];
   });
   claspPanel=panels[0];claspV=.90;
  }else if(weapon==='grimoire'){
   // Open V-shaped cloth falls down the chest instead of filling it with a shell.
   panels=[1,-1].map(side=>(u,v)=>{
-   const x=side*(.104-.088*v)+(u-.5)*(.056-.024*v);
-   return[x,1.528-.267*v,.095+.049*Math.sin(v*Math.PI/2)+Math.sin(u*Math.PI*2)*.004*Math.sin(v*Math.PI)];
+   const x=side*(.104-.088*v)+(u-.5)*(.056-.024*v)*(.83+.17*Math.sin(v*Math.PI));
+   return[x,1.528-.267*v+.005*Math.sin(u*Math.PI)*v**3,.095+.049*Math.sin(v*Math.PI/2)+Math.sin(u*Math.PI*2)*.006*Math.sin(v*Math.PI)];
   });
   claspPanel=panels[0];claspV=.90;
  }else{
   const neck=(u,v)=>{
    const x=-.094+.196*u;
-   return[x,1.546-.041*v+.003*Math.sin(u*Math.PI),.095-.027*(x/.11)**2+.002*Math.sin(u*Math.PI*3)];
+   return[x,1.546-.041*v+.004*Math.sin(u*Math.PI)-.003*Math.sin(u*Math.PI*3)*v,.095-.027*(x/.11)**2+.004*Math.sin(u*Math.PI*3+v*.4)];
   };
   const sash=(u,v)=>{
    const x=.083-.174*v+(u-.5)*(.058-.012*v);
-   return[x,1.526-.206*v+(u-.5)*.025,.094+.043*Math.sin(v*Math.PI/2)+Math.sin(u*Math.PI*2+v)*.004*Math.sin(v*Math.PI)];
+   return[x,1.526-.206*v+(u-.5)*.025+.004*Math.sin(u*Math.PI)*v,.094+.043*Math.sin(v*Math.PI/2)+Math.sin(u*Math.PI*2+v)*.006*Math.sin(v*Math.PI)];
   };
   panels=[neck,sash];claspPanel=sash;claspV=.18;
  }
  const positions=[],colors=[],indices=[],slices=8,rows=14;
- const cloth=new T.Color(0x303039),edge=new T.Color(0x55545e);
+ const cloth=new T.Color(0x37343f),edge=new T.Color(0x615b6d);
  for(const surface of panels){
   const offset=positions.length/3;
   for(let j=0;j<=rows;j++)for(let i=0;i<=slices;i++){

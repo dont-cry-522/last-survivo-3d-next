@@ -1,9 +1,12 @@
 import {createShadowAura,updateShadowAura,disposeShadowAura} from './shadow-aura.js?v=114';
-import {shadowOutfit,shadowAccessories,finishShadowTone} from './shadow-appearance.js?v=170';
+import {shadowOutfit,shadowAccessories,finishShadowTone} from './shadow-appearance.js?v=171';
 import {shadowFocus} from './shadow-gear.js?v=170';
 import {GRIP_POINTS,SCYTHE_SUPPORT,primaryGripFrame,fitWeaponToPalm,createHandGrips,restoreGripWrists,captureGripWrists,aimGrip,supportGripTarget,aimSupportGrip,poseGripFingers} from './weapon-grips.js?v=128';
-import {refineLingyaHead,lingyaHeadY} from './lingya-face.js?v=170';
-import {finishHeroSurface,smoothSeams,prepareSilverHair,animateSilverHair} from './hero-finish.js?v=170';
+import {refineLingyaHead,lingyaHeadY} from './lingya-face.js?v=171';
+import {finishHeroSurface,smoothSeams,prepareSilverHair,animateSilverHair} from './hero-finish.js?v=171';
+import {rebuildRanger} from './ranger-rebuild.js?v=171';
+import {rebuildShadowTide} from './shadow-tide-rebuild.js?v=171';
+import {rebuildWildMist} from './wild-mist-rebuild.js?v=171';
 import{tideHarness}from'./tide-appearance.js?v=114';
 import{WULING_PALETTE,wulingOutfit,wulingAccessories,wulingMask,sporeLantern,sporeSatchel,sporePod}from'./wuling-appearance.js?v=114';
 import{MIRAGE_PALETTE,mirageOutfit,mirageHair,prepareMirageHair,animateMirageHair,mirageMask,mirageAccessories,miragePetalTails,miasmaLantern}from'./mirage-appearance.js?v=114';
@@ -138,6 +141,9 @@ float weave=dot(diffuseColor.rgb,vec3(.21,.72,.07));diffuseColor.rgb=vec3(${tint
   mirageBase.traverse(o=>{if(o.isMesh){o.material=o.material.clone();if(o.material.name.includes('Superhero'))skinTone(o.material,'mirage');if(o.material.name.includes('Hair'))o.material.color.set(0xc4b7db);}});bindParts(mirage,mirageBase,true,'silver');
   mirageHair(mirageLocks);bindParts(mirage,mirageLocks);mirage.traverse(o=>{if(['Eyes','Eyebrows'].includes(o.name))o.visible=false;});mirage.updateMatrixWorld(true);templates.set('mirage',mirage);
   for(const [kind,root] of templates){
+    rebuildRanger(root,kind);
+    rebuildShadowTide(root,kind);
+    rebuildWildMist(root,kind);
     finishHeroSurface(root,kind);
   }
   for(const c of bakedClips)clips.set(c.name,c);
@@ -558,11 +564,11 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
     animateSilverHair(d.silverHair,t,d.blend,d.silverClothTurn);animateSilverCape(d.cape,t,d.blend,d.silverClothTurn);
   }
   if(d.cape){d.cape.quaternion.copy(d.restCape);d.cape.rotateX(.06+d.blend*.13+Math.sin(t*5)*.015-d.motionLean*.6+kick*.025);d.cape.rotateZ(-bank*.65-d.carryTurn*.6);d.cape.rotateX(-d.carryTurn*d.blend*.12);if(d.kind==='lingya'){const hop=lingyaHopPose(d.dashTime||0);d.cape.rotateX(hop.air*.13-hop.land*.07);}d.cape.userData.wind.time.value=t;d.cape.userData.wind.run.value=d.blend;d.cape.userData.wind.turn.value=d.carryTurn;}
-  if(d.silverHair){
+  if(d.silverHair||d.kind==='tide'){
     // Anchor follows the shoulder, while gravity prevents chest-twist from lifting the whole cape.
     d.capeFall??={world:new T.Quaternion(),parent:new T.Quaternion(),angles:new T.Euler(0,0,0,'YXZ')};
     const fall=d.capeFall;g.getWorldQuaternion(fall.world);fall.angles.setFromQuaternion(fall.world,'YXZ');
-    fall.angles.set(.035+d.blend*.10,fall.angles.y,-bank*.18-d.silverClothTurn*.12,'YXZ');fall.world.setFromEuler(fall.angles);
+    fall.angles.set(.035+d.blend*.10,fall.angles.y,-bank*.18-(d.silverClothTurn||d.carryTurn||0)*.12,'YXZ');fall.world.setFromEuler(fall.angles);
     d.cape.quaternion.copy(d.cape.parent.getWorldQuaternion(fall.parent).invert().multiply(fall.world));
   }
   if(d.kind==='wraith'){

@@ -1,0 +1,27 @@
+<!doctype html><meta charset="utf-8"><title>七英雄第一人称衣装与持握</title>
+<style>body{background:#17262b;color:#e1e7e2;font:14px system-ui}canvas{max-width:100%;height:auto}pre{white-space:pre-wrap}a{color:#b6ddcf}</style>
+<h1>第一人称 · 待机 / 出手 / 收招</h1><p>正式角色武器、相同光照与70度视角。衣袖切口不同，原有双手接触点保留。</p><p id="status">载入中</p><a id="save-png">保存画面</a><div id="sheet"></div><pre id="report"></pre>
+<script type="module">
+import * as T from '../vendor/three.module.js';
+import {actor,animateActor} from '../world.js?v=171';
+import {FirstPersonView} from '../first-person-view.js?v=171';
+import {WEAPON_RECOVERY} from '../weapon-performance.js?v=170';
+const source=await(await fetch('../world.js',{cache:'no-store'})).text(),entry=source.match(/from['"](.\/skinned-hero\.js[^'"]*)['"]/)[1];
+const {loadHeroAssets,disposeHero}=await import(new URL('../'+entry,location.href));
+const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}),scene=new T.Scene(),camera=new T.PerspectiveCamera(70,16/9,.02,80),view=new FirstPersonView(camera),errors=[],results=[];
+addEventListener('error',e=>errors.push(e.message));addEventListener('unhandledrejection',e=>errors.push(String(e.reason)));
+renderer.setSize(384,216);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;scene.background=new T.Color(0x526773);scene.add(camera);camera.layers.enable(1);
+const sky=new T.HemisphereLight(0x9cabb9,0x394a3f,1.3),sun=new T.DirectionalLight(0xffe0b5,3.4);sun.position.set(-8,14,10);sky.layers.enable(1);sun.layers.enable(1);scene.add(sky,sun);
+const sheet=document.createElement('canvas');sheet.width=1152;sheet.height=7*246;document.querySelector('#sheet').append(sheet);const ctx=sheet.getContext('2d');ctx.fillStyle='#17262b';ctx.fillRect(0,0,sheet.width,sheet.height);
+await loadHeroAssets();
+for(const [row,[label,kind,weapon]]of [['游侠','scout','rifle'],['霜影','silver','crossbow'],['影裔','wraith','shadowblade'],['潮行者','tide','harpoon'],['铃芽','lingya','boomerang'],['雾苓','wuling','sporelantern'],['蜃影','mirage','miasmalantern']].entries()){
+ const model=actor(kind,weapon);if(!model.userData.skinned)throw Error('Missing actual hero: '+kind);view.setHero(model,weapon);
+ for(const [column,phase]of [1,.25,.65].entries()){
+  for(let f=0;f<45;f++){const d=model.userData,age=column?phase*WEAPON_RECOVERY[weapon]:2;d.aimActive=column>0;d.shotSerial=column;d.reloadDuration=1;d.attackAge=age;d.reloadPhase=column?age:1;animateActor(model,3+column+f/60,0,column===1?.15:0);d.attackAge=age;view.update(3+column+f/60,1/60,{visible:true,attack:column===1?.15:0,attackDuration:1});}
+  renderer.render(scene,camera);ctx.drawImage(renderer.domElement,column*384,row*246);ctx.fillStyle='#e1e7e2';ctx.font='15px system-ui';ctx.fillText(label+' · '+['待机','出手','收招'][column],column*384+10,row*246+237);
+  results.push({kind,phase,pass:renderer.getContext().getError()===0&&renderer.info.programs.every(p=>p.diagnostics?.runnable!==false),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles});
+ }
+ view.clear();disposeHero(model);await new Promise(r=>setTimeout(r,0));
+}
+document.querySelector('#status').textContent=results.every(r=>r.pass)&&!errors.length?'完成：七人第一人称 21 个画面':'失败';document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);const link=document.querySelector('#save-png');link.href=sheet.toDataURL('image/png');link.download='hero-firstperson-check.png';view.dispose();renderer.dispose();
+</script>

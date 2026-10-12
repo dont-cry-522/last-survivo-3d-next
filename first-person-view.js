@@ -8,9 +8,9 @@ import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weap
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
 const PALETTES={
- scout:[0x344f3e,0x73543a,0xb29159,0xc39879],silver:[0x25354c,0x202a38,0x91acbf,0xe1c5b1],
- wraith:[0x292c38,0x181c26,0x758699,0x8895a3],tide:[0x305f68,0x293e45,0xafad80,0xbe9f84],
- lingya:[0x6e634f,0x594335,0xc9a279,0xe8bda2],wuling:[0x47334f,0x362639,0xb08b69,0xdbbca7],mirage:[0x30213f,0x231c30,0xa49db8,0xdacade]
+ scout:[0x526348,0x533a27,0xbaa47a,0xc39879],silver:[0x202c49,0x182131,0x9cabb7,0xe1c5b1],
+ wraith:[0x343440,0x282832,0x6a6274,0x8895a3],tide:[0x365b65,0x293e45,0xa2a187,0xbe9f84],
+ lingya:[0xd5c398,0x72513b,0x728773,0xe8bda2],wuling:[0x422951,0x392b36,0x9b8460,0xdbbca7],mirage:[0x291b37,0x282331,0x9682ad,0xdacade]
 };
 const PROFILES={
  rifle:{type:'gun',width:.85,height:1,depth:.62,x:.38,y:-.48,pitch:.025,support:[0,-.045,.34]},
@@ -53,15 +53,28 @@ function handGeometry(palette,fingerless){
  };
  const closed=make(false),open=make(true);closed.morphAttributes.position=[open.attributes.position];closed.morphAttributes.normal=[open.attributes.normal];closed.computeBoundingSphere();open.dispose();return closed;
 }
-function sleeveGeometry(palette){
- const vertices=[],colors=[],indices=[],color=new T.Color(),rings=8,sides=12;
+// Same elbow/wrist endpoints as the existing hand rig; only the fabric between
+// them differs. Cut, fold and cuff profiles make identity visible in first person.
+function sleeveGeometry(palette,kind){
+ const vertices=[],colors=[],uv=[],indices=[],color=new T.Color(),rings=32,sides=20;
  for(let i=0;i<=rings;i++){
-  const t=i/rings,r=.057*(1-t)+.032*t+.008*Math.sin(t*Math.PI),bend=.018*Math.sin(t*Math.PI);
-  color.setHex(i>=7?palette[1]:i===6?palette[2]:palette[0]);
-  for(let j=0;j<sides;j++){const a=j/sides*Math.PI*2,crease=1+.035*Math.sin(a*3+t*9);vertices.push(Math.cos(a)*r*crease+bend,t,Math.sin(a)*r*.84*crease);colors.push(color.r,color.g,color.b);}
+  const t=i/rings,envelope=Math.sin(t*Math.PI),bend=.018*envelope;
+  let radius=.057*(1-t)+.032*t,hex=t>.88?palette[1]:palette[0];
+  if(kind==='scout'){radius+=.007*envelope;if(t>.52)hex=palette[1];if(t>.52&&t<.59||t>.77&&t<.81){radius+=.0035;hex=palette[2];}}
+  else if(kind==='silver'){radius*=.90;radius+=.003*envelope;if(t>.62)hex=palette[1];if(t>.81&&t<.85){radius+=.002;hex=palette[2];}}
+  else if(kind==='wraith'){radius+=.014*envelope**2;if(t>.70){radius+=.0015*Math.sin(t*120);hex=Math.sin(t*100)>.82?palette[2]:palette[1];}}
+  else if(kind==='tide'){if(t<.51)radius+=.009*envelope;else if(t<.62){radius+=.013*Math.sin((t-.51)/.11*Math.PI);hex=palette[2];}else if(t<.86){radius*=.91;hex=palette[3];}else hex=palette[1];}
+  else if(kind==='lingya'){radius+=.018*Math.sin(Math.min(1,t/.6)*Math.PI)**2;if(t>.76){radius+=.002;hex=t>.86?palette[1]:palette[2];}}
+  else if(kind==='wuling'){radius+=.008*envelope+.008*Math.exp(-(((t-.83)/.12)**2));if(t>.72)hex=t>.85?palette[1]:palette[2];}
+  else if(kind==='mirage'){radius*=.92;radius+=.010*Math.exp(-(((t-.82)/.11)**2));if(t>.79&&t<.85)hex=palette[2];}
+  color.setHex(hex);
+  for(let j=0;j<sides;j++){
+   const a=j/sides*Math.PI*2,cloth=!(kind==='tide'&&t>.62&&t<.86),crease=1+(cloth?.027:0)*envelope*Math.sin(a*5+t*15),cuff=kind==='mirage'?.023*envelope*Math.sin(a*2)*Math.exp(-(((t-.82)/.07)**2)):0;
+   vertices.push(Math.cos(a)*radius*crease+bend,t+cuff,Math.sin(a)*radius*.84*crease);colors.push(color.r,color.g,color.b);uv.push(j/sides,t*2.5);
+  }
  }
  for(let i=0;i<rings;i++)for(let j=0;j<sides;j++){const a=i*sides+j,b=i*sides+(j+1)%sides;indices.push(a,a+sides,b,b,a+sides,b+sides);}
- const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(vertices,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(indices);g.computeVertexNormals();return g;
+ const g=new T.BufferGeometry();g.name='SM_Hero_'+kind+'_FirstPersonSleeve';g.setAttribute('position',new T.Float32BufferAttribute(vertices,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();return g;
 }
 function hullGeometry(rings,directions){
  const p=[],index=[],edge=[[-.35,-.5],[.35,-.5],[.5,-.32],[.5,.32],[.35,.5],[-.35,.5],[-.5,.32],[-.5,-.32]];
@@ -225,11 +238,15 @@ export class FirstPersonView {
   this.grip=new T.Vector3(...(this.profile.grip||GRIP_POINTS[weaponId]||[0,0,0])).sub(this.center);this.root.add(this.weapon);
   const inferred=['shade','shadowblade','grimoire'].includes(weaponId)?'wraith':weaponId==='miasmalantern'?'mirage':weaponId==='sporelantern'?'wuling':weaponId==='boomerang'?'lingya':weaponId==='harpoon'?'tide':['crossbow','shuriken','dark'].includes(weaponId)?'silver':'scout';
   this.kind=hero.userData.kind||inferred;const palette=PALETTES[this.kind]||PALETTES.scout;
-  const hand=handGeometry(palette,['scout','lingya','tide','wuling'].includes(this.kind)),sleeve=sleeveGeometry(palette);this.ownedGeometry.push(hand,sleeve);
-  const cloth=new T.MeshStandardMaterial({vertexColors:true,roughness:.88,fog:false});this.materials.set(cloth,cloth);
+  const hand=handGeometry(palette,['scout','lingya','tide','wuling'].includes(this.kind)),sleeve=sleeveGeometry(palette,this.kind);this.ownedGeometry.push(hand,sleeve);
+  const cloth=new T.MeshStandardMaterial({vertexColors:true,roughness:.9,fog:false}),glove=new T.MeshStandardMaterial({vertexColors:true,roughness:.67,metalness:.015,fog:false});this.materials.set(cloth,cloth);this.materials.set(glove,glove);
+  // Share the real outfit's micro-surface without owning or recoloring its maps.
+  let sleeveSurface;hero.userData.model?.traverse(o=>{if(!sleeveSurface&&o.isMesh&&(/Sleeve/i.test(o.geometry.name)||o.userData.wildMistPart==='sleeves'))sleeveSurface=o.material;});
+  if(sleeveSurface){cloth.normalMap=sleeveSurface.normalMap;cloth.roughnessMap=sleeveSurface.roughnessMap;cloth.normalScale.copy(sleeveSurface.normalScale);cloth.roughness=sleeveSurface.roughness;}
+  cloth.name='MAT_Hero_'+this.kind+'_FirstPersonCloth';glove.name='MAT_Hero_'+this.kind+'_FirstPersonLeather';
   this.hands=[];this.arms=[];this.handPoints=[this.grip,new T.Vector3(...(this.profile.support||[-.20,-.07,.08])).sub(this.center)];
   for(let i=0;i<2;i++){
-   const mesh=new T.Mesh(hand,cloth);mesh.name=i?'First_person_support_hand':'First_person_grip_hand';this.root.add(mesh);this.hands.push(mesh);
+   const mesh=new T.Mesh(hand,glove);mesh.name=i?'First_person_support_hand':'First_person_grip_hand';this.root.add(mesh);this.hands.push(mesh);
    const arm=new T.Mesh(sleeve,cloth);arm.name=i?'First_person_left_sleeve':'First_person_right_sleeve';this.root.add(arm);this.arms.push(arm);
    for(const node of[mesh,arm]){node.layers.set(1);node.renderOrder=10000;node.frustumCulled=false;node.castShadow=node.receiveShadow=false;}
   }

@@ -1,0 +1,40 @@
+<!doctype html><meta charset="utf-8"><title>七位英雄全身重建检查</title>
+<style>body{background:#17262b;color:#e1e7e2;font:14px system-ui}canvas{max-width:100%;height:auto}pre{white-space:pre-wrap}a{color:#b6ddcf}</style>
+<h1>七位英雄 · 正面 / 背面行走 / 头肩细节</h1><p>相同镜头、相同光照。正式蒙皮、武器与动画；不读取玩家存档。</p>
+<p id="status">正在载入</p><a id="save-png">保存对照图</a> · <a id="save-overview">保存七人总览</a><div id="overview"></div><div id="sheet"></div><pre id="report"></pre>
+<script type="module">
+import * as T from '../vendor/three.module.js';
+import {actor,animateActor} from '../world.js?v=171';
+const source=await(await fetch('../world.js',{cache:'no-store'})).text(),entry=source.match(/from['"](.\/skinned-hero\.js[^'"]*)['"]/)[1];
+const {loadHeroAssets,disposeHero}=await import(new URL('../'+entry,location.href));
+const errors=[];addEventListener('error',e=>errors.push(e.message));addEventListener('unhandledrejection',e=>errors.push(String(e.reason)));
+const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}),scene=new T.Scene(),camera=new T.PerspectiveCamera(31,430/440,.02,80);
+renderer.setSize(430,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
+scene.background=new T.Color(0x34434a);scene.add(new T.HemisphereLight(0x9cabb9,0x394a3f,1.3));
+const sun=new T.DirectionalLight(0xffe0b5,3.4);sun.position.set(-8,14,10);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-4,right:4,top:4,bottom:-4});sun.shadow.normalBias=.012;scene.add(sun);
+const rim=new T.DirectionalLight(0x9dbbcf,.9);rim.position.set(4,7,-6);scene.add(rim);
+const floor=new T.Mesh(new T.PlaneGeometry(20,20),new T.MeshStandardMaterial({color:0x566254,roughness:1}));floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;floor.position.y=-.015;scene.add(floor);
+const kinds=[['游侠','scout','rifle'],['霜影','silver','crossbow'],['影裔','wraith','shadowblade'],['潮行者','tide','harpoon'],['铃芽','lingya','boomerang'],['雾苓','wuling','sporelantern'],['蜃影','mirage','miasmalantern']];
+const sheet=document.createElement('canvas');sheet.width=1290;sheet.height=kinds.length*470;document.querySelector('#sheet').append(sheet);const ctx=sheet.getContext('2d'),results=[];ctx.fillStyle='#17262b';ctx.fillRect(0,0,sheet.width,sheet.height);
+const overview=document.createElement('canvas');overview.width=1720;overview.height=940;document.querySelector('#overview').append(overview);const oc=overview.getContext('2d');oc.fillStyle='#17262b';oc.fillRect(0,0,1720,940);
+function frame(center,height,direction){camera.position.copy(center).add(new T.Vector3(...direction).normalize().multiplyScalar(height/(2*Math.tan(T.MathUtils.degToRad(camera.fov/2)))));camera.lookAt(center);camera.updateMatrixWorld(true);}
+await loadHeroAssets();
+for(const [row,[label,kind,weapon]]of kinds.entries()){
+ document.querySelector('#status').textContent='检查 '+label;
+ const model=actor(kind,weapon);scene.add(model);if(!model.userData.skinned)throw Error('Missing actual rig: '+kind);
+ for(const [column,view]of ['front','back','head'].entries()){
+  for(let f=0;f<100;f++){model.userData.travelAngle=0;model.userData.aimActive=false;animateActor(model,5+column*2+f/60,view==='back'?4:0,0);}
+  const head=model.userData.swimHead.getWorldPosition(new T.Vector3());
+  if(view==='head')frame(head.clone().add(new T.Vector3(0,.025,0)),.67,[.8,.3,5]);
+  else frame(new T.Vector3(0,kind==='lingya'?.71:1.03,0),kind==='lingya'?1.66:2.46,view==='back'?[2.3,1,-5]:[1.4,.7,5]);
+  renderer.render(scene,camera);ctx.drawImage(renderer.domElement,column*430,row*470);ctx.fillStyle='#e1e7e2';ctx.font='16px system-ui';ctx.fillText(label+' · '+['正面全身','背面行走','头肩细节'][column],column*430+12,row*470+463);
+  if(column===0){const x=row%4*430,y=Math.floor(row/4)*470;oc.drawImage(renderer.domElement,x,y);oc.fillStyle='#e1e7e2';oc.font='20px system-ui';oc.fillText(label,x+14,y+465);}
+  let finite=true;model.traverse(o=>{if(o.visible)finite&&=o.matrixWorld.elements.every(Number.isFinite);});
+  results.push({kind,view,pass:finite&&renderer.getContext().getError()===0&&renderer.info.programs.every(p=>p.diagnostics?.runnable!==false),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles});
+  await new Promise(r=>setTimeout(r,0));
+ }
+ scene.remove(model);disposeHero(model);
+}
+document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);document.querySelector('#status').textContent=results.every(r=>r.pass)&&!errors.length?'完成：七人 21 个结构与动画画面':'检查失败';const link=document.querySelector('#save-png');link.href=sheet.toDataURL('image/png');link.download='hero-rebuild-check.png';renderer.dispose();
+oc.fillStyle='#e1e7e2';oc.font='25px system-ui';oc.fillText('七位英雄 · 全身造型',1330,620);oc.font='18px system-ui';oc.fillText('游戏实际模型 · 同机位与光照',1330,663);oc.fillText('现有骨骼与招式继续兼容',1330,698);const overviewLink=document.querySelector('#save-overview');overviewLink.href=overview.toDataURL('image/png');overviewLink.download='seven-hero-overview.png';
+</script>

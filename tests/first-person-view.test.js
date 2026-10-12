@@ -14,6 +14,27 @@ import {HERO_LOADOUTS} from '../rules.js';
 function weapon(id){return ['shade','shadowblade','grimoire'].includes(id)?shadowFocus(id):id==='miasmalantern'?miasmaLantern():id==='sporelantern'?sporeLantern():id==='boomerang'?boneBoomerang():id==='harpoon'?makeHarpoon():makeHero(id==='crossbow'?'silver':'scout',id).userData.weapon;}
 const hero=gun=>({visible:false,userData:{gun}});
 
+test('first-person sleeves reuse the rebuilt cloth micro-surface without disposing its shared maps',()=>{
+ const view=new FirstPersonView(new T.PerspectiveCamera(70,16/9,.1,100)),model=hero(weapon('crossbow'));
+ const map=new T.Texture(),roughness=new T.Texture(),cloth=new T.MeshStandardMaterial({normalMap:map,roughnessMap:roughness,normalScale:new T.Vector2(.12,.12),roughness:.86});
+ const sleeve=new T.Mesh(new T.CylinderGeometry(.05,.07,.3),cloth);sleeve.geometry.name='SM_Hero_Silver_Sleeves';model.userData.model=new T.Group();model.userData.model.add(sleeve);let disposed=0;map.addEventListener('dispose',()=>disposed++);roughness.addEventListener('dispose',()=>disposed++);
+ view.setHero(model,'crossbow');assert.equal(view.arms[0].material.normalMap,map);assert.equal(view.arms[0].material.roughnessMap,roughness);assert.notEqual(view.arms[0].material,cloth);assert.equal(view.arms[0].material.normalScale.x,.12);
+ view.dispose();assert.equal(disposed,0);sleeve.geometry.dispose();cloth.dispose();map.dispose();roughness.dispose();
+});
+
+test('seven wardrobes have distinct sleeve cuts with unchanged elbow and wrist endpoints',()=>{
+ const view=new FirstPersonView(new T.PerspectiveCamera(70,16/9,.1,100)),shapes=new Set();
+ try{for(const [kind,id]of Object.entries({scout:'rifle',silver:'crossbow',wraith:'shadowblade',tide:'harpoon',lingya:'boomerang',wuling:'sporelantern',mirage:'miasmalantern'})){
+  const model=hero(weapon(id));model.userData.kind=kind;view.setHero(model,id);
+  const g=view.arms[0].geometry,p=g.attributes.position;shapes.add(Array.from(p.array).join(','));
+  assert(g.name.includes(kind));assert.equal(g.index.count/3,1280);
+  for(let i=0;i<p.count;i++){assert(Number.isFinite(p.getX(i)+p.getY(i)+p.getZ(i)));assert(p.getY(i)>=0&&p.getY(i)<=1);}
+  assert.notEqual(view.hands[0].material,view.arms[0].material,'leather and cloth share one highlight');
+  assert(view.hands[0].material.roughness<view.arms[0].material.roughness);
+ }}finally{view.dispose();}
+ assert.equal(shapes.size,7,'wardrobes differ only by tint');
+});
+
 test('idle scythe hooks down-left and leaves the central view clear on desktop and phone',()=>{
  const camera=new T.PerspectiveCamera(70,16/9,.1,100),view=new FirstPersonView(camera),ray=new T.Raycaster();ray.layers.set(1);
  try{

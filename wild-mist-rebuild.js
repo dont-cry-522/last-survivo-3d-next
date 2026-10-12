@@ -1,0 +1,152 @@
+import * as T from './vendor/three.module.js';
+import {smoothSeams} from './hero-finish.js';
+
+// Three authored wardrobes on the existing female rig. Vertices inherit the
+// nearby source garment's weights; no new bone, actor transform or grip exists.
+const palettes={
+ lingya:{cloth:0xd5c398,shade:0x9b835c,trim:0xe5d5b1,leaf:0x728773,leather:0x72513b,sole:0x493c2b},
+ wuling:{cloth:0x422951,shade:0x2f203c,trim:0x9b8460,leaf:0x644569,leather:0x392b36,sole:0x564734},
+ mirage:{cloth:0x291b37,shade:0x1a1527,trim:0x9682ad,leaf:0x55376b,leather:0x282331,sole:0x211e28}
+};
+const clamp=T.MathUtils.clamp,smooth=T.MathUtils.smoothstep;
+const finishes=new Map();
+function finishMaps(leather){
+ if(finishes.has(leather))return finishes.get(leather);
+ const size=128,normal=new Uint8Array(size*size*4),roughness=new Uint8Array(size*size*4),tau=Math.PI*2;
+ // Periodic height fields avoid a visible repeat seam. Normal and roughness
+ // maps are data, kept linear and shared by every template and live clone.
+ const height=(x,y)=>leather?Math.sin((x*9+y*13)*tau/size)*.035+Math.sin((x*23-y*17)*tau/size)*.017+Math.cos((x*31+y*29)*tau/size)*.009:
+  Math.cos(x*tau/8)*(.10+.025*Math.sin(y*tau/16))+Math.cos(y*tau/8)*(.075-.025*Math.sin(x*tau/16));
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  const k=(y*size+x)*4,dx=(height(x+1,y)-height(x-1,y))*2.5,dy=(height(x,y+1)-height(x,y-1))*2.5,length=Math.hypot(dx,dy,1);
+  normal[k]=Math.round((.5-dx/length*.5)*255);normal[k+1]=Math.round((.5-dy/length*.5)*255);normal[k+2]=Math.round((.5+.5/length)*255);normal[k+3]=255;
+  const r=Math.round(clamp((leather?.88:.94)+height(x,y)*.24,.75,1)*255);roughness[k]=roughness[k+1]=roughness[k+2]=r;roughness[k+3]=255;
+ }
+ const texture=data=>{const t=new T.DataTexture(data,size,size,T.RGBAFormat);t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(leather?5:8,leather?7:12);t.magFilter=T.LinearFilter;t.minFilter=T.LinearMipmapLinearFilter;t.generateMipmaps=true;t.needsUpdate=true;return t;};
+ const maps={normalMap:texture(normal),roughnessMap:texture(roughness)};finishes.set(leather,maps);return maps;
+}
+function sampler(mesh){
+ const a=mesh.geometry.attributes,used=new Set(mesh.geometry.index?.array??Array.from({length:a.position.count},(_,i)=>i));
+ const points=[...used].map(i=>[a.position.getX(i),a.position.getY(i),a.position.getZ(i),i]);
+ return(x,y,z)=>{
+  const near=[];
+  for(const p of points){const d=(x-p[0])**2+(y-p[1])**2+(z-p[2])**2;if(near.length<3||d<near[2][0]){near.push([d,p[3]]);near.sort((a,b)=>a[0]-b[0]);near.length=Math.min(3,near.length);}}
+  const weights=new Map();for(const [d,i]of near){const w=1/Math.max(1e-7,d);for(let j=0;j<4;j++){const bone=a.skinIndex.array[i*4+j],amount=a.skinWeight.array[i*4+j]*w;if(amount>0)weights.set(bone,(weights.get(bone)||0)+amount);}}
+  const best=[...weights].sort((a,b)=>b[1]-a[1]).slice(0,4),sum=best.reduce((n,p)=>n+p[1],0);while(best.length<4)best.push([0,0]);return[best.map(p=>p[0]),best.map(p=>p[1]/sum)];
+ };
+}
+function surface(source){
+ const p=[],uv=[],color=[],skinIndex=[],skinWeight=[],index=[],sample=sampler(source);
+ return{
+  binding:sample,
+  vertex(x,y,z,c,u=0,v=0,binding=null){const k=p.length/3,[bones,weights]=binding||sample(x,y,z),shade=new T.Color(c);p.push(x,y,z);uv.push(u,v);color.push(shade.r,shade.g,shade.b);skinIndex.push(...bones);skinWeight.push(...weights);return k;},
+  quad(a,b,c,d){index.push(a,b,c,b,d,c);},
+  triangle(a,b,c){index.push(a,b,c);},
+  build(){const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setAttribute('color',new T.Float32BufferAttribute(color,3));g.setAttribute('skinIndex',new T.Uint16BufferAttribute(skinIndex,4));g.setAttribute('skinWeight',new T.Float32BufferAttribute(skinWeight,4));g.setIndex(index);g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();return g;}
+ };
+}
+function grid(out,rows,cols,point){
+ const ids=[];for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++){const [x,y,z,c,binding]=point(i/cols,j/rows);ids.push(out.vertex(x,y,z,c,i/cols,j/rows,binding));}
+ for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){const a=j*(cols+1)+i;out.quad(ids[a],ids[a+cols+1],ids[a+1],ids[a+cols+2]);}
+}
+function rings(out,sections,point,sides=24,reverse=false){
+ const ids=[];for(let j=0;j<sections.length;j++)for(let i=0;i<=sides;i++)ids.push(out.vertex(...point(sections[j],i/sides*Math.PI*2,j),i/sides,j/(sections.length-1)));
+ for(let j=0;j<sections.length-1;j++)for(let i=0;i<sides;i++){const a=j*(sides+1)+i;if(reverse)out.quad(ids[a],ids[a+sides+1],ids[a+1],ids[a+sides+2]);else out.quad(ids[a],ids[a+1],ids[a+sides+1],ids[a+sides+2]);}
+ return ids;
+}
+function garmentMaterial(kind,part){
+ const leather=/boot|cuff/.test(part),material=new T.MeshStandardMaterial({name:'WildMist_'+kind+'_'+part,vertexColors:true,roughness:leather?.85:.98,metalness:0,side:T.DoubleSide,...finishMaps(leather),normalScale:new T.Vector2(leather?.18:.24,leather?.18:.24)});
+ material.onBeforeCompile=shader=>{
+  shader.vertexShader='varying vec3 tailoredPoint;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntailoredPoint=position;');
+  shader.fragmentShader='varying vec3 tailoredPoint;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+   float weaveFade=1.-smoothstep(.003,.014,max(length(dFdx(tailoredPoint)),length(dFdy(tailoredPoint))));
+   float weave=sin(tailoredPoint.y*540.)*sin((tailoredPoint.x+tailoredPoint.z)*470.);
+   diffuseColor.rgb*=1.+weave*.025*weaveFade;`);
+  shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+   roughnessFactor=max(roughnessFactor,${leather?'.68':'.86'});
+   ${part==='boots'?'roughnessFactor=mix(.98,roughnessFactor,smoothstep(.08,.15,tailoredPoint.y));':''}`);
+ };material.customProgramCacheKey=()=> 'wild-mist-tailored-'+(part==='boots'?'mud':leather?'leather':'cloth');return material;
+}
+function replace(mesh,geometry,kind,part){smoothSeams(geometry);mesh.geometry=geometry;mesh.material=garmentMaterial(kind,part);mesh.userData.wildMistPart=part;mesh.visible=true;mesh.castShadow=mesh.receiveShadow=true;}
+function torso(mesh,kind){
+ const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage';
+ const sections=child?[[.99,.181,.116],[1.075,.176,.122],[1.14,.150,.117],[1.23,.149,.126],[1.32,.176,.138],[1.39,.199,.132],[1.44,.187,.104],[1.475,.091,.077],[1.493,.070,.064]]:
+ mist?[[.925,.206,.124],[1.015,.182,.120],[1.11,.142,.103],[1.19,.126,.110],[1.27,.151,.135],[1.35,.179,.143],[1.405,.198,.121],[1.452,.174,.088],[1.48,.080,.060],[1.515,.064,.060]]:
+ [[.82,.219,.149],[.90,.211,.147],[1.015,.190,.135],[1.10,.165,.117],[1.18,.140,.110],[1.26,.158,.137],[1.35,.183,.144],[1.41,.201,.120],[1.463,.135,.079],[1.49,.074,.063]];
+ const shape=(y,a)=>{let j=0;while(j<sections.length-2&&y>sections[j+1][0])j++;const lo=sections[j],hi=sections[j+1],t=clamp((y-lo[0])/(hi[0]-lo[0]),0,1),rx=T.MathUtils.lerp(lo[1],hi[1],t),rz=T.MathUtils.lerp(lo[2],hi[2],t),hem=1-smooth(y,sections[0][0],1.15);
+  // Folds open below the tied waist and compress at the ribs; their small
+  // changing depth catches light without turning the whole coat into fluting.
+  const tension=Math.exp(-(((y-1.15)/.14)**2)),fold=(.0042*Math.sin(a*9+(y-1.1)*9)+.002*Math.sin(a*15-y*14))*tension+.004*Math.cos(a*(mist?6:10)+.4)*hem;
+  return[Math.sin(a)*(rx+fold),y+(mist?.045*Math.cos(a*3+.6)*hem:child?0:.025*Math.sin(a-.5)*hem),Math.cos(a)*(rz+fold)-.028];
+ };
+ const dense=[];for(let j=0;j<sections.length-1;j++)for(let step=0;step<3;step++)dense.push(sections[j][0]+(sections[j+1][0]-sections[j][0])*step/3);dense.push(sections.at(-1)[0]);
+ rings(out,dense,(y,a,j)=>[...shape(y,a),j===0||j===dense.length-1?p.trim:y>1.11&&y<1.165?p.shade:Math.abs(Math.sin(a))>.88?p.shade:p.cloth],32);
+ // Facing follows the exact same curved, folded body and uses its skin weights.
+ // Its folded edge sits only millimetres above the robe, including in a cast.
+ if(!child)grid(out,24,16,(u,v)=>{const y=(mist?1.425:1.405)-v*(mist?.38:.54),a=(u-.5)*(mist?1.00:1.46)+(mist?0:.14*(1-v)),base=shape(y,a),edge=Math.abs(u-.5)*2,offset=.0025+.0018*smooth(edge,.84,1);
+  return[base[0]+Math.sin(a)*offset,base[1],base[2]+Math.cos(a)*offset,u===0||u===1||v===1?p.trim:p.leaf,out.binding(...base)];
+ });
+ return out.build();
+}
+function sleeves(mesh,kind){
+ const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage';
+ for(const side of[-1,1]){
+  const profile=child?[[.148,.064],[.21,.086],[.28,.084],[.35,.067],[.405,.062],[.46,.066],[.53,.056],[.59,.049],[.63,.047]]:
+   mist?[[.148,.065],[.21,.069],[.30,.064],[.39,.060],[.45,.054],[.52,.056],[.585,.075],[.645,.066]]:
+   [[.148,.068],[.21,.077],[.30,.073],[.39,.065],[.45,.062],[.52,.070],[.58,.072],[.625,.064]];
+  const dense=[];for(let j=0;j<profile.length-1;j++)for(let step=0;step<2;step++)dense.push([T.MathUtils.lerp(profile[j][0],profile[j+1][0],step/2),T.MathUtils.lerp(profile[j][1],profile[j+1][1],step/2)]);dense.push(profile.at(-1));
+  rings(out,dense,([x,r],a,j)=>{const elbow=Math.exp(-(((x-.41)/.075)**2)),crease=(.0028*Math.sin((x-.35)*105+a*1.6)+.0012*Math.cos(a*5))*elbow,tip=mist?smooth(x,.53,.645)*.020*Math.cos(a):0;
+   return[side*(x+tip),1.415+Math.cos(a)*(r+crease),-.049+Math.sin(a)*(r+crease)*.90,j===dense.length-1||child&&j===10?p.trim:mist&&x>.52?p.leaf:p.cloth];
+  },20,side<0);
+ }
+ // Retain the authored glove/finger triangles exactly outside the new cuffs.
+ const g=mesh.geometry,a=g.attributes,ids=g.index?.array??Array.from({length:a.position.count},(_,i)=>i),copied=new Map();
+ for(let i=0;i<ids.length;i+=3){const tri=[ids[i],ids[i+1],ids[i+2]];if(Math.min(...tri.map(i=>Math.abs(a.position.getX(i))))<.625)continue;const mapped=tri.map(i=>{if(!copied.has(i))copied.set(i,out.vertex(a.position.getX(i),a.position.getY(i),a.position.getZ(i),p.leather,a.uv?.getX(i)||0,a.uv?.getY(i)||0,[a.skinIndex.array.slice(i*4,i*4+4),a.skinWeight.array.slice(i*4,i*4+4)]));return copied.get(i);});out.triangle(...mapped);}
+ return out.build();
+}
+function cuffs(mesh,kind){
+ const p=palettes[kind],out=surface(mesh),mist=kind==='mirage';
+ for(const side of[-1,1])rings(out,[[.49,.074],[.507,.077],[.535,.078],[.57,.077],[.597,.071],[.607,.069]],([x,r],a,j)=>[side*x,1.415+Math.cos(a)*r,-.049+Math.sin(a)*r*.95,j===0||j===5?p.trim:mist?p.leaf:p.leather],16,side<0);
+ return out.build();
+}
+function legs(mesh,kind){
+ const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage';
+ for(const side of[-1,1])rings(out,[[.24,.061,.065],[.36,.063,.068],[.47,.069,.074],[.57,.070,.076],[.66,.079,.081],[.76,.085,.090],[.87,.089,.095],[.97,.092,.096],[1.04,.084,.087]],([y,rx,rz],a)=>{
+  const cx=side*(.10+.025*smooth(y,.30,.97)),z=-.033+Math.cos(a)*rz,color=child?(y<.49?p.trim:y>.79?p.leaf:0xe4b391):mist?(Math.abs(Math.sin(a))>.8?p.leaf:p.shade):p.shade;
+  return[cx+Math.sin(a)*rx,y,z,color];
+ },20);
+ return out.build();
+}
+function boots(mesh,kind){
+ const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage',height=child?.28:mist?.60:.47;
+ for(const side of[-1,1]){const ids=rings(out,[[.004,.064,.105,.013],[.023,.073,.121,.014],[.043,.073,.121,.014],[.070,.070,.114,.012],[.112,.063,.089,-.018],[.16,.062,.075,-.030],[height-.038,mist?.079:.070,mist?.084:.076,-.033],[height-.023,mist?.081:.080,mist?.086:.086,-.033],[height,mist?.078:.079,mist?.083:.084,-.033]],([y,rx,rz,cz],a,j)=>{
+  const toe=Math.max(0,Math.cos(a)),x=side*(.10+.025*smooth(y,.30,.97))+Math.sin(a)*rx,z=cz+Math.cos(a)*rz+toe*.015*(1-smooth(y,.045,.13)),mud=!mist&&y<.105;
+  return[x,y,z,j<3||mud?p.sole:j>6?p.trim:p.leather];
+ },24);const sole=out.vertex(side*.10,.004,.013,p.sole);for(let i=0;i<24;i++)out.triangle(sole,ids[i+1],ids[i]);}
+ return out.build();
+}
+function hood(mesh,kind){
+ const p=palettes[kind],out=surface(mesh),child=kind==='lingya',center=child?1.610:1.630,rx=child?.153:.161,ry=child?.157:.175;
+ grid(out,14,32,(u,v)=>{const a=u*Math.PI*2,theta=.94+v*(Math.PI-.94),r=Math.sin(theta),edge=1-smooth(v,0,.11),fold=1+.018*Math.cos(a*8)*Math.sin(v*Math.PI);
+  return[Math.cos(a)*rx*r*fold,center+Math.sin(a)*ry*r, (child?-.043:-.050)+Math.cos(theta)*(child?.174:.186),edge>.3?p.trim:child?p.leaf:p.shade];
+ });return out.build();
+}
+function longHair(mesh){
+ const g=mesh.geometry.clone(),p=g.attributes.position;
+ for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),fall=1-smooth(y,1.08,1.64),rear=1-smooth(z,-.10,.025),side=smooth(Math.abs(x),.058,.10)*(1-smooth(y,1.62,1.70))*smooth(z,-.02,.07);
+  p.setXYZ(i,x*(1-.10*fall*rear),y-.058*side+.027*Math.cos(x*50)*fall**4*rear,z-.014*Math.sin(fall*Math.PI)*rear);
+ }g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();mesh.geometry=g;mesh.userData.wildMistPart='long-hair';mesh.castShadow=mesh.receiveShadow=true;
+}
+export function rebuildWildMist(root,kind){
+ if(!palettes[kind]||root.userData.wildMistRebuilt)return root;
+ const meshes=[];root.traverse(o=>{if(o.isSkinnedMesh)meshes.push(o);});
+ const find=ending=>meshes.find(o=>o.name.endsWith(ending));
+ const body=find('_Body'),arms=find('_Arms_1'),feet=find('_Feet'),cuff=find('_Arms_Bracer'),head=find('_Head_Hood');
+ if(!body||!arms||!feet||!cuff||!head)throw new Error('Wild/mist rebuild requires the complete female ranger template');
+ replace(body,torso(body,kind),kind,'robe');replace(arms,sleeves(arms,kind),kind,'sleeves');replace(cuff,cuffs(cuff,kind),kind,'cuffs');replace(feet,boots(feet,kind),kind,'boots');
+ const lower=kind==='lingya'?meshes.find(o=>o.name==='Superhero_Female'&&!o.material.name):find('_Legs');
+ if(!lower)throw new Error('Wild/mist rebuild requires weighted legs');replace(lower,legs(lower,kind),kind,'legs');
+ for(const m of meshes)if(/_Body_Belt_|Pauldrons/.test(m.name))m.visible=false;
+ if(kind==='mirage'){head.visible=false;for(const m of meshes)if(m.userData.mirageLongHair)longHair(m);}else replace(head,hood(head,kind),kind,'hood');
+ root.userData.wildMistRebuilt=kind;return root;
+}

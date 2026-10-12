@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
 import {smoothSeams,finishHeroSurface} from '../hero-finish.js';
 
+test('finishing preserves the reconstructed coastal metal and cloth surface parameters',()=>{
+ const root=new T.Group(),material=new T.MeshStandardMaterial({roughness:.52,metalness:.46});
+ material.name='MAT_Hero_Tide_Copper';const buckle=new T.Mesh(new T.SphereGeometry(.03),material);buckle.userData.rebuiltPart=true;root.add(buckle);
+ finishHeroSurface(root,'tide');assert.equal(buckle.material.roughness,.52);assert.equal(buckle.material.metalness,.46);assert.notEqual(buckle.material,material);
+});
+
 test('surface finishing preserves skin attributes, custom shaders and independent materials',()=>{
  const root=new T.Group(),geometry=new T.BoxGeometry(1,1,1),m=new T.MeshStandardMaterial({normalScale:new T.Vector2(.4,.4)});
  m.name='Superhero';const compile=()=>{},key=()=> 'custom-skin';m.onBeforeCompile=compile;m.customProgramCacheKey=key;

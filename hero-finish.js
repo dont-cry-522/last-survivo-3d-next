@@ -27,7 +27,7 @@ export function finishHeroSurface(root,kind){
    m.color.set(0xc4cbbb);m.roughness=.83;m.metalness=/Pauldron|Bracer/.test(o.name)?.20:.04;
   }
   if(kind==='guardian'&&/Body$|Pauldron|Bracer/.test(o.name)){m.metalness=.32;m.roughness=.64;}
-  if(kind==='tide'&&!skin&&!hair){m.roughness=.78;m.metalness=/Bracer|Belt/.test(o.name)?.18:.035;}
+  if(kind==='tide'&&!skin&&!hair&&!o.userData.rebuiltPart){m.roughness=.78;m.metalness=/Bracer|Belt/.test(o.name)?.18:.035;}
   if(kind==='lingya'&&!skin&&!hair){m.roughness=.90;m.metalness=.01;}
   if(garment){
    // Keep authored buckles metallic, while cloth and leather retain broad, soft highlights.

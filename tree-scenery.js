@@ -225,15 +225,27 @@ function broadFan(x,y,z,width,depth,height,phase){
  }
  const g=surface(vertices,indices);g.setAttribute('normal',new T.Float32BufferAttribute(normals,3));g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));g.setAttribute('treeLeafFlex',new T.Float32BufferAttribute(flex,1));return g;
 }
-function rootFlare(angle,snow){
- if(!snow){
-  const g=limb([[0,.34,0],[.20,.17,.055],[.46,.07,-.035],[.71,.025,.035]],[.17,.15,.070,.004],5),p=g.attributes.position;
-  for(let i=0;i<p.count;i++)p.setY(i,Math.max(.018,p.getY(i)*.8));
-  g.computeVertexNormals();g.rotateY(angle);return g;
+function rootedStem(stem,radii,snow,variant){
+ // One continuous bark surface rolls from buried, unequal roots into the stem.
+ // Reuse the old root triangle allowance for rounded rings, not separate fins.
+ const sides=snow?8:16,steps=snow?[0,.125,.25,.5,.75,1]:[0,.125,.25,.375,.5,.75,1];
+ const curve=new T.CatmullRomCurve3(stem.map(p=>new T.Vector3(...p))),up=new T.Vector3(0,1,0),q=new T.Quaternion(),v=new T.Vector3(),vertices=[],indices=[];
+ for(const t of steps){
+  const center=curve.getPoint(t),section=t*4,k=Math.min(3,Math.floor(section)),radius=T.MathUtils.lerp(radii[k],radii[k+1],section-k),flare=1-T.MathUtils.smoothstep(t,0,.36);
+  q.setFromUnitVectors(up,curve.getTangent(t));
+  for(let j=0;j<sides;j++){
+   const a=j/sides*Math.PI*2,turn=a-variant*.67+flare*.11;let root=0;
+   for(const [angle,reach]of[[0,1],[1.55,.78],[3.25,.90],[4.80,.68]])root=Math.max(root,Math.max(0,Math.cos(turn-angle))**10*reach);
+   const r=radius*(1+.045*Math.cos(a*3+t*1.6))+flare*(snow?.23:.20)*root;
+   v.set(Math.cos(a)*r,0,Math.sin(a)*r).applyQuaternion(q).add(center);if(t===0)v.y=-.042;vertices.push(v.x,v.y,v.z);
+  }
  }
-
- const reach=snow?.61:.74,width=snow?.12:.16,height=snow?.43:.55,vertices=[0,.04,-width,0,.04,width,reach,.025,width*.16,reach,.025,-width*.16,.13,height,0],indices=[0,1,4,0,4,3,3,4,2,2,4,1,0,2,1,0,3,2];
- const g=surface(vertices,indices);g.rotateY(angle);return g;
+ for(let i=0;i<steps.length-1;i++)for(let j=0;j<sides;j++){const a=i*sides+j,b=i*sides+(j+1)%sides;indices.push(a,a+sides,b,b,a+sides,b+sides);}
+ for(const end of[0,steps.length-1]){
+  const p=curve.getPoint(steps[end]),center=vertices.length/3;vertices.push(p.x,end?p.y:-.042,p.z);
+  for(let j=0;j<sides;j++){const a=end*sides+j,b=end*sides+(j+1)%sides;indices.push(...(end?[center,b,a]:[center,a,b]));}
+ }
+ return surface(vertices,indices);
 }
 function firFan(angle,height,reach,width,variant,level){
  // Overlapping needle wings carry a scalloped snow ridge. Close LODs include
@@ -292,11 +304,10 @@ function firCrown(variant,level){
 function treeTemplate(id,variant){
  const key=id+variant;if(templates.has(key))return templates.get(key);const snow=id==='snow',wood=snow?0x687675:0x665b43;
  const trunkHeight=5,lean=(variant-1)*.16;
- // The root and first two rings stay unchanged; mature trunks develop their
- // different lean above walking height instead of scaling the whole tree wider.
+ // Keep the established stem curve and forks; only its surface and lower root
+ // transition change. Habitat stretching can still follow the same crown joins.
  const stem=[[0,0,0],[.05,.42,-.015],[lean-.16,1.65,.085],snow?[lean*.6+.10,3.35,-.075]:[[.05,3.35,-.16],[.20,3.35,.10],[-.08,3.35,.23]][variant],snow?[lean-.04,5,.09]:[[-.25,5,.22],[.46,5,-.05],[-.48,5,.38]][variant]];
- const branches=[tint(limb(stem,snow?[.35,.25,.18,.10,.035]:[.49,.31,.285,.19,.07],8),wood)];
- for(let i=0;i<4;i++)branches.push(tint(rootFlare(i*Math.PI*.5+variant*.67,snow),wood));
+ const branches=[tint(rootedStem(stem,snow?[.35,.25,.18,.10,.035]:[.49,.31,.285,.19,.07],snow,variant),wood)];
  if(snow)for(let i=0;i<3;i++){
   const a=i*2.15+variant*.71,cos=Math.cos(a),sin=Math.sin(a),start=snow?2.8+i*.42:1.88+i*.48,reach=snow?.62:1.18-(i%2)*.12,tip=snow?start+.65:3.64+i*.31;
   branches.push(tint(limb([[lean*.7,start,0],[cos*reach*.38,start+.48,sin*reach*.30],[cos*reach*.78,tip-.12,sin*reach*.74],[cos*reach,tip,sin*reach]],snow?[.09,.052,.018]:[.19-i*.018,.105,.017],snow?4:6),wood));

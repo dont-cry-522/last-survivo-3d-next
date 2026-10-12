@@ -5,13 +5,13 @@ import * as T from '../vendor/three.module.js';
 import {buildWorld} from '../world.js';
 import {installForestVista} from '../forest-vista.js';
 import {installForestHabitats} from '../forest-habitats.js';
-import {installBiomePlaces} from '../biome-places.js?v=168';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=168';
+import {installBiomePlaces} from '../biome-places.js?v=169';
+import {installEnvironmentClusters} from '../environment-clusters.js?v=169';
 import {installExplorationRoutes} from '../exploration-routes.js';
 import {bridgeContains} from '../coast.js';
 import {waterDepth} from '../water.js';
 import {segmentDistance} from '../rules.js';
-import {naturalRockGeometry} from '../biome-scenery.js?v=156';
+import {naturalRockGeometry} from '../biome-scenery.js?v=169';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const maps=['forest','snow','ash','sand','coast','confluence'];

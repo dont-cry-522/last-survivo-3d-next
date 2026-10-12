@@ -1,16 +1,32 @@
 import{test}from'node:test';import assert from'node:assert/strict';import * as T from'../vendor/three.module.js';
 import{buildWorld,clearAt,animateWorld}from'../world.js';import{sceneryAllowed}from'../biome-scenery.js';
 import{bridgeContains,updateTide}from'../coast.js';import{waterDepth}from'../water.js';
-import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=156';
+import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=169';
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
 function dispose(w){w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});}
-test('worn rocks reuse a bounded smooth mesh and preserve placed obstacle transforms',()=>{
+test('jointed rocks retain heights, inward footprints, broad faces and shared material budgets',()=>{
  const source=new T.MeshStandardMaterial({color:0x867863}),a=new T.Mesh(new T.DodecahedronGeometry(.7,0),source),b=a.clone();a.position.set(3,.3,-2);a.scale.set(1,.8,1);
  finishRock(a);finishRock(b);assert.strictEqual(a.geometry,boulderRockGeometry);assert.strictEqual(a.material,b.material);assert.notStrictEqual(a.material,source);assert(!source.vertexColors);assert(a.material.vertexColors);
  assert.deepEqual(a.position.toArray(),[3,.3,-2]);assert(Math.abs(a.scale.y-.56)<1e-8);const scale=a.scale.clone();finishRock(a);assert(a.scale.equals(scale),'finishing a rock twice changes its footprint');
  assert(naturalRockGeometry.index.count/3<=120,'tiny instanced scree must retain its budget');assert(boulderRockGeometry.index.count/3<=480);const p=boulderRockGeometry.attributes.position,n=boulderRockGeometry.attributes.normal,radii=[];
  for(let i=0;i<p.count;i++){const v=new T.Vector3().fromBufferAttribute(n,i);assert(Math.abs(v.length()-1)<1e-5,'rock normal is invalid');radii.push(new T.Vector3().fromBufferAttribute(p,i).length());}
  assert(Math.max(...radii)-Math.min(...radii)>.15,'rock lost its worn silhouette');assert(Math.max(...radii)<1.2);
+ for(const [geometry,width,height]of[[naturalRockGeometry,10,7],[boulderRockGeometry,20,13]]){
+  const old=new T.SphereGeometry(1,width,height),source=old.attributes.position,p=geometry.attributes.position,faces=new Map(),a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();let cuts=0;
+  assert.equal(p.count,source.count);assert.equal(geometry.index.count,old.index.count);assert.equal(geometry.attributes.color.count,p.count);assert.equal(geometry.attributes.uv.count,p.count);
+  for(let i=0;i<p.count;i++){
+   const x=source.getX(i),y=source.getY(i),z=source.getZ(i),wear=1+Math.sin(x*3.6+z*2.2+y)*.105+Math.sin(z*4.3-y*2.6)*.065;
+   const ox=Math.fround(x*wear*(1-y*.08)+y*.09),oy=Math.fround(Math.max(-.73,y*wear*.91)),oz=Math.fround(z*wear*(1+y*.08)),before=Math.hypot(ox,oz),after=Math.hypot(p.getX(i),p.getZ(i));
+   assert.equal(p.getY(i),oy,'joint faces changed a support height or the buried underside');assert(after<=before+1e-7&&after>=before*.70,'joint faces escaped or excessively shrank the old envelope');
+   assert(Math.abs(ox*p.getZ(i)-oz*p.getX(i))<1e-7,'side carving moved a stone tangentially');if(before-after>.01)cuts++;
+  }
+  assert(cuts>p.count*.18&&cuts<p.count*.45,'broad fractures disappeared or consumed the whole rounded mass');
+  for(let i=0;i<geometry.index.count;i+=3){
+   a.fromBufferAttribute(p,geometry.index.getX(i));b.fromBufferAttribute(p,geometry.index.getX(i+1)).sub(a);c.fromBufferAttribute(p,geometry.index.getX(i+2)).sub(a);b.cross(c);const area=b.length()*.5;if(area<1e-6)continue;b.normalize();if(Math.abs(b.y)>.75)continue;
+   const key=b.toArray().map(v=>v.toFixed(4)).join(',');faces.set(key,(faces.get(key)||0)+area);
+  }
+  assert([...faces.values()].filter(area=>area>.20).length>=3,'stone sides reverted to small curved facets instead of broad joint planes');old.dispose();
+ }
 });
 test('all ground finishes share one filtered detail texture without changing terrain height',()=>{
  let texture;for(const id of['forest','snow','ash','sand','coast','confluence']){

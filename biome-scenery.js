@@ -4,13 +4,24 @@ import{MAP_HALF}from'./map-layout.js?v=114';
 import{bridgeContains}from'./coast.js?v=114';
 import{seeded}from'./rules.js?v=125';
 import{surfaceUniforms}from'./surface-textures.js?v=120';
-// One worn silhouette is shared by boulders, bank stones and instanced scree.
+// One jointed silhouette is shared by boulders, bank stones and instanced scree.
 function rockGeometry(width=10,height=7){
- const g=new T.SphereGeometry(1,width,height),p=g.attributes.position,colors=[];
+ const g=new T.SphereGeometry(1,width,height),p=g.attributes.position,colors=[],planes=[[1,.18,1,1.16],[-1,.18,.78,1.02],[-.8,-.12,-1,1.04],[1,.30,-.78,1.07]];
  for(let i=0;i<p.count;i++){
   const x=p.getX(i),y=p.getY(i),z=p.getZ(i),wear=1+Math.sin(x*3.6+z*2.2+y)*.105+Math.sin(z*4.3-y*2.6)*.065;
   p.setXYZ(i,x*wear*(1-y*.08)+y*.09,Math.max(-.73,y*wear*.91),z*wear*(1+y*.08));
   const mineral=.88+Math.sin(y*11+x*3+z*2)*.045+Math.max(0,y)*.10;colors.push(mineral*1.025,mineral,mineral*.965);
+ }
+ // Slanted joint faces cut into the old mass; narrow rounded transitions wear
+ // their edges. Every height stays exact, including buried bases and top support.
+ for(let i=0;i<p.count;i++){
+  const x=p.getX(i),y=p.getY(i),z=p.getZ(i);let scale=1;
+  for(const[nx,ny,nz,d]of planes){
+   const across=x*nx+z*nz;if(across<=0)continue;
+   const cut=(d-y*ny)/across,edge=Math.max(0,.035-Math.abs(scale-cut))/.035;
+   scale=Math.min(scale,cut)-edge*edge*.00875;
+  }
+  p.setXYZ(i,x*scale,y,z*scale);
  }
  g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.computeVertexNormals();
  // Average the duplicated seam and pole normals without splitting material groups.

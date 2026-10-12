@@ -104,8 +104,8 @@ test('tree variants have outward foliage, curved tapering forks and visible bran
    if(id==='snow')assert(outward>0,'foliage normals face inward');
    assert([...trunk.attributes.position.array,...p.array,...n.array].every(Number.isFinite));
    const stem=trunk.attributes.position;
-   const center=ring=>Array.from({length:8},(_,i)=>stem.getX(ring*8+i)).reduce((a,b)=>a+b,0)/8;
-   assert(Math.abs(center(2)-(center(0)+center(4))/2)>.005,'main trunk reverted to a straight rod');
+   const sides=id==='snow'?8:16,center=ring=>Array.from({length:sides},(_,i)=>stem.getX(ring*sides+i)).reduce((a,b)=>a+b,0)/sides;
+   assert(Math.abs(center(id==='snow'?3:4)-(center(0)+center(id==='snow'?5:6))/2)>.005,'main trunk reverted to a straight rod');
    if(id==='snow'){
     // Snow uses geometric gaps; forest alpha-cut gaps are sampled separately below.
     const leaf=g.children[1];g.updateMatrixWorld(true);const y=leaf.position.y+(id==='snow'?1.40:leaf.geometry.boundingBox.max.y*.16)*leaf.scale.y,hits=[];
@@ -135,18 +135,17 @@ test('every terminal forest twig follows its uneven leaf cluster in all three te
 test('mature forest forks support middle and outer lobes with sculpted roots inside their existing footprint',()=>{
  const centroids=[];
  for(const [variant,angle]of[0,1,1.5].entries()){
-  const root=new T.Group(),leaf=addTree(root,'forest',4,{angle}),trunk=root.children[0],p=trunk.geometry.attributes.position,center=new T.Vector3(),ends=[new T.Vector3().fromBufferAttribute(p,41)],stem=[];
-  assert.equal(trunk.geometry.index.count/3,744,'supporting middle lobes exceeded the trunk budget');
-  let shoulder=0;for(let i=42;i<130;i++){assert(Math.hypot(p.getX(i),p.getZ(i))<.75,'roots moved outside their existing collision footprint');assert(p.getY(i)>=.017&&p.getY(i)<.4);shoulder=Math.max(shoulder,p.getY(i));}assert(shoulder>.28,'root buttresses collapsed into flat arrows');
-  for(let ring=0;ring<5;ring++){center.set(0,0,0);for(let i=0;i<8;i++)center.add(new T.Vector3().fromBufferAttribute(p,ring*8+i));stem.push(center.clone().multiplyScalar(1/8));}
+  const root=new T.Group(),leaf=addTree(root,'forest',4,{angle}),trunk=root.children[0],p=trunk.geometry.attributes.position,stemCount=p.count-4*20-20*11,center=new T.Vector3(),ends=[new T.Vector3().fromBufferAttribute(p,stemCount-1)],stem=[];
+  assert.equal(trunk.geometry.index.count/3,728,'continuous roots exceeded their replacement triangle budget');
+  for(const ring of[0,2,4,5,6]){center.set(0,0,0);for(let i=0;i<16;i++)center.add(new T.Vector3().fromBufferAttribute(p,ring*16+i));stem.push(center.clone().multiplyScalar(1/16));}
   for(let branch=0;branch<4;branch++){
-   const base=new T.Vector3().fromBufferAttribute(p,130+branch*20+18),near=new T.Vector3();let gap=Infinity;
+   const base=new T.Vector3().fromBufferAttribute(p,stemCount+branch*20+18),near=new T.Vector3();let gap=Infinity;
    for(let i=0;i<4;i++){new T.Line3(stem[i],stem[i+1]).closestPointToPoint(base,true,near);gap=Math.min(gap,near.distanceTo(base));}
-   assert(gap<.16,'primary fork floats away from its supporting trunk');ends.push(new T.Vector3().fromBufferAttribute(p,130+branch*20+19));
+   assert(gap<.16,'primary fork floats away from its supporting trunk');ends.push(new T.Vector3().fromBufferAttribute(p,stemCount+branch*20+19));
   }
   const counts=new Map();
   for(let twig=0;twig<20;twig++){
-   const base=new T.Vector3().fromBufferAttribute(p,210+twig*11+9),distances=ends.map(e=>e.distanceTo(base)),nearest=Math.min(...distances),branch=distances.indexOf(nearest);
+   const base=new T.Vector3().fromBufferAttribute(p,stemCount+80+twig*11+9),distances=ends.map(e=>e.distanceTo(base)),nearest=Math.min(...distances),branch=distances.indexOf(nearest);
    assert(nearest<1e-6,'terminal twig starts in empty space');counts.set(branch,(counts.get(branch)||0)+1);
   }
   assert.equal(counts.size,5);assert(new Set([...counts.values()]).size>=3,'all forks regained the same three-leaf rhythm');
@@ -157,10 +156,31 @@ test('mature forest forks support middle and outer lobes with sculpted roots ins
  assert(Math.max(...centroids)-Math.min(...centroids)>.25,'three tree silhouettes differ only by rotation');
 });
 
-test('forest reshaping leaves all snow trunk vertices unchanged',()=>{
- const hashes=['2789106696da13518e711f0c077aa7a08c1d0bcc3682d4fa4fdafc74f1dc4b2d','3f7345fa86477ee4edaf4d2700e8cd8d7fb74872825cbe36e820ae20a3345e8d','78c3c591631af37252fccb4bedeea8e1a918d3e3db8fd4685fc0b693cefa9656'];
- for(const [i,angle]of[0,1,1.5].entries()){
-  const root=new T.Group();addTree(root,'snow',4,{angle});assert.equal(createHash('sha256').update(Buffer.from(root.children[0].geometry.attributes.position.array.buffer)).digest('hex'),hashes[i]);
+test('continuous roots preserve the existing forest and snow forks and twig endpoints exactly',()=>{
+ const hashes={forest:['afeed8264ba7e47e7167a4a7e20bd7174a899ff6be6d85e382a347b758714007','1902bc03190ae9c4ffff9e427ea6d4654fbdef4db23aa858653ccb7d52301c5e','d0ded63591c1ebe9c5c4ce4231f2047fcdfe80e02dfda75696c5d983cef61c90'],snow:['d38c9e3ed0fbd71711614ff06426af1f8054ff44f4718df4203d0e57fbb503cc','ff356c128770e2610978d1f9f3f2ed34df69b3107d409d6d3771a9a0708053eb','23b6607c1a2b90da9cc0344e05205f72bdcad38018ce2da901ad53ea868b2baa']};
+ for(const id of['forest','snow'])for(const [i,angle]of[0,1,1.5].entries()){
+  const root=new T.Group();addTree(root,id,4,{angle});const positions=root.children[0].geometry.attributes.position.array,branches=positions.slice(-(id==='snow'?42:300)*3);
+  assert.equal(createHash('sha256').update(Buffer.from(branches.buffer)).digest('hex'),hashes[id][i],'root replacement moved a canopy attachment');
+ }
+});
+
+test('forest and snow roots are one closed tapered stem with buried uneven lobes and no overlapping pieces',()=>{
+ for(const id of['forest','snow'])for(const angle of[0,1,1.5]){
+  const root=new T.Group();addTree(root,id,4,{angle});const g=root.children[0].geometry,p=g.attributes.position,n=g.attributes.normal,snow=id==='snow',sides=snow?8:16,stemCount=p.count-(snow?42:300),edges=new Map(),neighbors=Array.from({length:stemCount},()=>new Set()),radii=[];
+  assert.equal(g.index.count/3,snow?168:728);assert.equal(root.children.length,2);
+  for(let i=0;i<g.index.count;i+=3){
+   const ids=[g.index.getX(i),g.index.getX(i+1),g.index.getX(i+2)];if(ids.some(v=>v>=stemCount))continue;
+   for(let j=0;j<3;j++){const a=ids[j],b=ids[(j+1)%3],key=a<b?a+':'+b:b+':'+a;edges.set(key,(edges.get(key)||0)+1);neighbors[a].add(b);neighbors[b].add(a);}
+  }
+  assert([...edges.values()].every(count=>count===2),'root/stem surface has a seam or an uncapped end');
+  const reached=new Set([0]),pending=[0];while(pending.length)for(const next of neighbors[pending.pop()])if(!reached.has(next)){reached.add(next);pending.push(next);}assert.equal(reached.size,stemCount,'roots are still separate pasted pieces');
+  for(let i=0;i<stemCount;i++)if(p.getY(i)<.7)assert(Math.hypot(p.getX(i),p.getZ(i))<(snow?.61:.75),'root exceeds its existing ground footprint');
+  for(let i=0;i<sides;i++){
+   assert(Math.abs(p.getY(i)+.042)<1e-7,'root perimeter floats above the soil');radii.push(Math.hypot(p.getX(i),p.getZ(i)));
+   const lower=Math.hypot(p.getX(sides+i),p.getZ(sides+i)),upper=Math.hypot(p.getX(2*sides+i),p.getZ(2*sides+i));assert(lower>upper,'root shoulder does not taper into the trunk');
+   const a=new T.Vector3().fromBufferAttribute(n,sides+i),b=new T.Vector3().fromBufferAttribute(n,sides+(i+1)%sides);assert(a.dot(b)>(snow?.5:.7),'adjacent bark normals form a sharp pasted fin');
+  }
+  assert(Math.max(...radii)-Math.min(...radii)>.12,'root base became a circular skirt');
  }
 });
 

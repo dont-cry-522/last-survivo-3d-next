@@ -2,8 +2,9 @@
 import * as T from '../vendor/three.module.js';
 import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=157';
 import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=125';
-import {terrainAt,waterDepth} from '../water.js?v=168';
+import {terrainAt,waterDepth} from '../water.js?v=169';
 import {updateTide} from '../coast.js?v=114';
+import {biomeWeights} from '../confluence.js?v=169';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
 const previewHero=document.createElement('select'),previewWeapon=document.createElement('select'),sourceDocument=new DOMParser().parseFromString(html,'text/html');
@@ -27,6 +28,9 @@ async function load(mobile=false,width=1180,height=720){
  window.requestAnimationFrame=cb=>{window.qaFrame=cb;return 0};
  const data=new Map();Object.defineProperty(window,'localStorage',{value:{getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,String(v)),removeItem:k=>data.delete(k)}});
  const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
+ // LOD generation must run in this renderer's realm: geometry merges compare
+ // typed-array constructors, and WebGL uploads use instanceof checks.
+ window.qaWorldReady=import('./world.js?v=169').then(module=>{window.qaAnimateWorld=module.animateWorld;});
  <\/script>`;
  frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
  for(let i=0;i<600&&!win.game3d;i++)await sleep(50);assert(win.game3d,'加载超时 '+(win.qaErrors||[]).join(' / '));g=win.game3d;assert(await g.surfaceReady,'本地土石材质未全部加载');g.audio.init=async()=>true;const render=g.renderer.render.bind(g.renderer);g.renderer.render=(scene,camera)=>{if(scene!==g.hero.parent)return render(scene,camera);win.qaCamera=camera;if(g.state==='menu'&&win.document.querySelector('#preview-detail').getAttribute('aria-pressed')!=='true'){
@@ -34,7 +38,7 @@ async function load(mobile=false,width=1180,height=720){
  for(const x of[box.min.x,box.max.x])for(const y of[box.min.y,box.max.y])for(const z of[box.min.z,box.max.z]){const v=new T.Vector3(x,y,z).project(camera),px=(v.x+1)*win.innerWidth/2,py=(1-v.y)*win.innerHeight/2;max=Math.max(max,Math.abs((px-rect.left)/rect.width*2-1),Math.abs((py-rect.top)/rect.height*2-1));}win.qaFraming=max;
  }return render(scene,camera);};
  if(mobile){const s=win.document.createElement('style');s.textContent=css.replaceAll(/\(pointer:\s*coarse\)/g,'(min-width:0px)');win.document.head.append(s);}
- now=win.performance.now();step(2);
+ await win.qaWorldReady;now=win.performance.now();step(2);
 }
 function reportFrame(){const r=g.renderer;assert(!win.qaErrors.length,win.qaErrors.join('\n'));assert(r.info.programs.every(p=>p.diagnostics?.runnable!==false),'GPU 着色器未通过');assert(r.getContext().getError()===0,'WebGL 错误');return{calls:r.info.render.calls,triangles:r.info.render.triangles,geometries:r.info.memory.geometries,textures:r.info.memory.textures,pixels:r.domElement.width*r.domElement.height};}
 
@@ -412,8 +416,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=168');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=168');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=169');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=169');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -991,6 +995,63 @@ referenceButton.onclick=async()=>{
   publish();$('#status').textContent='A 参考林径：'+results.filter(r=>r.pass).length+'/'+results.length+' · 种子 '+seed+'；同一真实布局，晨光/月夜与双视角。可保存对照图和 JSON。';
  }catch(e){errors.push(e.message);publish();$('#status').textContent='A 参考检查中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
 };
+const modelMaterialButton=document.createElement('button');modelMaterialButton.id='model-material-run';modelMaterialButton.textContent='树根与岩石实景近看';$('#capture').before(modelMaterialButton);
+function modelMaterialCandidates(kind,biome){
+ const world=g.world,candidates=[];
+ if(kind==='cluster'){
+  // These are the existing template placements, not centers computed from the
+  // edited geometry. Identical seeds therefore keep before/after camera points.
+  const local={forest:[-.42,.30,.27],snow:[.55,.36*.87,-.31],ash:[-.51,.51*1.02,.05]}[biome];
+  for(const [index,r]of world.environmentClusters.records.entries())if(r.biome===biome){const [x,y,z]=local,c=Math.cos(r.angle),s=Math.sin(r.angle);candidates.push({id:'cluster:'+index,source:'SM_Cluster_'+biome+'_'+r.variant,obstacle:r.obstacle,target:{x:r.x+(x*c+z*s)*r.scale,y:y*r.scale,z:r.z+(-x*s+z*c)*r.scale},placement:{x:r.x,z:r.z,angle:r.angle,scale:r.scale,variant:r.variant}});}
+ }else for(const [index,o]of world.obstacles.entries()){
+  if(world.breakables?.includes(o)||o.environmentCluster||o.mesh?.userData.forestVistaTrunk)continue;
+  if(kind==='root'){
+   const trunk=o.mesh?.getObjectByName('tree-trunk');if(o.mesh?.userData.treeBiome!==biome||!trunk?.visible)continue;
+   candidates.push({id:'obstacle:'+index,source:'tree-trunk',obstacle:o,mesh:trunk,target:{x:o.x,y:terrainFloor(o.x,o.z)+.48,z:o.z},placement:{x:o.x,z:o.z,angle:o.mesh.rotation.y}});
+  }else{
+   let rock;o.mesh?.traverse(m=>{const p=m.geometry?.parameters;if(!rock&&p?.widthSegments===20&&p?.heightSegments===13&&m.scale.x>=.6)rock=m;});if(!rock)continue;
+   const target=rock.getWorldPosition(new T.Vector3());candidates.push({id:'obstacle:'+index,source:'polished-boulder',obstacle:o,mesh:rock,target:{x:target.x,y:target.y,z:target.z},placement:{x:o.x,z:o.z,angle:o.mesh.rotation.y}});
+  }
+ }
+ return candidates.sort((a,b)=>Math.hypot(a.target.x-world.spawn.x,a.target.z-world.spawn.z)-Math.hypot(b.target.x-world.spawn.x,b.target.z-world.spawn.z));
+}
+function modelMaterialView(kind,biome){
+ const world=g.world,sunAngle=biome==='forest'?Math.atan2(-Math.cos(.9),.46):Math.atan2(-18,14);
+ for(const candidate of modelMaterialCandidates(kind,biome))for(const turn of[.45,-.45,0,.8,-.8,1.2,-1.2,1.8,-1.8,Math.PI])for(const distance of[2.6,3.2,3.8,4]){
+  const angle=sunAngle+turn,s=Math.sin(angle),c=Math.cos(angle),target=candidate.target,x=target.x+s*distance,z=target.z+c*distance,h=terrainFloor(x,z);
+  if(!terrainStandClear(x,z))continue;
+  // Keep the actor and the full production shoulder/boom outside existing
+  // solids. Do not hide foliage, shrink colliders, or move the target asset.
+  if([0,1,2,3,4,5,6].some(d=>!sceneryStandClear(x+s*d+c*.5,z+c*d-s*.5,.5)))continue;
+  if(world.obstacles.some(o=>{if(o===candidate.obstacle)return false;const t=((o.x-x)*-s+(o.z-z)*-c)/distance;if(t<=0||t>=1)return false;const y=h+g.player.standHeight-.13+(target.y-h-g.player.standHeight+.13)*t;return o.height>y-.15&&Math.hypot(o.x-x+s*distance*t,o.z-z+c*distance*t)<o.r+.18;}))continue;
+  return{...candidate,stand:{x,y:h,z,yaw:angle+Math.PI},distance,sunAngle,turn,fromSpawn:Math.hypot(x-world.spawn.x,z-world.spawn.z)};
+ }
+ throw Error(biome+' '+kind+' 没有 2.6–4 米内的真实安全双视角站位；未清除场景');
+}
+modelMaterialButton.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;for(const id of['model-material-contact','model-material-save-png','model-material-save-json'])$('#'+id)?.remove();
+ const sheet=document.createElement('canvas'),cw=590,ch=390;sheet.id='model-material-contact';sheet.width=cw*2;sheet.height=ch*8;sheet.style.cssText='display:block;max-width:100%;height:auto;margin:16px 0';sheet.setAttribute('aria-label','八处真实树根与岩石：左第一人称近看，右第三人称环境');$('#report').before(sheet);const paint=sheet.getContext('2d');paint.fillStyle='#17272b';paint.fillRect(0,0,sheet.width,sheet.height);
+ const targets=[['forest','root','forest','林地树根'],['forest','cluster','forest','林地碎石'],['snow','root','snow','雪地树根'],['snow','cluster','snow','雪地岩石'],['ash','rock','ash','赤烬岩石'],['sand','rock','sand','沙地岩石'],['coast','rock','coast','海岸岩石'],['confluence','root','forest','五境林地树根']],plan=[];
+ try{
+  if(!g)await load();let map;
+  for(const [row,[mapId,kind,biome,label]]of targets.entries()){
+   if(map!==mapId){select('silver',0,mapId);g.pause();map=mapId;}
+   g.world.group.updateMatrixWorld(true);const view=modelMaterialView(kind,biome),world=g.world,ground=world.ground.geometry,obstacles=world.obstacles,ponds=world.ponds,fixed=JSON.stringify(obstacles.map(o=>[o.x,o.z,o.r,o.height])),rewards=JSON.stringify(world.sites.map(s=>[s.claimed,s.completed,s.availableAt]));
+   const {obstacle,mesh,...record}=view;plan.push({map:mapId,biome,kind,label,...record});
+   for(const [column,mode]of['first','third'].entries())await check(label+' · '+mode,()=>{
+    g.setView(mode);putTerrainPlayer(view.stand.x,view.stand.z,view.stand.yaw);const height=(g.player.standHeight-.13)*(mode==='first'?1:.84);g.adventureCamera.pitch=Math.atan2(view.target.y-view.stand.y-height,view.distance);win.qaAnimateWorld(world,g.time,g.player.x,g.player.z);g.environmentLighting.timeOffset=-g.time;g.environmentLighting.update(mapId,world.regions?biomeWeights(view.stand.x,view.stand.z):null,0,g.time);g.renderer.shadowMap.needsUpdate=true;step(1,0);
+    const stats=reportFrame(),light=g.environmentLighting,projected=new T.Vector3(view.target.x,view.target.y,view.target.z).project(g.camera),geometry=mesh?.geometry;
+    assert(sceneryStandClear(g.player.x,g.player.z,.65),'模型检查人物进入实体或水域');assert(Math.abs(g.player.y-terrainFloor(g.player.x,g.player.z))<1e-6&&g.camera.position.y>=terrainFloor(g.camera.position.x,g.camera.position.z)+.349,'模型检查人物或镜头没有贴合地形');if(mode==='third')assert(g.camera.position.distanceTo(g.adventureCamera._target)>3.8,'模型检查第三人称被真实障碍压回');assert(Math.abs(projected.x)<.8&&Math.abs(projected.y)<.8&&projected.z<1,'真实目标不在取景框内');
+    assert(g.world===world&&world.ground.geometry===ground&&world.obstacles===obstacles&&world.ponds===ponds&&JSON.stringify(obstacles.map(o=>[o.x,o.z,o.r,o.height]))===fixed,'模型检查修改了实际场景');assert(JSON.stringify(world.sites.map(s=>[s.claimed,s.completed,s.availableAt]))===rewards,'模型检查触发了地点奖励');assert(stats.calls<2000&&stats.textures<64&&stats.pixels<=3200000,'模型检查超出绘制、纹理或像素预算');assert(light.sun.castShadow&&light.sun.shadow.map&&world.ground.receiveShadow,'模型检查缺少生产阴影');
+    const x=column*cw,y=row*ch,canvas=g.renderer.domElement,scale=Math.min(cw/canvas.width,(ch-44)/canvas.height);paint.drawImage(canvas,x+(cw-canvas.width*scale)/2,y+(ch-44-canvas.height*scale)/2,canvas.width*scale,canvas.height*scale);paint.fillStyle='#e4eddf';paint.font='15px sans-serif';paint.fillText(label+' · '+(mode==='first'?'第一人称':'第三人称'),x+12,y+ch-25);paint.font='13px sans-serif';paint.fillText(view.distance.toFixed(1)+' m 站位 · '+stats.calls+' 次绘制 · '+stats.triangles.toLocaleString()+' 三角形',x+12,y+ch-8);
+    return{map:mapId,biome,kind,mode,label,...record,camera:g.camera.position.toArray(),fov:g.camera.fov,targetTriangles:geometry?(geometry.index?.count??geometry.attributes.position.count)/3:null,day:light.day,viewport:[win.innerWidth,win.innerHeight],...stats};
+   });
+  }
+  errors.push(...win.qaErrors);const report={fixtureSeed:522,views:16,plan,results:[...results],errors:[...errors],measurement:'actual existing obstacles and cluster instances; unchanged production lighting, materials, FOV and camera boom; paused frames; draw cost is not device FPS'};window.modelMaterialReport=report;
+  for(const [format,label,href]of[['png','保存树根岩石实景图',sheet.toDataURL('image/png')],['json','保存树根岩石检查 JSON','data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(report,null,2))]]){const a=document.createElement('a');a.id='model-material-save-'+format;a.textContent=label;a.href=href;a.download='next-model-materials.'+format;a.style.marginRight='18px';$('#report').before(a);}
+  publish();$('#status').textContent='树根与岩石实景：'+results.filter(r=>r.pass).length+'/'+results.length+'；八处实际模型，同点双视角。可保存对照图和 JSON。';
+ }catch(e){errors.push(e.message);window.modelMaterialReport={plan,results:[...results],errors:[...errors]};publish();$('#status').textContent='模型实景检查中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
+};
 function terrainFrames(n,inspect=()=>{},hz=60){
  for(let i=0;i<n;i++){g.step(1/hz);assert(g.state==='playing','缓坡检查意外进入 '+g.state);assert(g.player.y>=terrainFloor(g.player.x,g.player.z)-.00001,'脚底穿过真实地形');inspect(i);}
 }
@@ -1078,7 +1139,7 @@ ambientButton.onclick=async()=>{
 // A fresh page can run one named inspection after loading; this avoids overlapping
 // iframe rebuilds when browser input acknowledgements time out during heavy QA.
 const autoCheck=new URLSearchParams(location.search).get('check');
-const autoButtons={lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run'};
+const autoButtons={lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run'};
 if(g&&autoButtons[autoCheck]){$('#status').textContent='正在运行 '+autoCheck+' 检查…';$('#'+autoButtons[autoCheck]).click();}
 </script>
 </html>

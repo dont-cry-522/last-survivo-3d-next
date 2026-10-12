@@ -5,7 +5,7 @@ import{MAP_HALF}from'../map-layout.js?v=114';
 import{bodyTravel}from'../actor-collision.js?v=136';
 import{installForestVista}from'../forest-vista.js';
 import{installForestHabitats}from'../forest-habitats.js';
-import{installBiomePlaces}from'../biome-places.js?v=168';
+import{installBiomePlaces}from'../biome-places.js?v=169';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 // Frozen pre-optimization predicate, including its original coercion and bounds.

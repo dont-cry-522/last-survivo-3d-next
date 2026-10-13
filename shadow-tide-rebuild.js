@@ -2,6 +2,7 @@ import * as T from './vendor/three.module.js';
 import {smoothSeams} from './hero-finish.js?v=172';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {tideHarness} from './tide-appearance.js?v=174';
+import {SHADOW_PALETTE} from './shadow-appearance.js?v=176';
 
 const smooth=(a,b,x)=>T.MathUtils.smoothstep(x,a,b);
 const bell=(x,center,width)=>Math.exp(-(((x-center)/width)**2));
@@ -94,16 +95,16 @@ function roundedHood(mesh){
  for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++){
   const v=j/rows,u=i/cols,theta=.035+v*2.19,opening=.91*smooth(.22,.72,theta),a=opening+u*(Math.PI*2-opening*2),r=Math.sin(theta),edge=Math.pow(Math.abs(u-.5)*2,12),fold=Math.sin(a*7+v)*.0025*smooth(.45,1,v);
   p.push(Math.sin(a)*(.160*r+fold)*(1-.035*edge),1.65+.178*Math.cos(theta),-.025+Math.cos(a)*(.186*r+fold)+.012*edge*smooth(.45,.95,theta));uv.push(u,v);
-  color.setHex(0x474e57).lerp(new T.Color(0x6c7580),edge*.22+.10*(1-v));c.push(color.r,color.g,color.b);
+  color.setHex(0x63738a).lerp(new T.Color(SHADOW_PALETTE.edge),edge*.20+.10*(1-v));c.push(color.r,color.g,color.b);
   if(j<rows&&i<cols){const n=j*(cols+1)+i;ix.push(n,n+cols+1,n+1,n+1,n+cols+1,n+cols+2);}
  }
- const crown=p.length/3;p.push(0,1.828,-.025);uv.push(.5,0);color.setHex(0x4b535d);c.push(color.r,color.g,color.b);for(let i=0;i<cols;i++)ix.push(crown,i,i+1);
+ const crown=p.length/3;p.push(0,1.828,-.025);uv.push(.5,0);color.setHex(0x6c7c92);c.push(color.r,color.g,color.b);for(let i=0;i<cols;i++)ix.push(crown,i,i+1);
  // Turn the fabric inward along the face opening. This is a narrow lining of
  // the same hood, not a second shell or a bright cord hiding a paper-thin edge.
  for(const edge of[0,cols])for(let j=3;j<rows;j++){
   const a=j*(cols+1)+edge,b=(j+1)*(cols+1)+edge,start=p.length/3;
   for(const [source,inset]of[[a,0],[b,0],[a,1],[b,1]]){
-   const x=p[source*3],y=p[source*3+1],z=p[source*3+2];p.push(x-Math.sign(x)*.0035*inset,y+.001*inset,z-.0045*inset);uv.push(edge/cols,j/rows);color.setHex(inset?0x252b32:0x464e58);c.push(color.r,color.g,color.b);
+   const x=p[source*3],y=p[source*3+1],z=p[source*3+2];p.push(x-Math.sign(x)*.0035*inset,y+.001*inset,z-.0045*inset);uv.push(edge/cols,j/rows);color.setHex(inset?SHADOW_PALETTE.lining:0x6c7d93);c.push(color.r,color.g,color.b);
   }ix.push(start,start+1,start+2,start+2,start+1,start+3);
  }
  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(p,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geometry.setAttribute('color',new T.Float32BufferAttribute(c,3));geometry.setIndex(ix);geometry.computeVertexNormals();transferSkin(geometry,mesh);
@@ -123,7 +124,7 @@ function fittedVest(root,body){
 function shadow(root){
  const parts=[];root.traverse(o=>{if(o.isSkinnedMesh&&/Male_Ranger/.test(o.name))parts.push(o);});
  const find=expression=>parts.find(o=>expression.test(o.name));
- const body=find(/_Body$/),hood=find(/_Head_Hood/),arms=find(/_Arms_1/),boots=find(/_Feet/);
+ const body=find(/_Body$/),hood=find(/_Head_Hood/),arms=find(/_Arms_1/),boots=find(/_Feet/),cloth=new T.Color(SHADOW_PALETTE.cloth),lining=new T.Color(SHADOW_PALETTE.lining),tint=new T.Color();
  for(const mesh of parts){
   const name=mesh.name;
   if(/Pauldron|Belt_1/.test(name)){mesh.visible=false;continue;}
@@ -132,53 +133,61 @@ function shadow(root){
   }else if(/_Body$/.test(name)){
    reshape(mesh,'Wraith','SoftTailoredTunic',(x,y,z)=>{
     const chest=bell(y,1.40,.14),waist=bell(y,1.17,.09),hem=1-smooth(.90,1.10,y),side=Math.abs(x);
-    return[x*(1+.11*chest-.035*waist+.07*hem),y-.032*hem*(1-.48*Math.cos(x*19)),(z+.025)*(1+.075*chest)+.009*Math.sin(x*46)*hem-.025];
-   },(x,y,z)=>y<1.12?0x252c34:Math.abs(x)<.083&&z>.03?0x4c5661:0x343d48,false,(x,y)=>bell(y,1.46,.10));
+    let depth=(z+.025)*(1+.045*chest)+.007*Math.sin(x*46)*hem-.025;
+    // The old Ranger chest has raised horizontal armour bars. Ease those same
+    // vertices into one curved fabric front, retaining every authored weight.
+    const front=smooth(.03,.065,z)*smooth(1.21,1.27,y)*(1-smooth(1.41,1.49,y))*(1-smooth(.10,.165,side));
+    depth=T.MathUtils.lerp(depth,.108+.008*bell(y,1.34,.085)-.012*(x/.14)**2,front*.94);
+    return[x*(1+.055*chest-.055*waist+.055*hem),y-.032*hem*(1-.48*Math.cos(x*19)),depth];
+   },(x,y,z)=>{
+    const inside=(1-smooth(.045,.135,Math.abs(x)))*smooth(.02,.085,z)*smooth(1.16,1.28,y);
+    return tint.copy(cloth).lerp(lining,inside*.7).multiplyScalar(y<1.12?.84:1).getHex();
+   },false,(x,y)=>bell(y,1.46,.12));
   }else if(/_Arms_1/.test(name)){
    reshape(mesh,'Wraith','SoftSleeves',(x,y,z)=>{
-    const a=Math.abs(x),sleeve=1.0+.16*bell(a,.40,.13),fold=.004*Math.sin(a*77)*bell(a,.50,.15);
+    const a=Math.abs(x),sleeve=1.0+.11*bell(a,.40,.13),fold=.003*Math.sin(a*77)*bell(a,.50,.15);
     return[x,1.435+(y-1.435)*sleeve+fold,-.047+(z+.047)*sleeve];
-   },x=>Math.abs(x)>.68?0x252c34:0x38434e,false,x=>bell(Math.abs(x),.40,.13));
+   },x=>Math.abs(x)>.68?SHADOW_PALETTE.leather:0x607086,false,x=>bell(Math.abs(x),.40,.13));
   }else if(/_Arms_Bracer/.test(name)){
-   reshape(mesh,'Wraith','WrappedForearm',(x,y,z)=>[x,1.443+(y-1.443)*.87,-.064+(z+.064)*.87],x=>Math.sin(Math.abs(x)*125)>.72?0x535e69:0x2d343e,true);
+   reshape(mesh,'Wraith','WrappedForearm',(x,y,z)=>[x,1.443+(y-1.443)*.84,-.064+(z+.064)*.84],x=>Math.sin(Math.abs(x)*125)>.72?0x61748b:SHADOW_PALETTE.leather,true);
   }else if(/_Arms_2/.test(name)){
-   reshape(mesh,'Wraith','ClosedGlove',(x,y,z)=>[x,1.414+(y-1.414)*1.012,-.05+(z+.05)*1.012],()=>0x262c33,true);
+   reshape(mesh,'Wraith','ClosedGlove',(x,y,z)=>[x,1.414+(y-1.414)*1.012,-.05+(z+.05)*1.012],()=>0x333f50,true);
   }else if(/_Legs/.test(name)){
    reshape(mesh,'Wraith','GatheredTrousers',(x,y,z)=>{
-    const center=Math.sign(x)*.105,volume=.085*bell(y,.82,.18),crease=.004*Math.sin(y*72)*bell(y,.52,.12);
+    const center=Math.sign(x)*.105,volume=.045*bell(y,.82,.18),crease=.003*Math.sin(y*72)*bell(y,.52,.12);
     return[center+(x-center)*(1+volume),y,-.042+(z+.042)*(1+volume)+crease];
-   },(x,y,z)=>z>.045?0x343d47:0x272f38);
+   },(x,y,z)=>z>.045?0x46556a:0x344255);
   }else if(/_Feet/.test(name)){
    reshape(mesh,'Wraith','QuietLeatherBoots',(x,y,z)=>{
     const center=Math.sign(x)*.11,ankle=bell(y,.22,.13),fold=.004*Math.sin(y*73)*bell(y,.43,.095);
     return[center+(x-center)*(1-.045*ankle),Math.max(-.003,y),z+fold];
-   },(x,y,z)=>y<.045?0x181e25:y>.38?0x3c4853:0x252e37,true);
+   },(x,y,z)=>y<.045?0x1c2633:y>.38?0x52637a:0x344255,true);
   }else if(/Belt_2/.test(name)){
-   reshape(mesh,'Wraith','ClothWaistSash',(x,y,z)=>[x*1.025,1.157+(y-1.157)*1.38,z*1.022],()=>0x3e4853);
+   reshape(mesh,'Wraith','ClothWaistSash',(x,y,z)=>[x*1.025,1.157+(y-1.157)*1.38,z*1.022],()=>0x34435c);
   }
  }
  if(body){
   const seams=[];for(const s of[-1,1])seams.push(frontLine(body,[[s*.082,1.48],[s*.102,1.40],[s*.095,1.29],[s*.086,1.20]],.0028));
-  skinnedDetail(root,body,seams,'SM_Hero_Wraith_TunicSeams',0x65717d);
+  skinnedDetail(root,body,seams,'SM_Hero_Wraith_TunicSeams',0x8797ad);
   // The short split hem is an actual draped surface, with soft overlapping folds.
   const skirts=[-1,1].map(s=>panel((u,v)=>{
    const x=s*(.034+.132*u)*(1+.10*v),y=1.14-v*(.244-.055*u)+.015*Math.sin(u*Math.PI)*v;
    return[x,y,.110-.055*u*u+.009*Math.sin(u*Math.PI*3)*v];
   },10,10));
-  skinnedDetail(root,body,skirts,'SM_Hero_Wraith_SplitTunicHem',0x2d3741);
+  skinnedDetail(root,body,skirts,'SM_Hero_Wraith_SplitTunicHem',0x495c74);
  }
  if(hood){
   // The edge is sampled from the rebuilt surface itself, never a floating arc.
   const p=hood.geometry.attributes.position,points=[];for(let j=20;j>=3;j--)points.push([p.getX(j*37),p.getY(j*37),p.getZ(j*37)]);for(let j=3;j<=20;j++)points.push([p.getX(j*37+36),p.getY(j*37+36),p.getZ(j*37+36)]);
-  skinnedDetail(root,hood,[cord(points,.0018,48)],'SM_Hero_Wraith_SoftHoodLip',0x4d5864);
+  skinnedDetail(root,hood,[cord(points,.0018,48)],'SM_Hero_Wraith_SoftHoodLip',0x7b8ca3);
  }
  if(arms){
   const seams=[];for(const s of[-1,1])seams.push(cord([[s*.43,1.431,-.115],[s*.49,1.431,-.114],[s*.57,1.432,-.111],[s*.65,1.432,-.104]],.0025,16));
-  skinnedDetail(root,arms,seams,'SM_Hero_Wraith_SleeveSeams',0x64717c);
+  skinnedDetail(root,arms,seams,'SM_Hero_Wraith_SleeveSeams',0x8597ad);
  }
  if(boots){
   const seams=[];for(const s of[-1,1])seams.push(frontLine(boots,[[s*.12,.43],[s*.12,.34],[s*.12,.21],[s*.12,.13]],.003));
-  skinnedDetail(root,boots,seams,'SM_Hero_Wraith_BootWelts',0x4d5964);
+  skinnedDetail(root,boots,seams,'SM_Hero_Wraith_BootWelts',0x73859b);
  }
 }
 

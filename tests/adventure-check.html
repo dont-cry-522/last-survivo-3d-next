@@ -1,10 +1,10 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 双视角实测</title><style>body{margin:12px;background:#17272b;color:#e2ecea;font:14px system-ui}button{padding:10px;margin:4px;background:#254943;border:1px solid #709582;color:inherit;border-radius:5px}iframe{display:block;border:0;margin-top:8px}pre{white-space:pre-wrap}#view{overflow:auto}</style><button id="run" disabled>运行双视角回归</button><select id="preview-map" aria-label="预览地图"><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="confluence">五境</option></select><select id="preview-place" aria-label="预览位置"><option value="spawn">出生地</option><option value="water">水岸</option><option value="waterbed">浅水石底</option><option value="watercenter">水中近看</option><option value="trees">树丛</option><option value="ruins">遗迹近景</option><option value="ruin-arch">残拱与通道</option><option value="elder">古树空地</option><option value="thicket">幽暗密林</option><option value="floor">地表细节近景</option></select><button id="third" disabled>第三人称预览</button><button id="first" disabled>第一人称预览</button><button id="capture" disabled>保存画面</button><p id="status">正在加载真实游戏（隔离存档，固定帧测试）</p><div id="view"></div><pre id="report"></pre><script type="module">
 import * as T from '../vendor/three.module.js';
 import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=157';
-import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=125';
-import {terrainAt,waterDepth} from '../water.js?v=173';
+import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=176';
+import {terrainAt,waterDepth} from '../water.js?v=176';
 import {updateTide} from '../coast.js?v=114';
-import {biomeWeights} from '../confluence.js?v=173';
+import {biomeWeights} from '../confluence.js?v=176';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
 const previewHero=document.createElement('select'),previewWeapon=document.createElement('select'),sourceDocument=new DOMParser().parseFromString(html,'text/html');
@@ -30,7 +30,7 @@ async function load(mobile=false,width=1180,height=720){
  const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
  // LOD generation must run in this renderer's realm: geometry merges compare
  // typed-array constructors, and WebGL uploads use instanceof checks.
- window.qaWorldReady=import('./world.js?v=175').then(module=>{window.qaAnimateWorld=module.animateWorld;});
+ window.qaWorldReady=import('./world.js?v=176').then(module=>{window.qaAnimateWorld=module.animateWorld;});
  <\/script>`;
  frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
  for(let i=0;i<600&&!win.game3d;i++)await sleep(50);assert(win.game3d,'加载超时 '+(win.qaErrors||[]).join(' / '));g=win.game3d;assert(await g.surfaceReady,'本地土石材质未全部加载');g.audio.init=async()=>true;const render=g.renderer.render.bind(g.renderer);g.renderer.render=(scene,camera)=>{if(scene!==g.hero.parent)return render(scene,camera);win.qaCamera=camera;if(g.state==='menu'&&win.document.querySelector('#preview-detail').getAttribute('aria-pressed')!=='true'){
@@ -99,6 +99,73 @@ function checkDodge(hero,mode){
 }
 async function check(name,fn){$('#status').textContent=name;try{results.push({name,pass:true,detail:await fn()});}catch(e){results.push({name,pass:false,error:e.message});}publish();await sleep(0);}
 
+const slingshotButton=document.createElement('button');slingshotButton.id='slingshot-run';slingshotButton.textContent='弹弓真实战斗检查';slingshotButton.disabled=true;$('#capture').before(slingshotButton);
+slingshotButton.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button')];controls.forEach(b=>b.disabled=true);results.length=0;errors.length=0;
+ const options=new URLSearchParams(location.search),mobile=options.get('mobile')==='1',portrait=mobile&&options.get('portrait')==='1',width=mobile?(portrait?390:844):1180,height=mobile?(portrait?844:390):720;
+ const frameReport=()=>({...reportFrame(),viewport:{width,height},mobileSimulated:mobile});
+ try{
+  await load(mobile,width,height);select('lingya');arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};g.world.sites=[];g.world.discoveries=[];g.world.roaming=[];
+  win.document.querySelector('[data-attack-mode="manual"]').click();
+  assert(g.player.weaponId==='boomerang'&&HERO_LOADOUTS.lingya.includes('boomerang'),'旧武器与存档 ID 断开');
+  const shots=()=>g.bullets.filter(b=>b.kind==='boomerang');
+  const held=mode=>{
+   const gun=g.hero.userData.gun;assert(gun?.visible&&gun.getObjectByName('SM_Slingshot_WoodHandle')?.visible,'第三人称右手木叉被隐藏');
+   if(mode==='first')assert(g.firstPerson.root.visible&&g.firstPerson.weapon.visible&&g.firstPerson.model.getObjectByName('SM_Slingshot_WoodHandle')?.visible,'第一人称右手木叉被隐藏');
+  };
+  const frozen=()=>JSON.stringify({time:g.time,hits:g.heroSkills.newHeroes.careHits,petHP:g.companion.hp,bullets:shots().map(b=>[b.x,b.height,b.z,b.life,b.releaseDelay,b.elapsed,b.mesh.visible]),pouch:g.hero.userData.gun.userData.pouch.position.toArray()});
+  for(const mode of['first','third'])await check(mode+' 弹弓蓄力、石弹单程、伙伴标记与四次命中护伴',()=>{
+   arena();g.world.ponds=[];g.setView(mode);g.heroSkills.reset();g.player.upgrades={care:1};g.player.attack=9999;
+   const pet=g.companion;pet.cool=999;pet.hp=pet.maxHp-40;pet.lastHurt=pet.now;pet.x=-1;pet.z=-1;const hp=pet.hp;
+   const target=g.spawn('golem',0,6);assert(target,'测试靶未生成');Object.assign(target,{speed:0,cool:999,hp:10000,maxHp:10000});aimAt(target);
+   const started=g.time;fire(1);const first=shots()[0];assert(first?.releaseDelay>0&&!first.mesh.visible,'石弹跳过拉带过程立即释放');held(mode);
+   assert(!first.returnable&&!first.returning,'石弹沿用回旋返回');
+   g.pause();const snapshot=frozen();step(12);assert(frozen()===snapshot,'暂停推进拉带、弹丸、护伴或伙伴生命');g.resume();
+   let releaseTime=null,forward=-Infinity,origin=null,direction=null;
+   for(let i=0;i<60&&shots().includes(first);i++){
+    step();held(mode);assert(!first.returning&&!first.returnable,'石弹中途返回');
+    if(first.releaseDelay<=0){
+     if(releaseTime===null){releaseTime=g.time-started;origin=new T.Vector3(first.x,first.height,first.z);direction=new T.Vector3(first.vx,first.vy||0,first.vz).normalize();}
+     const distance=new T.Vector3(first.x,first.height,first.z).sub(origin).dot(direction);assert(distance>=forward-.00001,'石弹飞行中反向');forward=distance;
+    }
+   }
+   assert(releaseTime>.09&&releaseTime<.17,'实际释放时间不在拉带松弦阶段：'+releaseTime);
+   assert(!shots().includes(first)&&target.hp<10000,'石弹没有命中并消失');assert(target.lingyaMark>pet.now,'实际命中没有伙伴标记');
+   assert(g.heroSkills.newHeroes.careHits===1&&pet.hp===hp,'一发石弹重复计数或提前回血');
+   for(let i=2;i<=4;i++){
+    pet.lastHurt=pet.now;fire(1);step(32);held(mode);
+    assert(g.heroSkills.newHeroes.careHits===i,'每发石弹命中未精确计数一次');assert(target.lingyaMark>pet.now,'后续石弹未刷新伙伴标记');
+    assert(pet.hp===hp+(i===4?10:0),'四次命中的护伴回血次数或数额错误');
+   }
+   step(8);assert(g.heroSkills.newHeroes.careHits===4&&pet.hp===hp+10,'消失的石弹重复触发护伴');
+   return{releaseSeconds:releaseTime,careHits:g.heroSkills.newHeroes.careHits,healing:pet.hp-hp,...frameReport()};
+  });
+  await check('弹弓连续射击无需等待回收，墙体阻挡实际石弹',()=>{
+   arena();g.world.ponds=[];g.setView('first');g.adventureCamera.pitch=0;g.player.attack=0;g.companion.cool=999;
+   const released=[],muzzle=g.vfx.muzzle;g.vfx.muzzle=function(w,...args){if((w.id||w.kind)==='boomerang')released.push(g.time);return muzzle.call(this,w,...args);};
+   try{pointer(win.document.querySelector('#world'),'pointerdown');for(let i=0;i<100;i++){step();held('first');for(const b of shots())assert(!b.returnable&&!b.returning,'连射产生回收弹');}}finally{pointer(win,'pointerup');g.vfx.muzzle=muzzle;}
+   assert(released.length===3,'按住攻击未按 1.5 次/秒连续释放：'+released.length);for(let i=1;i<released.length;i++)assert(Math.abs(released[i]-released[i-1]-1/WEAPONS.boomerang.rate)<.035,'后续发射等待了回收');step(35);assert(!shots().length,'飞空石弹没有按射程回收资源');
+   const target=g.spawn('golem',0,6);assert(target,'墙后测试靶未生成');Object.assign(target,{speed:0,cool:999,hp:10000,maxHp:10000});aimAt(target);g.world.obstacles=[{x:0,z:3,r:1,height:5}];const hits=g.heroSkills.newHeroes.careHits;fire(1);step(40);
+   assert(target.hp===10000&&g.heroSkills.newHeroes.careHits===hits,'石弹穿墙命中或误计护伴');assert(!shots().length,'碰墙后仍残留石弹');g.world.obstacles=[];
+   return{releaseTimes:released,...frameReport()};
+  });
+  await check('弹弓死亡冻结待发石弹，返大厅与重开清除弹丸、标记计数和拉带状态',()=>{
+   fire(1);assert(shots().some(b=>b.releaseDelay>0),'结束前没有待发石弹');g.player.inv=0;g.damage(99999,0,0);assert(g.state==='lost','未进入死亡状态');const snapshot=frozen();step(12);assert(frozen()===snapshot,'死亡后仍释放石弹或结算护伴');
+   const oldPet=g.companion;g.menu();assert(!shots().length&&g.heroSkills.newHeroes.careHits===0,'大厅残留旧石弹或护伴计数');g.start();g.player.attack=9999;step(2);
+   assert(g.state==='playing'&&g.player.weaponId==='boomerang'&&g.companion!==oldPet,'重开未保留弹弓入口或替换伙伴');assert(!shots().length&&g.heroSkills.newHeroes.careHits===0,'新局继承旧石弹或护伴计数');held('first');
+   assert(g.hero.userData.gun.userData.projectile.visible,'新局弹弓没有装填石弹');return frameReport();
+  });
+  await check('旧月刃往返路线仍在撞墙时消失，不借弹弓替换增加穿墙回程',()=>{
+   select('silver',1);arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};g.world.sites=[];g.world.discoveries=[];g.world.roaming=[];g.setView('first');
+   win.document.querySelector('[data-attack-mode="manual"]').click();g.player.weaponPath={id:'shuriken_return',rank:1};
+   const target=g.spawn('golem',0,6);assert(target,'飞镖墙后测试靶未生成');Object.assign(target,{speed:0,cool:999,hp:10000,maxHp:10000});aimAt(target);g.world.obstacles=[{x:0,z:3,r:1,height:5}];fire(1);
+   const blades=g.bullets.filter(b=>b.kind==='shuriken');assert(blades.length===3&&blades.every(b=>b.returnable),'未使用真正的往返飞镖路线');
+   for(let i=0;i<35;i++){step();assert(blades.every(b=>!b.returning),'撞墙飞镖错误地进入穿墙回程');}
+   assert(blades.every(b=>!g.bullets.includes(b))&&target.hp===10000,'飞镖撞墙未消失或伤害穿过墙体');return{blades:blades.length,...frameReport()};
+  });
+ }catch(e){errors.push(e.message);}finally{$('#status').textContent='弹弓检查完成：'+results.filter(r=>r.pass).length+'/'+results.length;publish();controls.forEach(b=>b.disabled=false);}
+};
+
 async function checkMobility(){
  await check('七位角色：跳跃、蹲避、落地、暂停和死亡清理',()=>{const heights=[];for(const hero of Object.keys(HERO_LOADOUTS)){
   select(hero);arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};g.setView('first');g.player.inv=0;const hp=g.player.hp;g.hero.updateMatrixWorld(true);const feet=[g.hero.userData.swimLeftFoot,g.hero.userData.swimRightFoot],floor=Math.min(...feet.map(b=>b.matrixWorld.elements[13]));
@@ -110,11 +177,11 @@ async function checkMobility(){
  await check('五张地图飞行怪可瞄准击中、击败奖励且重开清理',()=>{const out=[];for(const map of ['forest','snow','ash','sand','coast']){
   select('silver',0,map);arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};g.setView('first');win.document.querySelector('[data-attack-mode="manual"]').click();const e=g.spawn('flyer',0,6);assert(e?.role==='flyer'&&e.y>2,'本图飞行怪未生成 '+map);e.speed=0;e.flight={stage:'orbit',timer:999};e.hp=e.maxHp=1000;const hp=e.hp;aimAt(e);fire(30);assert(e.hp<hp,'抬头弩击没命中 '+map);assert(g.bullets.every(b=>Number.isFinite(b.height)),'弹道高度非法');const orbs=g.orbs.length;g.hurtEnemy(e,99999);assert(!e.alive&&g.orbs.length===orbs+1,'飞行怪没有奖励');out.push({map,kind:e.kind});g.menu();g.start();assert(!g.enemies.some(e=>e.role==='flyer'),'重开残留空中怪');
  }return out;});
- for(const hero of ['lingya','mirage'])await check(hero+' 回旋镖/毒团使用上下弹道命中空中目标',()=>{
+for(const hero of ['lingya','mirage'])await check(hero+' 石弹/毒团使用上下弹道命中空中目标',()=>{
   select(hero);arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};g.setView('first');win.document.querySelector('[data-attack-mode="manual"]').click();const e=g.spawn('flyer',0,6);e.speed=0;e.flight={stage:'orbit',timer:999};e.hp=e.maxHp=1000;aimAt(e);fire(70);assert(e.hp<1000,'新空间弹道未命中');return{hp:e.hp,...reportFrame()};
  });
- await check('回旋镖朝天飞行后按真实高度返回，空中自动瞄准可命中',()=>{
-  select('lingya');arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};g.setView('first');win.document.querySelector('[data-attack-mode="manual"]').click();g.adventureCamera.pitch=1.45;step();fire(1);step(20);assert(g.bullets.some(b=>b.height>2),'向上投掷未升高');step(150);assert(!g.bullets.some(b=>b.kind==='boomerang'),'回旋镖未能回收');
+ await check('石弹朝天直射，到达射程后消失无需回收；空中自动瞄准可命中',()=>{
+  select('lingya');arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};g.setView('first');win.document.querySelector('[data-attack-mode="manual"]').click();g.adventureCamera.pitch=1.45;step();fire(1);step(20);assert(g.bullets.some(b=>b.height>2&&!b.returnable&&!b.returning),'向上石弹未升高或仍使用返回弹道');step(150);assert(!g.bullets.some(b=>b.kind==='boomerang'),'石弹到达射程后未清理');
   select('silver');arena();g.setView('first');g.world.ponds=[];g.world.overhead={firstHit:()=>null};const e=g.spawn('flyer',0,5);e.flight={stage:'orbit',timer:999};e.speed=0;e.hp=e.maxHp=1000;aimAt(e);win.document.querySelector('[data-attack-mode="auto"]').click();g.player.attack=0;step(90);assert(e.hp<1000,'自动瞄准未打中空中目标');return reportFrame();
  });
  await check('上刺长叉能击中低飞目标，仰天刺击不伤地面敌人',()=>{
@@ -416,8 +483,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=173');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=173');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=176');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=176');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -1139,7 +1206,7 @@ ambientButton.onclick=async()=>{
 // A fresh page can run one named inspection after loading; this avoids overlapping
 // iframe rebuilds when browser input acknowledgements time out during heavy QA.
 const autoCheck=new URLSearchParams(location.search).get('check');
-const autoButtons={lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',polish:'polish-run',heroes:'run'};
+const autoButtons={lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',slingshot:'slingshot-run',polish:'polish-run',heroes:'run'};
 if(g&&autoButtons[autoCheck]){$('#status').textContent='正在运行 '+autoCheck+' 检查…';$('#'+autoButtons[autoCheck]).click();}
 </script>
 </html>

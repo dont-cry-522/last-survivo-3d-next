@@ -1,4 +1,4 @@
-import{weaponStats,takeUpgrade,HERO_LOADOUTS}from'../rules.js?v=96';
+import{weaponStats,takeUpgrade,HERO_LOADOUTS}from'../rules.js?v=176';
 import{MIRAGE}from'../mirage-config.js?v=96';
 const output=document.querySelector('#report'),view=document.querySelector('#view');
 const check=(ok,msg)=>{if(!ok)throw Error(msg);},log=s=>output.textContent+='\n'+s;

@@ -1,6 +1,6 @@
 import{BIOME_THEMES,instrumentSample,scoreBiome,biomeThreat}from'./biome-music.js?v=114';
 import{companionSample}from'./companion-audio.js?v=114';
-import{weaponSample,weaponTakeCount}from'./weapon-audio.js?v=114';
+import{weaponSample,weaponTakeCount}from'./weapon-audio.js?v=176';
 import{creatureSample,creatureSpatial,ENEMY_VOICES}from'./enemy-audio.js?v=114';
 import{RecordedMusic}from'./recorded-music.js?v=114';
 import{RecordedEffects}from'./recorded-effects.js?v=114';
@@ -114,7 +114,7 @@ export class GameAudio{
     const limit=event==='impact'?10:event==='mechanism'?12:16;
     if(!this.available()||this.weaponSources.size>=limit)return false;
     const takeKey=id+':'+event+':'+variant,take=this.weaponTakes.get(takeKey)||0,key=takeKey+':'+take;
-    const cueKey=this.materialEffects?.count(takeKey)?takeKey:id+':'+event,material=this.materialCue(cueKey,take);
+    const cueKey=this.materialEffects?.count(takeKey)?takeKey:id+':'+event,material=id==='boomerang'?null:this.materialCue(cueKey,take);
     let buffer=material?.buffer||this.weaponBuffers.get(key);
     if(!buffer){const samples=id==='companion'?companionSample(event,this.ctx.sampleRate):id==='material:wood'||id==='material:stone'?creatureSample(id==='material:wood'?'shaman':'golem','impact',this.ctx.sampleRate):weaponSample(id,event,this.ctx.sampleRate,variant,take);if(!samples)return false;buffer=this.ctx.createBuffer(1,samples.length,this.ctx.sampleRate);buffer.copyToChannel(samples,0);this.weaponBuffers.set(key,buffer);}
     this.weaponTakes.set(takeKey,(take+1)%(material?this.materialEffects?.count(cueKey):weaponTakeCount(id)));

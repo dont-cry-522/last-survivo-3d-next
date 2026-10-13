@@ -7,13 +7,13 @@ import {shadowFocus} from '../shadow-gear.js';
 import {createShadowAura,updateShadowAura,disposeShadowAura} from '../shadow-aura.js';
 import {miasmaLantern} from '../mirage-appearance.js';
 import {sporeLantern,sporePod} from '../wuling-appearance.js';
-import {boneBoomerang} from '../beast-model.js';
+import {makeSlingshot,poseSlingshot} from '../slingshot-model.js';
 import {makeHarpoon} from '../coast-models.js';
 import {HERO_LOADOUTS} from '../rules.js';
-import {newHeroAttack} from '../new-hero-motion.js';
+import {slingshotMechanism} from '../weapon-performance.js';
 import {POISON} from '../poison-config.js';
 
-function weapon(id){return ['shade','shadowblade','grimoire'].includes(id)?shadowFocus(id):id==='miasmalantern'?miasmaLantern():id==='sporelantern'?sporeLantern():id==='boomerang'?boneBoomerang():id==='harpoon'?makeHarpoon():makeHero(['crossbow','shuriken','dark'].includes(id)?'silver':'scout',id).userData.weapon;}
+function weapon(id){return ['shade','shadowblade','grimoire'].includes(id)?shadowFocus(id):id==='miasmalantern'?miasmaLantern():id==='sporelantern'?sporeLantern():id==='boomerang'?makeSlingshot():id==='harpoon'?makeHarpoon():makeHero(['crossbow','shuriken','dark'].includes(id)?'silver':'scout',id).userData.weapon;}
 const hero=gun=>({visible:false,userData:{gun}});
 
 test('the herbalist throws one shared seed pod with her left hand while the lantern stays carried',()=>{
@@ -49,17 +49,29 @@ test('both lamp grips keep their local orientation through distinct gestures and
  assert.notEqual(...signatures);
 });
 
-test('first-person boomerang follows third-person windup, release and empty-hand recovery',()=>{
- const view=new FirstPersonView(new T.PerspectiveCamera(60,16/9,.1,100)),gun=boneBoomerang(),actor=hero(gun);
+test('first-person slingshot keeps its fork held while pouch, pebble and pulling hand follow one clock',()=>{
+ const camera=new T.PerspectiveCamera(60,16/9,.1,100),view=new FirstPersonView(camera),gun=makeSlingshot(),actor=hero(gun),contact=new T.Vector3(0,.045,-.023);
  try{
   Object.assign(actor.userData,{attackAge:10,reloadDuration:1,reloadPhase:1,shotSerial:1});view.setHero(actor,'boomerang');view.update(1,.016,{visible:true});const idle=view.hands[0].position.clone();
   for(const period of [.2,.4,1])for(const phase of [0,.04,.1,.2,.4,.7,1]){
-   Object.assign(actor.userData,{attackAge:10,reloadDuration:period,reloadPhase:phase});view.update(1,.016,{visible:true});const action=newHeroAttack('lingya',phase*period,period);
-   assert.equal(view.motion.kick,action.drive);assert.equal(view.motion.sweep,action.follow);assert.equal(view.motion.gather,action.wind);
+   Object.assign(actor.userData,{attackAge:10,reloadDuration:period,reloadPhase:phase});poseSlingshot(gun,phase*period,period);view.update(1,.016,{visible:true});const action=slingshotMechanism(phase*period,period);camera.updateMatrixWorld(true);
+   assert.equal(view.motion.pull,action.pull);assert.equal(view.motion.handPull,action.handPull);assert.equal(view.model.userData.projectile.visible,action.stoneVisible);assert(view.model.userData.pouch.position.equals(gun.userData.pouch.position));assert(view.weapon.visible);assert.equal(view.hands[0].morphTargetInfluences[0],0);
+   const target=new T.Vector3(0,.22,-.07-.30*action.handPull).sub(view.center).applyMatrix4(view.weapon.matrixWorld);assert(contact.clone().applyMatrix4(view.hands[1].matrixWorld).distanceTo(target)<1e-6);
   }
-  gun.visible=false;Object.assign(actor.userData,{boomerangAway:true,catchReady:0,reloadPhase:1});view.update(1,.016,{visible:true});assert(!view.weapon.visible);assert(view.hands[0].visible);assert(view.hands[0].position.y<idle.y-.04);assert(view.hands[0].morphTargetInfluences[0]>.8);
-  gun.visible=true;Object.assign(actor.userData,{boomerangAway:false,catchReady:0,reloadDuration:1,reloadPhase:1});view.update(1,.016,{visible:true});assert(view.weapon.visible);assert(view.hands[0].position.distanceTo(idle)<1e-7);
+  Object.assign(actor.userData,{boomerangAway:true,catchReady:0,reloadDuration:1,reloadPhase:1});view.update(1,.016,{visible:true});assert(view.weapon.visible);assert(view.hands[0].position.distanceTo(idle)<1e-7,'retired boomerang flag still lowers the sling');
  }finally{view.dispose();}
+});
+
+test('shadow focus remains in an open palm with restrained finger-led casting',()=>{
+ const camera=new T.PerspectiveCamera(60,16/9,.1,100),view=new FirstPersonView(camera),actor=hero(shadowFocus('shade'));view.setHero(actor,'shade');
+ try{for(const aspect of [16/9,19.5/9,9/19.5])for(const fov of [50,72])for(let i=0;i<=60;i++){
+  camera.aspect=aspect;camera.fov=fov;camera.updateProjectionMatrix();Object.assign(actor.userData,{attackAge:i/60,reloadDuration:1,reloadPhase:i/60});view.update(1,.016,{visible:true});camera.updateMatrixWorld(true);
+  assert(view.hands[0].morphTargetInfluences[0]>.65);assert(Math.abs(view.weapon.position.z)<.025);assert(Math.abs(view.weapon.position.x)<.04);
+  for(const hand of view.hands){const point=hand.getWorldPosition(new T.Vector3()).project(camera);assert(point.y>-.93&&point.y<-.3&&Math.abs(point.x)<.92,'a casting hand is hidden beyond the view');}
+  // The upper edge of the cuff needs to be visible as well as the fingertips.
+  const cuff=view.hands[0].localToWorld(new T.Vector3(0,-.038,0)).project(camera);assert(cuff.y>-1,'right cuff falls wholly below the frame');
+ }}
+ finally{view.dispose();}
 });
 
 test('identity structure and material finish survive first-person copying for all thirteen weapons',()=>{
@@ -196,7 +208,7 @@ test('moving bow strings, pump, book page and lantern petals are mirrored via re
   view.update(2,.016,{visible:true,attack:.09,attackDuration:.18});assert(clone.position.equals(source.position));assert(clone.quaternion.equals(source.quaternion));assert.equal(clone.visible,false);
   source.position.copy(original);
  }
- const gun=weapon('boomerang');view.setHero(hero(gun),'boomerang');gun.visible=false;view.update(2,.016,{visible:true});assert.equal(view.weapon.visible,false);assert(view.hands.every(h=>h.visible));assert(view.hands[0].morphTargetInfluences[0]>.8,'empty throwing hand should open rather than disappear');
+ const gun=weapon('shuriken');view.setHero(hero(gun),'shuriken');gun.visible=false;view.update(2,.016,{visible:true});assert.equal(view.weapon.visible,false);assert(view.hands.every(h=>h.visible));assert(view.hands[0].morphTargetInfluences[0]>.8,'empty throwing hand should open rather than disappear');
  }finally{view.dispose();}
 });
 
@@ -378,7 +390,7 @@ test('close equipment adds bounded real structure across firearms, thrown blades
    const wood=stock[1].material,metal=view.parts.find(([s])=>s.material?.color?.getHex()===0x88948d)[1].material;
    assert(wood.roughness>metal.roughness+.25);assert(metal.metalness>wood.metalness+.5);
   }else if(id==='shuriken'){const blades=view.parts.filter(([s])=>s.name.startsWith('SM_Shuriken_MoonBlade_'));assert.equal(blades.length,4);for(const [s,n]of blades){assert.equal(n.geometry,s.geometry);assert(n.geometry.attributes.position.count>60,'moon blade is still a plain cone');}}
-  else if(id==='boomerang')assert(view.model.getObjectByName('SM_Boomerang_BadgerClawCarving'));
+  else if(id==='boomerang'){assert(view.model.getObjectByName('SM_Slingshot_WoodHandle'));assert.equal(view.model.userData.bands.length,2);}
   else if(['fire','dark'].includes(id)){assert.match(names,/wrapped-staff-inlay/);assert.equal(view.charged.length,1);}
   else if(id==='grimoire'){
    const pages=view.parts.filter(([s])=>s.name.startsWith('SM_Grimoire_AshenPages_'));assert.equal(pages.length,2);for(const [source,node]of pages){assert.equal(node.geometry,source.geometry);assert.equal(source.geometry.name,'SM_Grimoire_BoundPageLayers');assert(source.geometry.attributes.position.count>200,'book lost its real page layers');}assert.match(names,/turning-page/);assert.match(names,/book-corners-and-script/);

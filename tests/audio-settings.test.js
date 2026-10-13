@@ -28,6 +28,14 @@ function harness(){
   return{audio,sources,atlas,cue,last:()=>sources.at(-1),gain:()=>sources.at(-1).connections[0].gain.value};
 }
 
+test('all sound styles use the slingshot snap instead of the retired boomerang recording',()=>{
+ const h=harness();for(const style of Object.keys(SFX_STYLES)){
+  h.audio.setSfxStyle(style,{persist:false});
+  for(const event of ['shot','impact','mechanism']){assert(h.audio.weapon('boomerang',event));assert.notEqual(h.last().buffer,h.atlas);assert.equal(h.last().startArgs.length,0);assert(h.last().buffer.duration<=.16);}
+ }
+ h.audio.stopWeapons();assert.equal(h.audio.nodes,0);
+});
+
 test('old volume preferences migrate to the current sound without changing saved progress',t=>{
   const h=storage(t,{muted:true,music:.23,sfx:.57}),audio=new GameAudio();
   h.data.set('forest3d-next-progress','existing progress');h.data.set('forest3d-audio','original game preferences');

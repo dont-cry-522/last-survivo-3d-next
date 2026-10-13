@@ -2,10 +2,9 @@ import * as T from './vendor/three.module.js';
 
 // Each loadout has one shared surface/draw; only its actor-owned material animates.
 const profiles={
- shade:{drift:.35,flow:.85,opacity:.086,flare:.055,bands:[
-  {x:-.052,y:-.06,height:.32,z:.045,tail:.05,width:.035,phase:.2,trail:0},
-  {x:.008,y:-.08,height:.40,z:.080,tail:.065,width:.042,phase:2.3,trail:0},
-  {x:.056,y:-.03,height:.26,z:-.01,tail:.045,width:.032,phase:4.5,trail:0}
+ shade:{drift:.22,flow:.60,opacity:.13,flare:.055,bands:[
+  {x:-.035,y:.01,height:.22,z:.135,tail:.015,width:.030,phase:.2,trail:0},
+  {x:.042,y:.015,height:.21,z:.135,tail:.014,width:.032,phase:2.3,trail:0}
  ]},
  shadowblade:{drift:1,flow:.90,opacity:.073,flare:.075,bands:[
   {x:-.32,y:.45,height:.64,z:-.12,tail:.12,width:.16,phase:.2,trail:0},

@@ -30,7 +30,7 @@ test('elemental impacts have a readable core and distinct secondary shapes',()=>
 });
 test('ordinary fire and dark hits do not draw range circles',()=>{const vfx=new SkillVFX(new T.Scene());vfx.fire(0,0,1);vfx.dark(0,0,1);assert(!vfx.active.some(p=>p.shape==='ring'));});
 test('new weapon contacts keep distinct small silhouettes and remain pooled during a melee crowd',()=>{
- const v=new SkillVFX(new T.Scene(),{mobile:true});for(const kind of ['shield','hammer','harpoon','boomerang']){v.clear();v.weaponContact(kind,0,0,.4,2);assert(v.active.some(p=>p.shape===(kind==='shield'?'crystal':kind==='hammer'?'stone':'sweep')));assert(!v.active.some(p=>['ring','disc'].includes(p.shape)));}
+ const v=new SkillVFX(new T.Scene(),{mobile:true});for(const kind of ['shield','hammer','harpoon','boomerang']){v.clear();v.weaponContact(kind,0,0,.4,2);assert(v.active.some(p=>p.shape===(kind==='shield'?'crystal':['hammer','boomerang'].includes(kind)?'stone':'sweep')));assert(!v.active.some(p=>['ring','disc'].includes(p.shape)));}
  for(let i=0;i<600;i++){for(const kind of ['shield','hammer','harpoon','boomerang'])v.weaponContact(kind,0,0,.4,2);v.update(1/60);assert(v.active.length+v.pool.length<=110);}v.update(2);assert.equal(v.active.length,0);
 });
 test('erupting ice stays rooted and grows before sinking without a spawn-frame pop',()=>{
@@ -79,7 +79,7 @@ test('projectiles retain shared geometry and materials while ranged paths have d
   for(const id of ids){
    const w={...weaponStats({weaponId:id,weaponPath:pathId?{id:pathId,rank:3}:null}),pathId,pathRank:pathId?3:0},a=v.projectile(w),b=v.projectile(w),parts=[],copies=[];
    a.updateMatrixWorld(true);a.traverse(m=>{assert(m.matrixWorld.elements.every(Number.isFinite),id);if(m.isMesh)parts.push(m);});b.traverse(m=>{if(m.isMesh)copies.push(m);});assert(parts.length>0,id);
-   if(id!=='boomerang')for(let i=0;i<parts.length;i++){assert.equal(parts[i].geometry,copies[i].geometry);assert.equal(parts[i].material,copies[i].material);}
+   for(let i=0;i<parts.length;i++){assert.equal(parts[i].geometry,copies[i].geometry);assert.equal(parts[i].material,copies[i].material);}
    if(['rifle','shotgun'].includes(id)){const box=new T.Box3().setFromObject(a),size=box.getSize(new T.Vector3());assert(size.x<=w.hitRadius*2&&size.y<=w.hitRadius*2,id+' suggests a wider collision');}
    if(pathId){const signature=parts.map(m=>[m.geometry.type,m.material.color.getHex(),...m.scale.toArray(),...m.position.toArray()]);if(!variants.has(id))variants.set(id,[]);variants.get(id).push(signature);}
   }
@@ -103,7 +103,7 @@ test('weapon launch and flight effects remain sparse and reuse the mobile and de
  }
 });
 
-test('harpoon and returning bone fragments follow the strike direction',()=>{
+test('harpoon water and stone chips follow the strike direction',()=>{
  const v=new SkillVFX(new T.Scene());
  for(const kind of ['harpoon','boomerang'])for(const combo of [0,2]){
   v.weaponContact(kind,0,0,0,combo);const front=v.active.filter(p=>p.shape==='crystal').map(p=>[...p.velocity]);v.clear();

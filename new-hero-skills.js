@@ -1,7 +1,7 @@
 // New hero skills trigger from resolved combat events, never from cosmetic animation.
 export class NewHeroSkills {
  constructor(owner){this.owner=owner;this.reset();}
- reset(){this.pending=[];this.fields=[];this.cool={};this.catches=0;this.marks=new Map();this.snared=new Map();this.primeUntil=0;}
+ reset(){this.pending=[];this.fields=[];this.cool={};this.careHits=0;this.marks=new Map();this.snared=new Map();this.primeUntil=0;}
  rank(id){return this.owner.rank(id);}
  ready(id,delay){const now=this.owner.now;if(now<(this.cool[id]||0))return false;this.cool[id]=now+delay;return true;}
  strike(angle,kind,finisher){
@@ -24,7 +24,7 @@ export class NewHeroSkills {
   s.fx('brineMark',e.x,e.z,{count:m.count});if(m.count>=3&&this.ready('brine',1)){m.count=0;s.hit(e,16+10*r);s.fx('brine',e.x,e.z);}
  }
  petHit(e){const s=this.owner,pet=s.api.companion?.(),r=this.rank('bond');if(!s.api.active()||!r||!e.alive||!pet?.alive||!(e.lingyaMark>pet.now)||!this.ready('bond',1.5))return;const linked=(this.snared.get(e)||0)>s.now;s.hit(e,(12+8*r)*(linked?1.25:1));s.fx('bond',e.x,e.z,{linked});}
- caught(){const s=this.owner,r=this.rank('care');if(!s.api.active()||!r)return;if(++this.catches%4)return;const p=s.api.player(),pet=s.api.companion?.();if(pet?.alive&&Math.hypot(pet.x-p.x,pet.z-p.z)<=10&&pet.hp<pet.maxHp){pet.hp=Math.min(pet.maxHp,pet.hp+6+4*r);s.fx('care',pet.x,pet.z);}}
+ slingHit(){const s=this.owner,r=this.rank('care');if(!s.api.active()||!r)return;if(++this.careHits%4)return;const p=s.api.player(),pet=s.api.companion?.();if(pet?.alive&&Math.hypot(pet.x-p.x,pet.z-p.z)<=10&&pet.hp<pet.maxHp){pet.hp=Math.min(pet.maxHp,pet.hp+6+4*r);s.fx('care',pet.x,pet.z);}}
  update(dt){const s=this.owner,p=s.api.player();
   for(const [e,m]of this.marks){if(!e.alive||s.now-m.time>3){this.marks.delete(e);continue;}m.pulse=(m.pulse||0)-dt;if(m.count>0&&m.pulse<=0){m.pulse=.35;s.fx('brineMark',e.x,e.z,{count:m.count});}}
   for(const [e,until]of this.snared)if(!e.alive||s.now>=until)this.snared.delete(e);

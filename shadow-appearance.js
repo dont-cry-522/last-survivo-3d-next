@@ -1,6 +1,9 @@
 import * as T from './vendor/three.module.js';
 import {smoothSeams} from './hero-finish.js?v=172';
 
+// Dark values belong to the lining and veil; the outer cloth must retain shape.
+export const SHADOW_PALETTE=Object.freeze({cloth:0x5b6b7f,fold:0x718298,lining:0x29364e,leather:0x303b4b,edge:0x9bacbd});
+
 // Reuse the Ranger's authored cloth, UVs and skinning; each template owns its tints.
 export function shadowOutfit(root){
  root.traverse(o=>{
@@ -10,7 +13,7 @@ export function shadowOutfit(root){
   const tintMaterial=source=>{
    const m=source.clone();
    if(!source.name.includes('Ranger'))return m;
-   const leather=/Belt|Bracer|Feet/.test(o.name),color=/Feet/.test(o.name)?0x13181e:/Belt|Bracer/.test(o.name)?0x191f26:/Legs/.test(o.name)?0x202831:/Arms/.test(o.name)?0x252d37:/Head_Hood/.test(o.name)?0x303943:0x27313a;
+   const leather=/Belt|Bracer|Feet/.test(o.name),color=/Feet/.test(o.name)?0x303a48:/Belt|Bracer/.test(o.name)?SHADOW_PALETTE.leather:/Legs/.test(o.name)?0x3d4b5c:/Arms/.test(o.name)?0x536378:/Head_Hood/.test(o.name)?0x66758b:SHADOW_PALETTE.cloth;
    const tint=new T.Color(color).toArray().join(',');
    m.color.set(0xffffff);m.roughness=leather?.86:.94;m.metalness=.015;
    m.roughnessMap=null;m.metalnessMap=null;m.normalScale?.setScalar(leather?.24:.18);
@@ -26,7 +29,7 @@ export function shadowOutfit(root){
  });
 }
 
-const scarfMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:.96,metalness:0,side:T.DoubleSide});
+const scarfMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:.91,metalness:0,side:T.DoubleSide});
 const claspMaterial=new T.MeshStandardMaterial({color:0x858e98,roughness:.70,metalness:.32});
 const scarves=new Map();
 let claspGeometry;
@@ -61,13 +64,13 @@ function clothForm(weapon){
   panels=[neck,sash];claspPanel=sash;claspV=.18;
  }
  const positions=[],colors=[],indices=[],slices=8,rows=14;
- const cloth=new T.Color(0x3b4652),edge=new T.Color(0x65717e);
+ const cloth=new T.Color(SHADOW_PALETTE.cloth),edge=new T.Color(SHADOW_PALETTE.edge);
  for(const surface of panels){
   const offset=positions.length/3;
   for(let j=0;j<=rows;j++)for(let i=0;i<=slices;i++){
    const u=i/slices,v=j/rows;
    positions.push(...surface(u,v));
-   const color=cloth.clone().lerp(edge,(i===0||i===slices)?.10:0).multiplyScalar(.92+.08*Math.cos(u*Math.PI*3+v));
+   const color=cloth.clone().lerp(edge,(i===0||i===slices)?.18:0).multiplyScalar(.91+.09*Math.cos(u*Math.PI*3+v));
    colors.push(color.r,color.g,color.b);
    if(j<rows&&i<slices){const n=offset+j*(slices+1)+i;indices.push(n,n+slices+1,n+1,n+1,n+slices+1,n+slices+2);}
   }
@@ -100,14 +103,15 @@ export function shadowAccessories(weapon='shade'){
  return{chest};
 }
 
-// Keep the shadow cloth achromatic under warm forest light without changing the scene.
+// Moderate warm colour spill without crushing the authored blue-grey cloth into
+// a single achromatic silhouette. Lighting still comes from the scene, not glow.
 export function finishShadowTone(material){
  if(!material.isMeshStandardMaterial||material.userData.shadowTone)return;
  const compile=material.onBeforeCompile,key=material.customProgramCacheKey();
  material.onBeforeCompile=shader=>{
   compile(shader);
   shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`float shadowLight=dot(outgoingLight,vec3(.2126,.7152,.0722));
-    outgoingLight=mix(outgoingLight,vec3(shadowLight)*vec3(.975,.99,1.025),.88);
+    outgoingLight=mix(outgoingLight,vec3(shadowLight)*vec3(.965,.985,1.035),.24);
     #include <opaque_fragment>`);
  };
  material.customProgramCacheKey=()=>key+'-neutral-shadow';material.userData.shadowTone=true;

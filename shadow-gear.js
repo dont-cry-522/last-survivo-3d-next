@@ -30,10 +30,21 @@ function warScytheBlade(){
  for(let j=0;j<4;j++)ix.push(j,j+1,j+rows,j+1,j+1+rows,j+rows);
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setIndex(ix);g.computeVertexNormals();g.name='SM_Scythe_ForgedBlade_A';return g;
 }
-function riftShards(){
- const outlines=[[-.11,1.4,-.76,.57,-.52,-.45,-.17,-1.2,-.03,-.35,-.22,.18,.02,.70],[.20,1.18,.62,.51,.74,-.38,.23,-1.45,.11,-.40,.25,.20,.12,.63]];
- const shapes=outlines.map(points=>{const s=new T.Shape();s.moveTo(points[0],points[1]);for(let i=2;i<points.length;i+=2)s.lineTo(points[i],points[i+1]);s.closePath();return s;});
- const g=new T.ExtrudeGeometry(shapes,{depth:.25,bevelEnabled:true,bevelThickness:.05,bevelSize:.035,bevelSegments:1,steps:1,curveSegments:1});g.translate(0,0,-.125);return g;
+function riftVeil(){
+ // Two curved, tapering sheets leave actual negative space between the fingers.
+ // Their thin surface reads as a held shadow tear instead of solid glove armour.
+ const p=[],uv=[],c=[],ix=[],rows=32,cols=4,inner=new T.Color(0x627b9b),outer=new T.Color(0x182435),shade=new T.Color();
+ for(const side of[-1,1]){
+  const start=p.length/3;
+  for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++){
+   const v=j/rows,u=i/cols,taper=Math.sin(v*Math.PI),center=.045*Math.sin(v*7.0)+.025*Math.sin(v*15),gap=.024+.016*taper;
+   const width=(.08+.47*taper**.8)*taper**.45;
+   p.push(center+side*(gap+u*width),(v-.5)*2.85,.065*Math.sin(v*Math.PI)*(1-u)+.045*Math.sin(v*Math.PI*2+side*.5)*u);
+   uv.push(u,v);shade.copy(inner).lerp(outer,T.MathUtils.smoothstep(u,0,.5));c.push(shade.r,shade.g,shade.b);
+   if(j<rows&&i<cols){const n=start+j*(cols+1)+i;ix.push(n,n+cols+1,n+1,n+1,n+cols+1,n+cols+2);}
+  }
+ }
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setIndex(ix);g.computeVertexNormals();g.name='SM_Shade_CurvedShadowTear';return g;
 }
 function bookPages(){
  const layers=[];
@@ -95,10 +106,18 @@ export function shadowFocus(id){
   }
   g.userData.page=part(g,'box',()=>new T.BoxGeometry(1,1,1),0x44434d,[.095,.12,.06],[.18,.004,.25]);
  }else{
-  const focus=part(g,'rift-shards',riftShards,0x262330,[0,.09,.12],[.052,.052,.052]);g.userData.focus=focus;focus.name='Shadow_compressed_rift';focus.userData.identityDetail=true;focus.material.metalness=.18;focus.material.roughness=.66;
-  // The existing focus scale animation compresses the dark fragments and their narrow split together.
-  line(focus,0xc1b9cb,[[-.055,.80,.205],[-.19,.47,.205],[-.115,.18,.205],[-.12,-.12,.205]],.018,true);
-  line(focus,0xb4c0c8,[[.10,-.42,.205],[.15,-.72,.205],[.09,-1.15,.205]],.018,true);
+  const focus=part(g,'curved-shadow-tear',riftVeil,0xf9fdff,[0,.11,.13],[.052,.052,.052]);g.userData.focus=focus;focus.name='SM_Weapon_Shade_ControlledRift';focus.userData.identityDetail=true;
+  const material=focus.material;focus.castShadow=focus.receiveShadow=false;
+  if(!material.userData.controlledRift){
+  material.userData.controlledRift=true;material.vertexColors=true;material.metalness=0;material.roughness=.86;material.transparent=true;material.opacity=.86;material.depthWrite=false;material.side=T.DoubleSide;
+  material.onBeforeCompile=shader=>{
+   shader.vertexShader='varying vec2 vRiftUv;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvRiftUv=uv;');
+   shader.fragmentShader='varying vec2 vRiftUv;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a*=(1.0-smoothstep(.50,1.0,vRiftUv.x))*smoothstep(0.0,.10,vRiftUv.y)*(1.0-smoothstep(.90,1.0,vRiftUv.y));');
+  };material.customProgramCacheKey=()=> 'shade-controlled-rift';
+  }
+  // Fine open seams echo the face scar, without forming a ring around the hand.
+  line(focus,0x9aaec8,[[-.015,1.02,.055],[-.068,.66,.068],[-.055,.25,.070],[-.082,-.16,.068]],.012,true);
+  line(focus,0x728cae,[[.005,-.31,.068],[.044,-.67,.055],[.025,-1.10,.035]],.012,true);
  }
  return nameWeapon(g,'wraith',id);
 }

@@ -3,7 +3,7 @@
 <h1>蜃花灯 · 实际音频节点检查</h1><p>依次播放聚气、喷雾、湿润命中与替身散雾，然后检查取消与暂停回收。不会修改声音偏好或存档。</p>
 <button id="play">播放并检查音效</button><pre id="result">等待开始</pre>
 <script type="module">
-import{GameAudio}from'../audio.js?v=114';import{mirageSound}from'../mirage-audio.js?v=114';
+import{GameAudio}from'../audio.js?v=176';import{mirageSound}from'../mirage-audio.js?v=114';
 const wait=ms=>new Promise(r=>setTimeout(r,ms)),check=(v,m)=>{if(!v)throw Error(m)},report=document.querySelector('#result');
 document.querySelector('#play').onclick=async()=>{const sound=new GameAudio();try{
  sound.setSfxStyle('standard',{persist:false});sound.muted=false;sound.sfxVolume=.8;check(await sound.init(),'audio context did not start');report.textContent='RUNNING';

@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import * as T from '../vendor/three.module.js';
 import {loadCharacterData} from '../character-loader.js';
 import {clone} from '../vendor/SkeletonUtils.js';
-import {refineLingyaFace,refineLingyaAccessories} from '../lingya-face.js?v=173';
+import {refineLingyaFace,refineLingyaAccessories} from '../lingya-face.js?v=176';
 import {lingyaAccessories} from '../lingya-appearance.js';
 import {mirageHair,miasmaLantern} from '../mirage-appearance.js?v=174';
 import {sporeLantern} from '../wuling-appearance.js?v=174';
@@ -25,12 +25,14 @@ test('v173 real face, connected robes and flowing hair retain their original ani
   globalThis.self=globalThis;globalThis.ProgressEvent=class{constructor(type,data){Object.assign(this,data);}};globalThis.createImageBitmap=async()=>({width:512,height:512,close(){}});
   globalThis.fetch=async input=>{const url=typeof input==='string'?input:input.url;return url.startsWith('file:')?new Response(fs.readFileSync(fileURLToPath(url))):saved.fetch(input);};
   const {models}=await loadCharacterData();
-  await t.test('face refinement is millimetric, preserves the authored Blink and does not alter the shared source',()=>{
+  await t.test('face remodeling preserves the authored Blink and source topology within its local sculpt envelope',()=>{
    const source=models['lingya-face'].scene,face=source.clone(true),before=new Map();source.traverse(o=>{if(o.isMesh)before.set(o.name,o.geometry);});refineLingyaFace(face);const geometries=[];
    face.traverse(o=>{
     if(!o.isMesh)return;const original=before.get(o.name),g=o.geometry,p=g.attributes.position,q=original.attributes.position;geometries.push(g);assert.notEqual(g,original);assert.equal(p.count,q.count);assert.equal(g.morphTargetsRelative,original.morphTargetsRelative);
-    let movement=0;for(let i=0;i<p.count;i++){const distance=Math.hypot(p.getX(i)-q.getX(i),p.getY(i)-q.getY(i),p.getZ(i)-q.getZ(i));movement=Math.max(movement,distance);assert(distance<.003,'face proportions were changed instead of surface smoothing');}if(o.name==='Lingya-head')assert(movement>.001);
-    for(let target=0;target<(g.morphAttributes.position?.length||0);target++){const delta=g.morphAttributes.position[target],old=original.morphAttributes.position[target];let amplitude=0;for(let i=0;i<delta.count;i++){amplitude=Math.max(amplitude,Math.hypot(delta.getX(i),delta.getY(i),delta.getZ(i)));assert(Math.hypot(delta.getX(i)-old.getX(i),delta.getY(i)-old.getY(i),delta.getZ(i)-old.getZ(i))<.0011);}assert(amplitude>.004,'Blink no longer closes the authored eyelids');}
+    // v176 deliberately changes the eye region and muzzle shape; the previous
+    // 3 mm surface-polish limit no longer describes this requested remodel.
+    let movement=0;for(let i=0;i<p.count;i++){const distance=Math.hypot(p.getX(i)-q.getX(i),p.getY(i)-q.getY(i),p.getZ(i)-q.getZ(i));movement=Math.max(movement,distance);assert(distance<.012,'local face sculpt escaped its original head envelope');if(q.getY(i)<1.47)assert(distance<.00001,'neck attachment moved');}if(o.name==='Lingya-head')assert(movement>.004);
+    for(let target=0;target<(g.morphAttributes.position?.length||0);target++){const delta=g.morphAttributes.position[target],old=original.morphAttributes.position[target];let amplitude=0;for(let i=0;i<delta.count;i++){amplitude=Math.max(amplitude,Math.hypot(delta.getX(i),delta.getY(i),delta.getZ(i)));assert(Math.hypot(delta.getX(i)-old.getX(i),delta.getY(i)-old.getY(i),delta.getZ(i)-old.getZ(i))<.008);}assert(amplitude>.018,'Blink no longer closes the authored eyelids');}
     for(const a of Object.values(g.attributes))assert(a.array.every(Number.isFinite));
    });
    refineLingyaFace(face);let i=0;face.traverse(o=>{if(o.isMesh)assert.equal(o.geometry,geometries[i++]);});source.traverse(o=>{if(o.isMesh)assert.equal(o.geometry,before.get(o.name));});

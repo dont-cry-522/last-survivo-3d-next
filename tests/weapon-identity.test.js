@@ -5,20 +5,21 @@ import {HERO_LOADOUTS} from '../rules.js';
 import {makeHero} from '../hero-model.js';
 import {shadowFocus} from '../shadow-gear.js';
 import {makeHarpoon} from '../coast-models.js';
-import {boneBoomerang} from '../beast-model.js';
+import {makeSlingshot,poseSlingshot} from '../slingshot-model.js';
 import {sporeLantern} from '../wuling-appearance.js';
 import {miasmaLantern} from '../mirage-appearance.js';
 
-const make=(kind,id)=>kind==='wraith'?shadowFocus(id):id==='harpoon'?makeHarpoon():id==='boomerang'?boneBoomerang():id==='sporelantern'?sporeLantern():id==='miasmalantern'?miasmaLantern():makeHero(kind,id).userData.weapon;
+const make=(kind,id)=>kind==='wraith'?shadowFocus(id):id==='harpoon'?makeHarpoon():id==='boomerang'?makeSlingshot():id==='sporelantern'?sporeLantern():id==='miasmalantern'?miasmaLantern():makeHero(kind,id).userData.weapon;
 // Source-space envelopes measured before the identity changes. These are also
 // the envelopes used by the viewmodel framing, not combat collision dimensions.
-const limits={rifle:[.1225,.426,1.069],shotgun:[.177,.379,1.069],fire:[.3723,1.6126,.23],crossbow:[.918,.3651,.775],shuriken:[.4669,.1559,.7401],dark:[.3723,1.6126,.23],shade:[.0819,.1533,.0208],shadowblade:[1.1151,1.4063,.1055],grimoire:[.4577,.0829,.2901],harpoon:[.2592,.0861,2.5386],boomerang:[.9833,.0918,.4795],sporelantern:[.2615,.5691,.2672],miasmalantern:[.2229,.5051,.2596]};
+// The replaced slingshot has an upright envelope, including its fully drawn bands.
+const limits={rifle:[.1225,.426,1.069],shotgun:[.177,.379,1.069],fire:[.3723,1.6126,.23],crossbow:[.918,.3651,.775],shuriken:[.4669,.1559,.7401],dark:[.3723,1.6126,.23],shade:[.0819,.1533,.0208],shadowblade:[1.1151,1.4063,.1055],grimoire:[.4577,.0829,.2901],harpoon:[.2592,.0861,2.5386],boomerang:[.366,.540,.429],sporelantern:[.2615,.5691,.2672],miasmalantern:[.2229,.5051,.2596]};
 
-test('all thirteen named weapons keep their original framing and a bounded identity structure',()=>{
+test('all thirteen named weapons keep their declared framing and a bounded identity structure',()=>{
  let count=0;
  for(const [kind,ids]of Object.entries(HERO_LOADOUTS))for(const id of ids){
   count++;const g=make(kind,id);assert.deepEqual(g.userData.weaponIdentity,{hero:kind,weapon:id});
-  g.removeFromParent();g.position.set(0,0,0);g.rotation.set(0,0,0);g.scale.setScalar(1);g.updateMatrixWorld(true);
+  g.removeFromParent();g.position.set(0,0,0);g.rotation.set(0,0,0);g.scale.setScalar(1);if(id==='boomerang')poseSlingshot(g,.132,1);g.updateMatrixWorld(true);
   const size=new T.Box3().setFromObject(g).getSize(new T.Vector3()).toArray();size.forEach((v,i)=>assert(v<=limits[id][i]+.001,`${id} expands its viewmodel envelope on axis ${i}: ${v}`));
   let identity=0,meshes=0,triangles=0;
   g.traverse(o=>{if(!o.isMesh)return;meshes++;if(o.userData.identityDetail)identity++;triangles+=(o.geometry.index?.count||o.geometry.attributes.position.count)/3;assert([...o.geometry.attributes.position.array,...o.geometry.attributes.normal.array].every(Number.isFinite));});

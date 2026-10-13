@@ -1,18 +1,19 @@
-import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=125';
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=176';
 import * as T from './vendor/three.module.js';
-import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=128';
-import {finishShadowTone} from './shadow-appearance.js?v=174';
+import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=176';
+import {finishShadowTone} from './shadow-appearance.js?v=176';
 import {sporePod} from './wuling-appearance.js?v=174';
+import {poseSlingshot} from './slingshot-model.js';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=175';
+import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=176';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
 const PALETTES={
  scout:[0x4c654c,0x593f2b,0x94815b,0xc39879],silver:[0x304455,0x192633,0xb0c5ce,0xe1c5b1],
- wraith:[0x38434e,0x262c33,0x687786,0x8895a3],tide:[0x4f7387,0x253c4c,0x7c99a5,0xbe9f84],
- lingya:[0xdfcda2,0x70503b,0xe8d7ad,0xe8bda2],wuling:[0x352339,0x322730,0x927955,0xdbbca7],mirage:[0x1e2331,0x202430,0xa9b4c4,0xdacade]
+ wraith:[0x607086,0x333f50,0x9bacbd,0x8895a3],tide:[0x4f7387,0x253c4c,0x7c99a5,0xbe9f84],
+ lingya:[0xece2cc,0x806249,0x84977b,0xe8bda2],wuling:[0x352339,0x322730,0x927955,0xdbbca7],mirage:[0x1e2331,0x202430,0xa9b4c4,0xdacade]
 };
 const PROFILES={
  rifle:{type:'gun',width:.85,height:1,depth:.62,x:.38,y:-.48,pitch:.025,support:[0,-.045,.34]},
@@ -21,9 +22,10 @@ const PROFILES={
  fire:{type:'staff',width:.64,height:1.36,depth:.40,x:.64,y:-.25,pitch:.04},
  dark:{type:'staff',width:.64,height:1.36,depth:.40,x:.64,y:-.25,pitch:.04},
  shuriken:{type:'throw',width:.58,height:.85,depth:.44,x:.56,y:-.57,pitch:.60},
- boomerang:{type:'throw',width:.73,height:1,depth:.48,x:.46,y:-.48,pitch:.72},
+ boomerang:{type:'sling',width:.68,height:.94,depth:.55,x:.34,y:-.49,pitch:.04,support:[0,.22,-.07]},
  shadowblade:{type:'scythe',width:.60,height:1.16,depth:.70,x:.42,y:-.80,pitch:.12,support:SCYTHE_SUPPORT},
- shade:{type:'palm',width:.42,height:.72,depth:.35,x:.42,y:-.48,pitch:.12},
+ // The small rift floats above the fingertips, rather than an oversized hidden glove.
+ shade:{type:'palm',width:.42,height:.72,depth:.35,x:.42,y:-.43,pitch:.12,grip:[0,.085,.07]},
  grimoire:{type:'book',width:.74,height:.66,depth:.44,x:.01,y:-.47,pitch:.42,grip:[-.15,.01,.065],support:[.16,.01,.065]},
  harpoon:{type:'thrust',width:.76,height:1,depth:1.66,x:.42,y:-.66,pitch:.13,support:[0,0,.36]},
  sporelantern:{type:'lamp',width:.64,height:1.08,depth:.36,x:.58,y:-.40,pitch:.01},
@@ -64,9 +66,9 @@ function sleeveGeometry(palette,kind){
   let radius=.057*(1-t)+.032*t,hex=t>.88?palette[1]:palette[0];
   if(kind==='scout'){radius+=.007*envelope;if(t>.52)hex=palette[1];if(t>.52&&t<.59||t>.77&&t<.81){radius+=.0035;hex=palette[2];}}
   else if(kind==='silver'){radius*=.90;radius+=.003*envelope;if(t>.62)hex=palette[1];if(t>.81&&t<.85){radius+=.002;hex=palette[2];}}
-  else if(kind==='wraith'){radius+=.014*envelope**2;if(t>.70){radius+=.0015*Math.sin(t*120);hex=Math.sin(t*100)>.82?palette[2]:palette[1];}}
+  else if(kind==='wraith'){radius+=.014*envelope**2;if(t>.70){radius+=.0015*Math.sin(t*120);hex=Math.sin(t*100)>.82?palette[2]:0x303b4b;}}
   else if(kind==='tide'){if(t<.51)radius+=.009*envelope;else if(t<.62){radius+=.013*Math.sin((t-.51)/.11*Math.PI);hex=palette[2];}else if(t<.86){radius*=.91;hex=palette[3];}else hex=palette[1];}
-  else if(kind==='lingya'){radius+=.018*Math.sin(Math.min(1,t/.6)*Math.PI)**2;if(t>.76){radius+=.002;hex=t<.80||t>.90&&t<.94?palette[2]:palette[1];}}
+  else if(kind==='lingya'){radius+=.018*Math.sin(Math.min(1,t/.6)*Math.PI)**2;if(t>.76){radius+=.002;hex=t<.80||t>.90&&t<.94?0xf0e7d5:t<.94?palette[2]:palette[1];}}
   else if(kind==='wuling'){radius+=.008*envelope+.008*Math.exp(-(((t-.83)/.12)**2));if(t>.72)hex=t<.76||t>.87&&t<.91?palette[2]:palette[1];}
   else if(kind==='mirage'){radius*=.92;radius+=.010*Math.exp(-(((t-.82)/.11)**2));if(t>.72&&t<.88)hex=t>.81&&t<.85?palette[2]:0x353750;}
   color.setHex(hex);
@@ -218,10 +220,6 @@ export class FirstPersonView {
     const detail=this.addDetail(filaments,heart,'lantern-core-filaments',{roughness:.4,metalness:.1,emissive:mist?0x65457d:0x7d4421});
     heart.material.roughness=.29;heart.material.emissive.copy(heart.material.color);this.charged.push({material:heart.material,base:.20,power:.75},{material:detail.material,base:.15,power:.35});
    }
-  }else if(id==='boomerang'&&!gun.getObjectByName('SM_Boomerang_BadgerClawCarving')){
-   const batch=detailBatch();
-   for(const sign of[-1,1])for(let i=0;i<3;i++){const x=sign*(.16+i*.075),z=.008+i*.064;batch.line([[x-sign*.017,.030,z-.012],[x,.031,z+.015],[x+sign*.017,.030,z+.005]],.0023,0x8a7047);}
-   this.addDetail(batch,this.model,'bone-carving',{roughness:.89,metalness:0});
   }
  }
  setHero(hero,weaponId){
@@ -231,9 +229,10 @@ export class FirstPersonView {
   for(const child of this.source.children)this.model.add(this.copyPart(child));
   this.finishWeapon();
   this.bowStrings=(this.source.userData.crossbowStrings||[]).map(source=>[source,this.parts.find(([part])=>part===source)?.[1]]);
+  if(weaponId==='boomerang'&&this.source.userData.pouch){const find=source=>this.parts.find(([part])=>part===source)?.[1],d=this.source.userData;Object.assign(this.model.userData,{pouch:find(d.pouch),bands:d.bands.map(find),projectile:find(d.projectile),bandAnchors:d.bandAnchors});}
   this.model.updateMatrixWorld(true);const box=new T.Box3(),partBox=new T.Box3();
   // The bow's unposed string starts as a unit cylinder. Its authored limbs/rail define framing.
-  for(const [source,clone]of this.parts)if(clone.isMesh&&!this.source.userData.crossbowStrings?.includes(source)){if(!clone.geometry.boundingBox)clone.geometry.computeBoundingBox();box.union(partBox.copy(clone.geometry.boundingBox).applyMatrix4(clone.matrixWorld));}
+  for(const [source,clone]of this.parts)if(clone.isMesh&&!this.source.userData.crossbowStrings?.includes(source)&&!this.source.userData.bands?.includes(source)&&source.parent!==this.source.userData.pouch){if(!clone.geometry.boundingBox)clone.geometry.computeBoundingBox();box.union(partBox.copy(clone.geometry.boundingBox).applyMatrix4(clone.matrixWorld));}
   const size=box.getSize(new T.Vector3());
   if(box.isEmpty()){this.clear();return;}
   this.center=box.getCenter(new T.Vector3());this.dimensions=size;
@@ -305,6 +304,7 @@ export class FirstPersonView {
   const fired=attack>this.previousAttack+.025;this.previousAttack=attack;this.attackAge=fired?0:this.attackAge+step;
   const age=Number.isFinite(data.attackAge)?data.attackAge:this.attackAge,period=data.reloadDuration||WEAPON_RECOVERY[id]||attackDuration,cycle=Number.isFinite(data.reloadPhase)?data.reloadPhase:Math.min(1,age/period),gestureAge=id==='boomerang'&&data.shotSerial?cycle*period:age,motion=weaponGesture(id,gestureAge,cycle,period),kick=motion.kick,sweep=motion.sweep,draw=motion.draw;
   this.motion=motion;
+  if(id==='boomerang')poseSlingshot(this.model,gestureAge,period);
   // Only the existing crystal/lantern core brightens; no extra light or screen-sized halo.
   for(const charged of this.charged)charged.material.emissiveIntensity=charged.base+charged.power*Math.min(1,motion.gather+kick*.60);
   // Third-person string posing begins only in the aiming layer. Before that, its
@@ -336,9 +336,8 @@ export class FirstPersonView {
   }else if(profile.type==='scythe'){
    this.poseScythe(this.weapon,scythePose(age,period,data.scytheCombo||0),scale);
   }else if(id==='boomerang'){
-   const gather=motion.gather,empty=Number(!!data.boomerangAway)*(1-(data.catchReady||0))*(1-motion.weight);
-   this.weapon.position.set(.075*gather-.13*kick-.045*sweep,.055*gather-.035*sweep-.055*empty,.075*gather-.14*kick-.035*sweep+.035*empty);
-   this.weapon.rotation.x+=.09*gather-.18*kick-.07*sweep;this.weapon.rotation.y+=.16*gather-.20*kick-.08*sweep;this.weapon.rotation.z=.25*gather-.46*kick-.10*sweep;
+   // The fork stays braced. The pouch and pulling hand supply the large motion.
+   this.weapon.position.set(-.012*draw,.014*draw-.010*kick,.015*kick);this.weapon.rotation.x+=.018*kick;this.weapon.rotation.z=-.025*draw+.018*kick;
   }else if(profile.type==='throw'){
    const flick=id==='shuriken';
    this.weapon.position.set(-.075*sweep,(flick?.025:.055)*kick,-(flick?.14:.11)*kick);
@@ -354,6 +353,9 @@ export class FirstPersonView {
    }
   }else if(profile.type==='book'){
    this.weapon.rotation.x+=kick*.10;this.weapon.rotation.z=Math.sin((Number(time)||0)*1.8)*.018;this.weapon.position.y=kick*.035;
+  }else if(profile.type==='palm'){
+   this.weapon.position.set(-.032*motion.gather+.018*kick,.020*motion.gather+.012*kick,.022*motion.gather-.018*kick);
+   this.weapon.rotation.x+=.08*motion.gather-.045*kick;this.weapon.rotation.z=-.11*motion.gather+.06*kick;
   }else{
    this.weapon.rotation.x-=kick*(id==='fire'?.27:.20);this.weapon.rotation.z=sweep*(id==='dark'?-.16:.10);this.weapon.position.z=-kick*.065;
    if(profile.type==='staff')this.weapon.position.y=motion.gather*.018;
@@ -382,16 +384,20 @@ export class FirstPersonView {
    const hand=this.hands[i],arm=this.arms[i],point=this.scratch.copy(this.handPoints[i]);
    if(i&&id==='shotgun')point.z+=this.source.userData.pump?.position.z||0;
    if(i&&id==='crossbow'){const mechanism=crossbowMechanism(cycle);point.lerp(this.wrist.set(.06,.13,.29-mechanism.pull).sub(this.center),mechanism.hand);}
+   if(i&&id==='boomerang')point.set(0,.22,-.07-.30*motion.handPull).sub(this.center);
    point.applyMatrix4(this.weapon.matrix);
    if(i&&!support)point.set(-halfW*.48-this.root.position.x,-halfH*.72-this.root.position.y+kick*.045,.11-kick*.06);
    if(i&&id==='sporelantern')point.add(this.wrist.set(-.035*motion.gather+.065*kick,.045*motion.gather+.095*kick-.025*sweep,.065*motion.gather-.135*kick));
    if(i&&id==='miasmalantern')point.add(this.wrist.set(.075*motion.gather+.035*kick,.055*motion.gather+.020*kick,-.025*motion.gather-.045*kick));
+   if(i&&profile.type==='palm')point.add(this.wrist.set(.045*motion.gather,halfH*.07+.030*motion.gather,-.018*motion.gather));
    hand.rotation.set(i?(support?-.30:-.45):-.18,i?-.20:.12,i?(support?-.38:.18):-.38);
    if(profile.type==='book')hand.rotation.set(-.75,i?-.20:.20,i?.55:-.55);
    if(profile.type==='lamp'&&!i)hand.rotation.set(-.12,0,-.92);
    if(i&&id==='sporelantern')hand.rotation.set(-.60-.22*motion.gather+.36*kick,-.20+.22*kick,.18-.13*kick);
    if(i&&id==='miasmalantern')hand.rotation.set(-.45-.18*motion.gather,-.20-.15*motion.gather,.18-.16*kick);
-   if(profile.type==='palm'&&!i)hand.rotation.set(-.52,.10,-.08);
+   if(i&&id==='boomerang')hand.rotation.set(-.55+.10*motion.open,-.28,.48-.12*motion.open);
+   if(profile.type==='palm'&&!i)hand.rotation.set(-.52-.14*motion.gather+.07*kick,.10-.15*motion.gather,-.08+.14*kick);
+   if(profile.type==='palm'&&i)hand.rotation.set(-.50-.10*motion.gather,-.20,.18-.12*motion.gather);
    if(!i&&(profile.type==='lamp'||id==='boomerang')){
     // Follow the handle's rotation delta, retaining the calibrated resting palm.
     this.restRotation.setFromEuler(new T.Euler(profile.pitch,Math.PI-.045,0)).invert();this.handRotation.copy(this.weapon.quaternion).multiply(this.restRotation);hand.quaternion.premultiply(this.handRotation);
@@ -402,13 +408,15 @@ export class FirstPersonView {
    hand.position.copy(point).sub(this.wrist.copy(CONTACT).multiply(hand.scale).applyQuaternion(hand.quaternion));
    hand.morphTargetInfluences[0]=i&&!support?.72+.20*kick:profile.type==='palm'?.78+.18*kick:profile.type==='book'?.48:profile.type==='throw'?Math.max(kick*.90,this.source.visible?0:.88):i&&id==='crossbow'?crossbowMechanism(cycle).hand*.24:0;
    if(i&&id==='sporelantern')hand.morphTargetInfluences[0]=.20-.10*motion.gather+.70*motion.open;
-   if(!i&&id==='boomerang')hand.morphTargetInfluences[0]=Math.max(motion.open*.9,this.source.visible?0:.88*(1-(data.catchReady||0)));
+   if(id==='boomerang')hand.morphTargetInfluences[0]=i?.12+.68*motion.open:0;
+   if(profile.type==='palm')hand.morphTargetInfluences[0]=i?.82-.20*motion.gather:.88-.19*motion.gather+.07*kick;
    // The arms remain after a thrown weapon leaves the hand; only the source weapon is hidden.
    hand.visible=arm.visible=true;
    this.wrist.set(0,-.038,0).multiply(hand.scale).applyQuaternion(hand.quaternion).add(hand.position);
    this.elbow.set(halfW*(i?-.30:.66)-this.root.position.x,-halfH*1.15-this.root.position.y,.35);
    if(i&&id==='sporelantern'){this.elbow.x+=.015*kick-.025*motion.gather;this.elbow.y+=.018*kick;this.elbow.z-=.040*kick;}
-   if(!i&&(id==='boomerang'||id==='miasmalantern')){this.elbow.x+=.018*motion.gather-.025*kick;this.elbow.y+=.015*motion.gather-.018*sweep;this.elbow.z+=.025*motion.gather-.040*kick;}
+   if(i&&id==='boomerang'){this.elbow.x-=.045*motion.handPull;this.elbow.y+=.025*motion.handPull;this.elbow.z+=.065*motion.handPull;}
+   if(!i&&id==='miasmalantern'){this.elbow.x+=.018*motion.gather-.025*kick;this.elbow.y+=.015*motion.gather-.018*sweep;this.elbow.z+=.025*motion.gather-.040*kick;}
    if(id==='harpoon'||id==='shadowblade'){this.elbow.x+=(i?-.035:.06)*motion.cut;this.elbow.y+=.025*motion.gather;this.elbow.z-=.055*kick;}
    if(id==='shadowblade')this.elbow.z-=.12;
    arm.position.copy(this.elbow);this.scratch.copy(this.wrist).sub(this.elbow);const length=this.scratch.length();

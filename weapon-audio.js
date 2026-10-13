@@ -1,4 +1,4 @@
-import{newWeaponSample,NEW_WEAPON_SOUNDS}from'./new-weapon-audio.js?v=114';
+import{newWeaponSample,NEW_WEAPON_SOUNDS}from'./new-weapon-audio.js?v=176';
 import{poisonSample}from'./poison-audio.js?v=114';
 import{mirageSample}from'./mirage-audio.js?v=114';
 // Short original material textures synthesized locally; no remote asset load.

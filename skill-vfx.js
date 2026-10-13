@@ -1,5 +1,4 @@
-import{meleeSwing}from'./weapon-performance.js?v=175';
-import{boneBoomerang}from'./beast-model.js?v=173';
+import{meleeSwing}from'./weapon-performance.js?v=176';
 import * as T from './vendor/three.module.js';
 import {flatGround,fitGroundSurface,disposeGroundSurface} from './ground-cues.js?v=167';
 import{shadowCrescentGeometry}from'./shadow-weapons.js?v=114';
@@ -251,7 +250,10 @@ export class SkillVFX{
  }
  weaponContact(kind,x,z,angle,combo=0,contact){
   const f=contactFrame(x,z,angle,contact,this.groundHeight(x,z)+(kind==='hammer'?.16:.8)),p=f.at(),size=(a,b,c=1)=>[a*f.scale,b*f.scale,c],pose=(m,roll=0)=>{if(m){m.quaternion.copy(f.rotation);m.rotateZ(roll);}return m;};
-  if(kind==='harpoon'||kind==='boomerang'){
+  if(kind==='boomerang'){
+   pose(this.particle('smoke',0xb7a788,p.x,p.y,p.z,{life:.16,size:size(.13,.12),grow:true,opacity:.30,additive:false}));
+   for(let i=0;i<3;i++)this.particle('stone',i===1?0xdac8a4:0x8b7962,p.x,p.y,p.z,{life:.20,size:size(.021,.027,.020*f.scale),velocity:f.velocity((i-1)*.9,.65,.85),gravity:5,spin:6,opacity:.8,additive:false});
+  }else if(kind==='harpoon'){
    const harpoon=kind==='harpoon',sweep=combo===1,color=harpoon?0x9bc7c2:0xd4be90;
    if(harpoon&&!sweep){
     this.contactStroke(f,-.035,-.065,.025,.12,0xd0e6df,.058,.13,.84);for(const side of[-1,1]){const q=f.at(side*.075,-.05,.035);pose(this.particle('sweep',side<0?0x739f9c:0xb7d8d0,q.x,q.y,q.z,{life:.22,size:size(.15,.13),motion:'lash',velocity:f.velocity(side*.35,.18,.3),opacity:.56,additive:false,endColor:0x4a7578}),side*.9);}
@@ -357,7 +359,9 @@ export class SkillVFX{
    for(const side of [-1,1]){const a=angle+side*(scatter?.55:.35),spark=this.particle('crystal',0xeab36e,px,height,pz,{life:.10,size:[.017,scatter?.11:.075,.017],velocity:[Math.sin(a)*3,side*.35,Math.cos(a)*3],opacity:.8,additive:false});if(spark)spark.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(Math.sin(a),0,Math.cos(a)));}
   }else if(w.id==='crossbow'){
    for(const side of [-1,1])this.segment(new T.Vector3(px+dz*side*.16-dx*.12,height,pz-dx*side*.16-dz*.12),new T.Vector3(px+dx*.24,height,pz+dz*.24),path==='crossbow_pierce'?0xd4e1da:0x9cc5d5,.014,.10,false,0,.55);
-  }else if(['shuriken','shadowblade','boomerang'].includes(w.id)){
+  }else if(w.id==='boomerang'){
+   this.segment(new T.Vector3(px,height,pz),new T.Vector3(px+dx*.20,height,pz+dz*.20),0xe2d2aa,.012,.065,false,0,.30);
+  }else if(['shuriken','shadowblade'].includes(w.id)){
    const swipe=this.particle('sweep',w.id==='shuriken'?0xb9eedd:w.id==='boomerang'?0xe1cb97:0xb5c4d7,px,height-.1,pz,{life:.14,size:[.28,.21,1],motion:'lash',roll:-4,opacity:.55});if(swipe)swipe.rotation.set(-Math.PI/2,0,-angle);
   }else if(w.id==='fire'){
    this.particle('flame',path==='fire_blast'?0xffd999:0xffa054,px,height,pz,{life:.16,size:[.14,.23,1],velocity:[dx*2,.2,dz*2],opacity:.75});
@@ -372,7 +376,9 @@ export class SkillVFX{
   if(b.mesh.userData.aura){const aura=b.mesh.userData.aura,elapsed=b.elapsed||0,wave=1+Math.sin(elapsed*(b.kind==='miasmalantern'?7:18))*(b.kind==='miasmalantern'?.04:.07);aura.scale.setScalar(wave);if(b.kind==='dark')aura.rotation.z=b.pathId==='dark_seek'?Math.sin(elapsed*8)*.14:elapsed*(b.pathId==='dark_gravity'?-5:2);if(b.kind==='miasmalantern')aura.rotation.z=Math.sin(elapsed*3)*.25;}
   if(b.trail>0)return;b.trail=['fire','dark'].includes(b.kind)?.075:.095;
   const len=Math.hypot(b.vx,b.vz)||1,dx=b.vx/len,dz=b.vz/len,y=b.height??(this.groundHeight(b.x,b.z)+1.15),path=b.pathId;
-  if(['boomerang','shuriken','shadowblade'].includes(b.kind)){
+  if(b.kind==='boomerang'){
+   this.segment(new T.Vector3(b.x-dx*.08,y,b.z-dz*.08),new T.Vector3(b.x-dx*.28,y,b.z-dz*.28),0xd5c7ad,.012,.08,false,0,.28);
+  }else if(['shuriken','shadowblade'].includes(b.kind)){
    const bone=b.kind==='boomerang',shadow=b.kind==='shadowblade',color=bone?(b.returning?0xa9c995:0xe3cf9f):shadow?0x8496b0:0x9bdace;
    const arc=this.particle('sweep',color,b.x-dx*.12,bone?(b.height??(this.groundHeight(b.x,b.z)+.82)):y,b.z-dz*.12,{life:.13,size:[bone?.28:.23,bone?.20:.17,1],opacity:b.returning?.5:.34,motion:'lash',roll:b.returning?-5:5,additive:false});if(arc)arc.rotation.set(-Math.PI/2,0,-b.mesh.rotation.y);
   }else if(b.kind==='fire'){
@@ -394,7 +400,11 @@ export class SkillVFX{
  }
  projectile(w){
   const path=w.pathId,rank=w.pathRank||0;
-  if(w.id==='boomerang'){const b=boneBoomerang();b.scale.setScalar(.72);return b;}
+  if(w.id==='boomerang'){
+   this.geometry.slingStone||=new T.IcosahedronGeometry(1,1);
+   if(!this.materials.has('sling-stone'))this.materials.set('sling-stone',new T.MeshStandardMaterial({color:0xd3c4a8,roughness:.92}));
+   const stone=new T.Mesh(this.geometry.slingStone,this.materials.get('sling-stone'));stone.name='SM_Slingshot_Stone_A';stone.scale.set(.080,.065,.075);return stone;
+  }
   const g=new T.Group(),part=(shape,color,scale,z=0)=>{if(!this.materials.has(color))this.materials.set(color,new T.MeshBasicMaterial({color,side:T.DoubleSide}));const m=new T.Mesh(this.geometry[shape],this.materials.get(color));m.scale.set(...scale);m.position.z=z;g.add(m);return m;};
   if(w.id==='miasmalantern'){
    // Soft, round poison body follows the 0.34 m collision silhouette; no needle shaft.

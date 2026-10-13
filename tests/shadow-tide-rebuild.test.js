@@ -18,6 +18,15 @@ before(async()=>{
 });
 const sourceFor=kind=>assets[kind==='wraith'?'scout-outfit':'tide-outfit'].scene;
 
+test('shadow chest is a continuous cloth front rather than raised source armour bars',()=>{
+ const root=clone(sourceFor('wraith'));rebuildShadowTide(root,'wraith');
+ const p=root.getObjectByName('Male_Ranger_Body').geometry.attributes.position;let samples=0;
+ for(let i=0;i<p.count;i++)if(Math.abs(p.getX(i))<.09&&p.getY(i)>1.28&&p.getY(i)<1.40&&p.getZ(i)>.03){
+  samples++;assert(p.getZ(i)<.125,'source chest armour still protrudes through the cloth profile');
+ }
+ assert(samples>20,'fixture does not inspect the actual chest');
+});
+
 test('both outfits are substantially resculpted without changing source UVs, bone weights or another hero',()=>{
  for(const kind of['wraith','tide']){
   const source=sourceFor(kind),root=clone(source),old=new Map();

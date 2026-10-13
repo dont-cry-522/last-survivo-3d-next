@@ -4,7 +4,7 @@ import {smoothSeams} from './hero-finish.js';
 // Three authored wardrobes on the existing female rig. Vertices inherit the
 // nearby source garment's weights; no new bone, actor transform or grip exists.
 const palettes={
- lingya:{cloth:0xdfcda2,shade:0xad966e,trim:0xe8d7ad,leaf:0x60795d,leather:0x70503b,sole:0x493c2b},
+ lingya:{cloth:0xece2cc,shade:0xc0b296,trim:0xf0e7d5,leaf:0x84977b,leather:0x806249,sole:0x544733},
  wuling:{cloth:0x352339,shade:0x221d2b,trim:0x927955,leaf:0x51324f,leather:0x322730,sole:0x504333},
  mirage:{cloth:0x1e2331,shade:0x131622,trim:0xa9b4c4,leaf:0x353750,leather:0x202430,sole:0x181b23}
 };
@@ -81,7 +81,7 @@ function profileAt(profile,y){
 }
 function torso(mesh,kind){
  const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage';
- const sections=child?[[.99,.181,.116],[1.075,.176,.122],[1.14,.150,.117],[1.23,.149,.126],[1.32,.176,.138],[1.39,.199,.132],[1.44,.187,.104],[1.475,.091,.077],[1.493,.070,.064]]:
+ const sections=child?[[.99,.179,.117],[1.075,.173,.121],[1.14,.151,.116],[1.23,.149,.123],[1.32,.170,.134],[1.39,.188,.127],[1.44,.177,.103],[1.472,.094,.076],[1.493,.076,.065]]:
  mist?[[.925,.206,.124],[1.015,.182,.120],[1.11,.142,.103],[1.19,.126,.110],[1.27,.151,.135],[1.35,.179,.143],[1.405,.198,.121],[1.452,.174,.088],[1.48,.080,.060],[1.515,.064,.060]]:
  [[.82,.219,.149],[.90,.211,.147],[1.015,.190,.135],[1.10,.165,.117],[1.18,.140,.110],[1.26,.158,.137],[1.35,.183,.144],[1.41,.201,.120],[1.463,.135,.079],[1.49,.074,.063]];
  const facing=(y,a)=>{const start=mist?1.425:1.405,height=mist?.38:.54,v=clamp((start-y)/height,0,1),angle=Math.atan2(Math.sin(a),Math.cos(a)),center=mist?0:.14*(1-v),edge=Math.abs(angle-center)/(mist?.50:.73);return{v,edge,inside:!child&&y<start&&y>start-height&&edge<1};};
@@ -101,7 +101,7 @@ function torso(mesh,kind){
 function sleeves(mesh,kind){
  const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage';
  for(const side of[-1,1]){
-  const profile=child?[[.148,.064],[.21,.086],[.28,.084],[.35,.067],[.405,.062],[.46,.066],[.53,.056],[.59,.049],[.63,.047]]:
+  const profile=child?[[.148,.064],[.21,.077],[.28,.074],[.35,.063],[.405,.058],[.46,.059],[.53,.051],[.59,.049],[.63,.046]]:
    mist?[[.148,.065],[.21,.069],[.30,.064],[.39,.060],[.45,.054],[.52,.056],[.585,.075],[.645,.066]]:
    [[.148,.068],[.21,.077],[.30,.073],[.39,.065],[.45,.062],[.52,.070],[.58,.072],[.625,.064]];
   const dense=[];for(let j=0;j<profile.length-1;j++)for(let step=0;step<2;step++){const x=T.MathUtils.lerp(profile[j][0],profile[j+1][0],step/2);dense.push([x,profileAt(profile,x)[0]]);}dense.push(profile.at(-1));
@@ -116,8 +116,9 @@ function sleeves(mesh,kind){
  return out.build();
 }
 function cuffs(mesh,kind){
- const p=palettes[kind],out=surface(mesh),mist=kind==='mirage';
- for(const side of[-1,1])rings(out,[[.49,.074],[.507,.077],[.535,.078],[.57,.077],[.597,.071],[.607,.069]],([x,r],a,j)=>[side*x,1.415+Math.cos(a)*r,-.049+Math.sin(a)*r*.95,j===0||j===5?p.trim:mist?p.leaf:p.leather],16,side<0);
+ const p=palettes[kind],out=surface(mesh),mist=kind==='mirage',child=kind==='lingya';
+ const profile=child?[[.535,.058],[.55,.063],[.565,.062],[.585,.059],[.601,.056],[.607,.054]]:[[.49,.074],[.507,.077],[.535,.078],[.57,.077],[.597,.071],[.607,.069]];
+ for(const side of[-1,1])rings(out,profile,([x,r],a,j)=>[side*x,1.415+Math.cos(a)*r,-.049+Math.sin(a)*r*.95,j===0||j===5?p.trim:mist||child?p.leaf:p.leather],16,side<0);
  return out.build();
 }
 function legs(mesh,kind){
@@ -138,9 +139,9 @@ function boots(mesh,kind){
  return out.build();
 }
 function hood(mesh,kind){
- const p=palettes[kind],out=surface(mesh),child=kind==='lingya',center=child?1.610:1.630,rx=child?.153:.161,ry=child?.157:.175;
- grid(out,14,32,(u,v)=>{const a=u*Math.PI*2,theta=.94+v*(Math.PI-.94),r=Math.sin(theta),edge=1-smooth(v,0,.11),fold=1+.018*Math.cos(a*8)*Math.sin(v*Math.PI);
-  return[Math.cos(a)*rx*r*fold,center+Math.sin(a)*ry*r, (child?-.043:-.050)+Math.cos(theta)*(child?.174:.186),edge>.3?p.trim:child?p.leaf:p.shade];
+ const p=palettes[kind],out=surface(mesh),child=kind==='lingya',center=child?1.614:1.630,rx=child?.149:.161,ry=child?.151:.175;
+ grid(out,14,32,(u,v)=>{const a=u*Math.PI*2,theta=.94+v*(Math.PI-.94),r=Math.sin(theta),edge=1-smooth(v,0,.11),fold=1+.018*Math.cos(a*8)*Math.sin(v*Math.PI),roll=child?.0045*Math.sin(Math.PI*Math.min(1,v/.13)):0;
+  return[Math.cos(a)*(rx*r*fold+roll),center+Math.sin(a)*(ry*r+roll), (child?-.037:-.050)+Math.cos(theta)*(child?.174:.186)+roll*.6,edge>.3?p.trim:child?p.leaf:p.shade];
  });return out.build();
 }
 function longHair(mesh){

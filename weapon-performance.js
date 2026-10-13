@@ -1,7 +1,6 @@
 import{SCYTHE}from'./scythe-combat.js?v=125';
 import{POISON}from'./poison-config.js?v=114';
 import{MIRAGE}from'./mirage-config.js?v=114';
-import{newHeroAttack}from'./new-hero-motion.js?v=114';
 const clamp=x=>Math.max(0,Math.min(1,x));
 const smooth=(a,b,t)=>{const x=clamp((t-a)/(b-a));return x*x*(3-2*x);};
 const pulse=(t,a,b,c)=>smooth(a,b,t)*(1-smooth(b,c,t));
@@ -28,14 +27,18 @@ export function weaponGesture(id,age,cycle=1,period=1){
   }
   if(id==='shadowblade'||id==='harpoon')return meleeSwing(id,age,period);
   if(id==='sporelantern')return{kick:pulse(t,0,POISON.releaseFraction,1),sweep:pulse(t,.18,.50,1),draw:0,gather:pulse(t,0,.13,POISON.releaseFraction),podHeld:t<POISON.releaseFraction||t>.76,open:smooth(POISON.releaseFraction-.04,POISON.releaseFraction+.025,t)*(1-smooth(.58,.76,t))};
-  if(id==='boomerang'){
-    const action=newHeroAttack('lingya',age,period);
-    return{kick:action.drive,sweep:action.follow,draw:0,gather:action.wind,weight:action.weight,open:smooth(.19,.27,action.u)*(1-smooth(.70,1,action.u))};
-  }
+  if(id==='boomerang')return slingshotMechanism(age,period);
   const peak={boomerang:.24,harpoon:.34,rifle:.10,shotgun:.14,crossbow:.12,shuriken:.24,fire:.3,dark:.4,shade:.18,shadowblade:.32,grimoire:.46}[id]||.2;
   return {kick:pulse(t,0,peak,1),sweep:pulse(t,.04,peak+.12,1),
     draw:age<period&&cycle<1?pulse(cycle,.12,id==='crossbow'?.53:.42,id==='crossbow'?.82:.78):0,
     gather:pulse(t,.38,.68,1)};
+}
+// Old weapon id is retained for saves. The sling remains held: draw, release the
+// pouch at the existing .24 release fraction, then bring the empty fingers back.
+export function slingshotMechanism(age=10,period=1){
+ const duration=Math.min(.55,Math.max(.001,period*.9)),t=clamp(age/duration),draw=smooth(0,.20,t),pull=draw*(1-smooth(.24,.34,t));
+ return{pull,handPull:draw*(1-smooth(.48,.80,t)),open:smooth(.22,.27,t)*(1-smooth(.64,.82,t)),stoneVisible:t<.24||t>=.82,
+  kick:pulse(t,.20,.28,.65),sweep:0,gather:pull,draw:pull,weight:smooth(0,.10,t)*(1-smooth(.72,1,t))};
 }
 export function shotStarted(d,attack,previous){
   const fired=d.shotSerial===undefined?attack>previous+.025:d.shotSerial!==(d.lastShotSerial||0);

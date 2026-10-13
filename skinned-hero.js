@@ -1,27 +1,27 @@
-import {createShadowAura,updateShadowAura,disposeShadowAura} from './shadow-aura.js?v=114';
-import {shadowOutfit,shadowAccessories,finishShadowTone} from './shadow-appearance.js?v=174';
-import {shadowFocus} from './shadow-gear.js?v=173';
-import {GRIP_POINTS,SCYTHE_SUPPORT,primaryGripFrame,fitWeaponToPalm,createHandGrips,restoreGripWrists,captureGripWrists,aimGrip,supportGripTarget,aimSupportGrip,poseGripFingers} from './weapon-grips.js?v=128';
-import {refineLingyaHead,refineLingyaFace,refineLingyaAccessories,lingyaHeadY} from './lingya-face.js?v=173';
+import {createShadowAura,updateShadowAura,disposeShadowAura} from './shadow-aura.js?v=176';
+import {shadowOutfit,shadowAccessories,finishShadowTone} from './shadow-appearance.js?v=176';
+import {shadowFocus} from './shadow-gear.js?v=176';
+import {GRIP_POINTS,SCYTHE_SUPPORT,primaryGripFrame,fitWeaponToPalm,createHandGrips,restoreGripWrists,captureGripWrists,aimGrip,supportGripTarget,aimSupportGrip,poseGripFingers} from './weapon-grips.js?v=176';
+import {refineLingyaHead,refineLingyaFace,refineLingyaAccessories,lingyaHeadY} from './lingya-face.js?v=176';
 import {finishHeroSurface,smoothSeams,prepareSilverHair,animateSilverHair} from './hero-finish.js?v=172';
 import {rebuildRanger} from './ranger-rebuild.js?v=174';
-import {rebuildShadowTide} from './shadow-tide-rebuild.js?v=174';
-import {rebuildWildMist} from './wild-mist-rebuild.js?v=174';
+import {rebuildShadowTide} from './shadow-tide-rebuild.js?v=176';
+import {rebuildWildMist} from './wild-mist-rebuild.js?v=176';
 import {applyHeroIdentity,settleHeroIdentity} from './hero-identity.js?v=174';
 import{WULING_PALETTE,wulingOutfit,wulingAccessories,wulingMask,sporeLantern,sporeSatchel,sporePod}from'./wuling-appearance.js?v=174';
 import{MIRAGE_PALETTE,mirageOutfit,mirageHair,prepareMirageHair,animateMirageHair,mirageMask,mirageAccessories,miragePetalTails,miasmaLantern}from'./mirage-appearance.js?v=174';
 import{newHeroAttack,heroCarryPose,committedWeaponYaw}from'./new-hero-motion.js?v=114';
 import{heroDodgePose}from'./hero-dodge.js?v=114';
 import{lingyaHopPose}from'./lingya-motion.js?v=114';
-import{lingyaOutfit,lingyaAccessories,lingyaLegs}from'./lingya-appearance.js?v=114';
-import{boneBoomerang}from'./beast-model.js?v=173';
+import{lingyaOutfit,lingyaAccessories,lingyaLegs}from'./lingya-appearance.js?v=176';
+import{makeSlingshot,poseSlingshot}from'./slingshot-model.js?v=176';
 import{makeHarpoon}from'./coast-models.js?v=173';
-import{weaponGesture,shotStarted,scythePose,crossbowMechanism}from'./weapon-performance.js?v=175';
+import{weaponGesture,shotStarted,scythePose,crossbowMechanism,slingshotMechanism}from'./weapon-performance.js?v=176';
 import{rollProgress,rollWeight}from'./dodge-motion.js?v=114';
 import * as T from './vendor/three.module.js';
 import {clone} from './vendor/SkeletonUtils.js';
 import {loadCharacterData} from './character-loader.js?v=114';
-import {makeHero as makePrototype,poseCrossbow} from './hero-model.js?v=175';
+import {makeHero as makePrototype,poseCrossbow} from './hero-model.js?v=176';
 
 const templates=new Map(),clips=new Map();
 let lingyaFace;
@@ -157,7 +157,12 @@ function attachAtRest(bone,object,root){
 function capeMesh(kind,weapon,model){
   const shadowLength=weapon==='shade'?.91:weapon==='shadowblade'?.48:1.05;
   const pos=[],uv=[],colors=[],ix=[],cols=24,rows=28;
-  for(let y=0;y<=rows;y++)for(let x=0;x<=cols;x++){const u=x/cols,v=y/rows,w=.22+.13*Math.sin(v*Math.PI*.86),split=.10*Math.exp(-(((u-.5)/.065)**2))*v**8;if(kind==='lingya'){const a=.56+u*(Math.PI*2-1.12),r=.12+.145*Math.sin(v*Math.PI/2);pos.push(Math.sin(a)*r,-v*.25-.030*Math.sin(a)**2*v**6+Math.sin(a*7)*.004*v,Math.cos(a)*r);}else if(kind==='mirage'){const a=.52+u*(Math.PI*2-1.04),r=.14+.09*Math.sin(v*Math.PI/2);pos.push(Math.sin(a)*r,-v*(.25+.14*Math.sin(a-.4))-.026*Math.cos(a*2)*v**4,Math.cos(a)*r*.82);}else if(kind==='wuling'){const a=.48+u*(Math.PI*2-.96),r=.143+.088*Math.sin(v*Math.PI/2);pos.push(Math.sin(a)*r,-v*(.295+.12*Math.sin(a+.6))-.018*Math.cos(a*3)*v**4,Math.cos(a)*r*.79);}else if(kind==='wraith'){
+  for(let y=0;y<=rows;y++)for(let x=0;x<=cols;x++){const u=x/cols,v=y/rows,w=.22+.13*Math.sin(v*Math.PI*.86),split=.10*Math.exp(-(((u-.5)/.065)**2))*v**8;if(kind==='lingya'){
+      // A short back mantle: the old circumferential bell formed a hollow bowl
+      // around the lifted arms, regardless of how much its depth was squeezed.
+      const q=u*2-1,half=.125+.035*Math.sin(v*Math.PI*.85);
+      pos.push(q*half,-.255*v-.045*q*q*(1-v)**3+.018*q*q*v**5,-.022*v+.010*q*q*(1-v)**2);
+    }else if(kind==='mirage'){const a=.52+u*(Math.PI*2-1.04),r=.14+.09*Math.sin(v*Math.PI/2);pos.push(Math.sin(a)*r,-v*(.25+.14*Math.sin(a-.4))-.026*Math.cos(a*2)*v**4,Math.cos(a)*r*.82);}else if(kind==='wuling'){const a=.48+u*(Math.PI*2-.96),r=.143+.088*Math.sin(v*Math.PI/2);pos.push(Math.sin(a)*r,-v*(.295+.12*Math.sin(a+.6))-.018*Math.cos(a*3)*v**4,Math.cos(a)*r*.79);}else if(kind==='wraith'){
       const scarf=weapon==='shade',half=scarf?.075+.025*Math.sin(v*Math.PI):weapon==='shadowblade'?.24+.045*Math.sin(v*Math.PI):.235+.075*Math.sin(v*Math.PI/2);
       const hem=scarf?.065*u:weapon==='shadowblade'?.09*u:.14*Math.exp(-(((u-.5)/.075)**2))+.055*Math.sin(u*Math.PI*3)**2;
       if(weapon==='shadowblade'){
@@ -178,7 +183,7 @@ function capeMesh(kind,weapon,model){
       const q=u*2-1,half=.205+.115*Math.sin(v*Math.PI*.86),fold=Math.sin(q*Math.PI*3)*(.006+.018*v);
       pos.push(q*half,-v*.81-.035*Math.abs(q)**1.8*(1-v)**3+.026*Math.cos(q*Math.PI*3)*v**8+split*.55,
         -.025*(1-q*q)+.07*q*q*(1-v)**2-.12*v+fold);
-    }else pos.push((u-.5)*w*2,-v*.86+split+Math.cos(u*Math.PI*4)*.013*v,-.12*v-.04*Math.sin(u*Math.PI)+Math.sin(u*Math.PI*8)*.016*v);uv.push(u,v);const base=kind==='lingya'?0x60795d:kind==='mirage'?MIRAGE_PALETTE.cloth:kind==='wuling'?WULING_PALETTE.cloak:kind==='tide'?0x284b60:kind==='wraith'?0x252a2f:0x253248,trim=kind==='lingya'?0xe8d7ad:kind==='mirage'?MIRAGE_PALETTE.mist:kind==='wuling'?WULING_PALETTE.trim:kind==='tide'?0x7faaa9:kind==='wraith'?0x49525b:0xa8c4d3;const edge=T.MathUtils.smoothstep(Math.max(Math.abs(u-.5)*2,v),kind==='silver'?.978:.93,1),color=new T.Color(base).lerp(new T.Color(trim),edge*.72).multiplyScalar(.86+.14*v+.045*Math.cos(u*Math.PI*8)*v);
+    }else pos.push((u-.5)*w*2,-v*.86+split+Math.cos(u*Math.PI*4)*.013*v,-.12*v-.04*Math.sin(u*Math.PI)+Math.sin(u*Math.PI*8)*.016*v);uv.push(u,v);const base=kind==='lingya'?0x84977b:kind==='mirage'?MIRAGE_PALETTE.cloth:kind==='wuling'?WULING_PALETTE.cloak:kind==='tide'?0x284b60:kind==='wraith'?0x445671:0x253248,trim=kind==='lingya'?0xf0e7d5:kind==='mirage'?MIRAGE_PALETTE.mist:kind==='wuling'?WULING_PALETTE.trim:kind==='tide'?0x7faaa9:kind==='wraith'?0x29364e:0xa8c4d3;const edge=T.MathUtils.smoothstep(Math.max(Math.abs(u-.5)*2,v),kind==='silver'?.978:.93,1),color=new T.Color(base).lerp(new T.Color(trim),edge*.72).multiplyScalar(.86+.14*v+.045*Math.cos(u*Math.PI*8)*v);
       // Colour follows the existing cloth surface: a frost falloff, a shallow
       // tide line, or paired leaf lobes; no hovering emblem or extra mesh.
       if(kind==='silver'){
@@ -198,10 +203,11 @@ function capeMesh(kind,weapon,model){
   const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(pos,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(ix);geometry.computeVertexNormals();
   const material=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.87,side:T.DoubleSide}),wind={time:{value:0},run:{value:0},turn:{value:0}};
   material.onBeforeCompile=s=>{if(kind==='silver'||kind==='tide'||kind==='wraith'&&weapon==='shadowblade')return;s.uniforms.capeTime=wind.time;s.uniforms.capeRun=wind.run;s.uniforms.capeTurn=wind.turn;s.vertexShader='uniform float capeTime; uniform float capeRun; uniform float capeTurn;\n'+s.vertexShader;s.vertexShader=s.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
-    float freeHem=clamp(-position.y/${kind==='wraith'?shadowLength.toFixed(2):kind==='lingya'?'.25':['wuling','mirage'].includes(kind)?'.43':'.85'},0.0,1.0);
-    transformed.z+=sin(position.y*9.0+capeTime*5.0)*(.009+capeRun*.026)*freeHem;
+    float freeHem=clamp(-position.y/${kind==='wraith'?shadowLength.toFixed(2):kind==='lingya'?'.30':['wuling','mirage'].includes(kind)?'.43':'.85'},0.0,1.0);
+    ${kind==='lingya'?`transformed.z-=(.004+.005*capeRun)*(.5+.5*sin(capeTime*3.0-position.y*8.0))*freeHem*freeHem;
+    transformed.x+=(sin(capeTime*2.5+position.y*6.0)*.004+capeTurn*.025)*freeHem*freeHem;`:`transformed.z+=sin(position.y*9.0+capeTime*5.0)*(.009+capeRun*.026)*freeHem;
     transformed.x+=(sin(capeTime*3.0+position.y*6.0)*.012+capeTurn*.14)*freeHem*freeHem;
-    transformed.z+=sin(position.x*14.0+position.y*7.0-capeTime*3.0)*capeRun*.009*freeHem;
+    transformed.z+=sin(position.x*14.0+position.y*7.0-capeTime*3.0)*capeRun*.009*freeHem;`}
     ${kind==='wraith'?'transformed.z-=.16*freeHem*freeHem*(.25+capeRun); transformed.y+=.035*freeHem*freeHem*capeRun;':''}`);
     if(kind==='wraith'){
       s.vertexShader='varying vec2 vShadowHem;\n'+s.vertexShader;
@@ -215,6 +221,23 @@ function capeMesh(kind,weapon,model){
     }
   };
   material.customProgramCacheKey=()=> 'hero-cape-'+kind+(kind==='wraith'?'-'+weapon:'');const m=new T.Mesh(geometry,material);m.userData.wind=wind;m.position.set(0,['lingya','wuling','mirage'].includes(kind)?1.49:1.43,['lingya','wuling','mirage'].includes(kind)?-.025:-.14);if(kind==='wraith'){m.name='Shadow_'+weapon+'_cloth';m.position.set(weapon==='shade'?.16:0,weapon==='shade'?1.51:1.45,weapon==='shade'?-.185:-.235);}
+  if(kind==='lingya'){
+    m.name='SM_Hero_Cape_Lingya';m.position.set(0,1.48,-.12);
+    const body=model.getObjectByName('Female_Ranger_Body'),p=geometry.attributes.position,cache=capeMesh.lingyaFits??=new WeakMap(),fitted=cache.get(body.geometry);
+    if(fitted)p.array.set(fitted);
+    else{
+      const probeMaterial=new T.MeshBasicMaterial({side:T.DoubleSide}),probe=new T.Mesh(body.geometry,probeMaterial),ray=new T.Raycaster(),origin=new T.Vector3(),direction=new T.Vector3(0,0,1);
+      model.updateMatrixWorld(true);probe.matrixAutoUpdate=false;probe.matrix.copy(model.matrixWorld.clone().invert().multiply(body.matrixWorld));probe.updateMatrixWorld(true);
+      for(let i=0;i<p.count;i++){
+        const v=uv[i*2+1],u=uv[i*2];ray.set(origin.set(p.getX(i),p.getY(i)+m.position.y,-1),direction);const hit=ray.intersectObject(probe,false)[0];
+        if(hit)p.setZ(i,hit.point.z-m.position.z-.014-.006*v-.003*Math.sin(u*Math.PI*6)**2*v);
+      }
+      // Smooth only away from the coat, retaining the actual shoulder clearance.
+      for(let pass=0;pass<2;pass++){const depth=Array.from({length:p.count},(_,i)=>p.getZ(i));for(let y=0;y<=rows;y++)for(let x=1;x<cols;x++){const i=y*(cols+1)+x;p.setZ(i,Math.min(depth[i],(depth[i-1]+depth[i+1])*.5));}}
+      probeMaterial.dispose();cache.set(body.geometry,p.array.slice());
+    }
+    geometry.computeVertexNormals();geometry.computeBoundingBox();geometry.computeBoundingSphere();
+  }
   if(kind==='silver'){
     m.name='SM_Hero_Cape_Silver';m.position.set(0,1.46,-.15);
     m.userData.silverCape=geometry.attributes.position.array.slice();geometry.attributes.position.setUsage(T.DynamicDrawUsage);geometry.attributes.normal.setUsage(T.DynamicDrawUsage);
@@ -324,7 +347,7 @@ function faceMask(model,kind='silver'){
   const mask=new T.Mesh(geometry,material);mask.name=shadow?'wraith-shadow-veil':'silver-face-mask';mask.castShadow=mask.receiveShadow=true;return mask;
 }
 export function createSkinnedHero(kind,weapon){
-  const g=new T.Group(),rig=new T.Group(),model=clone(templates.get(kind));rig.add(model);g.add(rig);rig.scale.setScalar(kind==='wraith'?1.04:1.12);if(kind==='lingya')rig.scale.set(1.02,.73,1.02);if(kind==='wuling')rig.scale.set(1.08,1.07,1.10);if(kind==='mirage')rig.scale.set(1.06,1.07,1.08);
+  const g=new T.Group(),rig=new T.Group(),model=clone(templates.get(kind));rig.add(model);g.add(rig);rig.scale.setScalar(kind==='wraith'?1.04:1.12);if(kind==='lingya')rig.scale.set(.97,.80,.97);if(kind==='wuling')rig.scale.set(1.08,1.07,1.10);if(kind==='mirage')rig.scale.set(1.06,1.07,1.08);
   model.skeleton=firstSkin(model).skeleton;const bones=new Map();model.traverse(o=>{if(o.isBone)bones.set(o.name,o);if(o.isMesh){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;}});
   const mixer=new T.AnimationMixer(model),actions={};for(const [name,clip]of clips)actions[name]=mixer.clipAction(clip);
   let idleClip=clips.get('Idle_Loop');
@@ -337,7 +360,7 @@ export function createSkinnedHero(kind,weapon){
   const idle=layer(idleClip,'idle-lower',false),run=layer(clips.get('Jog_Fwd_Loop'),'run-lower',false),upperIdle=layer(idleClip,'idle-upper',true),upperRun=layer(clips.get('Jog_Fwd_Loop'),'run-upper',true);
   const walk=layer(clips.get('Walk_Loop'),'walk-lower',false),upperWalk=layer(clips.get('Walk_Loop'),'walk-upper',true),backRun=layer(reverseClip(clips.get('Jog_Fwd_Loop')),'back-run',false),backWalk=layer(reverseClip(clips.get('Walk_Loop')),'back-walk',false);
   const dodgeActions=['tide','lingya'].includes(kind)?Object.fromEntries(['Jump_Start','Jump_Loop','Jump_Land'].map(name=>{const a=layer(clips.get(name),'dodge-'+name,false);a.play().setEffectiveWeight(0);a.paused=true;return[name,a];})):null;
-  const kineticActions=['tide','lingya'].includes(kind)||weapon==='shadowblade'?Object.fromEntries(['Punch_Cross','Sword_Attack'].map(name=>{const a=layer(clips.get(name),'kinetic-'+name,false);a.play().setEffectiveWeight(0);a.paused=true;return[name,a];})):null;
+  const kineticActions=kind==='tide'||weapon==='shadowblade'?Object.fromEntries(['Punch_Cross','Sword_Attack'].map(name=>{const a=layer(clips.get(name),'kinetic-'+name,false);a.play().setEffectiveWeight(0);a.paused=true;return[name,a];})):null;
   // Mirage carries a pendant lamp: neutral shoulders/neck, with the cast driven by her grip solver.
   const aimName=weapon==='miasmalantern'?'Idle_Loop':['fire','dark','shuriken','boomerang','sporelantern','shade','shadowblade','grimoire'].includes(weapon)?'Spell_Simple_Idle_Loop':'Pistol_Aim_Neutral';
   const upperClip=clips.get(aimName).clone();upperClip.tracks=upperClip.tracks.filter(isUpper);upperClip.name='upper-aim';
@@ -345,7 +368,7 @@ export function createSkinnedHero(kind,weapon){
   // Calibrate the authored weapon grip in the actual aiming pose, then return to idle.
   const fullAim=actions.Pistol_Aim_Neutral;fullAim.play();mixer.update(0);model.updateMatrixWorld(true);
   const handGrips=createHandGrips(bones);
-  const hand=bones.get('hand_r'),gun=kind==='wraith'?shadowFocus(weapon):weapon==='miasmalantern'?miasmaLantern():weapon==='sporelantern'?sporeLantern():weapon==='boomerang'?boneBoomerang():weapon==='harpoon'?makeHarpoon():makePrototype(kind,weapon).userData.weapon;gun.removeFromParent();gun.position.set(0,.045,0);gun.scale.setScalar(kind==='wraith'?.85:['sporelantern','miasmalantern'].includes(weapon)?.95:weapon==='harpoon'?1.05:weapon==='crossbow'||weapon==='boomerang'?.72:.65);gun.quaternion.copy(primaryGripFrame(weapon).invert());fitWeaponToPalm(gun,GRIP_POINTS[weapon]||[0,0,0]);hand.add(gun);
+  const hand=bones.get('hand_r'),gun=kind==='wraith'?shadowFocus(weapon):weapon==='miasmalantern'?miasmaLantern():weapon==='sporelantern'?sporeLantern():weapon==='boomerang'?makeSlingshot():weapon==='harpoon'?makeHarpoon():makePrototype(kind,weapon).userData.weapon;gun.removeFromParent();gun.position.set(0,.045,0);gun.scale.setScalar(kind==='wraith'?.85:['sporelantern','miasmalantern'].includes(weapon)?.95:weapon==='harpoon'?1.05:weapon==='boomerang'?.9:weapon==='crossbow'?.72:.65);gun.quaternion.copy(primaryGripFrame(weapon).invert());fitWeaponToPalm(gun,GRIP_POINTS[weapon]||[0,0,0]);hand.add(gun);
   fullAim.stop();idle.play();upperIdle.play();run.play().setEffectiveWeight(0);upperRun.play().setEffectiveWeight(0);mixer.update(0);
   for(const a of[walk,upperWalk,backRun,backWalk])a.play().setEffectiveWeight(0);
   model.skeleton.pose();model.updateMatrixWorld(true);
@@ -373,7 +396,7 @@ export function createSkinnedHero(kind,weapon){
   if(kind==='lingya'){const face=lingyaFace.clone(true);face.name='Lingya_authored_face';attachAtRest(bones.get('Head'),face,model);g.userData.face=face;g.userData.faceEyes=face.getObjectByName('Lingya-eyes_viewport');g.userData.faceEyeRest=g.userData.faceEyes.position.z;g.userData.faceMorphs=[];face.traverse(o=>{if(o.morphTargetInfluences)g.userData.faceMorphs.push(o);});const a=lingyaAccessories();refineLingyaAccessories(a);for(const ear of a.hood.children)ear.position.y=lingyaHeadY(ear.position.y);const bagPivot=new T.Group();bagPivot.position.set(.24,1,-.10);a.bag.position.set(-.24,-1,.10);bagPivot.add(a.bag);g.userData.satchel=bagPivot;g.userData.skirt=a.skirt;owned.push(a.skirt.children[0]);attachAtRest(bones.get('pelvis'),a.skirt,model);attachAtRest(bones.get('Head'),a.hood,model);attachAtRest(bones.get('spine_03'),a.chest,model);attachAtRest(bones.get('pelvis'),bagPivot,model);g.userData.satchelRest=bagPivot.quaternion.clone();}
   // Slightly larger head silhouette remains legible from the elevated game camera.
   bones.get('Head')?.scale.setScalar(kind==='silver'?1.035:['wuling','mirage'].includes(kind)?1.025:1.055);
-  if(kind==='lingya')bones.get('Head')?.scale.set(1.28,1.28*1.02/.73,1.28);
+  if(kind==='lingya')bones.get('Head')?.scale.set(1.16,1.16*.97/.80,1.16);
   mixer.update(0);const restCape=cape?.quaternion.clone();
   Object.assign(g.userData,{skinned:true,handGrips,kind,weaponId:weapon,dodgeActions,kineticActions,rig,model,mixer,actions,idle,run,walk,upperIdle,upperRun,upperWalk,backRun,backWalk,aim,gun,gunRest:gun.quaternion.clone(),aimArm:bones.get('upperarm_r'),firingForearm:bones.get('lowerarm_r'),offArm:bones.get('upperarm_l'),offForearm:bones.get('lowerarm_l'),swimHead:bones.get('Head'),swimLeftKnee:bones.get('calf_l'),swimRightKnee:bones.get('calf_r'),swimLeftFoot:bones.get('foot_l'),swimRightFoot:bones.get('foot_r'),swimLeftLeg:bones.get('thigh_l'),swimRightLeg:bones.get('thigh_r'),pelvis:bones.get('pelvis'),spine:bones.get('spine_01'),cape,restCape,owned,blend:0,aimBlend:0,aimHold:0,smoothedSpeed:0,backBlend:0,gaitYaw:0,gaitPhase:0,reloadPhase:1});
   g.userData.support={hand:bones.get('hand_l'),rightHand:bones.get('hand_r'),elbow:new T.Vector3(),goal:new T.Vector3(),axis:new T.Vector3(),bend:new T.Vector3(),target:new T.Vector3(),origin:new T.Vector3(),from:new T.Vector3(),to:new T.Vector3(),delta:new T.Quaternion(),world:new T.Quaternion(),parent:new T.Quaternion(),start:[new T.Quaternion(),new T.Quaternion()]};
@@ -398,14 +421,14 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
   if(d.lingyaPoseReady)for(const [bone,q]of d.lingyaPoseBase)bone.quaternion.copy(q);
   const fired=shotStarted(d,attack,d.previousAttack||0);d.previousAttack=attack;d.attackAge=fired?0:(d.attackAge??2)+dt;
   if(d.cancelAttack&&['harpoon','shadowblade'].includes(d.weaponId)){d.cancelAttack=false;d.attackAge=2;d.harpoonTarget=d.scytheTarget=null;}
-  const meleeWeapon=['harpoon','shadowblade'].includes(d.weaponId),motion=weaponGesture(d.weaponId,d.attackAge,d.reloadPhase??1,d.reloadDuration||1);
+  const meleeWeapon=['harpoon','shadowblade'].includes(d.weaponId),motion=weaponGesture(d.weaponId,d.weaponId==='boomerang'&&d.shotSerial?(d.reloadPhase??1)*(d.reloadDuration||1):d.attackAge,d.reloadPhase??1,d.reloadDuration||1);
   const scythe=d.weaponId==='shadowblade'?scythePose(d.attackAge,d.reloadDuration||1,d.scytheCombo||0):null;
   const newHero=['tide','lingya','wuling','mirage'].includes(d.kind),action=newHeroAttack(d.kind,d.shotSerial?(d.reloadDuration?(d.reloadPhase??1)*d.reloadDuration:d.attackAge):10,d.reloadDuration||1);
   const readyTarget=d.aimActive||attack>0||d.shotSerial&&(d.reloadPhase??1)<1||d.dashTime>0?1:0;d.readyBlend=(d.readyBlend||0)+(readyTarget-(d.readyBlend||0))*(1-Math.exp(-dt*10));
   const dodge=heroDodgePose(d.kind,d.dashTime||0),gaitSpeed=dodge?.weight>.01?Math.min(speed,6):speed;
   d.smoothedSpeed+=(gaitSpeed-d.smoothedSpeed)*(1-Math.exp(-dt*(speed>0?15:22)));
   d.blend+=(Math.min(1,speed/1.6)-d.blend)*(1-Math.exp(-dt*(speed>0?14:18)));
-  d.aimHold=['tide','lingya','wuling','mirage'].includes(d.kind)||d.kind==='wraith'&&['grimoire','shadowblade'].includes(d.weaponId)||attack>0||d.aimActive?.45:Math.max(0,d.aimHold-dt);d.aimBlend+=((d.aimHold>0?(d.kind==='lingya'&&d.boomerangAway&&d.attackAge>.55?.25+.75*(d.catchReady||0):1):0)-d.aimBlend)*(1-Math.exp(-dt*(d.weaponId==='crossbow'?8:20)));
+  d.aimHold=['tide','lingya','wuling','mirage'].includes(d.kind)||d.kind==='wraith'&&['grimoire','shadowblade'].includes(d.weaponId)||attack>0||d.aimActive?.45:Math.max(0,d.aimHold-dt);d.aimBlend+=((d.aimHold>0?1:0)-d.aimBlend)*(1-Math.exp(-dt*(d.weaponId==='crossbow'?8:20)));
   const relative=Number.isFinite(d.travelAngle)?angleDelta(d.travelAngle,g.rotation.y):0,backward=Math.abs(relative)>Math.PI*.55;
   d.backBlend+=((backward?1:0)-d.backBlend)*(1-Math.exp(-dt*12));
   const travelYaw=newHero?T.MathUtils.lerp(T.MathUtils.clamp(relative,-.85,.85),T.MathUtils.clamp(angleDelta(relative,Math.PI),-.85,.85),d.backBlend):T.MathUtils.clamp(angleDelta(relative,backward?Math.PI:0),-.85,.85);
@@ -446,14 +469,14 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
   const bank=isRoll?0:T.MathUtils.clamp(-(d.turnRate||0)*.008,-.075,.075)*d.blend;d.rig.rotation.z+=(bank-d.rig.rotation.z)*(1-Math.exp(-dt*10));
   // Recovery belongs to the animation, so it can finish after the shot timer.
   d.attackGesture=((d.attackGesture||0)+(motion.kick-(d.attackGesture||0))*(1-Math.exp(-dt*(d.weaponId==='shotgun'?18:32))));
-  if(d.kind==='lingya'){motion.kick=action.drive;motion.sweep=action.follow;motion.gather=action.wind;d.attackGesture=action.drive;}
+  if(d.weaponId==='boomerang'){d.attackGesture=motion.kick;poseSlingshot(d.gun,d.shotSerial?(d.reloadPhase??1)*(d.reloadDuration||1):10,d.reloadDuration||1);}
   if(meleeWeapon)d.attackGesture=motion.kick;
   const attackBlend=poseBlend*(d.kind==='tide'?1-dodge.weight:1),kick=isRoll?0:d.attackGesture*attackBlend,sweep=isRoll?0:motion.sweep*attackBlend,gather=isRoll?0:motion.gather*attackBlend;
   const acceleration=dt?T.MathUtils.clamp((speed-(d.previousSpeed??speed))/dt,-10,10):0;d.previousSpeed=speed;
   d.motionLean=((d.motionLean||0)+(T.MathUtils.clamp(acceleration*.006,-.045,.045)-(d.motionLean||0))*(1-Math.exp(-dt*9)));
   const recoil={rifle:.075,shotgun:.22,crossbow:.075,shuriken:-.12,fire:-.15,dark:.065,hammer:0,harpoon:-.18,boomerang:-.08,sporelantern:-.065,miasmalantern:-.045,shade:.04,shadowblade:-.08,grimoire:-.035}[d.weaponId];
   d.rig.rotation.x=isRoll?0:-kick*recoil+d.motionLean;
-  d.rig.position.z=isRoll?0:d.kind==='tide'?.08*kick-.04*gather-(d.harpoonCombo===2?.08*sweep:0):d.kind==='lingya'?.045*kick-.03*gather:-kick*Math.abs(recoil)*.45;
+  d.rig.position.z=isRoll?0:d.kind==='tide'?.08*kick-.04*gather-(d.harpoonCombo===2?.08*sweep:0):d.kind==='lingya'?.012*kick-.012*gather:-kick*Math.abs(recoil)*.45;
   if(d.kind==='wuling'){const tuck=Math.sin(Math.PI*T.MathUtils.clamp((d.dashTime||0)/.52,0,1)),side=Math.sin((d.dashAngle??g.rotation.y)-g.rotation.y);d.rig.position.y=-.13*tuck;d.rig.rotation.x+=.22*tuck;d.rig.rotation.z=bank-side*.16*tuck;}
   if(d.kind==='mirage'){const slip=Math.sin(Math.PI*T.MathUtils.clamp((d.dashTime||0)/.52,0,1)),side=Math.sin((d.dashAngle??g.rotation.y)-g.rotation.y);d.rig.position.y=-.08*slip;d.rig.rotation.x+=.12*slip;d.rig.rotation.z=bank-side*.14*slip;}
   // Remove last frame's procedural arm offsets before the mixer blends a new pose.
@@ -487,10 +510,12 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
       d.aimArm.rotateX(-.25*gesture);d.firingForearm.rotateX(.32*gesture);
       d.offArm.rotateX(.17*gesture-.25*pump);d.offForearm.rotateX(-.15*gesture+.22*pump);
       if(d.gun.userData.pump)d.gun.userData.pump.position.z=isRoll?0:-.23*pump;
-    }else if(d.weaponId==='shuriken'||d.weaponId==='boomerang'){
+    }else if(d.weaponId==='boomerang'){
+      d.spine.rotateY(-.045*gather);d.aimArm.rotateX(-.03*gesture);d.offForearm.rotateX(-.05*gather);
+    }else if(d.weaponId==='shuriken'){
       d.aimArm.rotateY(-.95*sweep+.25*gather);d.aimArm.rotateZ(.5*sweep);
       d.firingForearm.rotateX(-.7*gesture+.35*gather);d.firingForearm.rotateY(.4*sweep);d.offArm.rotateY(.35*sweep);d.offForearm.rotateX(-.28*gather);
-      d.gun.scale.setScalar(d.weaponId==='boomerang'?.72:.65*(1-.6*gesture));
+      d.gun.scale.setScalar(.65*(1-.6*gesture));
     }else if(d.kind==='wraith'){
       d.spine.rotateY((d.weaponId==='shadowblade'?.25:-.10)*sweep);d.spine.rotateX(-.035*gather+.04*gesture);
       d.aimArm.rotateY(-.30*gather+.25*sweep);d.firingForearm.rotateX(-.25*gesture);
@@ -526,30 +551,32 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
       s.delta.setFromUnitVectors(s.from,s.to);upper.getWorldQuaternion(s.world);s.world.premultiply(s.delta);upper.parent.getWorldQuaternion(s.parent).invert();upper.quaternion.copy(s.parent.multiply(s.world)).normalize();upper.updateWorldMatrix(false,true);
       lower.getWorldPosition(s.origin);hand.getWorldPosition(s.from);s.from.sub(s.origin).normalize();s.to.copy(s.goal).sub(s.origin).normalize();
       s.delta.setFromUnitVectors(s.from,s.to);lower.getWorldQuaternion(s.world);s.world.premultiply(s.delta);lower.parent.getWorldQuaternion(s.parent).invert();lower.quaternion.copy(s.parent.multiply(s.world)).normalize();lower.updateWorldMatrix(false,true);
-      bones.forEach((bone,i)=>{bone.quaternion.slerp(s.start[i],scythe?0:1-d.aimBlend*poseBlend);if((newHero||meleeWeapon)&&!scythe){d.armHistory??=new Map();const last=d.armHistory.get(bone);if(last)bone.quaternion.copy(last.rotateTowards(bone.quaternion,dt*14));else d.armHistory.set(bone,bone.quaternion.clone());d.armHistory.get(bone).copy(bone.quaternion);bone.updateWorldMatrix(false,true);}});
+      // The drawn pouch is already eased by the shot clock. A second joint
+      // speed limit lets the pulling hand lag behind it under attack haste.
+      bones.forEach((bone,i)=>{bone.quaternion.slerp(s.start[i],scythe?0:1-d.aimBlend*poseBlend);if((newHero||meleeWeapon)&&!scythe&&!(d.weaponId==='boomerang'&&hand===s.hand)){d.armHistory??=new Map();const last=d.armHistory.get(bone);if(last)bone.quaternion.copy(last.rotateTowards(bone.quaternion,dt*14));else d.armHistory.set(bone,bone.quaternion.clone());d.armHistory.get(bone).copy(bone.quaternion);bone.updateWorldMatrix(false,true);}});
     };
     // Solve toward weapon-specific hand positions; grip constraints must retain the gesture.
-    const id=d.weaponId,lantern=['sporelantern','miasmalantern'].includes(id),mirage=id==='miasmalantern',staff=['fire','dark'].includes(id),bow=id==='crossbow',throwing=['shuriken','boomerang'].includes(id);
+    const id=d.weaponId,lantern=['sporelantern','miasmalantern'].includes(id),mirage=id==='miasmalantern',staff=['fire','dark'].includes(id),bow=id==='crossbow',throwing=id==='shuriken',sling=id==='boomerang';
     d.aimArm.getWorldPosition(s.origin);d.offArm.getWorldPosition(s.target);s.target.add(s.origin).multiplyScalar(.5);const chest=s.target.clone();g.getWorldQuaternion(s.world);
     if(id==='harpoon')s.to.set(-.21+(d.harpoonCombo===1?-.18*gather+.34*kick+.12*sweep:.05*kick),-.27+.045*kick+dodge.weight*.06,.05+(d.harpoonCombo===1?.32:.49)*kick-.20*gather-(d.harpoonCombo===2?.38*sweep:0)-dodge.weight*.14);
     else if(mirage){const rest=(1-d.readyBlend)*(1-d.blend);s.to.set(-.245+.025*kick+.025*gather,-.245+.125*kick+.025*gather-.035*rest,.13+.255*kick-.10*gather);}
     else if(lantern){const rest=(1-d.readyBlend)*(1-d.blend)*(1-(d.waterBlend||0));s.to.set(-.27,-.26+.035*kick,.10+.06*kick-.03*rest);}
-    else if(id==='shade')s.to.set(-.20,-.18+.08*kick,.24+.25*kick-.06*gather);
+    else if(id==='shade')s.to.set(-.20-.045*sweep,-.16+.03*kick,.28+.07*kick-.03*gather);
     else if(scythe){s.to.set(scythe.x,scythe.y,scythe.z);if(d.scytheGripPosition)d.scytheGripPosition.lerp(s.to,1-Math.exp(-dt*24));else d.scytheGripPosition=s.to.clone();s.to.copy(d.scytheGripPosition);}
     else if(id==='grimoire')s.to.set(-.22,-.22+.025*kick,.22+.06*kick);
     else if(staff)s.to.set(-.19,-.23,id==='fire'?.24+.22*kick:.22+.09*gather);
-    else if(id==='boomerang')s.to.set(-.24-.25*gather+.19*kick+.13*sweep,-.18+.15*gather-.10*sweep,.18-.26*gather+.38*kick+.10*sweep);
+    else if(sling)s.to.set(-.10,-.13+.012*gather,.25-.018*kick-.13*Math.max(0,-T.MathUtils.clamp(d.aimPitch||0,-1.3,1.3)));
     else if(throwing)s.to.set(-.24-.18*sweep,-.10-.14*gather,.28+.20*kick);
     else s.to.set(bow?-.09:-.08,-.20+kick*(id==='shotgun'?.06:.025)+(bow?.06*Math.max(0,-(d.aimPitch||0)):0),(bow?.10-.02*Math.abs(d.aimPitch||0):.14)-kick*(id==='shotgun'?.13:.065));
     if(newHero){const step=Math.sin(d.gaitPhase*Math.PI*2)*d.blend*(1-action.weight)*(1-(dodge?.weight||0)),carry=1-d.readyBlend;
-      s.to.y-=carry*(id==='boomerang'?.13:.06);if(id==='boomerang'){s.to.x-=carry*.035;s.to.z-=carry*.06;}if(id==='boomerang'){const empty=Number(!!d.boomerangAway)*(1-(d.catchReady||0))*(1-action.weight);s.to.y-=empty*.18;s.to.z-=empty*.13;s.to.y+=(d.catchReady||0)*.09;}s.to.z+=step*(id==='boomerang'?.12:.035);s.to.x+=step*.025;
+      s.to.y-=carry*(id==='boomerang'?.13:.06);if(id==='boomerang'){s.to.x-=carry*.035;s.to.z-=carry*.06;}s.to.z+=step*.035;s.to.x+=step*.025;
     }
     s.to.applyQuaternion(s.world);s.target.add(s.to);solve([d.firingForearm,d.aimArm],s.rightHand);
     const melee=id==='harpoon'||id==='shadowblade',commit=melee?motion.weight:action.weight;
     const yaw=(newHero||melee?committedWeaponYaw(g.rotation.y,d.aimAngle,d.attackAngle,commit):bow?g.rotation.y:Number.isFinite(d.aimAngle)?d.aimAngle:g.rotation.y)+(id==='shadowblade'?scythe.yaw:id==='harpoon'&&d.harpoonCombo===1?-.62*gather+.48*kick+.27*sweep:0);
     s.world.setFromAxisAngle(s.to.set(0,1,0),yaw);
-    const pitch=id==='grimoire'?.02:id==='shade'?-.12+.15*sweep:id==='shadowblade'?scythe.pitch:id==='harpoon'?-.04+(1-d.readyBlend)*.30+.08*gather-.06*kick-(d.harpoonCombo===2?.24*sweep:0)-dodge.weight*.30:mirage?-.04-.20*kick+.05*gather:lantern?-.035+.06*Math.sin(d.gaitPhase*Math.PI*2)*d.blend:staff?(id==='fire'?-.15-.4*kick:.08+.15*gather):throwing?-.2+.5*sweep+(id==='boomerang'?(1-d.readyBlend)*.48:0):-kick*(id==='shotgun'?.14:.055);
-    s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(1,0,0),pitch-T.MathUtils.clamp(melee?T.MathUtils.lerp(d.aimPitch||0,d.attackPitch??d.aimPitch??0,commit):d.aimPitch||0,-1.3,1.3)));if(id==='shadowblade')s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(0,0,1),scythe.roll));if(id==='boomerang')s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(0,0,1),-.40*gather+.48*kick+.24*sweep));if((newHero||meleeWeapon)&&!scythe){if(d.weaponWorld)d.weaponWorld.rotateTowards(s.world,dt*12);else d.weaponWorld=s.world.clone();s.world.copy(d.weaponWorld);}if(scythe){if(d.scytheGripRotation)d.scytheGripRotation.rotateTowards(s.world,dt*8);else d.scytheGripRotation=s.world.clone();s.world.copy(d.scytheGripRotation);}aimGrip(d,s.world,scythe?1:poseBlend*d.aimBlend,dt);
+    const pitch=id==='grimoire'?.02:id==='shade'?-.12+.15*sweep:id==='shadowblade'?scythe.pitch:id==='harpoon'?-.04+(1-d.readyBlend)*.30+.08*gather-.06*kick-(d.harpoonCombo===2?.24*sweep:0)-dodge.weight*.30:mirage?-.04-.20*kick+.05*gather:lantern?-.035+.06*Math.sin(d.gaitPhase*Math.PI*2)*d.blend:staff?(id==='fire'?-.15-.4*kick:.08+.15*gather):sling?.02+.03*gather-.03*kick+(1-d.readyBlend)*.20:throwing?-.2+.5*sweep:-kick*(id==='shotgun'?.14:.055);
+    s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(1,0,0),pitch-T.MathUtils.clamp(melee?T.MathUtils.lerp(d.aimPitch||0,d.attackPitch??d.aimPitch??0,commit):d.aimPitch||0,-1.3,1.3)));if(id==='shadowblade')s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(0,0,1),scythe.roll));if(id==='boomerang')s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(0,0,1),-.025*gather+.025*kick));if((newHero||meleeWeapon)&&!scythe){if(d.weaponWorld)d.weaponWorld.rotateTowards(s.world,dt*12);else d.weaponWorld=s.world.clone();s.world.copy(d.weaponWorld);}if(scythe){if(d.scytheGripRotation)d.scytheGripRotation.rotateTowards(s.world,dt*8);else d.scytheGripRotation=s.world.clone();s.world.copy(d.scytheGripRotation);}aimGrip(d,s.world,scythe?1:poseBlend*d.aimBlend,dt);
     if(scythe){
       // Keep both palms reachable as a coupled grip. Correct the rear hand rather
       // than letting the forward hand slide off the shaft or stretch its elbow.
@@ -563,12 +590,12 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
       }
       s.target.set(...SCYTHE_SUPPORT);d.gun.localToWorld(s.target);
     }
-    else if(d.kind==='wraith'){s.to.set(.20-.08*gather,-.22+.07*sweep,.13+.15*gather);g.getWorldQuaternion(s.world);s.target.copy(chest).add(s.to.applyQuaternion(s.world));}
+    else if(sling){const mechanism=slingshotMechanism(d.shotSerial?(d.reloadPhase??1)*(d.reloadDuration||1):10,d.reloadDuration||1);s.target.set(0,.22,-.07-.30*mechanism.handPull);d.gun.localToWorld(s.target);}
+    else if(d.kind==='wraith'){if(id==='shade')s.to.set(.13-.045*gather,-.18+.05*gather,.25+.03*gather);else s.to.set(.20-.08*gather,-.22+.07*sweep,.13+.15*gather);g.getWorldQuaternion(s.world);s.target.copy(chest).add(s.to.applyQuaternion(s.world));}
     else if(mirage){const rest=(1-d.readyBlend)*(1-d.blend);s.to.set(.23-.035*kick-.08*gather,-.30+.075*kick+.10*gather-.075*rest,.12+.14*kick+.13*gather-.055*rest);g.getWorldQuaternion(s.world);s.target.copy(chest).add(s.to.applyQuaternion(s.world));
     }else if(lantern){const rest=(1-d.readyBlend)*(1-d.blend)*(1-(d.waterBlend||0));s.to.set(.24+.10*gather-.035*kick-.04*rest,-.36+.29*kick+.13*gather-.05*rest,.12-.19*gather+.47*kick-.085*rest);g.getWorldQuaternion(s.world);s.target.copy(chest).add(s.to.applyQuaternion(s.world));
     }else if(staff||throwing){
       s.to.set(throwing?.27:id==='fire'?.24:.18+.13*Math.sin(sweep*Math.PI),throwing?-.24:id==='fire'?-.12:-.10+.12*gather,throwing?.20:id==='fire'?.45+.12*kick:.44-.12*sweep);
-      if(id==='boomerang'){const free=(1-d.readyBlend)+Number(!!d.boomerangAway)*.25;s.to.y-=free*.12;s.to.z-=free*.16+Math.sin(d.gaitPhase*Math.PI*2)*d.blend*.10*(1-action.weight);s.to.x+=.06*sweep;}
       g.getWorldQuaternion(s.world);s.target.copy(chest).add(s.to.applyQuaternion(s.world));
     }else if(bow){const mechanism=crossbowMechanism(T.MathUtils.clamp(d.reloadPhase??1,0,1));s.target.set(T.MathUtils.lerp(0,.06,mechanism.hand),T.MathUtils.lerp(-.05,.13,mechanism.hand),T.MathUtils.lerp(.18,.29-mechanism.pull,mechanism.hand));d.gun.localToWorld(s.target);}
     else{s.target.set(0,id==='harpoon'?0:-.025,.34+(id==='harpoon'?-.08*gather+.10*kick-(d.harpoonCombo===2?.12*sweep:0):0)+(d.gun.userData.pump?.position.z||0));d.gun.localToWorld(s.target);}
@@ -586,7 +613,7 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
     fitWeaponToPalm(d.gun,GRIP_POINTS[d.weaponId]);
   }
   if(d.weaponId==='shuriken')fitWeaponToPalm(d.gun,GRIP_POINTS.shuriken);
-  if(d.weaponId==='boomerang')d.gun.visible=!d.boomerangAway;
+  if(d.weaponId==='boomerang')d.gun.visible=true;
   if(d.kind==='wuling'){const cycle=Math.min(.68,Math.max(.12,(d.reloadDuration||1)*.9)),age=(d.reloadPhase??1)*(d.reloadDuration||1);d.sporePod.visible=!d.shotSerial||age<cycle*.32||age>cycle*.76;const heart=d.gun.userData.heart;if(heart)heart.scale.set(.068*(1+.035*Math.sin(t*3)),.105,.068);}
   if(d.kind==='mirage'){
     const heart=d.gun.userData.heart;heart.scale.set(.050*(1+.22*gather+.30*kick),.088*(1+.12*gather+.15*kick),.050*(1+.22*gather+.30*kick));
@@ -603,16 +630,15 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
     const moving=Math.sin(d.gaitPhase*Math.PI*2)*d.blend*(1-pose.air);
     d.rig.position.y=dodge.height;d.rig.rotation.x+=pose.pitch*.45+pose.bank*forward*.4;d.rig.rotation.y=pose.twist*lateral*.4;
     d.hopBank=-pose.bank*lateral*.45;d.rig.rotation.z+=d.hopBank;
-    d.spine.rotateY(-.42*gather+.34*kick+.16*sweep-pose.twist*lateral*.8+moving*.045);d.spine.rotateX(.045*kick-.035*gather+d.presence.breath);d.spine.rotateZ(d.presence.shoulder*(1-pose.weight));d.swimHead.rotateY(.18*gather-.14*kick-.06*sweep);
+    d.spine.rotateY(-.10*gather+.04*kick-pose.twist*lateral*.8+moving*.045);d.spine.rotateX(.015*kick-.015*gather+d.presence.breath);d.spine.rotateZ(d.presence.shoulder*(1-pose.weight));d.swimHead.rotateY(.04*gather-.025*kick);
     d.swimHead.rotateZ(-moving*.02);d.swimHead.rotateX(-pose.air*.07);
     const glance=speed<.2&&d.readyBlend<.2&&Number.isFinite(d.companionAngle)?T.MathUtils.clamp(angleDelta(d.companionAngle,g.rotation.y),-.3,.3)*Math.max(0,Math.sin(t*.8)):0;d.petGlance=(d.petGlance||0)+(glance-(d.petGlance||0))*(1-Math.exp(-dt*4));d.swimHead.rotateY(d.petGlance+d.presence.look*.5);
-    d.catchTime=Math.max(0,(d.catchTime||0)-dt);const catchWeight=Math.sin(Math.PI*d.catchTime/.2);d.firingForearm.rotateX(-catchWeight*.32);d.aimArm.rotateY(catchWeight*.16);d.spine.rotateY(-catchWeight*.065);d.offForearm.rotateX(-catchWeight*.13);
     if(d.skirt){const cloth=d.skirt.children[0].userData.cloth;cloth.time.value=t;cloth.motion.value=d.blend;cloth.turn.value=d.carryTurn;cloth.hop.value=pose.air;}
     if(d.satchel){d.satchel.quaternion.copy(d.satchelRest);d.satchel.rotateX(Math.sin(t*5.4)*d.blend*.035+pose.air*.13-pose.land*.08);d.satchel.rotateZ(-moving*.06-pose.bank*lateral*.45-d.carryTurn*.7);d.satchel.rotateX(-d.motionLean*.8);}
     d.aimArm.rotateZ(-pose.air*.18);d.offArm.rotateZ(pose.air*.26);d.aimArm.rotateX(-pose.air*.18*side);d.offArm.rotateX(pose.air*.18*side);d.firingForearm.rotateX(-pose.weight*.55);d.offForearm.rotateX(-pose.weight*.65);
   }
   // Continue limiting joint velocity when IK fades out; returning to idle must not snap.
-  if(newHero){d.finalArmPose??=[d.aimArm,d.firingForearm,d.offArm,d.offForearm].map(b=>[b,b.quaternion.clone()]);for(const [bone,previous]of d.finalArmPose){previous.rotateTowards(bone.quaternion,dt*14);bone.quaternion.copy(previous).normalize();}}
+  if(newHero){d.finalArmPose??=[d.aimArm,d.firingForearm,d.offArm,d.offForearm].map(b=>[b,b.quaternion.clone()]);for(const [bone,previous]of d.finalArmPose){if(d.weaponId==='boomerang'&&(bone===d.offArm||bone===d.offForearm)&&poseBlend>.99)previous.copy(bone.quaternion);else previous.rotateTowards(bone.quaternion,dt*14);bone.quaternion.copy(previous).normalize();}}
   if(d.silverHair){
     d.silverClothTurn=(d.silverClothTurn||0)+(T.MathUtils.clamp((d.turnRate||0)*.045,-.18,.18)-(d.silverClothTurn||0))*(1-Math.exp(-dt*5));
     animateSilverHair(d.silverHair,t,d.blend,d.silverClothTurn);animateTailoredCape(d.cape,t,d.blend,d.silverClothTurn);

@@ -56,7 +56,7 @@ function closeEnds(g,columns,rows){
  g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(ix);return finishGeometry(g);
 }
 function coatGeometry(kind){
- const silver=kind==='silver',profile=silver?[[1.017,.172,.114,.127],[1.066,.157,.102,.111],[1.135,.134,.096,.108],[1.23,.143,.107,.114],[1.34,.167,.155,.123],[1.43,.182,.132,.123],[1.475,.157,.108,.101],[1.51,.074,.073,.067],[1.548,.071,.070,.068]]:[[.885,.222,.146,.158],[.99,.209,.138,.151],[1.14,.170,.112,.132],[1.24,.172,.124,.131],[1.37,.204,.146,.151],[1.48,.218,.143,.149],[1.53,.185,.110,.110],[1.565,.085,.079,.081],[1.60,.080,.076,.078]];
+ const silver=kind==='silver',profile=silver?[[1.017,.169,.113,.125],[1.066,.155,.102,.111],[1.135,.138,.098,.108],[1.23,.146,.109,.114],[1.34,.165,.147,.123],[1.43,.176,.130,.123],[1.475,.150,.107,.101],[1.51,.074,.073,.067],[1.548,.071,.070,.068]]:[[.885,.216,.144,.154],[.99,.205,.136,.147],[1.14,.175,.115,.132],[1.24,.178,.126,.134],[1.37,.201,.145,.148],[1.48,.208,.141,.145],[1.53,.178,.109,.110],[1.565,.085,.079,.081],[1.60,.080,.076,.078]];
  return grid(40,40,(u,v)=>{
   const f=v*(profile.length-1),k=Math.min(profile.length-2,Math.floor(f)),t=f-k;
   // Cubic slopes pass through the tailoring stations without horizontal ledges.
@@ -91,7 +91,11 @@ function projectionProbe(source){
 function conformPatch(source,points,width,lift=.003){
  const probe=projectionProbe(source),ray=new T.Raycaster();
  const curve=new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),g=grid(4,28,(u,v)=>{
-  const p=curve.getPoint(v),t=curve.getTangent(v),normal=new T.Vector3(t.y,-t.x,0).normalize();p.addScaledVector(normal,(u-.5)*(typeof width==='function'?width(v):width));probe.select(p.x,p.y);ray.set(new T.Vector3(p.x,p.y,1),new T.Vector3(0,0,-1));const hit=ray.intersectObject(probe.mesh,false)[0];p.z=(hit?.point.z??p.z)+.004+Math.sin(u*Math.PI)*lift;return p.toArray();
+  const p=curve.getPoint(v),t=curve.getTangent(v),normal=new T.Vector3(t.y,-t.x,0).normalize();p.addScaledVector(normal,(u-.5)*(typeof width==='function'?width(v):width));
+  let hit;for(let attempt=0;attempt<9;attempt++){probe.select(p.x,p.y);ray.set(new T.Vector3(p.x,p.y,1),new T.Vector3(0,0,-1));hit=ray.intersectObject(probe.mesh,false)[0];if(hit)break;p.lerp(curve.getPoint(v),.22);}
+  // At a shoulder silhouette the outer edge must turn back onto cloth, never
+  // fall back to a guessed depth and become a floating polygonal armor plate.
+  p.z=(hit?.point.z??p.z)+.0028+Math.sin(u*Math.PI)*lift;return p.toArray();
  });probe.dispose();return g;
 }
 function wrapBand(body,y,height){
@@ -107,7 +111,7 @@ function soften(geometry,strength=.16){
  for(const n of nodes)for(const i of n.ids)p.setXYZ(i,n.p.x,n.p.y,n.p.z);return finishGeometry(g);
 }
 function reshapeCloth(mesh,kind,part){
- const g=soften(mesh.geometry,.24),p=g.attributes.position,silver=kind==='silver';
+ const g=soften(mesh.geometry,part==='Boots'?.32:.27),p=g.attributes.position,silver=kind==='silver';
  for(let i=0;i<p.count;i++){
   let x=p.getX(i),y=p.getY(i),z=p.getZ(i),a=Math.abs(x);
   if(part==='Sleeves'){
@@ -120,8 +124,9 @@ function reshapeCloth(mesh,kind,part){
    const cx=Math.sign(x)*.09,lower=1-T.MathUtils.smoothstep(y,.60,.93);x=cx+(x-cx)*(1+.085*lower);z+=Math.sin(y*63+a*9)*.0025*lower;
   }else if(part==='Boots'){
    const center=Math.sign(x)*(silver?.111:.093),shaft=T.MathUtils.smoothstep(y,.145,.20)*(1-T.MathUtils.smoothstep(y,silver?.685:.50,silver?.70:.57));
-   const rim=Math.exp(-(((y-(silver?.673:.49))/.012)**2))*.010,wrinkle=Math.sin(y*81)*.0025*Math.exp(-(((y-.20)/.07)**2)),expand=(silver?.045:.018)*shaft;
+   const rim=Math.exp(-(((y-(silver?.673:.49))/.020)**2))*.006,wrinkle=Math.sin(y*65)*.0020*Math.exp(-(((y-.20)/.085)**2)),expand=(silver?.035:.014)*shaft;
    x=center+(x-center)*(1+expand)+Math.sign(x-center)*(rim+wrinkle);z=-.047+(z+.047)*(1+expand)+Math.sign(z+.047)*(rim+wrinkle);
+   if(mesh.geometry.attributes.position.getY(i)<.035){x=mesh.geometry.attributes.position.getX(i);y=mesh.geometry.attributes.position.getY(i);z=mesh.geometry.attributes.position.getZ(i);}
   }
   p.setXYZ(i,x,y,z);
  }
@@ -170,7 +175,7 @@ export function rebuildRanger(root,kind){
    mesh.geometry=soften(mesh.geometry,.10);const p=mesh.geometry.attributes.position,mid=silver?1.668:1.708;for(let i=0;i<p.count;i++)p.setY(i,mid+(p.getY(i)-mid)*.82);finishGeometry(mesh.geometry);
   }
  }
- const strap=conformPatch(body,silver?[[.12,1.45,.10],[.09,1.30,.14],[.04,1.13,.09],[-.035,1.035,.10]]:[[-.155,1.515,.09],[-.11,1.36,.13],[.035,1.17,.11],[.15,1.04,.12]],silver?.027:.047);
+ const strap=conformPatch(body,silver?[[.115,1.446,.10],[.09,1.30,.14],[.04,1.13,.09],[-.035,1.035,.10]]:[[-.143,1.506,.09],[-.104,1.36,.13],[.032,1.17,.11],[.142,1.04,.12]],v=>(silver?.026:.040)*(.86+.14*Math.sin(v*Math.PI)),.0018);
  addSkinned(root,source,kind,'Harness',strap,colors.leather);
  // Lapels turn outwards from the neck and converge into the jacket overlap.
  for(const side of[-1,1]){
@@ -186,7 +191,7 @@ export function rebuildRanger(root,kind){
   return[x+Math.sin(a)*.041*r,y+(v-.5)*(silver?.112:.155),.082+Math.cos(a)*.035*r+.006*Math.sin(v*Math.PI*3)];
  });
  addSkinned(root,source,kind,'BeltPouch',closeEnds(pouch,24,12),colors.leather);
- const shoulder=conformPatch(body,[[.175,silver?1.464:1.515,.03],[.14,silver?1.425:1.465,.08],[.15,silver?1.365:1.385,.09]],silver?.055:.080,.006);
+ const shoulder=conformPatch(body,[[silver?.140:.156,silver?1.460:1.511,.03],[.137,silver?1.425:1.465,.08],[.139,silver?1.373:1.397,.09]],v=>(silver?.041:.055)*(.66+.34*Math.sin(v*Math.PI)),.0025);
  addSkinned(root,source,kind,'ShoulderYoke',shoulder,silver?0x263247:0x5b452e);
  if(silver){
   const legs=meshes.find(m=>m.name==='SM_Hero_Legs_Silver');

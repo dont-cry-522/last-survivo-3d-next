@@ -6,8 +6,8 @@
 <div id="heroes"></div><div id="weapons"></div><pre id="report"></pre>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=172';
-import {FirstPersonView} from '../first-person-view.js?v=172';
+import {actor,animateActor} from '../world.js?v=173';
+import {FirstPersonView} from '../first-person-view.js?v=173';
 import {HERO_LOADOUTS,WEAPONS} from '../rules.js?v=125';
 import {WEAPON_RECOVERY} from '../weapon-performance.js?v=170';
 
@@ -126,7 +126,15 @@ try{
    requireCheck(row,'mechanismReferences',refs.length===expected&&(id!=='miasmalantern'||expected>1)&&refs.every(({node})=>node?.isObject3D&&isWithin(node,gun)&&fp.parts.some(([source])=>source===node)),refs.map(({key,node})=>({key,name:node?.name,valid:!!node?.isObject3D})));
    const tile=index%2*1024,y=Math.floor(index/2)*328;
    camera.aspect=16/9;camera.updateProjectionMatrix();const box=bounds(meshes(gun).filter(visible)),size=box.getSize(new T.Vector3());frame(box.getCenter(new T.Vector3()),Math.max(.42,size.y*1.42,size.x/1.7778*1.42),[.28,.18,1]);
-   row.thirdPersonCost=render(scene,camera,512,288);wc.drawImage(renderer.domElement,tile,y);caption(wc,WEAPONS[id].name+' · 实际持握近景',tile,y+287);
+   if(id==='harpoon'){
+    // Aim the close-up at the held fork, not down the long shaft toward a tip
+    // outside the near plane. The actor, grip and weapon pose stay untouched.
+    const head=meshes(gun).filter(o=>o.name.startsWith('SM_Harpoon_Central')||o.name.startsWith('SM_Harpoon_Curved'));
+    const forkBox=bounds(head),forkSize=forkBox.getSize(new T.Vector3()),direction=new T.Vector3(.45,1,.5).transformDirection(gun.matrixWorld);
+    frame(forkBox.getCenter(new T.Vector3()),Math.max(.36,Math.max(forkSize.x,forkSize.y,forkSize.z)*1.28),direction.toArray());
+    const projected=projectedBox(head,camera);requireCheck(row,'harpoonHeadWithinView',projected&&Object.values(projected).every(v=>Math.abs(v)<.98),projected);
+   }
+   row.thirdPersonCost=render(scene,camera,512,288);wc.drawImage(renderer.domElement,tile,y);caption(wc,WEAPONS[id].name+(id==='harpoon'?' · 实际持握叉头近景':' · 实际持握近景'),tile,y+287);
    row.firstPersonCost=render(fpScene,fpCamera,512,288);wc.drawImage(renderer.domElement,tile+512,y);
    const fpTargets=pairs.map(([,copy])=>copy).filter(Boolean),visibility=exposure(fpTargets,fp.root,fpCamera);row.firstPersonVisibility=visibility;requireCheck(row,'fpIdentityHasUnoccludedSurface',visibility.clear>0,visibility);caption(wc,WEAPONS[id].name+' · 70° 第一人称',tile+512,y+287,'身份表面可见 '+visibility.clear+'/'+visibility.hits);
    row.poses=[];for(const phase of['idle','attack','recover']){

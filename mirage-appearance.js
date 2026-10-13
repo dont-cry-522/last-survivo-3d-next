@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
-import{mirrorPetalGeometry,nameWeapon}from'./weapon-identity.js?v=172';
-import {wulingOutfit,wulingMask} from './wuling-appearance.js?v=172';
+import{mirrorPetalGeometry,nameWeapon}from'./weapon-identity.js?v=173';
+import {wulingOutfit,wulingMask} from './wuling-appearance.js?v=173';
 
 // Authored procedural prototype on the existing female rig; no extra model download.
 export const MIRAGE_PALETTE=Object.freeze({cloth:0x24142e,violet:0x4a2b63,mist:0xa78cc7,ivory:0xe9e3f2,silver:0x797484,glow:0x8f5cff});
@@ -24,21 +24,56 @@ export function mirageOutfit(root){
   o.material.customProgramCacheKey=()=> 'mirage-cloth-'+tint;
  });
 }
+function hairRegions(geometry){
+ const p=geometry.attributes.position,ids=geometry.index.array,parent=Array.from({length:p.count},(_,i)=>i),same=new Map(),find=i=>{while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i];}return i;},join=(a,b)=>{parent[find(a)]=find(b);};
+ for(let i=0;i<p.count;i++){const key=[p.getX(i),p.getY(i),p.getZ(i)].map(v=>Math.round(v*1e6)).join(',');if(same.has(key))join(i,same.get(key));else same.set(key,i);}
+ for(let i=0;i<ids.length;i+=3){join(ids[i],ids[i+1]);join(ids[i],ids[i+2]);}
+ const bounds=new Map();for(let i=0;i<p.count;i++){const key=find(i);if(!bounds.has(key))bounds.set(key,new T.Box3());bounds.get(key).expandByPoint(new T.Vector3().fromBufferAttribute(p,i));}
+ const regions=new Float32Array(p.count);for(let i=0;i<p.count;i++){const b=bounds.get(find(i));regions[i]=b.min.z<-.10&&b.max.x-b.min.x>.20?1:b.min.y<1.55&&b.max.z<.07&&b.max.x-b.min.x>.16?.65:0;}
+ geometry.setAttribute('hairRegion',new T.BufferAttribute(regions,1));
+}
+function longHairPoint(x,y,z,region){
+ if(!region)return[x,y,z];
+ const length=T.MathUtils.clamp((1.68-y)/.18,0,1),fall=T.MathUtils.smoothstep(length,0,.88),flow=fall*region,tip=fall**3,side=Math.sign(x),wave=Math.sin(fall*Math.PI),sweep=(.029*Math.sin(fall*Math.PI*1.4+x*13)+side*.013*wave)*flow;
+ return[x*(1+.13*wave*region-.10*tip*region)+sweep,y-.408*flow+(.010+.010*Math.cos(x*43))*tip*region,z-.195*T.MathUtils.smoothstep(length,0,.66)*region+.028*Math.sin(fall*Math.PI*1.6+x*9)*flow];
+}
+function subdivideLongHair(geometry){
+ // Add longitudinal samples only where the short source hair would stretch
+ // into a long straight triangle. Shared edges use the same midpoint so curved
+ // deformation cannot open cracks. Crown/fringe triangles remain unchanged.
+ const arrays=Object.fromEntries(Object.entries(geometry.attributes).map(([key,a])=>[key,Array.from(a.array)])),sizes=Object.fromEntries(Object.entries(geometry.attributes).map(([key,a])=>[key,a.itemSize]));let indices=Array.from(geometry.index.array);
+ for(let pass=0;pass<2;pass++){
+  const midpoints=new Map(),point=i=>longHairPoint(...arrays.position.slice(i*3,i*3+3),arrays.hairRegion[i]),middle=(a,b)=>{
+   const key=a<b?a+':'+b:b+':'+a;if(midpoints.has(key))return midpoints.get(key);
+   const pa=point(a),pb=point(b);if(!arrays.hairRegion[a]||!arrays.hairRegion[b]||Math.hypot(...pa.map((v,k)=>v-pb[k]))<.075)return null;
+   const index=arrays.position.length/3;for(const [name,values]of Object.entries(arrays)){const size=sizes[name];if(name==='skinIndex'||name==='skinWeight')continue;for(let k=0;k<size;k++)values.push((values[a*size+k]+values[b*size+k])*.5);}
+   const weights=new Map();for(const i of[a,b])for(let k=0;k<4;k++){const bone=arrays.skinIndex[i*4+k];weights.set(bone,(weights.get(bone)||0)+arrays.skinWeight[i*4+k]*.5);}const best=[...weights].sort((a,b)=>b[1]-a[1]).slice(0,4),sum=best.reduce((n,p)=>n+p[1],0);for(let k=0;k<4;k++){arrays.skinIndex.push(best[k]?.[0]||0);arrays.skinWeight.push((best[k]?.[1]||0)/sum);}
+   midpoints.set(key,index);return index;
+  },next=[];
+  for(let i=0;i<indices.length;i+=3){const a=indices[i],b=indices[i+1],c=indices[i+2],ab=middle(a,b),bc=middle(b,c),ca=middle(c,a),count=Number(ab!==null)+Number(bc!==null)+Number(ca!==null);
+   if(count===0)next.push(a,b,c);
+   else if(count===3)next.push(a,ab,ca,ab,b,bc,ca,bc,c,ab,bc,ca);
+   else if(count===1){if(ab!==null)next.push(a,ab,c,ab,b,c);else if(bc!==null)next.push(b,bc,a,bc,c,a);else next.push(c,ca,b,ca,a,b);}
+   else if(ab===null)next.push(c,ca,bc,b,bc,a,bc,ca,a);else if(bc===null)next.push(a,ab,ca,c,ca,b,ca,ab,b);else next.push(b,bc,ab,a,ab,c,ab,bc,c);
+  }
+  indices=next;if(!midpoints.size)break;
+ }
+ for(const [name,values]of Object.entries(arrays)){const old=geometry.attributes[name];geometry.setAttribute(name,new T.BufferAttribute(new old.array.constructor(values),old.itemSize,old.normalized));}geometry.setIndex(indices);
+}
 export function mirageHair(root){
  root.traverse(o=>{if(!o.isMesh)return;o.userData.hairstyle=true;o.userData.mirageLongHair=true;
   // Preserve the authored crown, fringe, strand texture and weights. Only this
   // template's rear lengths are reshaped; silver keeps its original short cut.
-  o.geometry=o.geometry.clone();const p=o.geometry.attributes.position;
+  o.geometry=o.geometry.clone();hairRegions(o.geometry);subdivideLongHair(o.geometry);const p=o.geometry.attributes.position,regions=o.geometry.attributes.hairRegion;
   for(let i=0;i<p.count;i++){
-   const x=p.getX(i),y=p.getY(i),z=p.getZ(i),rear=1-T.MathUtils.smoothstep(z,-.018,.075),length=T.MathUtils.clamp((1.68-y)/.18,0,1),fall=T.MathUtils.smoothstep(length,0,.82)*rear;
-   p.setXYZ(i,x*(1+.26*Math.sin(length*Math.PI)*rear),y-.445*fall,z-.205*T.MathUtils.smoothstep(length,0,.58)*rear-.012*Math.sin(length*Math.PI)*rear);
+   p.setXYZ(i,...longHairPoint(p.getX(i),p.getY(i),p.getZ(i),regions.getX(i)));
   }
   o.geometry.computeVertexNormals();o.geometry.computeBoundingBox();o.geometry.computeBoundingSphere();
   o.material=o.material.clone();o.material.color.set(0xffffff);o.material.roughness=.75;o.material.normalScale?.setScalar(.2);
   const tint=new T.Color(0xc4b7db).toArray().join(',');o.material.onBeforeCompile=s=>{
    s.vertexShader='varying vec3 vMirageHair;\n'+s.vertexShader;s.vertexShader=s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvMirageHair=position;');
    s.fragmentShader='varying vec3 vMirageHair;\n'+s.fragmentShader;
-   s.fragmentShader=s.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>\nfloat mirageStrand=dot(diffuseColor.rgb,vec3(.21,.72,.07));float fiber=sin(vMirageHair.x*210.0+sin(vMirageHair.y*6.0)*.65)*.038+sin(vMirageHair.x*385.0)*.018;diffuseColor.rgb=vec3(${tint})*(.63+mirageStrand*.39+fiber);`);
+   s.fragmentShader=s.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>\nfloat mirageStrand=dot(diffuseColor.rgb,vec3(.21,.72,.07));float flow=vMirageHair.x+.022*sin((vMirageHair.y-1.08)*7.0+vMirageHair.x*10.0);float fiber=sin(flow*185.0)*.019+sin(flow*326.0)*.009;diffuseColor.rgb=vec3(${tint})*(.66+mirageStrand*.36+fiber);`);
   };o.material.customProgramCacheKey=()=> 'mirage-silver-long-hair';
  });
 }
@@ -124,7 +159,10 @@ export function mirageMask(model){
 export function miasmaLantern(){
  const g=new T.Group();g.name='Mirage_poison_flower_lantern';
  piece(g,'TorusGeometry',[.078,.010,8,24],MIRAGE_PALETTE.silver,0,-.063,0);
- oval(g,MIRAGE_PALETTE.cloth,0,-.18,0,.088,.046,.088);
+ const cap=[new T.Vector2(0,-.034),new T.Vector2(.070,-.032),new T.Vector2(.085,-.021),new T.Vector2(.088,-.011),new T.Vector2(.082,.002),new T.Vector2(.061,.018),new T.Vector2(.032,.030),new T.Vector2(.012,.035),new T.Vector2(0,.037)];
+ piece(g,'LatheGeometry',[cap,28],MIRAGE_PALETTE.cloth,0,-.18,0).name='SM_Weapon_Mirage_FittedCap';
+ const neck=[new T.Vector2(.008,-.133),new T.Vector2(.012,-.137),new T.Vector2(.012,-.147),new T.Vector2(.020,-.155),new T.Vector2(.020,-.159)];
+ piece(g,'LatheGeometry',[neck,20],MIRAGE_PALETTE.silver,0,0,0).name='SM_Weapon_Mirage_HandleSocket';
  piece(g,'TorusGeometry',[.083,.007,6,24],MIRAGE_PALETTE.silver,0,-.196,0).rotation.x=Math.PI/2;
  const heart=oval(g,0xb98cff,0,-.298,0,.050,.088,.050);heart.name='Mirage_flower_core';
  const petals=[];

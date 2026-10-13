@@ -1,12 +1,12 @@
 import * as T from './vendor/three.module.js';
 import{addTree}from'./tree-scenery.js?v=169';
 import{MAPS,seeded,segmentDistance}from'./rules.js?v=125';
-import{buildPonds}from'./water.js?v=172';
+import{buildPonds}from'./water.js?v=173';
 import{installCoast}from'./coast.js?v=114';
-import{coastProp}from'./coast-models.js?v=172';
-import{buildDistricts}from'./map-districts.js?v=172';
+import{coastProp}from'./coast-models.js?v=173';
+import{buildDistricts}from'./map-districts.js?v=173';
 import{installScenery}from'./biome-scenery.js?v=169';
-import{installDiscoveries}from'./map-discoveries.js?v=172';
+import{installDiscoveries}from'./map-discoveries.js?v=173';
 import{installTactics}from'./map-tactics.js?v=158';
 import{installRoaming}from'./roaming-events.js?v=169';
 import{biomeEvent}from'./map-events.js?v=114';

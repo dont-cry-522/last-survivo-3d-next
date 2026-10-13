@@ -7,7 +7,8 @@ const placements={
  scout:{bone:'pelvis',x:0,y:1.145,size:.042,roll:-.18,replace:'SM_Hero_Buckle_scout'},
  silver:{bone:'spine_03',x:-.110,y:1.415,size:.043,roll:-.48},
  wraith:{bone:'spine_03',x:.018,y:1.365,size:.039,roll:0},
- tide:{bone:'spine_03',x:.135,y:1.466,size:.038,roll:-.08,replace:'SM_Hero_Tide_ShoulderRopeKnots'},
+ // Seat the wave on the upper vest, below the moving collar/shoulder seam.
+ tide:{bone:'spine_03',x:.062,y:1.418,size:.038,roll:-.08,replace:'SM_Hero_Tide_ShoulderRopeKnots'},
  lingya:{bone:'spine_03',x:-.04,y:1.270,size:.035,roll:.10},
  wuling:{bone:'spine_03',x:-.105,y:1.397,size:.039,roll:-.18},
  mirage:{bone:'Head',x:-.063,y:1.739,size:.029,roll:-.27,hair:true}
@@ -38,7 +39,9 @@ export function applyHeroIdentity(root,kind){
  // A lock's side normal can point almost sideways. A small flat hair fitting
  // faces mostly forward, rather than standing on edge and lifting off the head.
  if(placement.hair)normal.lerp(front,.75).normalize();
- mark.position.copy(hit.point).addScaledVector(normal,.004);mark.quaternion.setFromUnitVectors(front,normal);mark.rotateZ(placement.roll);
+ // Tide's small clasp needs 2 mm of extra clearance for the jacket's blended
+ // chest weights during running; it remains rigidly attached to spine_03.
+ mark.position.copy(hit.point).addScaledVector(normal,kind==='tide'?.006:.004);mark.quaternion.setFromUnitVectors(front,normal);mark.rotateZ(placement.roll);
  mark.updateMatrixWorld(true);
  // Keep the back of the small rigid fitting above the curved fabric. The
  // source model, motif geometry and shared cached materials are never edited.

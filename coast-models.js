@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=172';
+import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=173';
 const geometries=new Map(),materials=new Map();
 function part(p,color,pos,size,type='sphere',glow=false){
  if(!geometries.has(type))geometries.set(type,type==='rock'?new T.DodecahedronGeometry(1,1):type==='box'?new T.BoxGeometry(2,2,2):type==='cone'?new T.ConeGeometry(1,2,12):type==='barrel'?new T.CylinderGeometry(.88,1,2,10):type==='hoop'?new T.TorusGeometry(1,.055,5,12):new T.SphereGeometry(1,16,12));
@@ -60,9 +60,15 @@ export function makeHarpoon(){
  const g=new T.Group(),wood=new T.MeshStandardMaterial({color:0x655644,roughness:.78}),steel=new T.MeshStandardMaterial({color:0x567d86,metalness:.46,roughness:.39}),edge=new T.MeshStandardMaterial({color:0xb2c6c5,metalness:.62,roughness:.38}),brass=new T.MeshStandardMaterial({color:0x96794f,metalness:.55,roughness:.52}),wrap=new T.MeshStandardMaterial({color:0x294e5b,roughness:.92});
  const cylinder=(r,h,z,m)=>{const o=new T.Mesh(new T.CylinderGeometry(r,r,h,12),m);o.rotation.x=Math.PI/2;o.position.z=z;g.add(o);return o;};
  cylinder(.029,2.16,.33,wood);cylinder(.034,.54,-.08,wrap);for(let i=0;i<8;i++)cylinder(.037,.012,-.31+i*.065,brass);cylinder(.034,.30,.34,wrap);for(let i=0;i<5;i++)cylinder(.036,.010,.21+i*.065,brass);cylinder(.043,.14,1.32,brass);cylinder(.038,.10,-.73,brass);
- const blade=(points,x,z,m)=>{const shape=new T.Shape();points.forEach(([a,b],i)=>i?shape.lineTo(a,b):shape.moveTo(a,b));shape.closePath();const geo=new T.ExtrudeGeometry(shape,{depth:.024,bevelEnabled:true,bevelThickness:.007,bevelSize:.006,bevelSegments:2,steps:1});geo.translate(0,0,-.012);geo.rotateX(Math.PI/2);const o=new T.Mesh(geo,m);o.position.set(x,0,z);o.scale.x=.78;g.add(o);return o;};
- blade([[-.042,0],[-.058,.14],[0,.39],[.058,.14],[.042,0]],0,1.36,edge);
- for(const side of[-1,1])blade([[0,0],[side*.12,.075],[side*.16,.24],[side*.13,.42],[side*.09,.25],[side*.06,.14],[-side*.015,.07]],0,1.20,steel);
+ const blade=(points,x,z,m,name)=>{
+  const shape=new T.Shape(),tip=Math.max(...points.map(p=>p[1])),last=points.at(-1),first=points[0];shape.moveTo((last[0]+first[0])*.5,(last[1]+first[1])*.5);
+  for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];if(a[1]===tip){shape.lineTo(...a);shape.lineTo((a[0]+b[0])*.5,(a[1]+b[1])*.5);}else shape.quadraticCurveTo(...a,(a[0]+b[0])*.5,(a[1]+b[1])*.5);}
+  shape.closePath();const geo=new T.ExtrudeGeometry(shape,{depth:.024,bevelEnabled:true,bevelThickness:.007,bevelSize:.006,bevelSegments:2,steps:1,curveSegments:4});geo.translate(0,0,-.012);
+  const p=geo.attributes.position;for(let i=0;i<p.count;i++){const towardTip=T.MathUtils.smoothstep(p.getY(i),tip*.50,tip);p.setZ(i,p.getZ(i)*(1-.78*towardTip));}
+  geo.rotateX(Math.PI/2);geo.computeVertexNormals();geo.name=name;const o=new T.Mesh(geo,m);o.name=name;o.userData.identityDetail=true;o.position.set(x,0,z);o.scale.x=.78;g.add(o);return o;
+ };
+ blade([[-.042,0],[-.058,.14],[0,.39],[.058,.14],[.042,0]],0,1.36,edge,'SM_Harpoon_CentralGroundPoint');
+ for(const side of[-1,1])blade([[0,0],[side*.12,.075],[side*.16,.24],[side*.13,.42],[side*.09,.25],[side*.06,.14],[-side*.015,.07]],0,1.20,steel,'SM_Harpoon_CurvedTine_'+side);
  const spine=new T.Mesh(new T.CylinderGeometry(.008,.016,.22,8),steel);spine.rotation.x=Math.PI/2;spine.position.set(0,.024,1.51);g.add(spine);
  weaponInlay(g,'SM_Harpoon_TidalNeckEngraving',[[[-.018,.024,1.385],[-.028,.024,1.425],[-.012,.024,1.46]],[[.014,.024,1.405],[.031,.024,1.45],[.011,.024,1.492]]],0xbba477,.0023,.40);
  g.name='Tide_forged_harpoon';nameWeapon(g,'tide','harpoon');g.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true;});harpoonTemplate=g;return g.clone();

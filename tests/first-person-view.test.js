@@ -333,7 +333,7 @@ test('close equipment adds bounded real structure across firearms, thrown blades
   else if(id==='boomerang')assert(view.model.getObjectByName('SM_Boomerang_BadgerClawCarving'));
   else if(['fire','dark'].includes(id)){assert.match(names,/wrapped-staff-inlay/);assert.equal(view.charged.length,1);}
   else if(id==='grimoire'){
-   assert.equal(changed.filter(([,n])=>n.geometry.name==='First_person_layered-pages').length,2);assert.match(names,/turning-page/);assert.match(names,/book-corners-and-script/);
+   const pages=view.parts.filter(([s])=>s.name.startsWith('SM_Grimoire_AshenPages_'));assert.equal(pages.length,2);for(const [source,node]of pages){assert.equal(node.geometry,source.geometry);assert.equal(source.geometry.name,'SM_Grimoire_BoundPageLayers');assert(source.geometry.attributes.position.count>200,'book lost its real page layers');}assert.match(names,/turning-page/);assert.match(names,/book-corners-and-script/);
    const ink=changed.filter(([,n])=>n.geometry.name==='First_person_fine-incantation');assert.equal(ink.length,6);
    for(const [source,node]of ink){
     assert.equal(source.material.color.getHex(),0xbac5cc,'third-person rune color changed');assert(Math.max(...node.material.color.toArray())<.15,'page ink is still a bright glow');assert.equal(node.material.toneMapped,true);

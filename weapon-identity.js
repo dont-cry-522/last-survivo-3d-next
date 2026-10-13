@@ -3,6 +3,17 @@ import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 
 const geometry=new Map(),materials=new Map();
 
+// One closed lathed section: outer steel, chamfered lip, inner wall and recessed
+// dark floor. The hole is real geometry rather than a black disk on the muzzle.
+export function recessedBarrelGeometry(radius,length){
+ const key=`barrel:${radius}:${length}`;if(geometry.has(key))return geometry.get(key);
+ const end=length/2,inside=radius*.69,depth=Math.min(.075,length*.25);
+ const profile=[[radius,-end],[radius,end-.003],[radius-.002,end],[inside+.002,end],[inside,end-.004],[inside,end-depth],[0,end-depth]];
+ const g=new T.LatheGeometry(profile.map(([r,y])=>new T.Vector2(r,y)),20),colors=[];
+ for(let i=0;i<g.attributes.position.count;i++){const row=i%profile.length,v=row>=5?.12:row===4?.28:row===3?.67:row===2?.95:.72;colors.push(v,v,v);}
+ g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.rotateX(Math.PI/2);g.name='SM_Weapon_RecessedBarrel';geometry.set(key,g);return g;
+}
+
 // A few inset seams are batched into one draw, never a collection of charms.
 // Cached immutable parts are shared by world weapons and the first-person copy.
 export function weaponInlay(parent,name,paths,color,radius=.002,metalness=.48){

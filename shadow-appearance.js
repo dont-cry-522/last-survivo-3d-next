@@ -38,8 +38,8 @@ function clothForm(weapon){
   // Soft shoulder cloth narrows at each hanging end and drapes down the outer
   // shoulder. Curved hems avoid reading as two rectangular armor plates.
   panels=[1,-1].map(side=>(u,v)=>{
-   const bend=v*2-1,width=.095+.067*Math.sin(v*Math.PI),fold=Math.sin(u*Math.PI*3+v*.7)*(.002+.006*Math.abs(bend))*(1-u*.5);
-   return[side*(.069+width*u+.006*Math.sin(v*Math.PI)),1.566-.074*u**1.6-(bend<0?.079:.108)*Math.abs(bend)**1.8+fold,-.161+.294*v+.010*Math.sin(u*Math.PI)*bend];
+   const bend=v*2-1,width=.080+.061*Math.sin(v*Math.PI),fold=Math.sin(u*Math.PI*3+v*.7)*(.002+.0035*Math.abs(bend))*(1-u*.5);
+   return[side*(.072+width*u+.004*Math.sin(v*Math.PI)),1.553-.069*u**1.35-(bend<0?.073:.105)*Math.abs(bend)**1.8+fold,-.146+.275*v+.009*Math.sin(u*Math.PI)*bend];
   });
   claspPanel=panels[0];claspV=.90;
  }else if(weapon==='grimoire'){
@@ -61,7 +61,7 @@ function clothForm(weapon){
   panels=[neck,sash];claspPanel=sash;claspV=.18;
  }
  const positions=[],colors=[],indices=[],slices=8,rows=14;
- const cloth=new T.Color(0x37343f),edge=new T.Color(0x615b6d);
+ const cloth=new T.Color(0x3b3944),edge=new T.Color(0x57515f);
  for(const surface of panels){
   const offset=positions.length/3;
   for(let j=0;j<=rows;j++)for(let i=0;i<=slices;i++){

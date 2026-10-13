@@ -22,7 +22,10 @@ test('both outfits are substantially resculpted without changing source UVs, bon
  for(const kind of['wraith','tide']){
   const source=sourceFor(kind),root=clone(source),old=new Map();
   root.traverse(o=>{if(o.isSkinnedMesh)old.set(o,{geometry:o.geometry,material:o.material,vertexColors:o.material.vertexColors,position:o.geometry.attributes.position.array.slice(),weights:o.geometry.attributes.skinWeight.array.slice(),indices:o.geometry.attributes.skinIndex.array.slice(),uv:o.geometry.attributes.uv.array.slice()});});
-  rebuildShadowTide(root,kind);const stats=root.userData.heroRebuild;assert(stats.sculptedVertices>9000,kind+' only changes a few attachments');assert(stats.addedMeshes>=5);assert(stats.addedMeshes<=9);
+  rebuildShadowTide(root,kind);const stats=root.userData.heroRebuild;assert(stats.sculptedVertices>9000,kind+' only changes a few attachments');assert(stats.addedMeshes>=5);
+  // The two tide harness surfaces now live on the template skeleton; they
+  // replace three rigid runtime attachments, rather than adding new ornaments.
+  assert(stats.addedMeshes<=(kind==='tide'?11:9));
   let changed=0;
   for(const [mesh,data]of old){
    assert.deepEqual(data.geometry.attributes.position.array,data.position,'shared source vertices were changed');assert.equal(data.material.vertexColors,data.vertexColors,'shared source surface was recolored');
@@ -61,7 +64,7 @@ test('added garment surfaces remain skinned, finite and bounded during actual id
    for(let i=0;i<w.count;i++){const sum=w.getX(i)+w.getY(i)+w.getZ(i)+w.getW(i);assert(Math.abs(sum-1)<.0002);for(let k=0;k<4;k++)assert(ids.array[i*4+k]<o.skeleton.bones.length);}
    assert([...p.array,...g.attributes.normal.array].every(Number.isFinite));
   }});
-  assert(triangles<6000,kind+' rebuild adds excessive faces');assert(added<=9);
+  assert(triangles<6000,kind+' rebuild adds excessive faces');assert(added<=(kind==='tide'?11:9));
   const mixer=new T.AnimationMixer(root),names=clips.filter(c=>/Idle_Loop|Jog_Fwd|Sword_Attack|Roll|Walk_Loop/.test(c.name)),before=root.skeleton.bones.map(b=>b.quaternion.clone());assert(names.length>3);let animated=0;
   for(const clip of names.slice(0,10)){
    mixer.stopAllAction();const action=mixer.clipAction(clip);action.play();

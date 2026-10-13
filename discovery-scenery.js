@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {wornStoneBlock} from './environment-props.js?v=172';
+import {wornStoneBlock} from './environment-props.js?v=173';
 import {naturalRockGeometry} from './biome-scenery.js?v=169';
 
 const biomes=new Set(['forest','snow','ash','sand','coast']),templates=new Map();

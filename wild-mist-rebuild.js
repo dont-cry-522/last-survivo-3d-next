@@ -68,24 +68,28 @@ function garmentMaterial(kind,part){
  };material.customProgramCacheKey=()=> 'wild-mist-tailored-'+(part==='boots'?'mud':leather?'leather':'cloth');return material;
 }
 function replace(mesh,geometry,kind,part){smoothSeams(geometry);mesh.geometry=geometry;mesh.material=garmentMaterial(kind,part);mesh.userData.wildMistPart=part;mesh.visible=true;mesh.castShadow=mesh.receiveShadow=true;}
+function profileAt(profile,y){
+ let i=0;while(i<profile.length-2&&y>profile[i+1][0])i++;
+ const a=profile[Math.max(0,i-1)],b=profile[i],c=profile[i+1],d=profile[Math.min(profile.length-1,i+2)],span=c[0]-b[0],t=clamp((y-b[0])/span,0,1),t2=t*t,t3=t2*t;
+ return b.slice(1).map((v,k)=>{const q=k+1,m0=(c[q]-a[q])/(c[0]-a[0]),m1=(d[q]-b[q])/(d[0]-b[0]);return(2*t3-3*t2+1)*v+(t3-2*t2+t)*span*m0+(-2*t3+3*t2)*c[q]+(t3-t2)*span*m1;});
+}
 function torso(mesh,kind){
  const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage';
  const sections=child?[[.99,.181,.116],[1.075,.176,.122],[1.14,.150,.117],[1.23,.149,.126],[1.32,.176,.138],[1.39,.199,.132],[1.44,.187,.104],[1.475,.091,.077],[1.493,.070,.064]]:
  mist?[[.925,.206,.124],[1.015,.182,.120],[1.11,.142,.103],[1.19,.126,.110],[1.27,.151,.135],[1.35,.179,.143],[1.405,.198,.121],[1.452,.174,.088],[1.48,.080,.060],[1.515,.064,.060]]:
  [[.82,.219,.149],[.90,.211,.147],[1.015,.190,.135],[1.10,.165,.117],[1.18,.140,.110],[1.26,.158,.137],[1.35,.183,.144],[1.41,.201,.120],[1.463,.135,.079],[1.49,.074,.063]];
- const shape=(y,a)=>{let j=0;while(j<sections.length-2&&y>sections[j+1][0])j++;const lo=sections[j],hi=sections[j+1],t=clamp((y-lo[0])/(hi[0]-lo[0]),0,1),rx=T.MathUtils.lerp(lo[1],hi[1],t),rz=T.MathUtils.lerp(lo[2],hi[2],t),hem=1-smooth(y,sections[0][0],1.15);
+ const facing=(y,a)=>{const start=mist?1.425:1.405,height=mist?.38:.54,v=clamp((start-y)/height,0,1),angle=Math.atan2(Math.sin(a),Math.cos(a)),center=mist?0:.14*(1-v),edge=Math.abs(angle-center)/(mist?.50:.73);return{v,edge,inside:!child&&y<start&&y>start-height&&edge<1};};
+ const shape=(y,a)=>{const[rx,rz]=profileAt(sections,y),hem=1-smooth(y,sections[0][0],1.15);
   // Folds open below the tied waist and compress at the ribs; their small
   // changing depth catches light without turning the whole coat into fluting.
-  const tension=Math.exp(-(((y-1.15)/.14)**2)),fold=(.0042*Math.sin(a*9+(y-1.1)*9)+.002*Math.sin(a*15-y*14))*tension+.004*Math.cos(a*(mist?6:10)+.4)*hem;
+  const tension=Math.exp(-(((y-1.15)/.14)**2)),f=facing(y,a),seam=f.inside?.0012*Math.exp(-(((f.edge-.94)/.08)**2))*Math.sin(Math.PI*f.v):0,fold=(.0042*Math.sin(a*9+(y-1.1)*9)+.002*Math.sin(a*15-y*14))*tension+.004*Math.cos(a*(mist?6:10)+.4)*hem-seam;
   return[Math.sin(a)*(rx+fold),y+(mist?.045*Math.cos(a*3+.6)*hem:child?0:.025*Math.sin(a-.5)*hem),Math.cos(a)*(rz+fold)-.028];
  };
  const dense=[];for(let j=0;j<sections.length-1;j++)for(let step=0;step<3;step++)dense.push(sections[j][0]+(sections[j+1][0]-sections[j][0])*step/3);dense.push(sections.at(-1)[0]);
- rings(out,dense,(y,a,j)=>[...shape(y,a),j===0||j===dense.length-1?p.trim:y>1.11&&y<1.165?p.shade:Math.abs(Math.sin(a))>.88?p.shade:p.cloth],32);
- // Facing follows the exact same curved, folded body and uses its skin weights.
- // Its folded edge sits only millimetres above the robe, including in a cast.
- if(!child)grid(out,24,16,(u,v)=>{const y=(mist?1.425:1.405)-v*(mist?.38:.54),a=(u-.5)*(mist?1.00:1.46)+(mist?0:.14*(1-v)),base=shape(y,a),edge=Math.abs(u-.5)*2,offset=.0025+.0018*smooth(edge,.84,1);
-  return[base[0]+Math.sin(a)*offset,base[1],base[2]+Math.cos(a)*offset,u===0||u===1||v===1?p.trim:p.leaf,out.binding(...base)];
- });
+ // The front facing is part of the same surface. The previous separate patch
+ // sampled different triangles/weights only 2.5 mm above the robe, intersecting
+ // it in cast poses and leaving sharp dark slivers across the chest.
+ rings(out,dense,(y,a,j)=>{const f=facing(y,a);return[...shape(y,a),j===0||j===dense.length-1?p.trim:y>1.11&&y<1.165?p.shade:f.inside?p.leaf:Math.abs(Math.sin(a))>.88?p.shade:p.cloth];},32);
  return out.build();
 }
 function sleeves(mesh,kind){
@@ -94,9 +98,10 @@ function sleeves(mesh,kind){
   const profile=child?[[.148,.064],[.21,.086],[.28,.084],[.35,.067],[.405,.062],[.46,.066],[.53,.056],[.59,.049],[.63,.047]]:
    mist?[[.148,.065],[.21,.069],[.30,.064],[.39,.060],[.45,.054],[.52,.056],[.585,.075],[.645,.066]]:
    [[.148,.068],[.21,.077],[.30,.073],[.39,.065],[.45,.062],[.52,.070],[.58,.072],[.625,.064]];
-  const dense=[];for(let j=0;j<profile.length-1;j++)for(let step=0;step<2;step++)dense.push([T.MathUtils.lerp(profile[j][0],profile[j+1][0],step/2),T.MathUtils.lerp(profile[j][1],profile[j+1][1],step/2)]);dense.push(profile.at(-1));
+  const dense=[];for(let j=0;j<profile.length-1;j++)for(let step=0;step<2;step++){const x=T.MathUtils.lerp(profile[j][0],profile[j+1][0],step/2);dense.push([x,profileAt(profile,x)[0]]);}dense.push(profile.at(-1));
   rings(out,dense,([x,r],a,j)=>{const elbow=Math.exp(-(((x-.41)/.075)**2)),crease=(.0028*Math.sin((x-.35)*105+a*1.6)+.0012*Math.cos(a*5))*elbow,tip=mist?smooth(x,.53,.645)*.020*Math.cos(a):0;
-   return[side*(x+tip),1.415+Math.cos(a)*(r+crease),-.049+Math.sin(a)*(r+crease)*.90,j===dense.length-1||child&&j===10?p.trim:mist&&x>.52?p.leaf:p.cloth];
+   const radius=(r+crease)*(1-.13*smooth(x,.48,.52)*(1-smooth(x,.605,.625)));
+   return[side*(x+tip),1.415+Math.cos(a)*radius,-.049+Math.sin(a)*radius*.90,j===dense.length-1||child&&j===10?p.trim:mist&&x>.52?p.leaf:p.cloth];
   },20,side<0);
  }
  // Retain the authored glove/finger triangles exactly outside the new cuffs.
@@ -119,9 +124,10 @@ function legs(mesh,kind){
 }
 function boots(mesh,kind){
  const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage',height=child?.28:mist?.60:.47;
- for(const side of[-1,1]){const ids=rings(out,[[.004,.064,.105,.013],[.023,.073,.121,.014],[.043,.073,.121,.014],[.070,.070,.114,.012],[.112,.063,.089,-.018],[.16,.062,.075,-.030],[height-.038,mist?.079:.070,mist?.084:.076,-.033],[height-.023,mist?.081:.080,mist?.086:.086,-.033],[height,mist?.078:.079,mist?.083:.084,-.033]],([y,rx,rz,cz],a,j)=>{
+ const profile=[[.004,.064,.105,.013],[.023,.073,.121,.014],[.043,.073,.121,.014],[.070,.070,.114,.012],[.112,.063,.089,-.018],[.16,.062,.075,-.030],...(!child?[[height*.68,mist?.078:.073,mist?.084:.080,-.035]]:[]),[height-.038,mist?.079:.070,mist?.084:.076,-.033],[height-.023,mist?.081:.080,mist?.086:.086,-.033],[height,mist?.078:.079,mist?.083:.084,-.033]];
+ for(const side of[-1,1]){const ids=rings(out,profile,([y,rx,rz,cz],a,j)=>{
   const toe=Math.max(0,Math.cos(a)),x=side*(.10+.025*smooth(y,.30,.97))+Math.sin(a)*rx,z=cz+Math.cos(a)*rz+toe*.015*(1-smooth(y,.045,.13)),mud=!mist&&y<.105;
-  return[x,y,z,j<3||mud?p.sole:j>6?p.trim:p.leather];
+  return[x,y,z,j<3||mud?p.sole:y>=height-.023?p.trim:p.leather];
  },24);const sole=out.vertex(side*.10,.004,.013,p.sole);for(let i=0;i<24;i++)out.triangle(sole,ids[i+1],ids[i]);}
  return out.build();
 }
@@ -132,10 +138,9 @@ function hood(mesh,kind){
  });return out.build();
 }
 function longHair(mesh){
- const g=mesh.geometry.clone(),p=g.attributes.position;
- for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),fall=1-smooth(y,1.08,1.64),rear=1-smooth(z,-.10,.025),side=smooth(Math.abs(x),.058,.10)*(1-smooth(y,1.62,1.70))*smooth(z,-.02,.07);
-  p.setXYZ(i,x*(1-.10*fall*rear),y-.058*side+.027*Math.cos(x*50)*fall**4*rear,z-.014*Math.sin(fall*Math.PI)*rear);
- }g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();mesh.geometry=g;mesh.userData.wildMistPart='long-hair';mesh.castShadow=mesh.receiveShadow=true;
+ // mirageHair now sculpts and subdivides the real rear locks in one pass.
+ // Do not stretch the fringe a second time during wardrobe rebuilding.
+ mesh.geometry=mesh.geometry.clone();mesh.userData.wildMistPart='long-hair';mesh.castShadow=mesh.receiveShadow=true;
 }
 export function rebuildWildMist(root,kind){
  if(!palettes[kind]||root.userData.wildMistRebuilt)return root;

@@ -1,5 +1,6 @@
 import * as T from './vendor/three.module.js';
-import {weaponInlay,nameWeapon} from './weapon-identity.js?v=172';
+import {weaponInlay,nameWeapon} from './weapon-identity.js?v=173';
+import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 
 const geometry=new Map(),materials=new Map();
 function part(parent,key,create,color,position=[0,0,0],scale=[1,1,1],glow=false){
@@ -34,6 +35,26 @@ function riftShards(){
  const shapes=outlines.map(points=>{const s=new T.Shape();s.moveTo(points[0],points[1]);for(let i=2;i<points.length;i+=2)s.lineTo(points[i],points[i+1]);s.closePath();return s;});
  const g=new T.ExtrudeGeometry(shapes,{depth:.25,bevelEnabled:true,bevelThickness:.05,bevelSize:.035,bevelSegments:1,steps:1,curveSegments:1});g.translate(0,0,-.125);return g;
 }
+function bookPages(){
+ const layers=[];
+ for(let layer=0;layer<5;layer++){
+  const sheet=new T.BoxGeometry(1,.10,1,4,1,3),p=sheet.attributes.position;
+  for(let i=0;i<p.count;i++){
+   const x=p.getX(i),z=p.getZ(i),curl=.07*Math.cos(x*Math.PI)*Math.cos(z*Math.PI);
+   p.setXYZ(i,x*(.974+layer*.004),p.getY(i)-.4+layer*.2+curl,z*(.978+layer*.004));
+  }
+  sheet.computeVertexNormals();layers.push(sheet);
+ }
+ const g=mergeGeometries(layers,false);layers.forEach(s=>s.dispose());g.name='SM_Grimoire_BoundPageLayers';return g;
+}
+function bookCover(){
+ const g=new T.BoxGeometry(1,1,1,6,1,6),p=g.attributes.position;
+ for(let i=0;i<p.count;i++){
+  const x=p.getX(i),z=p.getZ(i),corner=Math.abs(x)>.37&&Math.abs(z)>.37;
+  p.setXYZ(i,x*(corner?.963:1),p.getY(i)*(.90+.10*Math.cos(x*Math.PI)*Math.cos(z*Math.PI)),z*(corner?.976:1));
+ }
+ g.computeVertexNormals();g.name='SM_Grimoire_SoftBoundCover';return g;
+}
 export function shadowFocus(id){
  const g=new T.Group();g.name='shadow-focus-'+id;
  if(id==='shadowblade'){
@@ -67,8 +88,8 @@ export function shadowFocus(id){
  }else if(id==='grimoire'){
   for(const sign of [-1,1]){
    const leaf=new T.Group();leaf.rotation.z=sign*.18;leaf.position.set(0,.075,.06);g.add(leaf);
-   const cover=part(leaf,'box',()=>new T.BoxGeometry(1,1,1),0x262332,[sign*.115,0,0],[.23,.028,.29]);cover.name='SM_Grimoire_SoulhideCover_'+sign;cover.material.userData.identityFinish=true;
-   part(leaf,'box',()=>new T.BoxGeometry(1,1,1),0x827e8a,[sign*.11,.022,0],[.21,.018,.26]).name='SM_Grimoire_AshenPages_'+sign;
+   const cover=part(leaf,'book-cover',bookCover,0x262332,[sign*.115,0,0],[.23,.028,.29]);cover.name='SM_Grimoire_SoulhideCover_'+sign;cover.userData.identityDetail=true;cover.material.userData.identityFinish=true;
+   const pages=part(leaf,'book-pages',bookPages,0x8b8392,[sign*.11,.022,0],[.21,.018,.26]);pages.name='SM_Grimoire_AshenPages_'+sign;pages.userData.identityDetail=true;pages.material.roughness=.95;pages.material.metalness=0;
    for(const z of [-.07,0,.07])line(leaf,0xbac5cc,[[sign*.040,.036,z],[sign*.090,.038,z],[sign*.105,.038,z+.010],[sign*.148,.036,z+.010]],.0014,true);
    weaponInlay(leaf,'SM_Grimoire_SoulMargin_'+sign,[[[sign*.176,.0325,-.10],[sign*.167,.033,-.057],[sign*.177,.033,-.025]],[[sign*.182,.033,.016],[sign*.190,.033,.05],[sign*.181,.0325,.103]]],0x665c77,.0014,.22);
   }

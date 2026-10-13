@@ -115,7 +115,8 @@ function pageInk(strokes,width){
  const p=[],indices=[];
  for(const stroke of strokes)for(let i=1;i<stroke.length;i++){
   const [ax,az]=stroke[i-1],[bx,bz]=stroke[i],dx=bx-ax,dz=bz-az,length=Math.hypot(dx,dz),x=-dz/length*width*.5,z=dx/length*width*.5,n=p.length/3;
-  p.push(ax-x,.0307,az-z,ax+x,.0307,az+z,bx-x,.0307,bz-z,bx+x,.0307,bz+z);indices.push(n,n+1,n+2,n+2,n+1,n+3);
+  // Above the shared bound paper's shallow crown (.03136 at its highest).
+  p.push(ax-x,.0317,az-z,ax+x,.0317,az+z,bx-x,.0317,bz-z,bx+x,.0317,bz+z);indices.push(n,n+1,n+2,n+2,n+1,n+3);
  }
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setIndex(indices);g.computeVertexNormals();return g;
 }

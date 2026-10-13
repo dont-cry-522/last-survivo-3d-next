@@ -1,7 +1,7 @@
 import{badgerAttack,badgerCadence,badgerIdle,smooth}from'./badger-motion.js?v=114';
 import{swimLimb as placeLimb}from'./swim-motion.js?v=114';
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=172';
+import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=173';
 const geo=new Map(),mats=new Map();
 function material(c){if(!mats.has(c))mats.set(c,new T.MeshStandardMaterial({color:c,roughness:.84}));return mats.get(c);}
 function sphere(g,c,x,y,z,sx,sy,sz){if(!geo.has('sphere'))geo.set('sphere',new T.SphereGeometry(1,24,16));const m=new T.Mesh(geo.get('sphere'),material(c));m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=m.receiveShadow=true;g.add(m);return m;}
@@ -11,7 +11,13 @@ export function boneBoomerang(){
  if(boneTemplate)return boneTemplate.clone();const g=new T.Group(),shape=new T.Shape();g.name='Lingya_carved_bone';
  shape.moveTo(-.48,.27);shape.quadraticCurveTo(-.42,.025,-.13,-.14);shape.quadraticCurveTo(0,-.23,.13,-.14);shape.quadraticCurveTo(.42,.025,.48,.27);shape.quadraticCurveTo(.36,.23,.23,.13);shape.quadraticCurveTo(.08,.035,0,-.015);shape.quadraticCurveTo(-.08,.035,-.23,.13);shape.quadraticCurveTo(-.36,.23,-.48,.27);
  const geometry=new T.ExtrudeGeometry(shape,{depth:.032,bevelEnabled:true,bevelSize:.012,bevelThickness:.012,bevelSegments:3,steps:1,curveSegments:20});geometry.translate(0,0,-.016);geometry.rotateX(Math.PI/2);
- const p=geometry.attributes.position,colors=[];for(let i=0;i<p.count;i++){const c=new T.Color(0xe0d1aa).multiplyScalar(.89+.08*Math.cos(p.getX(i)*9)+.035*Math.sin(p.getZ(i)*31));colors.push(c.r,c.g,c.b);}geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.add(new T.Mesh(geometry,new T.MeshStandardMaterial({vertexColors:true,roughness:.66})));
+ const p=geometry.attributes.position,colors=[];for(let i=0;i<p.count;i++){
+  const x=p.getX(i),y=p.getY(i),z=p.getZ(i),tip=Math.min(1,Math.abs(x)/.48);
+  // Broad bone faces round into thin polished tips; a very shallow arch keeps
+  // the bone from reading as a flat cutout without changing the grip or outline.
+  p.setY(i,y*(1-.30*tip*tip)+.003*Math.sin(tip*Math.PI));
+  const c=new T.Color(0xe0d1aa).multiplyScalar(.91+.045*Math.cos(x*9)+.016*Math.sin(z*31)+.008*Math.sin(x*83+z*9));colors.push(c.r,c.g,c.b);
+ }geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.computeVertexNormals();geometry.name='SM_Boomerang_RoundedBone_A';const bone=new T.Mesh(geometry,new T.MeshStandardMaterial({vertexColors:true,roughness:.62}));bone.name=geometry.name;bone.userData.identityDetail=true;g.add(bone);
  const wrap=new T.CylinderGeometry(.046,.046,.025,10);for(let i=0;i<5;i++){const m=new T.Mesh(wrap,material(i%2?0x59674e:0x817154));m.rotation.z=Math.PI/2;m.position.set((i-2)*.026,0,-.09);g.add(m);}
  sphere(g,0xa98951,0,.038,-.09,.022,.010,.023);
  const clawMarks=[];for(const side of[-1,1])for(let i=0;i<3;i++){const x=side*(.20+i*.031),z=.043+i*.025;clawMarks.push([[x-side*.009,.029,z-.014],[x,.030,z+.006],[x+side*.009,.029,z+.018]]);}

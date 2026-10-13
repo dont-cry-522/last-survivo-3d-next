@@ -1,7 +1,7 @@
-import {shadowFocus} from './shadow-gear.js?v=172';
+import {shadowFocus} from './shadow-gear.js?v=173';
 import{weaponGesture,shotStarted,crossbowMechanism}from'./weapon-performance.js?v=170';
-import{miasmaLantern}from'./mirage-appearance.js?v=172';
-import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=172';
+import{miasmaLantern}from'./mirage-appearance.js?v=173';
+import{weaponInlay,nameWeapon,recessedBarrelGeometry}from'./weapon-identity.js?v=173';
 import * as T from './vendor/three.module.js';
 // Shared smooth geometry: detail is concentrated on the two heroes, not multiplied across the forest.
 const geometries=new Map(),materials=new Map();
@@ -95,6 +95,9 @@ export function makeHero(kind,weapon){
   }else if(weapon==='crossbow'){
     gun.name='SM_Weapon_Crossbow_A';
     weaponHull(gun,'SM_Crossbow_WoodStock_A',[[0,.035,-.14,.075,.095],[0,.047,-.075,.13,.12],[0,.047,.24,.11,.092],[0,.065,.435,.057,.06]],0x313d54);
+    // The support contact remains (0,-.05,.18); shape the stock down to the
+    // palm instead of moving an already calibrated hand rig to hide the gap.
+    weaponHull(gun,'SM_Crossbow_PalmForeend_A',[[0,-.006,.11,.081,.064],[0,-.009,.18,.090,.082],[0,-.003,.28,.070,.060]],0x242b32);
     const grip=weaponHull(gun,'SM_Crossbow_Grip_A',[[0,0,-.095,.081,.070],[0,0,-.066,.095,.091],[0,0,.068,.091,.087],[0,0,.095,.083,.076]],0x242b32);grip.rotation.x=-Math.PI/2-.16;grip.position.set(0,-.077,.01);
     for(const side of[-1,1]){
       weaponHull(gun,'SM_Crossbow_SteelRail_'+(side<0?'L':'R'),[[side*.022,.112,-.075,.015,.014],[side*.022,.116,.21,.015,.019],[side*.018,.114,.44,.011,.010]],0xb0b9bf,.68);
@@ -132,14 +135,15 @@ export function makeHero(kind,weapon){
     const length=.69;
     gun.name='SM_Weapon_'+(weapon==='shotgun'?'RockbreakerShotgun':'RangerRepeater');
     weaponHull(gun,'SM_Firearm_ForestReceiver_'+weapon,[[0,.058,-.155,.086,.10],[0,.058,-.12,.112,.125],[0,.058,.47,.112,.125],[0,.058,.535,.080,.10]],0x35483e,.22);block(gun,0x88948d,[0,.133,.23],[.099,.029,length*.83],.7);
-    const barrel=tube(gun,0x435562,[0,.072,.2+length/2],[.036,.31,.036],.8);barrel.rotation.x=Math.PI/2;
-    const bore=ell(gun,0x080f13,[0,.072,.21+length/2+.155],[.027,.027,.009]);
+    if(!materials.has('machined-bore'))materials.set('machined-bore',new T.MeshStandardMaterial({color:0x809097,vertexColors:true,metalness:.76,roughness:.32}));
+    const barrel=(radius,size,pos,suffix)=>{const m=new T.Mesh(recessedBarrelGeometry(radius,size),materials.get('machined-bore'));m.position.set(...pos);m.name='SM_Firearm_RecessedBarrel_'+suffix;m.userData.identityDetail=true;m.castShadow=m.receiveShadow=true;gun.add(m);return m;};
+    barrel(.036,.33,[0,.072,.545],'Main');
     const grip=block(gun,0x5c4a3e,[0,-.065,.075],[.096,.21,.13]);grip.rotation.x=-.22;
     block(gun,trim,[.061,.072,.19],[.008,.032,.16],.8);block(gun,0x192831,[0,.169,.13],[.028,.044,.061]);
     weaponHull(gun,'SM_Firearm_LeafwoodStock_'+weapon,[[0,.03,-.35,.088,.145],[0,.03,-.31,.115,.17],[0,.03,-.16,.115,.17],[0,.03,-.13,.085,.14]],0x6f5036);block(gun,dark,[0,-.098,.19],[.07,.18,.11]);
     weaponInlay(gun,'SM_Firearm_LeafGrain_'+weapon,[[[0,.116,-.292],[.015,.117,-.25],[0,.116,-.193]],[[-.002,.117,-.272],[-.024,.117,-.25],[0,.117,-.227]]],0xb59868,.0018,.28);
     if(weapon==='rifle'){tube(gun,dark,[0,.193,.21],[.045,.14,.045]).rotation.x=Math.PI/2;}
-    if(weapon==='shotgun'){const second=tube(gun,0x8c9ca6,[.075,.068,.47],[.032,.43,.032],.75);second.rotation.x=Math.PI/2;const pump=joint(gun,[0,0,0]);for(let i=0;i<4;i++)block(pump,0x8c6e48,[0,.025,.28+i*.037],[.14,.08,.022]);gun.userData.pump=pump;}
+    if(weapon==='shotgun'){barrel(.032,.43,[.075,.068,.47],'Side');const pump=joint(gun,[0,0,0]);for(let i=0;i<4;i++)block(pump,0x8c6e48,[0,.025,.28+i*.037],[.14,.08,.022]);gun.userData.pump=pump;}
   }
   nameWeapon(gun,silver?'silver':'scout',weapon);
   return g;

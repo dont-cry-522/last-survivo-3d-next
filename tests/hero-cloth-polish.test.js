@@ -33,3 +33,20 @@ test('coastal mantle has actual short tailoring, pinned shoulders and identical 
   let released=0;cape.geometry.addEventListener('dispose',()=>released++);disposeHero(hero);assert.equal(released,1);animateSkinnedHero(other,2,4,0,0);assert(other.userData.cape.geometry.attributes.position.array.every(Number.isFinite));disposeHero(other);
  }finally{for(const [k,v]of Object.entries(saved))if(v===undefined)delete globalThis[k];else globalThis[k]=v;}
 });
+
+test('short shadow cowl keeps its shoulder edge pinned while real cloth and shadow move together',async()=>{
+ const saved=Object.fromEntries(['fetch','self','ProgressEvent','createImageBitmap'].map(k=>[k,globalThis[k]]));
+ try{
+  globalThis.self=globalThis;globalThis.ProgressEvent=class{constructor(type,data){Object.assign(this,data);}};globalThis.createImageBitmap=async()=>({width:512,height:512,close(){}});
+  globalThis.fetch=async input=>{const url=typeof input==='string'?input:input.url;return url.startsWith('file:')?new Response(fs.readFileSync(fileURLToPath(url))):saved.fetch(input);};
+  await loadHeroAssets();const hero=createSkinnedHero('wraith','shadowblade'),other=createSkinnedHero('wraith','shadowblade'),cape=hero.userData.cape,p=cape.geometry.attributes.position,uv=cape.geometry.attributes.uv,rest=p.array.slice();
+  assert.equal(cape.name,'SM_Hero_Cape_Shadowblade');assert.notEqual(cape.geometry,other.userData.cape.geometry);assert(cape.castShadow&&cape.receiveShadow);
+  const shader={vertexShader:'#include <begin_vertex>',fragmentShader:'#include <opaque_fragment>',uniforms:{}};cape.material.onBeforeCompile(shader);assert.equal(shader.vertexShader,'#include <begin_vertex>','shadow must share the visible deformation');assert(!shader.fragmentShader.includes('discard'),'colour-only fraying must not cut a different silhouette from the shadow');
+  assert(p.getY(12)-p.getY(0)>.05,'straight collar corners returned');
+  for(let f=0;f<120;f++){hero.userData.turnRate=Math.sin(f/20)*2;animateSkinnedHero(hero,5+f/60,4,.1,0);}
+  let moved=0;for(let i=0;i<p.count;i++){const shift=Math.hypot(p.getX(i)-rest[i*3],p.getY(i)-rest[i*3+1],p.getZ(i)-rest[i*3+2]);assert(Number.isFinite(shift)&&shift<.12);if(uv.getY(i)===0)assert.equal(shift,0);else if(shift>.0001)moved++;}
+  assert(moved>100);assert.deepEqual(other.userData.cape.geometry.attributes.position.array,rest);
+  const paused=p.array.slice();animateSkinnedHero(hero,5+119/60,4,.1,0);assert.deepEqual(p.array,paused);
+  let released=0;cape.geometry.addEventListener('dispose',()=>released++);disposeHero(hero);assert.equal(released,1);animateSkinnedHero(other,10,4,0,0);assert(other.userData.cape.geometry.attributes.position.array.every(Number.isFinite));disposeHero(other);
+ }finally{for(const [k,v]of Object.entries(saved))if(v===undefined)delete globalThis[k];else globalThis[k]=v;}
+});

@@ -1,11 +1,14 @@
 <!doctype html><meta charset="utf-8"><title>七英雄第一人称衣装与持握</title>
 <style>body{background:#17262b;color:#e1e7e2;font:14px system-ui}canvas{max-width:100%;height:auto}pre{white-space:pre-wrap}a{color:#b6ddcf}</style>
 <h1>第一人称 · 待机 / 出手 / 收招</h1><p>正式角色武器、相同光照与70度视角。衣袖切口不同，原有双手接触点保留。</p><p id="status">载入中</p><a id="save-png">保存画面</a><div id="sheet"></div><pre id="report"></pre>
+<section><h2>三人连续动作</h2><p>以实际基础射速连续推进角色与第一人称动作，检查待机、准备、释放前后、回收。此页是动作验证场景，不进行伤害或碰撞结算；铃芽往返使用报告中公开的直线飞行输入。</p><button id="motion-check" disabled>播放并生成三人动作对比</button><p id="motion-status">等待默认检查完成</p><div id="motion-live"></div><div id="motion-sheet"></div><p><a id="motion-save-png">保存动作画面</a> · <a id="motion-save-json">保存动作报告</a></p><pre id="motion-report"></pre></section>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=174';
-import {FirstPersonView} from '../first-person-view.js?v=174';
-import {WEAPON_RECOVERY} from '../weapon-performance.js?v=170';
+import {actor,animateActor} from '../world.js?v=175';
+import {FirstPersonView} from '../first-person-view.js?v=175';
+import {WEAPON_RECOVERY,mirageShotDelay} from '../weapon-performance.js?v=175';
+import {weaponStats} from '../rules.js';
+import {POISON} from '../poison-config.js';
 const source=await(await fetch('../world.js',{cache:'no-store'})).text(),entry=source.match(/from['"](.\/skinned-hero\.js[^'"]*)['"]/)[1];
 const {loadHeroAssets,disposeHero}=await import(new URL('../'+entry,location.href));
 const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}),scene=new T.Scene(),camera=new T.PerspectiveCamera(70,16/9,.02,80),view=new FirstPersonView(camera),errors=[],results=[];
@@ -24,4 +27,55 @@ for(const [row,[label,kind,weapon]]of [['游侠','scout','rifle'],['霜影','sil
  view.clear();disposeHero(model);await new Promise(r=>setTimeout(r,0));
 }
 document.querySelector('#status').textContent=results.every(r=>r.pass)&&!errors.length?'完成：七人第一人称 21 个画面':'失败';document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);const link=document.querySelector('#save-png');link.href=sheet.toDataURL('image/png');link.download='hero-firstperson-check.png';view.dispose();renderer.dispose();
+const motionButton=document.querySelector('#motion-check');motionButton.disabled=false;document.querySelector('#motion-status').textContent='可以开始；默认 21 项报告保持不变';
+motionButton.onclick=async()=>{
+ motionButton.disabled=true;const status=document.querySelector('#motion-status'),startErrors=errors.length,motionResults=[],timelines=[];
+ const live=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}),motionView=new FirstPersonView(camera),motionSheet=document.createElement('canvas');let model=null;
+ live.setSize(384,216);live.toneMapping=T.ACESFilmicToneMapping;live.toneMappingExposure=1.05;document.querySelector('#motion-live').replaceChildren(live.domElement);
+ motionSheet.width=5*384;motionSheet.height=3*270;const context=motionSheet.getContext('2d');context.fillStyle='#17262b';context.fillRect(0,0,motionSheet.width,motionSheet.height);document.querySelector('#motion-sheet').replaceChildren(motionSheet);
+ const step=1/120,point=new T.Vector3(),nextPaint=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+ try{
+  for(const [row,[label,kind,weapon]]of [['铃芽','lingya','boomerang'],['雾苓','wuling','sporelantern'],['蜃影','mirage','miasmalantern']].entries()){
+   const w=weaponStats({weaponId:weapon}),period=1/w.rate,duration=Math.min(WEAPON_RECOVERY[weapon],Math.max(.12,period*.9));
+   const release=weapon==='sporelantern'?Math.min(POISON.castRecovery,.9/w.rate)*POISON.releaseFraction:weapon==='miasmalantern'?mirageShotDelay(w.rate):Math.min(.55,.9/w.rate)*.24;
+   const returningAt=release+w.range/w.speed,caughtAt=returningAt+Math.max(0,w.range-.65)/w.speed;
+   const stages=[['待机',-1],['准备',release*.45],['释放前',release-step],['释放后',release+step],['回收',weapon==='boomerang'?caughtAt+.08:duration+.08]];
+   timelines.push({kind,weapon,rate:w.rate,period,release,duration,boomerangFlight:weapon==='boomerang'?{scenario:'固定目标，无障碍，按基础射程直线去回；只提供与 main.js 相同的 boomerangAway / catchReady / catchTime 输入，不执行子弹或伤害逻辑',range:w.range,speed:w.speed,returningAt,caughtAt}:null});
+   model=actor(kind,weapon);if(!model.userData.skinned)throw Error('Missing actual hero: '+kind);const d=model.userData;motionView.setHero(model,weapon);d.reloadDuration=period;d.shotSerial=0;d.aimActive=false;
+   let elapsed=0,captured=0,previousAge=-step;
+   const capture=(name,requestedAge)=>{
+    const weaponVisible=motionView.weapon.visible,pod=d.sporePod,values=[];
+    for(const hand of motionView.hands){hand.getWorldPosition(point);values.push({position:point.toArray(),open:hand.morphTargetInfluences[0],visible:hand.visible});}
+    const pass=live.getContext().getError()===0&&live.info.programs.every(p=>p.diagnostics?.runnable!==false)&&values.every(h=>h.position.every(Number.isFinite)&&Number.isFinite(h.open));
+    context.drawImage(live.domElement,captured*384,row*270);context.fillStyle='#e1e7e2';context.font='15px system-ui';context.fillText(label+' · '+name,captured*384+10,row*270+237);context.font='12px system-ui';context.fillText('动作 '+d.attackAge.toFixed(4)+' s / 释放 '+release.toFixed(4)+' s',captured*384+10,row*270+257);
+    motionResults.push({kind,stage:name,requestedAge,attackAge:d.attackAge,reloadPhase:d.reloadPhase,releaseAt:release,weaponVisible,sourceVisible:d.gun.visible,sourcePodVisible:pod?.visible??null,boomerangAway:!!d.boomerangAway,catchReady:d.catchReady||0,catchTime:d.catchTime||0,hands:values,pass,calls:live.info.render.calls,triangles:live.info.render.triangles});captured++;
+   };
+   // Settle the actual idle once. Subsequent shots use one serial change and a
+   // continuous clock, never repeated assignments that freeze a pose per tile.
+   for(let f=0;f<60;f++){elapsed+=step;d.reloadPhase=1;animateActor(model,3+elapsed,0,0);motionView.update(3+elapsed,step,{visible:true,attack:0});}
+   live.render(scene,camera);capture(...stages[0]);await nextPaint();
+   for(let frame=0;captured<stages.length;frame++){
+    const age=frame*step;elapsed+=step;d.shotSerial=1;d.aimActive=true;d.reloadPhase=Math.min(1,age/period);
+    if(weapon==='boomerang'){
+     d.boomerangAway=age>=release&&age<caughtAt;
+     const distance=Math.max(0,w.range-(age-returningAt)*w.speed);
+     d.catchReady=age>=returningAt&&age<caughtAt?T.MathUtils.clamp(1-(distance-.6)/2.5,0,1):0;
+     if(previousAge<caughtAt&&age>=caughtAt)d.catchTime=.2;
+    }
+    const attack=Math.max(0,.15-age);animateActor(model,3+elapsed,0,attack);motionView.update(3+elapsed,step,{visible:true,attack,attackDuration:period});live.render(scene,camera);
+    status.textContent=label+' · 连续动作 '+d.attackAge.toFixed(3)+' 秒（释放 '+release.toFixed(3)+' 秒）';
+    // Pre-release rounds down; post-release rounds up, so the two tiles cannot
+    // accidentally show the same visibility state at a fractional frame time.
+    const [name,target]=stages[captured],threshold=name==='释放前'?Math.floor(target/step)*step:target;
+    if(age+1e-9>=threshold)capture(name,target);
+    previousAge=age;if(frame%2===0)await nextPaint();
+   }
+   motionView.clear();disposeHero(model);model=null;
+  }
+ }catch(error){errors.push(error.stack||String(error));}
+ finally{if(model){motionView.clear();disposeHero(model);}motionView.dispose();live.dispose();motionButton.disabled=false;}
+ const report={fixture:'continuous-firstperson',step,timelines,results:motionResults,errors:errors.slice(startErrors)};
+ const passed=motionResults.length===15&&motionResults.every(r=>r.pass)&&!report.errors.length;status.textContent=passed?'完成：三人连续动作 15 个阶段；请结合画面判断自然度':'失败：请检查下方报告';document.querySelector('#motion-report').textContent=JSON.stringify(report,null,2);
+ const png=document.querySelector('#motion-save-png');png.href=motionSheet.toDataURL('image/png');png.download='hero-firstperson-continuous.png';const json=document.querySelector('#motion-save-json');json.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(report,null,2));json.download='hero-firstperson-continuous.json';
+};
 </script>

@@ -6,13 +6,61 @@ import {makeHero,poseCrossbow} from '../hero-model.js';
 import {shadowFocus} from '../shadow-gear.js';
 import {createShadowAura,updateShadowAura,disposeShadowAura} from '../shadow-aura.js';
 import {miasmaLantern} from '../mirage-appearance.js';
-import {sporeLantern} from '../wuling-appearance.js';
+import {sporeLantern,sporePod} from '../wuling-appearance.js';
 import {boneBoomerang} from '../beast-model.js';
 import {makeHarpoon} from '../coast-models.js';
 import {HERO_LOADOUTS} from '../rules.js';
+import {newHeroAttack} from '../new-hero-motion.js';
+import {POISON} from '../poison-config.js';
 
 function weapon(id){return ['shade','shadowblade','grimoire'].includes(id)?shadowFocus(id):id==='miasmalantern'?miasmaLantern():id==='sporelantern'?sporeLantern():id==='boomerang'?boneBoomerang():id==='harpoon'?makeHarpoon():makeHero(['crossbow','shuriken','dark'].includes(id)?'silver':'scout',id).userData.weapon;}
 const hero=gun=>({visible:false,userData:{gun}});
+
+test('the herbalist throws one shared seed pod with her left hand while the lantern stays carried',()=>{
+ const camera=new T.PerspectiveCamera(60,16/9,.1,100),view=new FirstPersonView(camera),actor=hero(sporeLantern()),pod=sporePod();actor.userData.sporePod=pod;
+ try{
+  Object.assign(actor.userData,{attackAge:10,reloadDuration:1,reloadPhase:1,shotSerial:1});view.setHero(actor,'sporelantern');view.update(1,.016,{visible:true});
+  assert.equal(view.pod.parent,view.hands[1]);assert.equal(view.pod.children.length,2);assert.equal(view.pod.children[0].geometry,pod.children[0].geometry);assert.notEqual(view.pod.children[0].material,pod.children[0].material);
+  const idle=view.hands.map(hand=>hand.position.clone()),release=POISON.castRecovery*POISON.releaseFraction;
+  Object.assign(actor.userData,{attackAge:release-.00001,reloadPhase:release-.00001});view.update(1,.016,{visible:true});assert(view.pod.visible);
+  const leftTravel=view.hands[1].position.distanceTo(idle[1]),rightTravel=view.hands[0].position.distanceTo(idle[0]);assert(leftTravel>rightTravel*3,'lamp hand performs the throw instead of the free hand');
+  Object.assign(actor.userData,{attackAge:release+.00001,reloadPhase:release+.00001});view.update(1,.016,{visible:true});assert(!view.pod.visible);assert(view.hands[1].morphTargetInfluences[0]>.6);
+  const pose=view.hands[1].position.clone();Object.assign(actor.userData,{attackAge:1,reloadPhase:1});view.update(30,0,{visible:true});assert(!view.pod.visible);assert(view.hands[1].position.equals(pose));
+  view.update(1,.016,{visible:true});assert(view.pod.visible);assert(view.hands[1].position.distanceTo(idle[1])<1e-7);
+  let disposed=0;pod.children[0].geometry.addEventListener('dispose',()=>disposed++);view.clear();assert.equal(view.pod,null);assert.equal(disposed,0);
+  view.setHero(hero(sporeLantern()),'sporelantern');const fallbackGeometry=view.pod.children[0].geometry;view.clear();
+  view.setHero(hero(sporeLantern()),'sporelantern');assert.equal(view.pod.children[0].geometry,fallbackGeometry,'fallback reallocates its cached pod geometry');view.clear();assert.equal(disposed,0);
+ }finally{view.dispose();}
+});
+
+test('both lamp grips keep their local orientation through distinct gestures and mobile framing',()=>{
+ const camera=new T.PerspectiveCamera(60,16/9,.1,100),view=new FirstPersonView(camera),contact=new T.Vector3(0,.045,-.023),signatures=[];
+ try{for(const id of ['sporelantern','miasmalantern']){
+  const actor=hero(weapon(id));Object.assign(actor.userData,{attackAge:10,reloadDuration:1,reloadPhase:1});view.setHero(actor,id);view.update(1,.016,{visible:true});
+  const grip=view.weapon.quaternion.clone().invert().multiply(view.hands[0].quaternion);
+  for(const aspect of [16/9,19.5/9,9/19.5])for(const age of [0,.08,.15,.218,.24,.4,.72,1]){
+   camera.aspect=aspect;camera.updateProjectionMatrix();Object.assign(actor.userData,{attackAge:age,reloadPhase:age});view.update(1,.016,{visible:true,pitch:.8,yaw:.4});camera.updateMatrixWorld(true);
+   const local=view.weapon.quaternion.clone().invert().multiply(view.hands[0].quaternion);assert(grip.angleTo(local)<1e-7,'lamp handle rotates inside the closed hand');
+   assert(contact.clone().applyMatrix4(view.hands[0].matrixWorld).distanceTo(view.grip.clone().applyMatrix4(view.weapon.matrixWorld))<1e-6);
+   for(const hand of view.hands){assert(hand.position.toArray().every(Number.isFinite));const p=hand.getWorldPosition(new T.Vector3()).project(camera);assert(Math.abs(p.x)<1.4&&p.y>-1.35&&p.y<1);}
+  }
+  Object.assign(actor.userData,{attackAge:.12,reloadPhase:.12});view.update(1,.016,{visible:true});signatures.push([...view.weapon.position.toArray(),...view.hands[1].position.toArray()].map(v=>v.toFixed(4)).join(','));
+ }}finally{view.dispose();}
+ assert.notEqual(...signatures);
+});
+
+test('first-person boomerang follows third-person windup, release and empty-hand recovery',()=>{
+ const view=new FirstPersonView(new T.PerspectiveCamera(60,16/9,.1,100)),gun=boneBoomerang(),actor=hero(gun);
+ try{
+  Object.assign(actor.userData,{attackAge:10,reloadDuration:1,reloadPhase:1,shotSerial:1});view.setHero(actor,'boomerang');view.update(1,.016,{visible:true});const idle=view.hands[0].position.clone();
+  for(const period of [.2,.4,1])for(const phase of [0,.04,.1,.2,.4,.7,1]){
+   Object.assign(actor.userData,{attackAge:10,reloadDuration:period,reloadPhase:phase});view.update(1,.016,{visible:true});const action=newHeroAttack('lingya',phase*period,period);
+   assert.equal(view.motion.kick,action.drive);assert.equal(view.motion.sweep,action.follow);assert.equal(view.motion.gather,action.wind);
+  }
+  gun.visible=false;Object.assign(actor.userData,{boomerangAway:true,catchReady:0,reloadPhase:1});view.update(1,.016,{visible:true});assert(!view.weapon.visible);assert(view.hands[0].visible);assert(view.hands[0].position.y<idle.y-.04);assert(view.hands[0].morphTargetInfluences[0]>.8);
+  gun.visible=true;Object.assign(actor.userData,{boomerangAway:false,catchReady:0,reloadDuration:1,reloadPhase:1});view.update(1,.016,{visible:true});assert(view.weapon.visible);assert(view.hands[0].position.distanceTo(idle)<1e-7);
+ }finally{view.dispose();}
+});
 
 test('identity structure and material finish survive first-person copying for all thirteen weapons',()=>{
  const view=new FirstPersonView(new T.PerspectiveCamera(70,16/9,.1,100));

@@ -16,12 +16,12 @@ import{lingyaHopPose}from'./lingya-motion.js?v=114';
 import{lingyaOutfit,lingyaAccessories,lingyaLegs}from'./lingya-appearance.js?v=114';
 import{boneBoomerang}from'./beast-model.js?v=173';
 import{makeHarpoon}from'./coast-models.js?v=173';
-import{weaponGesture,shotStarted,scythePose,crossbowMechanism}from'./weapon-performance.js?v=170';
+import{weaponGesture,shotStarted,scythePose,crossbowMechanism}from'./weapon-performance.js?v=175';
 import{rollProgress,rollWeight}from'./dodge-motion.js?v=114';
 import * as T from './vendor/three.module.js';
 import {clone} from './vendor/SkeletonUtils.js';
 import {loadCharacterData} from './character-loader.js?v=114';
-import {makeHero as makePrototype,poseCrossbow} from './hero-model.js?v=174';
+import {makeHero as makePrototype,poseCrossbow} from './hero-model.js?v=175';
 
 const templates=new Map(),clips=new Map();
 let lingyaFace;
@@ -160,7 +160,13 @@ function capeMesh(kind,weapon,model){
   for(let y=0;y<=rows;y++)for(let x=0;x<=cols;x++){const u=x/cols,v=y/rows,w=.22+.13*Math.sin(v*Math.PI*.86),split=.10*Math.exp(-(((u-.5)/.065)**2))*v**8;if(kind==='lingya'){const a=.56+u*(Math.PI*2-1.12),r=.12+.145*Math.sin(v*Math.PI/2);pos.push(Math.sin(a)*r,-v*.25-.030*Math.sin(a)**2*v**6+Math.sin(a*7)*.004*v,Math.cos(a)*r);}else if(kind==='mirage'){const a=.52+u*(Math.PI*2-1.04),r=.14+.09*Math.sin(v*Math.PI/2);pos.push(Math.sin(a)*r,-v*(.25+.14*Math.sin(a-.4))-.026*Math.cos(a*2)*v**4,Math.cos(a)*r*.82);}else if(kind==='wuling'){const a=.48+u*(Math.PI*2-.96),r=.143+.088*Math.sin(v*Math.PI/2);pos.push(Math.sin(a)*r,-v*(.295+.12*Math.sin(a+.6))-.018*Math.cos(a*3)*v**4,Math.cos(a)*r*.79);}else if(kind==='wraith'){
       const scarf=weapon==='shade',half=scarf?.075+.025*Math.sin(v*Math.PI):weapon==='shadowblade'?.24+.045*Math.sin(v*Math.PI):.235+.075*Math.sin(v*Math.PI/2);
       const hem=scarf?.065*u:weapon==='shadowblade'?.09*u:.14*Math.exp(-(((u-.5)/.075)**2))+.055*Math.sin(u*Math.PI*3)**2;
-      pos.push((u-.5)*half*2+(scarf?.045*Math.sin(v*4):0),-v*shadowLength+hem*v**7,-.08*v-.045*Math.sin(u*Math.PI)+Math.sin(u*Math.PI*(scarf?2:6))*.012*v);
+      if(weapon==='shadowblade'){
+        // Round the existing short cowl around the shoulders. The old straight
+        // top edge projected out beside the hood like a rectangular back plate.
+        const q=u*2-1,width=.18+.085*Math.sin(v*Math.PI*.84);
+        pos.push(q*width,-v*shadowLength-.075*q*q*(1-v)**3+.035*Math.cos(q*Math.PI*.8)*v**6,
+          .035*q*q*(1-v)**2-.045*(1-q*q)-.10*v+.012*Math.sin(q*Math.PI*3)*Math.sin(v*Math.PI*.9));
+      }else pos.push((u-.5)*half*2+(scarf?.045*Math.sin(v*4):0),-v*shadowLength+hem*v**7,-.08*v-.045*Math.sin(u*Math.PI)+Math.sin(u*Math.PI*(scarf?2:6))*.012*v);
     }else if(kind==='tide'){
       // Cut a short shoulder mantle at its real length, with a curved yoke and
       // vertical folds, instead of squeezing a long cape into a stiff panel.
@@ -191,7 +197,7 @@ function capeMesh(kind,weapon,model){
   for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){const a=y*(cols+1)+x;ix.push(a,a+cols+1,a+1,a+1,a+cols+1,a+cols+2);}
   const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(pos,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(ix);geometry.computeVertexNormals();
   const material=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.87,side:T.DoubleSide}),wind={time:{value:0},run:{value:0},turn:{value:0}};
-  material.onBeforeCompile=s=>{if(kind==='silver'||kind==='tide')return;s.uniforms.capeTime=wind.time;s.uniforms.capeRun=wind.run;s.uniforms.capeTurn=wind.turn;s.vertexShader='uniform float capeTime; uniform float capeRun; uniform float capeTurn;\n'+s.vertexShader;s.vertexShader=s.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+  material.onBeforeCompile=s=>{if(kind==='silver'||kind==='tide'||kind==='wraith'&&weapon==='shadowblade')return;s.uniforms.capeTime=wind.time;s.uniforms.capeRun=wind.run;s.uniforms.capeTurn=wind.turn;s.vertexShader='uniform float capeTime; uniform float capeRun; uniform float capeTurn;\n'+s.vertexShader;s.vertexShader=s.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
     float freeHem=clamp(-position.y/${kind==='wraith'?shadowLength.toFixed(2):kind==='lingya'?'.25':['wuling','mirage'].includes(kind)?'.43':'.85'},0.0,1.0);
     transformed.z+=sin(position.y*9.0+capeTime*5.0)*(.009+capeRun*.026)*freeHem;
     transformed.x+=(sin(capeTime*3.0+position.y*6.0)*.012+capeTurn*.14)*freeHem*freeHem;
@@ -212,6 +218,10 @@ function capeMesh(kind,weapon,model){
   if(kind==='silver'){
     m.name='SM_Hero_Cape_Silver';m.position.set(0,1.46,-.15);
     m.userData.silverCape=geometry.attributes.position.array.slice();geometry.attributes.position.setUsage(T.DynamicDrawUsage);geometry.attributes.normal.setUsage(T.DynamicDrawUsage);
+  }
+  if(kind==='wraith'&&weapon==='shadowblade'){
+    m.name='SM_Hero_Cape_Shadowblade';m.userData.shadowCape=geometry.attributes.position.array.slice();
+    geometry.attributes.position.setUsage(T.DynamicDrawUsage);geometry.attributes.normal.setUsage(T.DynamicDrawUsage);
   }
   if(kind==='tide'){
     // A short mantle rests on the back and follows the upper torso. Fit its
@@ -236,7 +246,7 @@ function capeMesh(kind,weapon,model){
   m.castShadow=true;m.receiveShadow=true;return m;
 }
 function animateTailoredCape(mesh,t,run,turn,fall){
-  const tide=!!mesh.userData.tideCape,rest=mesh.userData.tideCape||mesh.userData.silverCape,p=mesh.geometry.attributes.position,uv=mesh.geometry.attributes.uv;
+  const tide=!!mesh.userData.tideCape,rest=mesh.userData.tideCape||mesh.userData.shadowCape||mesh.userData.silverCape,p=mesh.geometry.attributes.position,uv=mesh.geometry.attributes.uv;
   const bend=fall?(mesh.userData.tideBend??={point:new T.Vector3(),rotation:new T.Quaternion(),pivot:new T.Vector3().fromArray(mesh.userData.tideFoldOrigin)}):null;
   for(let i=0;i<p.count;i++){
     const k=i*3,u=uv.getX(i),v=uv.getY(i),hem=v*v;
@@ -633,6 +643,7 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
       panel.quaternion.copy(panel.parent.getWorldQuaternion(new T.Quaternion()).invert().multiply(drape));
     }
     d.cape.quaternion.copy(d.cape.parent.getWorldQuaternion(new T.Quaternion()).invert().multiply(fall));
+    if(blade)animateTailoredCape(d.cape,t,d.blend,d.carryTurn);
     updateShadowAura(d.shadowAura,t,d.smoothedSpeed,attack||0,d.dashTime||0);
   }
   g.visible=!(hurt>0&&Math.floor(hurt*28)%2===0)&&!(d.kind==='tide'&&dodge.depth>.985);

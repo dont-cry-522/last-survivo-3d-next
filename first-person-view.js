@@ -2,9 +2,10 @@ import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=125';
 import * as T from './vendor/three.module.js';
 import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=128';
 import {finishShadowTone} from './shadow-appearance.js?v=174';
+import {sporePod} from './wuling-appearance.js?v=174';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=170';
+import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=175';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
@@ -137,7 +138,7 @@ export class FirstPersonView {
  }
  clear(){
   this.root.clear();for(const material of this.materials.values())material.dispose();for(const geometry of this.ownedGeometry)geometry.dispose();
-  this.materials.clear();this.ownedGeometry.length=0;this.parts.length=0;this.weapon=null;this.model=null;this.source=null;this.hero=null;this.hands=[];this.arms=[];this.handPoints=[];this.bowStrings=[];this.charged=[];this.details=[];this.poseReady=false;this.dodgeWeight=0;this.root.visible=false;
+  this.materials.clear();this.ownedGeometry.length=0;this.parts.length=0;this.weapon=null;this.model=null;this.source=null;this.hero=null;this.pod=null;this.hands=[];this.arms=[];this.handPoints=[];this.bowStrings=[];this.charged=[];this.details=[];this.poseReady=false;this.dodgeWeight=0;this.root.visible=false;
  }
  material(source){
   if(this.materials.has(source))return this.materials.get(source);
@@ -256,6 +257,11 @@ export class FirstPersonView {
    const arm=new T.Mesh(sleeve,cloth);arm.name=i?'First_person_left_sleeve':'First_person_right_sleeve';this.root.add(arm);this.arms.push(arm);
    for(const node of[mesh,arm]){node.layers.set(1);node.renderOrder=10000;node.frustumCulled=false;node.castShadow=node.receiveShadow=false;}
   }
+  if(weaponId==='sporelantern'){
+   // Share the existing held pod's geometry; its cloned materials belong to this view.
+   this.pod=new T.Group();this.pod.name='First_person_held_seed_pod';this.pod.position.set(0,.062,-.044);this.pod.scale.setScalar(.78);this.hands[1].add(this.pod);
+   for(const child of(hero.userData.sporePod||sporePod()).children)this.pod.add(this.copyPart(child));
+  }
   this.gait=0;this.sway=0;this.attackAge=10;this.previousAttack=0;this.update(0,0,{visible:false});
  }
  poseScythe(object,pose,scale){
@@ -297,7 +303,7 @@ export class FirstPersonView {
   const profile=this.profile,id=this.weaponId,data=this.hero.userData,depth=.82,halfH=Math.tan(T.MathUtils.degToRad(this.camera.fov||50)/2)*depth,halfW=halfH*(this.camera.aspect||1);
   const scale=Math.min(halfW*profile.width/Math.max(.001,this.dimensions.x),halfH*profile.height/Math.max(.001,this.dimensions.y),profile.depth/Math.max(.001,this.dimensions.z),id==='harpoon'?.65:id==='shade'?1.8:2.4);
   const fired=attack>this.previousAttack+.025;this.previousAttack=attack;this.attackAge=fired?0:this.attackAge+step;
-  const age=Number.isFinite(data.attackAge)?data.attackAge:this.attackAge,period=data.reloadDuration||WEAPON_RECOVERY[id]||attackDuration,cycle=Number.isFinite(data.reloadPhase)?data.reloadPhase:Math.min(1,age/period),motion=weaponGesture(id,age,cycle,period),kick=motion.kick,sweep=motion.sweep,draw=motion.draw;
+  const age=Number.isFinite(data.attackAge)?data.attackAge:this.attackAge,period=data.reloadDuration||WEAPON_RECOVERY[id]||attackDuration,cycle=Number.isFinite(data.reloadPhase)?data.reloadPhase:Math.min(1,age/period),gestureAge=id==='boomerang'&&data.shotSerial?cycle*period:age,motion=weaponGesture(id,gestureAge,cycle,period),kick=motion.kick,sweep=motion.sweep,draw=motion.draw;
   this.motion=motion;
   // Only the existing crystal/lantern core brightens; no extra light or screen-sized halo.
   for(const charged of this.charged)charged.material.emissiveIntensity=charged.base+charged.power*Math.min(1,motion.gather+kick*.60);
@@ -329,12 +335,23 @@ export class FirstPersonView {
    this.weapon.position.x+=.035*motion.recover;this.weapon.position.y-=.025*motion.recover;
   }else if(profile.type==='scythe'){
    this.poseScythe(this.weapon,scythePose(age,period,data.scytheCombo||0),scale);
+  }else if(id==='boomerang'){
+   const gather=motion.gather,empty=Number(!!data.boomerangAway)*(1-(data.catchReady||0))*(1-motion.weight);
+   this.weapon.position.set(.075*gather-.13*kick-.045*sweep,.055*gather-.035*sweep-.055*empty,.075*gather-.14*kick-.035*sweep+.035*empty);
+   this.weapon.rotation.x+=.09*gather-.18*kick-.07*sweep;this.weapon.rotation.y+=.16*gather-.20*kick-.08*sweep;this.weapon.rotation.z=.25*gather-.46*kick-.10*sweep;
   }else if(profile.type==='throw'){
-   const flick=id==='shuriken',bank=id==='boomerang';
-   this.weapon.position.set(-(bank?.14:.075)*sweep,(flick?.025:.055)*kick,-(flick?.14:.11)*kick);
-   this.weapon.rotation.z=-sweep*(flick?1.05:bank?.48:.70);this.weapon.rotation.x-=kick*(flick?.18:bank?.25:.38);this.weapon.rotation.y+=sweep*(bank?.28:0);
+   const flick=id==='shuriken';
+   this.weapon.position.set(-.075*sweep,(flick?.025:.055)*kick,-(flick?.14:.11)*kick);
+   this.weapon.rotation.z=-sweep*(flick?1.05:.70);this.weapon.rotation.x-=kick*(flick?.18:.38);
   }else if(profile.type==='lamp'){
-   this.weapon.rotation.z=Math.sin((Number(time)||0)*1.7)*(.035+.025*this.sway)+sweep*.20;this.weapon.position.set(-sweep*.035,kick*.085,-kick*.055);
+   const gather=motion.gather,carry=Math.sin((Number(time)||0)*1.7)*(.014+.018*this.sway);
+   if(id==='sporelantern'){
+    // The right hand carries the lamp; the left hand delivers the seed pod.
+    this.weapon.rotation.z=carry+.025*kick;this.weapon.position.set(.008*gather,.012*kick,-.018*kick);
+   }else{
+    this.weapon.rotation.x+=.065*gather-.15*kick;this.weapon.rotation.z=carry+.035*sweep;
+    this.weapon.position.set(.025*gather-.020*kick,.025*gather+.042*kick,.060*gather-.095*kick-.020*sweep);
+   }
   }else if(profile.type==='book'){
    this.weapon.rotation.x+=kick*.10;this.weapon.rotation.z=Math.sin((Number(time)||0)*1.8)*.018;this.weapon.position.y=kick*.035;
   }else{
@@ -367,24 +384,37 @@ export class FirstPersonView {
    if(i&&id==='crossbow'){const mechanism=crossbowMechanism(cycle);point.lerp(this.wrist.set(.06,.13,.29-mechanism.pull).sub(this.center),mechanism.hand);}
    point.applyMatrix4(this.weapon.matrix);
    if(i&&!support)point.set(-halfW*.48-this.root.position.x,-halfH*.72-this.root.position.y+kick*.045,.11-kick*.06);
+   if(i&&id==='sporelantern')point.add(this.wrist.set(-.035*motion.gather+.065*kick,.045*motion.gather+.095*kick-.025*sweep,.065*motion.gather-.135*kick));
+   if(i&&id==='miasmalantern')point.add(this.wrist.set(.075*motion.gather+.035*kick,.055*motion.gather+.020*kick,-.025*motion.gather-.045*kick));
    hand.rotation.set(i?(support?-.30:-.45):-.18,i?-.20:.12,i?(support?-.38:.18):-.38);
    if(profile.type==='book')hand.rotation.set(-.75,i?-.20:.20,i?.55:-.55);
    if(profile.type==='lamp'&&!i)hand.rotation.set(-.12,0,-.92);
+   if(i&&id==='sporelantern')hand.rotation.set(-.60-.22*motion.gather+.36*kick,-.20+.22*kick,.18-.13*kick);
+   if(i&&id==='miasmalantern')hand.rotation.set(-.45-.18*motion.gather,-.20-.15*motion.gather,.18-.16*kick);
    if(profile.type==='palm'&&!i)hand.rotation.set(-.52,.10,-.08);
+   if(!i&&(profile.type==='lamp'||id==='boomerang')){
+    // Follow the handle's rotation delta, retaining the calibrated resting palm.
+    this.restRotation.setFromEuler(new T.Euler(profile.pitch,Math.PI-.045,0)).invert();this.handRotation.copy(this.weapon.quaternion).multiply(this.restRotation);hand.quaternion.premultiply(this.handRotation);
+   }
    if(id==='shadowblade'){this.handRotation.setFromEuler(new T.Euler(-.18,-Math.PI,i?.38:-.38));hand.quaternion.copy(this.weapon.quaternion).multiply(this.handRotation);}
    if(id==='harpoon')hand.rotation.set(-.10,(i?-1:1)*Math.PI/2+this.weapon.rotation.y-Math.PI,i?.35:-.35);
    hand.scale.set(i?-handScale:handScale,handScale,handScale);
    hand.position.copy(point).sub(this.wrist.copy(CONTACT).multiply(hand.scale).applyQuaternion(hand.quaternion));
    hand.morphTargetInfluences[0]=i&&!support?.72+.20*kick:profile.type==='palm'?.78+.18*kick:profile.type==='book'?.48:profile.type==='throw'?Math.max(kick*.90,this.source.visible?0:.88):i&&id==='crossbow'?crossbowMechanism(cycle).hand*.24:0;
+   if(i&&id==='sporelantern')hand.morphTargetInfluences[0]=.20-.10*motion.gather+.70*motion.open;
+   if(!i&&id==='boomerang')hand.morphTargetInfluences[0]=Math.max(motion.open*.9,this.source.visible?0:.88*(1-(data.catchReady||0)));
    // The arms remain after a thrown weapon leaves the hand; only the source weapon is hidden.
    hand.visible=arm.visible=true;
    this.wrist.set(0,-.038,0).multiply(hand.scale).applyQuaternion(hand.quaternion).add(hand.position);
    this.elbow.set(halfW*(i?-.30:.66)-this.root.position.x,-halfH*1.15-this.root.position.y,.35);
+   if(i&&id==='sporelantern'){this.elbow.x+=.015*kick-.025*motion.gather;this.elbow.y+=.018*kick;this.elbow.z-=.040*kick;}
+   if(!i&&(id==='boomerang'||id==='miasmalantern')){this.elbow.x+=.018*motion.gather-.025*kick;this.elbow.y+=.015*motion.gather-.018*sweep;this.elbow.z+=.025*motion.gather-.040*kick;}
    if(id==='harpoon'||id==='shadowblade'){this.elbow.x+=(i?-.035:.06)*motion.cut;this.elbow.y+=.025*motion.gather;this.elbow.z-=.055*kick;}
    if(id==='shadowblade')this.elbow.z-=.12;
    arm.position.copy(this.elbow);this.scratch.copy(this.wrist).sub(this.elbow);const length=this.scratch.length();
    arm.quaternion.setFromUnitVectors(UP,this.scratch.normalize());arm.scale.set(handScale,length,handScale);
   }
+  if(this.pod)this.pod.visible=motion.podHeld;
   const finite=x=>Number.isFinite(x)?x:0,weight=T.MathUtils.clamp(finite(dodgePose?.weight),0,1),w=weight*weight*(3-2*weight),pose=DODGE_POSES[dodgePose?.kind]||DODGE_POSES.roll,side=T.MathUtils.clamp(finite(dodgePose?.side),-1,1),forward=T.MathUtils.clamp(finite(dodgePose?.forward),-1,1);
   // Transform the completed equipment/hand rig together, so both contacts survive all dodges.
   this.dodgeBasePosition.copy(this.root.position);this.dodgeBaseRotation.copy(this.root.rotation);this.dodgeWeight=weight;

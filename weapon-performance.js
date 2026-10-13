@@ -1,6 +1,7 @@
 import{SCYTHE}from'./scythe-combat.js?v=125';
 import{POISON}from'./poison-config.js?v=114';
 import{MIRAGE}from'./mirage-config.js?v=114';
+import{newHeroAttack}from'./new-hero-motion.js?v=114';
 const clamp=x=>Math.max(0,Math.min(1,x));
 const smooth=(a,b,t)=>{const x=clamp((t-a)/(b-a));return x*x*(3-2*x);};
 const pulse=(t,a,b,c)=>smooth(a,b,t)*(1-smooth(b,c,t));
@@ -26,7 +27,11 @@ export function weaponGesture(id,age,cycle=1,period=1){
     return{kick:pulse(age,release*.40,release,settle),sweep:pulse(age,release*.55,release+(settle-release)*.23,settle),draw:0,gather:pulse(age,0,release*.42,release)};
   }
   if(id==='shadowblade'||id==='harpoon')return meleeSwing(id,age,period);
-  if(id==='sporelantern')return{kick:pulse(t,0,POISON.releaseFraction,1),sweep:pulse(t,.18,.50,1),draw:0,gather:pulse(t,0,.13,POISON.releaseFraction)};
+  if(id==='sporelantern')return{kick:pulse(t,0,POISON.releaseFraction,1),sweep:pulse(t,.18,.50,1),draw:0,gather:pulse(t,0,.13,POISON.releaseFraction),podHeld:t<POISON.releaseFraction||t>.76,open:smooth(POISON.releaseFraction-.04,POISON.releaseFraction+.025,t)*(1-smooth(.58,.76,t))};
+  if(id==='boomerang'){
+    const action=newHeroAttack('lingya',age,period);
+    return{kick:action.drive,sweep:action.follow,draw:0,gather:action.wind,weight:action.weight,open:smooth(.19,.27,action.u)*(1-smooth(.70,1,action.u))};
+  }
   const peak={boomerang:.24,harpoon:.34,rifle:.10,shotgun:.14,crossbow:.12,shuriken:.24,fire:.3,dark:.4,shade:.18,shadowblade:.32,grimoire:.46}[id]||.2;
   return {kick:pulse(t,0,peak,1),sweep:pulse(t,.04,peak+.12,1),
     draw:age<period&&cycle<1?pulse(cycle,.12,id==='crossbow'?.53:.42,id==='crossbow'?.82:.78):0,

@@ -3,6 +3,20 @@ import assert from 'node:assert/strict';
 import {WEAPONS} from '../rules.js';
 import {weaponSample} from '../weapon-audio.js';
 import {weaponGesture,shotStarted,WEAPON_RECOVERY,meleeSwing,scythePose,crossbowMechanism} from '../weapon-performance.js';
+import {newHeroAttack} from '../new-hero-motion.js';
+import {POISON} from '../poison-config.js';
+
+test('seed pod release and boomerang anticipation share their existing combat clocks',()=>{
+ for(const period of [.2,.4,1.2]){
+  const release=Math.min(POISON.castRecovery,period*.9)*POISON.releaseFraction;
+  assert(weaponGesture('sporelantern',release-.00001,0,period).podHeld);assert(!weaponGesture('sporelantern',release+.00001,0,period).podHeld);
+  assert(weaponGesture('sporelantern',period,1,period).podHeld);
+  for(let n=0;n<=120;n++){
+   const age=n/120*period,first=weaponGesture('boomerang',age,age/period,period),shared=newHeroAttack('lingya',age,period);
+   assert.equal(first.kick,shared.drive);assert.equal(first.gather,shared.wind);assert.equal(first.sweep,shared.follow);assert.equal(first.weight,shared.weight);
+  }
+ }
+});
 
 test('all weapons have finite bounded distinct shot and impact textures with smooth ends',()=>{
   for(const event of ['shot','impact']){

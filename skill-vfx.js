@@ -1,4 +1,4 @@
-import{meleeSwing}from'./weapon-performance.js?v=170';
+import{meleeSwing}from'./weapon-performance.js?v=175';
 import{boneBoomerang}from'./beast-model.js?v=173';
 import * as T from './vendor/three.module.js';
 import {flatGround,fitGroundSurface,disposeGroundSurface} from './ground-cues.js?v=167';

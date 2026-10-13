@@ -1,5 +1,5 @@
 import {shadowFocus} from './shadow-gear.js?v=173';
-import{weaponGesture,shotStarted,crossbowMechanism}from'./weapon-performance.js?v=170';
+import{weaponGesture,shotStarted,crossbowMechanism}from'./weapon-performance.js?v=175';
 import{miasmaLantern}from'./mirage-appearance.js?v=174';
 import{weaponInlay,nameWeapon,recessedBarrelGeometry}from'./weapon-identity.js?v=173';
 import * as T from './vendor/three.module.js';

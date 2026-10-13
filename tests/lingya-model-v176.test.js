@@ -13,9 +13,12 @@ test('source-authored Lingya face retains complete eyelid coverage and shared so
   globalThis.self=globalThis;globalThis.ProgressEvent=class{constructor(type,data){Object.assign(this,data);}};globalThis.createImageBitmap=async()=>({width:512,height:512,close(){}});
   globalThis.fetch=async input=>{const url=typeof input==='string'?input:input.url;return url.startsWith('file:')?new Response(fs.readFileSync(fileURLToPath(url))):saved.fetch(input);};
   const {models}=await loadCharacterData(),source=models['lingya-face'].scene,face=source.clone(true),before=new Map();
-  source.traverse(o=>{if(o.isMesh)before.set(o.name,{geometry:o.geometry,positions:o.geometry.attributes.position.array.slice(),material:o.material});});
+  source.traverse(o=>{if(o.isMesh)before.set(o.name,{geometry:o.geometry,positions:o.geometry.attributes.position.array.slice(),colours:o.geometry.attributes.color?.array.slice(),material:o.material});});
   refineLingyaFace(face);face.updateMatrixWorld(true);
   const head=face.getObjectByName('Lingya-head'),eyes=[];face.traverse(o=>{if(o.isMesh&&/Lingya_eye_(white|iris|pupil)/.test(o.material.name))eyes.push(o);});
+  const iris=eyes.find(o=>o.material.name==='Lingya_eye_iris'),irisSource=before.get(iris.name).geometry;
+  assert(iris.material.vertexColors);assert.equal(iris.geometry.attributes.color.count,iris.geometry.attributes.position.count);assert.notEqual(iris.geometry.attributes.color,irisSource.attributes.color);assert.deepEqual(irisSource.attributes.color?.array,before.get(iris.name).colours,'iris finishing changed the shared source');
+  const irisColours=iris.geometry.attributes.color.array;assert(irisColours.every(c=>Number.isFinite(c)&&c>=0&&c<=1));assert(new Set(irisColours).size>20,'iris shading lost its gradient');
   assert.equal(eyes.length,3);const ray=new T.Raycaster(),origin=new T.Vector3(),direction=new T.Vector3(0,0,-1);
   const front=(objects,x,y)=>{ray.set(origin.set(x,y,.2),direction);return ray.intersectObjects(objects,false)[0]?.point.z;};
   // Keep the original central open/closed probes and also scan the entire eye,

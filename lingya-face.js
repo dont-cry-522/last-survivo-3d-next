@@ -28,8 +28,17 @@ export function refineLingyaFace(root){
   if(!mesh.isMesh)return;
   const g=mesh.geometry.clone();
   if(mesh.material.name==='Lingya_face_skin'&&g.attributes.color){const c=g.attributes.color;for(let i=0;i<c.count;i++)c.setXYZ(i,T.MathUtils.lerp(c.getX(i),.90,.08),T.MathUtils.lerp(c.getY(i),.59,.16),T.MathUtils.lerp(c.getZ(i),.48,.12));}
+  if(mesh.material.name==='Lingya_eye_iris'){
+   // Colour the existing iris surface; no extra eye shell, texture or light.
+   const p=g.attributes.position,colours=new Float32Array(p.count*3),inner=new T.Color(0x93724f),edge=new T.Color(0x5e4637),colour=new T.Color();
+   let xmin=Infinity,xmax=0,ymin=Infinity,ymax=-Infinity;
+   for(let i=0;i<p.count;i++){const x=Math.abs(p.getX(i)),y=p.getY(i);xmin=Math.min(xmin,x);xmax=Math.max(xmax,x);ymin=Math.min(ymin,y);ymax=Math.max(ymax,y);}
+   const cx=(xmin+xmax)/2,cy=(ymin+ymax)/2,rx=Math.max((xmax-xmin)/2,1e-6),ry=Math.max((ymax-ymin)/2,1e-6);
+   for(let i=0;i<p.count;i++){const x=(Math.abs(p.getX(i))-cx)/rx,y=(p.getY(i)-cy)/ry,r=Math.hypot(x,y);colour.copy(inner).lerp(edge,T.MathUtils.smoothstep(r,.58,1)).multiplyScalar(1-.09*Math.max(0,y));colour.toArray(colours,i*3);}
+   g.setAttribute('color',new T.BufferAttribute(colours,3));
+  }
   g.computeBoundingBox();g.computeBoundingSphere();mesh.geometry=g;
-  const polish=m=>{const next=m.clone();if(m.name==='Lingya_eye_white'){next.color.multiplyScalar(.91);next.roughness=.62;}if(m.name==='Lingya_face_skin')next.roughness=.87;if(m.name==='Lingya_face_brow')next.color.lerp(new T.Color(.24,.13,.073),.35);return next;};
+  const polish=m=>{const next=m.clone();if(m.name==='Lingya_eye_white'){next.color.multiplyScalar(.91);next.roughness=.62;}if(m.name==='Lingya_eye_iris'){next.color.set(0xffffff);next.vertexColors=true;next.roughness=.46;}if(m.name==='Lingya_face_skin')next.roughness=.87;if(m.name==='Lingya_face_brow')next.color.lerp(new T.Color(.24,.13,.073),.35);return next;};
   mesh.material=Array.isArray(mesh.material)?mesh.material.map(polish):polish(mesh.material);
  });
  root.userData.lingyaFaceRefined=true;return root;

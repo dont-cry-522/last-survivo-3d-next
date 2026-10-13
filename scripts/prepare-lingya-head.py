@@ -15,9 +15,10 @@ for o in bpy.data.objects:
 for n in ['LipsAdjust']:
  bpy.data.objects['GEO-rain-head'].data.shape_keys.key_blocks[n].value=1
 for n in ['Smile.L','Smile.R']:
- bpy.data.objects['GEO-rain-head'].data.shape_keys.key_blocks[n].value=.10
+ bpy.data.objects['GEO-rain-head'].data.shape_keys.key_blocks[n].value=.15
 for side in ['L','R']:
- bpy.data.objects['RIG-rain'].pose.bones['ACT-Lips_Corner.'+side].location.y=0
+ bpy.data.objects['RIG-rain'].pose.bones['ACT-Lips_Corner.'+side].location.y=.0012
+ bpy.data.objects['RIG-rain'].pose.bones['ACT-Eyelid_Upper.'+side].location.y=-.003
 for o in bpy.data.objects:
  if o.type=='MESH':
   for m in o.modifiers:
@@ -40,7 +41,7 @@ def fitted(name,src):
    neck=max(0,min(1,(y+.052)/.031))
    if z<1.54:z-=.065*max(0,min(1,(1.54-z)/.05))*neck
   if name=='GEO-rain-eyebrows':
-   z=1.669+(z-1.669)*.52+.004*math.exp(-((abs(x)-.023)/.020)**2)-.003*max(0,min(1,(abs(x)-.045)/.025))
+   z=1.669+(z-1.669)*.36+.005*math.exp(-((abs(x)-.028)/.028)**2)+.0006*(1-smooth(.010,.024,abs(x)))-.0032*smooth(.040,.070,abs(x))
   if name=='GEO-rain-eye_dots':
    # The viewport pupil is in front of Rain's original highlight plane.
    center=math.copysign(.03273,x)
@@ -48,6 +49,11 @@ def fitted(name,src):
   # One broad depth fit for every component and both Blink endpoints. Keep the
   # lower neck and rear skull fixed; the whole front face is only 10% shallower.
   y+=(-.020-y)*.10*smooth(1.485,1.585,z-.006)*smooth(.020,.060,-y)
+  # Shorten the lower face as one broad, continuous field shared by eyes,
+  # eyelashes and both Blink endpoints. Nothing below the neck seam or behind
+  # the cheeks moves; there is no separate nose, lip or eye-socket sculpt.
+  lower=smooth(1.485,1.525,z-.006)*(1-smooth(1.585,1.640,z-.006))*smooth(.020,.060,-y)
+  x*=1+.020*lower;z+=(1.626-z)*.060*lower
   return Vector((x,y,z-.006))
 
 created=[]
@@ -67,7 +73,7 @@ for name in names:
   ob.shape_key_add(name='Basis');key=ob.shape_key_add(name='Blink')
   for end,k in zip(closed.vertices,key.data):k.co=fitted(name,o.matrix_world@end.co)
   for side in ['L','R']:
-   rig.pose.bones['ACT-Eyelid_Upper.'+side].location.y=0
+   rig.pose.bones['ACT-Eyelid_Upper.'+side].location.y=-.003
    rig.pose.bones['ACT-Eyelid_Lower.'+side].location.y=0
   for side in ['L','R']:bpy.data.objects['GEO-rain-head'].data.shape_keys.key_blocks['EyelidsClose.'+side].value=0
   bpy.context.view_layer.update();bpy.data.meshes.remove(closed)

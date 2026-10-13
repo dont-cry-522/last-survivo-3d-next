@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import * as T from '../vendor/three.module.js';
 import {loadCharacterData} from '../character-loader.js';
 import {clone} from '../vendor/SkeletonUtils.js';
-import {refineLingyaFace,refineLingyaAccessories} from '../lingya-face.js?v=177';
+import {refineLingyaFace,refineLingyaAccessories} from '../lingya-face.js?v=178';
 import {lingyaAccessories} from '../lingya-appearance.js';
 import {mirageHair,miasmaLantern} from '../mirage-appearance.js?v=174';
 import {sporeLantern} from '../wuling-appearance.js?v=174';

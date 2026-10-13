@@ -3,7 +3,7 @@ import * as T from './vendor/three.module.js';
 // skeleton so the lower strap follows the waist instead of the shoulder bone.
 export function tideHarness(surfaceHeight){
  const g=new T.Group();g.name='Tide_coastal_harness';
- const cloth=new T.MeshStandardMaterial({color:0x476466,roughness:.79,side:T.DoubleSide}),copper=new T.MeshStandardMaterial({color:0x927757,metalness:.42,roughness:.55});
+ const cloth=new T.MeshStandardMaterial({color:0x405f73,roughness:.79,side:T.DoubleSide}),copper=new T.MeshStandardMaterial({color:0x8b775e,metalness:.38,roughness:.59});
  const curve=new T.CatmullRomCurve3([[-.115,1.449,0],[-.083,1.374,0],[.013,1.256,0],[.069,1.191,0]].map(p=>new T.Vector3(...p))),pos=[],uv=[],indices=[],rows=32,cols=4;
  for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++){
   const v=j/rows,u=i/cols,p=curve.getPoint(v),t=curve.getTangent(v),side=new T.Vector3(t.y,-t.x,0).normalize();p.addScaledVector(side,(u-.5)*(.026+.008*Math.sin(v*Math.PI)));

@@ -1,13 +1,13 @@
 import * as T from './vendor/three.module.js';
 import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=173';
 // Programmatic prototype: existing rig and cloth surfaces, original herb-gatherer accessories.
-export const WULING_PALETTE=Object.freeze({cloak:0x422251,trim:0x967951,copper:0xb49355,leather:0x301e32,ivory:0xb6a995,glass:0xe4c484});
+export const WULING_PALETTE=Object.freeze({cloak:0x342139,trim:0x927955,copper:0x9d7f4d,leather:0x322730,ivory:0xb6a995,glass:0xe4c484});
 const geometry=new Map(),materials=new Map();
-function part(parent,kind,args,color,x,y,z,sx=1,sy=1,sz=1){const key=kind+JSON.stringify(args);if(!geometry.has(key))geometry.set(key,new T[kind](...args));if(!materials.has(color))materials.set(color,new T.MeshStandardMaterial({color,roughness:.8,metalness:color===0xb49355?.35:0}));const m=new T.Mesh(geometry.get(key),materials.get(color));m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=m.receiveShadow=true;parent.add(m);return m;}
+function part(parent,kind,args,color,x,y,z,sx=1,sy=1,sz=1){const key=kind+JSON.stringify(args);if(!geometry.has(key))geometry.set(key,new T[kind](...args));if(!materials.has(color))materials.set(color,new T.MeshStandardMaterial({color,roughness:color===WULING_PALETTE.copper?.60:.92,metalness:color===WULING_PALETTE.copper?.52:0}));const m=new T.Mesh(geometry.get(key),materials.get(color));m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=m.receiveShadow=true;parent.add(m);return m;}
 const ell=(g,c,x,y,z,sx,sy,sz)=>part(g,'SphereGeometry',[1,12,8],c,x,y,z,sx,sy,sz);
 export function wulingOutfit(root){root.traverse(o=>{
  if(!o.isMesh)return;o.material=o.material.clone();if(/Pauldron/.test(o.name))o.visible=false;if(o.material.name.includes('Regular'))return;
- const body=o.name.endsWith('_Body'),belt=o.name.includes('Body_Belt'),hood=o.name.includes('Head_Hood'),color=o.name.includes('Feet')?0x26212f:o.name.includes('Legs')?0x292033:o.name.includes('Belt')?0x342a39:o.name.includes('Bracer')?0x3b2c42:hood?0x302238:o.name.includes('Arms')?0x4c305d:0x38223f;
+ const body=o.name.endsWith('_Body'),belt=o.name.includes('Body_Belt'),hood=o.name.includes('Head_Hood'),color=o.name.includes('Feet')?0x29212a:o.name.includes('Legs')?0x221d2b:o.name.includes('Belt')?0x322730:o.name.includes('Bracer')?0x3d2b3d:hood?0x342139:o.name.includes('Arms')?0x51324f:0x352339;
  // Convert the authored sRGB palette to linear values once; bright lobby lighting must not turn it pink.
  const tint=new T.Color(color).toArray().join(',');o.material.color.set(0xffffff);o.material.roughness=.96;o.material.roughnessMap=null;o.material.metalness=.01;o.material.normalScale?.setScalar(body?.10:.22);
  if(body||belt||hood){
@@ -63,16 +63,16 @@ export function sporeLantern(){
  const stem=[new T.Vector2(.010,-.145),new T.Vector2(.014,-.148),new T.Vector2(.014,-.157),new T.Vector2(.010,-.162),new T.Vector2(.015,-.172),new T.Vector2(.026,-.181),new T.Vector2(.026,-.184)];
  part(g,'LatheGeometry',[stem,20],WULING_PALETTE.copper,0,0,0).name='SM_Weapon_Spore_HandleSocket';
  const roof=[new T.Vector2(0,0),new T.Vector2(.025,-.004),new T.Vector2(.058,-.021),new T.Vector2(.087,-.046),new T.Vector2(.112,-.065),new T.Vector2(.125,-.073),new T.Vector2(.122,-.083),new T.Vector2(.068,-.071),new T.Vector2(.025,-.057)];
- const shade=part(g,'LatheGeometry',[roof.reverse(),32],WULING_PALETTE.cloak,0,-.155,0);shade.name='SM_Weapon_Spore_GilledCanopy';shade.userData.identityDetail=true;
+ const shade=part(g,'LatheGeometry',[roof.reverse(),32],WULING_PALETTE.copper,0,-.155,0);shade.name='SM_Weapon_Spore_GilledCanopy';shade.userData.identityDetail=true;
  const gills=[];for(let i=0;i<16;i++){const a=i*Math.PI/8;gills.push([[Math.sin(a)*.031,-.219,Math.cos(a)*.031],[Math.sin(a)*.070,-.228,Math.cos(a)*.070],[Math.sin(a)*.116,-.239,Math.cos(a)*.116]]);}
- weaponInlay(g,'SM_Weapon_Spore_GillRibs',gills,0x8e7359,.0020,.18);
+ weaponInlay(g,'SM_Weapon_Spore_GillRibs',gills,0x5d4937,.0020,.18);
  part(g,'TorusGeometry',[.121,.009,6,24],WULING_PALETTE.copper,0,-.24,0).rotation.x=Math.PI/2;
  const heart=ell(g,0xb5bc7c,0,-.335,0,.068,.105,.068);heart.name='Spore_lantern_heart';
  for(let i=0;i<5;i++){const a=i*Math.PI*2/5,s=Math.sin(a),c=Math.cos(a),curve=new T.CatmullRomCurve3([new T.Vector3(s*.115,-.233,c*.115),new T.Vector3(s*.117,-.255,c*.117),new T.Vector3(s*.125,-.32,c*.125),new T.Vector3(s*.083,-.43,c*.083),new T.Vector3(0,-.48,0)]);part(g,'TubeGeometry',[curve,16,.007,6,false],WULING_PALETTE.copper,0,0,0);}
  ell(g,WULING_PALETTE.cloak,0,-.463,0,.073,.032,.073);ell(g,WULING_PALETTE.copper,0,-.507,0,.016,.034,.016);g.userData.heart=heart;return nameWeapon(g,'wuling','sporelantern');
 }
 export function sporeSatchel(){
- const g=new T.Group();g.name='Wuling_herb_satchel';ell(g,WULING_PALETTE.leather,0,0,0,.108,.127,.068);ell(g,0x553c58,0,.075,.04,.112,.033,.051);
+ const g=new T.Group();g.name='Wuling_herb_satchel';ell(g,WULING_PALETTE.leather,0,0,0,.108,.127,.068);ell(g,0x4c3945,0,.075,.04,.112,.033,.051);
  part(g,'TorusGeometry',[.022,.006,6,16],WULING_PALETTE.copper,0,.032,.083);
  const label=part(g,'BoxGeometry',[.024,.05,.006],WULING_PALETTE.ivory,.048,-.018,.073);label.rotation.z=-.15;
  return g;

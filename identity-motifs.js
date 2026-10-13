@@ -4,13 +4,13 @@ import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 // One small maker's mark per identity, echoed on functional weapon surfaces.
 // These are relief fittings, not spell effects: no light, billboard or aura.
 export const HERO_SIGNATURES=Object.freeze({
- scout:{primary:0x526348,accent:0xa79361,metal:0x726044,motif:'woodland-leaf',label:'林叶',description:'棕绿皮布与旧铜林叶扣，武器沿用木质和叶脉细节。'},
- silver:{primary:0x253149,accent:0xc2d7df,metal:0x718c9a,motif:'frost-feather',label:'霜羽',description:'白发、深靛衣装与冰银霜羽，冷银武器保留清晰的刃线。'},
- wraith:{primary:0x30303a,accent:0xb2afb9,metal:0x655b75,motif:'soul-rift',label:'魂痕',description:'灰黑软布与冷银魂痕，暗影武器用断裂刻隙呼应面具。'},
- tide:{primary:0x355d69,accent:0xbb9e67,metal:0x668e96,motif:'tidal-crest',label:'潮纹',description:'海色卷袖猎装与浪形铜扣，长叉的护颈延续潮纹。'},
- lingya:{primary:0xd5c398,accent:0xc4a364,metal:0x748970,motif:'sprout-bell',label:'芽铃',description:'奶油短衣与一枚芽铃，骨镖用温润骨色和克制的爪刻呼应伙伴。'},
- wuling:{primary:0x422951,accent:0xb59a6d,metal:0x7c617e,motif:'spore-gill',label:'菌褶',description:'深梅紫采药袍与菌褶领扣，孢灯保留菌盖形灯罩和草药质感。'},
- mirage:{primary:0x291b37,accent:0xc8b2d7,metal:0x84678f,motif:'mirror-petal',label:'镜瓣',description:'长发紫黑衣与镜瓣发夹，蜃花灯以镜瓣灯罩区别于孢灯。'}
+ scout:{primary:0x4c654c,accent:0xa79361,metal:0x726044,motif:'woodland-leaf',label:'林叶',description:'林绿叶裁领、棕皮护具与旧铜林叶扣，木质枪托呼应林地游侠。'},
+ silver:{primary:0x304455,accent:0xc2d7df,metal:0x718c9a,motif:'frost-feather',label:'霜羽',description:'白短发与黑面具，深靛衣装用冰蓝灰翻领和渐淡霜边呼应霜影。'},
+ wraith:{primary:0x303940,accent:0xb2afb9,metal:0x65717d,motif:'soul-rift',label:'魂痕',description:'煤黑兜帽、冷灰布层与无面魂痕，暗影武器用断裂刻隙呼应影裔。'},
+ tide:{primary:0x284b60,accent:0xbb9e67,metal:0x668e96,motif:'tidal-crest',label:'潮纹',description:'深海蓝猎装、青灰卷袖与浅浪衣摆，长叉与唯一浪扣呼应潮行者。'},
+ lingya:{primary:0xdfcda2,accent:0xc4a364,metal:0x60795d,motif:'sprout-bell',label:'芽铃',description:'奶油短衣、两瓣嫩叶披肩与一枚芽铃，骨镖和兽耳保留御兽少女身份。'},
+ wuling:{primary:0x352339,accent:0x9d7f4d,metal:0x806340,motif:'spore-gill',label:'菌褶',description:'哑光深葡紫采药袍与旧铜菌褶扣，菌盖孢灯呼应雾中采苓人。'},
+ mirage:{primary:0x1e2331,accent:0xc0c8d5,metal:0x8e9eae,motif:'mirror-petal',label:'镜瓣',description:'柔顺长发、冷墨紫衣与镜瓣缝边，冷银蜃花灯呼应蜃影的替身幻象。'}
 });
 
 const marks=new Map();

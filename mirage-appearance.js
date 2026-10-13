@@ -1,9 +1,9 @@
 import * as T from './vendor/three.module.js';
 import{mirrorPetalGeometry,nameWeapon}from'./weapon-identity.js?v=173';
-import {wulingOutfit,wulingMask} from './wuling-appearance.js?v=173';
+import {wulingOutfit,wulingMask} from './wuling-appearance.js?v=174';
 
 // Authored procedural prototype on the existing female rig; no extra model download.
-export const MIRAGE_PALETTE=Object.freeze({cloth:0x24142e,violet:0x4a2b63,mist:0xa78cc7,ivory:0xe9e3f2,silver:0x797484,glow:0x8f5cff});
+export const MIRAGE_PALETTE=Object.freeze({cloth:0x1c2030,violet:0x394057,mist:0x8e9eae,ivory:0xe9e3f2,silver:0xa5afbe,glow:0x8f5cff});
 const shapes=new Map(),surfaces=new Map();
 function piece(group,kind,args,color,x,y,z,sx=1,sy=1,sz=1){
  const key=kind+JSON.stringify(args);if(!shapes.has(key))shapes.set(key,new T[kind](...args));
@@ -18,7 +18,7 @@ export function mirageOutfit(root){
   if(!o.isMesh)return;
   if(/Head_Hood|Pauldron/.test(o.name))o.visible=false;
   if(o.material.name.includes('Regular'))return;
-  const color=/Feet|Legs/.test(o.name)?0x211b2b:/Bracer|Belt/.test(o.name)?0x38303f:/Arms/.test(o.name)?0x4a2b63:0x2e193c;
+  const color=/Feet|Legs/.test(o.name)?0x181b23:/Bracer|Belt/.test(o.name)?0x303649:/Arms/.test(o.name)?0x353750:0x1e2331;
   const tint=new T.Color(color).toArray().join(',');o.material.roughness=.9;o.material.metalness=/Bracer|Belt/.test(o.name)?.12:.015;
   o.material.onBeforeCompile=s=>{s.fragmentShader=s.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>\nfloat mirageWeave=dot(diffuseColor.rgb,vec3(.21,.72,.07));diffuseColor.rgb=vec3(${tint})*(.82+mirageWeave*.38);`);};
   o.material.customProgramCacheKey=()=> 'mirage-cloth-'+tint;
@@ -167,8 +167,8 @@ export function miasmaLantern(){
  const heart=oval(g,0xb98cff,0,-.298,0,.050,.088,.050);heart.name='Mirage_flower_core';
  const petals=[];
  for(let i=0;i<4;i++){
-  const a=i*Math.PI/2+Math.PI/4,petal=oval(g,i%2?0x796486:0x594866,Math.sin(a)*.076,-.306,Math.cos(a)*.076,.039,.125,.017);
-  petal.geometry=mirrorPetalGeometry();petal.name='SM_Weapon_Mirage_MirrorPetal_'+i;petal.userData.identityDetail=true;petal.material.side=T.DoubleSide;petal.material.metalness=.44;petal.material.roughness=.40;
+  const a=i*Math.PI/2+Math.PI/4,petal=oval(g,i%2?0x959cab:0x687487,Math.sin(a)*.076,-.306,Math.cos(a)*.076,.039,.125,.017);
+  petal.geometry=mirrorPetalGeometry();petal.name='SM_Weapon_Mirage_MirrorPetal_'+i;petal.userData.identityDetail=true;petal.material.side=T.DoubleSide;petal.material.metalness=.58;petal.material.roughness=.34;
   petal.rotation.set(Math.cos(a)*.27,a,-Math.sin(a)*.27);petal.userData.rest=petal.quaternion.clone();petals.push(petal);
   const curve=new T.CatmullRomCurve3([new T.Vector3(Math.sin(a)*.080,-.19,Math.cos(a)*.080),new T.Vector3(Math.sin(a)*.112,-.29,Math.cos(a)*.112),new T.Vector3(Math.sin(a)*.060,-.392,Math.cos(a)*.060),new T.Vector3(0,-.43,0)]);
   piece(g,'TubeGeometry',[curve,12,.005,5,false],MIRAGE_PALETTE.silver,0,0,0);

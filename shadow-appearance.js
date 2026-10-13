@@ -10,7 +10,7 @@ export function shadowOutfit(root){
   const tintMaterial=source=>{
    const m=source.clone();
    if(!source.name.includes('Ranger'))return m;
-   const leather=/Belt|Bracer|Feet/.test(o.name),color=/Feet/.test(o.name)?0x131318:/Belt|Bracer/.test(o.name)?0x1a191f:/Legs/.test(o.name)?0x202027:/Arms/.test(o.name)?0x25242c:/Head_Hood/.test(o.name)?0x303038:0x282730;
+   const leather=/Belt|Bracer|Feet/.test(o.name),color=/Feet/.test(o.name)?0x13181e:/Belt|Bracer/.test(o.name)?0x191f26:/Legs/.test(o.name)?0x202831:/Arms/.test(o.name)?0x252d37:/Head_Hood/.test(o.name)?0x303943:0x27313a;
    const tint=new T.Color(color).toArray().join(',');
    m.color.set(0xffffff);m.roughness=leather?.86:.94;m.metalness=.015;
    m.roughnessMap=null;m.metalnessMap=null;m.normalScale?.setScalar(leather?.24:.18);
@@ -27,7 +27,7 @@ export function shadowOutfit(root){
 }
 
 const scarfMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:.96,metalness:0,side:T.DoubleSide});
-const claspMaterial=new T.MeshStandardMaterial({color:0x8a8991,roughness:.70,metalness:.32});
+const claspMaterial=new T.MeshStandardMaterial({color:0x858e98,roughness:.70,metalness:.32});
 const scarves=new Map();
 let claspGeometry;
 
@@ -61,7 +61,7 @@ function clothForm(weapon){
   panels=[neck,sash];claspPanel=sash;claspV=.18;
  }
  const positions=[],colors=[],indices=[],slices=8,rows=14;
- const cloth=new T.Color(0x3b3944),edge=new T.Color(0x57515f);
+ const cloth=new T.Color(0x3b4652),edge=new T.Color(0x65717e);
  for(const surface of panels){
   const offset=positions.length/3;
   for(let j=0;j<=rows;j++)for(let i=0;i<=slices;i++){
@@ -107,7 +107,7 @@ export function finishShadowTone(material){
  material.onBeforeCompile=shader=>{
   compile(shader);
   shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`float shadowLight=dot(outgoingLight,vec3(.2126,.7152,.0722));
-    outgoingLight=mix(outgoingLight,vec3(shadowLight)*vec3(.98,.97,1.03),.88);
+    outgoingLight=mix(outgoingLight,vec3(shadowLight)*vec3(.975,.99,1.025),.88);
     #include <opaque_fragment>`);
  };
  material.customProgramCacheKey=()=>key+'-neutral-shadow';material.userData.shadowTone=true;

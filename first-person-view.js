@@ -1,6 +1,7 @@
 import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=125';
 import * as T from './vendor/three.module.js';
 import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=128';
+import {finishShadowTone} from './shadow-appearance.js?v=174';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=170';
@@ -8,9 +9,9 @@ import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weap
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
 const PALETTES={
- scout:[0x526348,0x533a27,0xbaa47a,0xc39879],silver:[0x202c49,0x182131,0x9cabb7,0xe1c5b1],
- wraith:[0x343440,0x282832,0x6a6274,0x8895a3],tide:[0x365b65,0x293e45,0xa2a187,0xbe9f84],
- lingya:[0xd5c398,0x72513b,0x728773,0xe8bda2],wuling:[0x422951,0x392b36,0x9b8460,0xdbbca7],mirage:[0x291b37,0x282331,0x9682ad,0xdacade]
+ scout:[0x4c654c,0x593f2b,0x94815b,0xc39879],silver:[0x304455,0x192633,0xb0c5ce,0xe1c5b1],
+ wraith:[0x38434e,0x262c33,0x687786,0x8895a3],tide:[0x4f7387,0x253c4c,0x7c99a5,0xbe9f84],
+ lingya:[0xdfcda2,0x70503b,0xe8d7ad,0xe8bda2],wuling:[0x352339,0x322730,0x927955,0xdbbca7],mirage:[0x1e2331,0x202430,0xa9b4c4,0xdacade]
 };
 const PROFILES={
  rifle:{type:'gun',width:.85,height:1,depth:.62,x:.38,y:-.48,pitch:.025,support:[0,-.045,.34]},
@@ -64,9 +65,9 @@ function sleeveGeometry(palette,kind){
   else if(kind==='silver'){radius*=.90;radius+=.003*envelope;if(t>.62)hex=palette[1];if(t>.81&&t<.85){radius+=.002;hex=palette[2];}}
   else if(kind==='wraith'){radius+=.014*envelope**2;if(t>.70){radius+=.0015*Math.sin(t*120);hex=Math.sin(t*100)>.82?palette[2]:palette[1];}}
   else if(kind==='tide'){if(t<.51)radius+=.009*envelope;else if(t<.62){radius+=.013*Math.sin((t-.51)/.11*Math.PI);hex=palette[2];}else if(t<.86){radius*=.91;hex=palette[3];}else hex=palette[1];}
-  else if(kind==='lingya'){radius+=.018*Math.sin(Math.min(1,t/.6)*Math.PI)**2;if(t>.76){radius+=.002;hex=t>.86?palette[1]:palette[2];}}
-  else if(kind==='wuling'){radius+=.008*envelope+.008*Math.exp(-(((t-.83)/.12)**2));if(t>.72)hex=t>.85?palette[1]:palette[2];}
-  else if(kind==='mirage'){radius*=.92;radius+=.010*Math.exp(-(((t-.82)/.11)**2));if(t>.79&&t<.85)hex=palette[2];}
+  else if(kind==='lingya'){radius+=.018*Math.sin(Math.min(1,t/.6)*Math.PI)**2;if(t>.76){radius+=.002;hex=t<.80||t>.90&&t<.94?palette[2]:palette[1];}}
+  else if(kind==='wuling'){radius+=.008*envelope+.008*Math.exp(-(((t-.83)/.12)**2));if(t>.72)hex=t<.76||t>.87&&t<.91?palette[2]:palette[1];}
+  else if(kind==='mirage'){radius*=.92;radius+=.010*Math.exp(-(((t-.82)/.11)**2));if(t>.72&&t<.88)hex=t>.81&&t<.85?palette[2]:0x353750;}
   color.setHex(hex);
   for(let j=0;j<sides;j++){
    const a=j/sides*Math.PI*2,cloth=!(kind==='tide'&&t>.62&&t<.86),crease=1+(cloth?.027:0)*envelope*Math.sin(a*5+t*15),cuff=kind==='mirage'?.023*envelope*Math.sin(a*2)*Math.exp(-(((t-.82)/.07)**2)):0;
@@ -244,6 +245,7 @@ export class FirstPersonView {
   this.kind=hero.userData.kind||inferred;const palette=PALETTES[this.kind]||PALETTES.scout;
   const hand=handGeometry(palette,['scout','lingya','tide','wuling'].includes(this.kind)),sleeve=sleeveGeometry(palette,this.kind);this.ownedGeometry.push(hand,sleeve);
   const cloth=new T.MeshStandardMaterial({vertexColors:true,roughness:.9,fog:false}),glove=new T.MeshStandardMaterial({vertexColors:true,roughness:.67,metalness:.015,fog:false});this.materials.set(cloth,cloth);this.materials.set(glove,glove);
+  if(this.kind==='wraith'){finishShadowTone(cloth);finishShadowTone(glove);}
   // Share the real outfit's micro-surface without owning or recoloring its maps.
   let sleeveSurface;hero.userData.model?.traverse(o=>{if(!sleeveSurface&&o.isMesh&&(/Sleeve/i.test(o.geometry.name)||o.userData.wildMistPart==='sleeves'))sleeveSurface=o.material;});
   if(sleeveSurface){cloth.normalMap=sleeveSurface.normalMap;cloth.roughnessMap=sleeveSurface.roughnessMap;cloth.normalScale.copy(sleeveSurface.normalScale);cloth.roughness=sleeveSurface.roughness;}

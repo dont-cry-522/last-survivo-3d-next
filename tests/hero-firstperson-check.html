@@ -3,8 +3,8 @@
 <h1>第一人称 · 待机 / 出手 / 收招</h1><p>正式角色武器、相同光照与70度视角。衣袖切口不同，原有双手接触点保留。</p><p id="status">载入中</p><a id="save-png">保存画面</a><div id="sheet"></div><pre id="report"></pre>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=173';
-import {FirstPersonView} from '../first-person-view.js?v=173';
+import {actor,animateActor} from '../world.js?v=174';
+import {FirstPersonView} from '../first-person-view.js?v=174';
 import {WEAPON_RECOVERY} from '../weapon-performance.js?v=170';
 const source=await(await fetch('../world.js',{cache:'no-store'})).text(),entry=source.match(/from['"](.\/skinned-hero\.js[^'"]*)['"]/)[1];
 const {loadHeroAssets,disposeHero}=await import(new URL('../'+entry,location.href));

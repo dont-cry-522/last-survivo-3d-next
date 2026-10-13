@@ -4,9 +4,9 @@ import {smoothSeams} from './hero-finish.js';
 // Three authored wardrobes on the existing female rig. Vertices inherit the
 // nearby source garment's weights; no new bone, actor transform or grip exists.
 const palettes={
- lingya:{cloth:0xd5c398,shade:0x9b835c,trim:0xe5d5b1,leaf:0x728773,leather:0x72513b,sole:0x493c2b},
- wuling:{cloth:0x422951,shade:0x2f203c,trim:0x9b8460,leaf:0x644569,leather:0x392b36,sole:0x564734},
- mirage:{cloth:0x291b37,shade:0x1a1527,trim:0x9682ad,leaf:0x55376b,leather:0x282331,sole:0x211e28}
+ lingya:{cloth:0xdfcda2,shade:0xad966e,trim:0xe8d7ad,leaf:0x60795d,leather:0x70503b,sole:0x493c2b},
+ wuling:{cloth:0x352339,shade:0x221d2b,trim:0x927955,leaf:0x51324f,leather:0x322730,sole:0x504333},
+ mirage:{cloth:0x1e2331,shade:0x131622,trim:0xa9b4c4,leaf:0x353750,leather:0x202430,sole:0x181b23}
 };
 const clamp=T.MathUtils.clamp,smooth=T.MathUtils.smoothstep;
 const finishes=new Map();
@@ -55,17 +55,23 @@ function rings(out,sections,point,sides=24,reverse=false){
  return ids;
 }
 function garmentMaterial(kind,part){
- const leather=/boot|cuff/.test(part),material=new T.MeshStandardMaterial({name:'WildMist_'+kind+'_'+part,vertexColors:true,roughness:leather?.85:.98,metalness:0,side:T.DoubleSide,...finishMaps(leather),normalScale:new T.Vector2(leather?.18:.24,leather?.18:.24)});
+ const leather=/boot|cuff/.test(part),mirrorSeam=kind==='mirage'&&part==='robe',material=new T.MeshStandardMaterial({name:'WildMist_'+kind+'_'+part,vertexColors:true,roughness:leather?.85:.98,metalness:0,side:T.DoubleSide,...finishMaps(leather),normalScale:new T.Vector2(leather?.18:kind==='wuling'?.28:.24,leather?.18:kind==='wuling'?.28:.24)});
  material.onBeforeCompile=shader=>{
   shader.vertexShader='varying vec3 tailoredPoint;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntailoredPoint=position;');
   shader.fragmentShader='varying vec3 tailoredPoint;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
    float weaveFade=1.-smoothstep(.003,.014,max(length(dFdx(tailoredPoint)),length(dFdy(tailoredPoint))));
    float weave=sin(tailoredPoint.y*540.)*sin((tailoredPoint.x+tailoredPoint.z)*470.);
-   diffuseColor.rgb*=1.+weave*.025*weaveFade;`);
+   diffuseColor.rgb*=1.+weave*.025*weaveFade;
+   ${mirrorSeam?`float petalHeight=clamp((tailoredPoint.y-1.045)/.38,0.,1.);
+   float petalEdge=.025+.063*sin(petalHeight*3.14159265);
+   float mirrorSeam=(1.-smoothstep(.0012,.0032,abs(abs(tailoredPoint.x)-petalEdge)))*smoothstep(.025,.065,tailoredPoint.z)*smoothstep(1.045,1.065,tailoredPoint.y)*(1.-smoothstep(1.405,1.425,tailoredPoint.y));
+   diffuseColor.rgb=mix(diffuseColor.rgb,vec3(${new T.Color(palettes.mirage.trim).toArray().join(',')}),mirrorSeam*.76);`:''}`);
   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
    roughnessFactor=max(roughnessFactor,${leather?'.68':'.86'});
-   ${part==='boots'?'roughnessFactor=mix(.98,roughnessFactor,smoothstep(.08,.15,tailoredPoint.y));':''}`);
- };material.customProgramCacheKey=()=> 'wild-mist-tailored-'+(part==='boots'?'mud':leather?'leather':'cloth');return material;
+   ${part==='boots'?'roughnessFactor=mix(.98,roughnessFactor,smoothstep(.08,.15,tailoredPoint.y));':''}
+   ${mirrorSeam?'roughnessFactor=mix(roughnessFactor,.54,mirrorSeam);':''}`);
+  if(mirrorSeam)shader.fragmentShader=shader.fragmentShader.replace('#include <metalnessmap_fragment>','#include <metalnessmap_fragment>\nmetalnessFactor=mix(metalnessFactor,.34,mirrorSeam);');
+ };material.customProgramCacheKey=()=> 'wild-mist-tailored-'+kind+'-'+(mirrorSeam?'mirror-seam':part==='boots'?'mud':leather?'leather':'cloth');return material;
 }
 function replace(mesh,geometry,kind,part){smoothSeams(geometry);mesh.geometry=geometry;mesh.material=garmentMaterial(kind,part);mesh.userData.wildMistPart=part;mesh.visible=true;mesh.castShadow=mesh.receiveShadow=true;}
 function profileAt(profile,y){
@@ -83,13 +89,13 @@ function torso(mesh,kind){
   // Folds open below the tied waist and compress at the ribs; their small
   // changing depth catches light without turning the whole coat into fluting.
   const tension=Math.exp(-(((y-1.15)/.14)**2)),f=facing(y,a),seam=f.inside?.0012*Math.exp(-(((f.edge-.94)/.08)**2))*Math.sin(Math.PI*f.v):0,fold=(.0042*Math.sin(a*9+(y-1.1)*9)+.002*Math.sin(a*15-y*14))*tension+.004*Math.cos(a*(mist?6:10)+.4)*hem-seam;
-  return[Math.sin(a)*(rx+fold),y+(mist?.045*Math.cos(a*3+.6)*hem:child?0:.025*Math.sin(a-.5)*hem),Math.cos(a)*(rz+fold)-.028];
+  return[Math.sin(a)*(rx+fold),y+(mist?-.032*(.5+.5*Math.cos(a*4))*hem:child?0:.025*Math.sin(a-.5)*hem),Math.cos(a)*(rz+fold)-.028];
  };
  const dense=[];for(let j=0;j<sections.length-1;j++)for(let step=0;step<3;step++)dense.push(sections[j][0]+(sections[j+1][0]-sections[j][0])*step/3);dense.push(sections.at(-1)[0]);
  // The front facing is part of the same surface. The previous separate patch
  // sampled different triangles/weights only 2.5 mm above the robe, intersecting
  // it in cast poses and leaving sharp dark slivers across the chest.
- rings(out,dense,(y,a,j)=>{const f=facing(y,a);return[...shape(y,a),j===0||j===dense.length-1?p.trim:y>1.11&&y<1.165?p.shade:f.inside?p.leaf:Math.abs(Math.sin(a))>.88?p.shade:p.cloth];},32);
+ rings(out,dense,(y,a,j)=>{const f=facing(y,a),leafShoulder=child&&y>1.32&&Math.abs(Math.sin(a))>.70;return[...shape(y,a),j===0||j===dense.length-1?p.trim:y>1.11&&y<1.165?p.shade:f.inside||leafShoulder?p.leaf:Math.abs(Math.sin(a))>.88?p.shade:p.cloth];},32);
  return out.build();
 }
 function sleeves(mesh,kind){

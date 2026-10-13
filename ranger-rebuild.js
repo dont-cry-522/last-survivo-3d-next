@@ -4,7 +4,7 @@ import {smoothSeams} from './hero-finish.js?v=172';
 // These garments replace the old Ranger torso, keeping its authored skin binding.
 // All coordinates are in the existing shared T-pose, not attached rigid props.
 const clamp=T.MathUtils.clamp,lerp=T.MathUtils.lerp;
-const PALETTE={scout:{cloth:0x526348,leather:0x533a27,edge:0xbaa47a,inner:0x28342b},silver:{cloth:0x34415b,leather:0x182131,edge:0x9cabb7,inner:0x111822}};
+const PALETTE={scout:{cloth:0x4c654c,leather:0x593f2b,edge:0x849575,inner:0x26382d},silver:{cloth:0x304455,leather:0x192633,edge:0xb0c5ce,inner:0x14212c}};
 let weave;
 function fabricMaps(){
  if(weave)return weave;
@@ -19,6 +19,16 @@ function fabricMaps(){
 function material(kind,part,color){
  const maps=fabricMaps(),leather=/Boot|Glove|Harness|Bracer|Belt/.test(part),m=new T.MeshStandardMaterial({color,roughness:leather?.66:.88,metalness:leather?.025:0,normalMap:maps.normal,normalScale:new T.Vector2(leather?.13:.23,leather?.13:.23),roughnessMap:leather?null:maps.roughness});
  m.name='M_Hero_'+part+'_'+kind;m.side=T.DoubleSide;return m;
+}
+// Colour the existing cut fabric rather than adding metallic trim meshes.
+// These UVs run across each tailored panel, so the soft edge follows its hem.
+function fabricEdge(mesh,base,edge,amount=.55){
+ const uv=mesh.geometry.attributes.uv,colors=new Float32Array(uv.count*3),body=new T.Color(base),rim=new T.Color(edge),color=new T.Color();
+ for(let i=0;i<uv.count;i++){
+  const across=Math.abs(uv.getX(i)-.5)*2,fade=T.MathUtils.smoothstep(across,.55,1);
+  color.copy(body).lerp(rim,fade*amount);color.toArray(colors,i*3);
+ }
+ mesh.geometry.setAttribute('color',new T.BufferAttribute(colors,3));mesh.material.color.set(0xffffff);mesh.material.vertexColors=true;
 }
 function finishGeometry(g){g.computeVertexNormals();smoothSeams(g);g.computeBoundingBox();g.computeBoundingSphere();return g;}
 const skinPoints=new WeakMap();
@@ -179,8 +189,9 @@ export function rebuildRanger(root,kind){
  addSkinned(root,source,kind,'Harness',strap,colors.leather);
  // Lapels turn outwards from the neck and converge into the jacket overlap.
  for(const side of[-1,1]){
-  const patch=conformPatch(body,silver?[[side*.061,1.51,.07],[side*.102,1.405,.13],[side*.025,1.235,.10]]:[[side*.074,1.573,.06],[side*.112,1.43,.13],[side*.020,1.23,.12]],v=>(silver?.048:.067)*Math.sin(v*Math.PI*.92)+.010,.012);
-  addSkinned(root,source,kind,'Lapel_'+(side<0?'L':'R'),patch,silver?0x4a5670:0x344638);
+  const patch=conformPatch(body,silver?[[side*.061,1.51,.07],[side*.102,1.405,.13],[side*.025,1.235,.10]]:[[side*.074,1.573,.06],[side*.112,1.43,.13],[side*.020,1.23,.12]],v=>silver?.048*Math.sin(v*Math.PI*.92)+.010:.074*Math.sin(v*Math.PI)**.85+.006,.012);
+  const lapel=addSkinned(root,source,kind,'Lapel_'+(side<0?'L':'R'),patch,silver?0x6b8797:0x314c39);
+  fabricEdge(lapel,silver?0x5d7b8d:0x314c39,colors.edge,silver?.68:.35);
  }
  const waist=silver?1.085:1.145,band=wrapBand(body,waist,silver?.030:.044);
  addSkinned(root,source,kind,'Belt',band,colors.leather);
@@ -192,17 +203,18 @@ export function rebuildRanger(root,kind){
  });
  addSkinned(root,source,kind,'BeltPouch',closeEnds(pouch,24,12),colors.leather);
  const shoulder=conformPatch(body,[[silver?.140:.156,silver?1.460:1.511,.03],[.137,silver?1.425:1.465,.08],[.139,silver?1.373:1.397,.09]],v=>(silver?.041:.055)*(.66+.34*Math.sin(v*Math.PI)),.0025);
- addSkinned(root,source,kind,'ShoulderYoke',shoulder,silver?0x263247:0x5b452e);
+ const yoke=addSkinned(root,source,kind,'ShoulderYoke',shoulder,silver?0x566f80:0x5b452e);
+ if(silver)fabricEdge(yoke,0x516b7d,colors.edge,.52);
  if(silver){
   const legs=meshes.find(m=>m.name==='SM_Hero_Legs_Silver');
   if(legs)for(const side of[-1,1]){
    const shin=conformPatch(legs,[[side*.113,.640,.03],[side*.12,.45,.025],[side*.131,.205,.045]],v=>.030+.018*Math.sin(v*Math.PI),.004);
-   addSkinned(root,legs,kind,'BootPanel_'+(side<0?'L':'R'),shin,0x283446);
+   const bootPanel=addSkinned(root,legs,kind,'BootPanel_'+(side<0?'L':'R'),shin,0x354d5d);fabricEdge(bootPanel,0x354d5d,0x829ca9,.5);
   }
  }
  if(!silver){
   const scarf=grid(40,8,(u,v)=>{const a=u*Math.PI*2,r=.088+.012*Math.sin(v*Math.PI)+.002*Math.sin(a*3+v*8);return[Math.sin(a)*r,1.552+v*.040+.0033*Math.sin(a*2+v*7),-.027+Math.cos(a)*r*.88];});
-  addSkinned(root,source,kind,'Scarf',scarf,0x829075);
+  addSkinned(root,source,kind,'Scarf',scarf,0x7f9174);
  }
  root.userData.rangerRebuilt=true;root.userData.rebuildStyle=silver?'indigo-short-coat-hunter':'olive-leather-expedition';
 }

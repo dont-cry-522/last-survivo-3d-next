@@ -1,10 +1,11 @@
-import {shadowFocus} from './shadow-gear.js?v=183';
-import{weaponGesture,shotStarted,crossbowMechanism}from'./weapon-performance.js?v=183';
-import{miasmaLantern}from'./mirage-appearance.js?v=183';
-import{weaponInlay,nameWeapon,recessedBarrelGeometry}from'./weapon-identity.js?v=183';
+import {shadowFocus} from './shadow-gear.js?v=184';
+import{weaponGesture,shotStarted,crossbowMechanism}from'./weapon-performance.js?v=184';
+import{miasmaLantern}from'./mirage-appearance.js?v=184';
+import{weaponInlay,nameWeapon,recessedBarrelGeometry}from'./weapon-identity.js?v=184';
 import * as T from './vendor/three.module.js';
 // Shared smooth geometry: detail is concentrated on the two heroes, not multiplied across the forest.
 const geometries=new Map(),materials=new Map();
+let woodGrain;
 function material(color,metal=0,emission=0){const key=[color,metal,emission].join(':');if(!materials.has(key))materials.set(key,new T.MeshStandardMaterial({color,metalness:metal,roughness:metal?.38:.72,emissive:color,emissiveIntensity:emission}));return materials.get(key);}
 function part(parent,kind,args,color,pos=[0,0,0],scale=[1,1,1],metal=0,emission=0){const key=kind+JSON.stringify(args);if(!geometries.has(key))geometries.set(key,new T[kind](...args));const m=new T.Mesh(geometries.get(key),material(color,metal,emission));m.position.set(...pos);m.scale.set(...scale);m.castShadow=m.receiveShadow=true;parent.add(m);return m;}
 const ell=(p,c,pos,scale,metal=0,emission=0)=>part(p,'SphereGeometry',[1,20,14],c,pos,scale,metal,emission);
@@ -15,15 +16,69 @@ const joint=(p,pos)=>{const g=new T.Group();g.position.set(...pos);p.add(g);retu
 function weaponHull(parent,name,rings,color,metal=0,directions){
  const key=name+JSON.stringify(rings);
  if(!geometries.has(key)){
-  const p=[],ix=[],edge=[[-.35,-.5],[.35,-.5],[.5,-.32],[.5,.32],[.35,.5],[-.35,.5],[-.5,.32],[-.5,-.32]];
-  for(let i=0;i<rings.length;i++){const[x,y,z,w,h]=rings[i],axis=directions?.[i];for(const[u,v]of edge)p.push(x+u*w*(axis?.x??1),y+v*h,z+u*w*(axis?.z??0));}
+  const p=[],uv=[],ix=[],edge=[[-.35,-.5],[.35,-.5],[.5,-.32],[.5,.32],[.35,.5],[-.35,.5],[-.5,.32],[-.5,-.32]];
+  for(let i=0;i<rings.length;i++){const[x,y,z,w,h]=rings[i],axis=directions?.[i];for(const[j,[u,v]]of edge.entries()){p.push(x+u*w*(axis?.x??1),y+v*h,z+u*w*(axis?.z??0));uv.push(j/8,i/(rings.length-1));}}
   for(let i=0;i<rings.length-1;i++)for(let j=0;j<8;j++){const a=i*8+j,b=i*8+(j+1)%8;ix.push(a,b,a+8,b,b+8,a+8);}
-  for(const end of[0,rings.length-1]){const n=p.length/3;p.push(...rings[end].slice(0,3));for(let j=0;j<8;j++){const a=end*8+j,b=end*8+(j+1)%8;ix.push(...(end?[n,a,b]:[n,b,a]));}}
-  const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(p,3));geo.setIndex(ix);geo.computeVertexNormals();geo.name=name;geometries.set(key,geo);
+  for(const end of[0,rings.length-1]){const n=p.length/3;p.push(...rings[end].slice(0,3));uv.push(.5,.5);for(let j=0;j<8;j++){const a=end*8+j,b=end*8+(j+1)%8;ix.push(...(end?[n,a,b]:[n,b,a]));}}
+  const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(p,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.setIndex(ix);geo.computeVertexNormals();geo.name=name;geometries.set(key,geo);
  }
  const mesh=new T.Mesh(geometries.get(key),material(color,metal));mesh.name=name;mesh.userData.identityDetail=true;mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);return mesh;
 }
 function weaponLine(parent,name,points,radius,color,metal=0){const mesh=part(parent,'TubeGeometry',[new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),Math.max(6,points.length*3),radius,6,false],color,undefined,undefined,metal);mesh.name=name;mesh.userData.identityDetail=true;return mesh;}
+function woodFinish(mesh){
+ const key='wood-finish:'+mesh.material.color.getHex();
+ if(!materials.has(key)){
+  if(!woodGrain){const size=64,data=new Uint8Array(size*size*4);for(let y=0;y<size;y++)for(let x=0;x<size;x++){const grain=Math.sin(x*.73+Math.sin(y*.085)*.72),fine=Math.sin(x*2.1+y*.041),c=Math.round(220+grain*19+fine*8),i=(y*size+x)*4;data[i]=data[i+1]=data[i+2]=c;data[i+3]=255;}woodGrain=new T.DataTexture(data,size,size,T.RGBAFormat);woodGrain.name='TX_Weapon_Leafwood_Grain';woodGrain.colorSpace=T.SRGBColorSpace;woodGrain.wrapS=woodGrain.wrapT=T.RepeatWrapping;woodGrain.magFilter=T.LinearFilter;woodGrain.minFilter=T.LinearMipmapLinearFilter;woodGrain.generateMipmaps=true;woodGrain.needsUpdate=true;}
+  const m=mesh.material.clone();m.name='MAT_Weapon_Leafwood';m.map=woodGrain;m.roughness=.76;m.metalness=0;m.userData.identityFinish=true;materials.set(key,m);
+ }mesh.material=materials.get(key);return mesh;
+}
+function staffShaft(parent,fire){
+ const key=fire?'emberwood-shaft':'nightfall-shaft';
+ if(!geometries.has(key)){
+  const profile=[[0,-.39],[.024,-.39],[.027,-.36],[.025,-.205]];
+  for(let i=0;i<=24;i++){const y=-.19+i*.36/24;profile.push([.027+(i%4===0?-.002:i%4===2?.002:0),y]);}
+  profile.push([.025,.20],[.026,.49],[.024,.73],[.020,.91],[0,.91]);
+  const geo=new T.LatheGeometry(profile.map(p=>new T.Vector2(...p)),16),p=geo.attributes.position,colors=[];
+  for(let i=0;i<p.count;i++){const y=p.getY(i),grip=y>-.195&&y<.18,c=new T.Color(fire?(grip?0x46342a:0x705135):(grip?0x373348:0x222b40));c.multiplyScalar(.90+.10*Math.sin(i%profile.length*2.1));colors.push(c.r,c.g,c.b);}
+  geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));geo.name='SM_Staff_'+(fire?'Emberwood':'Nightfall')+'_CarvedShaft';geometries.set(key,geo);
+ }
+ if(!materials.has(key))materials.set(key,new T.MeshStandardMaterial({name:'MAT_Staff_'+key,color:0xffffff,vertexColors:true,roughness:fire?.82:.67,metalness:0}));
+ const mesh=new T.Mesh(geometries.get(key),materials.get(key));mesh.name=mesh.geometry.name;mesh.position.z=.045;mesh.userData.identityDetail=true;mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);return mesh;
+}
+function forgedProng(mesh){
+ const key='forged:'+mesh.name;
+ if(!geometries.has(key)){
+  const source=mesh.geometry,geo=source.clone(),p=geo.attributes.position,{path,tubularSegments,radialSegments}=source.parameters,colors=[];
+  for(let i=0;i<p.count;i++){const t=Math.floor(i/(radialSegments+1))/tubularSegments,c=path.getPointAt(t),taper=.55+.45*Math.sin(t*Math.PI);p.setXYZ(i,c.x+(p.getX(i)-c.x)*taper,c.y+(p.getY(i)-c.y)*taper,c.z+(p.getZ(i)-c.z)*.58);const v=.67+.33*Math.abs(Math.sin(i%(radialSegments+1)/radialSegments*Math.PI*2));colors.push(v,v,v);}
+  geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));geo.computeVertexNormals();geo.name=mesh.name;geometries.set(key,geo);
+ }
+ const matKey='forged:'+mesh.material.color.getHex();if(!materials.has(matKey)){const m=mesh.material.clone();m.vertexColors=true;m.roughness=.31;m.userData.identityFinish=true;materials.set(matKey,m);}
+ mesh.geometry=geometries.get(key);mesh.material=materials.get(matKey);return mesh;
+}
+function refineMoonBlade(mesh){
+ const key='ground-moon-blade';
+ if(!geometries.has(key)){
+  const source=mesh.geometry,old=source.attributes.position,oldUV=source.attributes.uv,positions=[],uv=[],edge=source.parameters.shapes.extractPoints(10).shape,colors=[];
+  // Extruded caps contain only contour vertices. Add one interior sample per
+  // cap triangle so the blade has a real spine instead of thinning every face.
+  const push=i=>{positions.push(old.getX(i),old.getY(i),old.getZ(i));uv.push(oldUV.getX(i),oldUV.getY(i));};
+  for(let i=0;i<old.count;i+=3){
+   if(Math.abs(old.getZ(i)-old.getZ(i+1))<1e-8&&Math.abs(old.getZ(i)-old.getZ(i+2))<1e-8){
+    const center=[0,0,0],tex=[0,0];for(let j=0;j<3;j++){center[0]+=old.getX(i+j)/3;center[1]+=old.getY(i+j)/3;center[2]+=old.getZ(i+j)/3;tex[0]+=oldUV.getX(i+j)/3;tex[1]+=oldUV.getY(i+j)/3;}
+    for(let j=0;j<3;j++){push(i+j);push(i+(j+1)%3);positions.push(...center);uv.push(...tex);}
+   }else for(let j=0;j<3;j++)push(i+j);
+  }
+  const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(positions,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));const p=geo.attributes.position;
+  for(let i=0;i<p.count;i++){
+   const x=p.getX(i),y=p.getY(i);let distance=Infinity;
+   for(let j=0;j<edge.length;j++){const a=edge[j],b=edge[(j+1)%edge.length],dx=b.x-a.x,dy=b.y-a.y,t=T.MathUtils.clamp(((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy||1),0,1);distance=Math.min(distance,Math.hypot(x-a.x-t*dx,y-a.y-t*dy));}
+   const spine=T.MathUtils.smoothstep(distance,.002,.028);p.setZ(i,.009+(p.getZ(i)-.009)*(.24+.76*spine));const c=.98-.38*spine;colors.push(c,c,c);
+  }
+  geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));geo.computeVertexNormals();geo.name='SM_Shuriken_GroundMoonBlade';geometries.set(key,geo);
+ }
+ if(!materials.has(key)){const m=mesh.material.clone();m.vertexColors=true;m.roughness=.30;m.userData.identityFinish=true;materials.set(key,m);}
+ mesh.geometry=geometries.get(key);mesh.material=materials.get(key);
+}
 function tailored(p,c,profile,pos){const key='tailor'+JSON.stringify(profile);if(!geometries.has(key))geometries.set(key,new T.LatheGeometry(profile.map(([r,y])=>new T.Vector2(r,y)),24));const m=new T.Mesh(geometries.get(key),material(c));m.position.set(...pos);m.scale.z=.65;m.castShadow=m.receiveShadow=true;p.add(m);return m;}
 function cloth(p,color,width,length,z){const key=`cloth:${width}:${length}:${z}`;if(!geometries.has(key)){const vertices=[],indices=[];for(let y=0;y<=6;y++)for(let x=0;x<=6;x++){const u=x/6,v=y/6;vertices.push((u-.5)*width*(.62+.38*v),-length*v,z-Math.sin(v*Math.PI/2)*.18+Math.cos(u*Math.PI*4)*.035*v);}for(let y=0;y<6;y++)for(let x=0;x<6;x++){const a=y*7+x;indices.push(a,a+7,a+1,a+1,a+7,a+8);}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(vertices,3));g.setIndex(indices);g.computeVertexNormals();geometries.set(key,g);}const mat=material(color);mat.side=T.DoubleSide;const m=new T.Mesh(geometries.get(key),mat);m.castShadow=m.receiveShadow=true;p.add(m);return m;}
 function lock(p,color,x,y,z,length,bend=.12){const key=`lock:${length}:${bend}`;if(!geometries.has(key)){const v=[],ix=[];for(let i=0;i<=10;i++){const f=i/10,r=.069*Math.sin(Math.min(1,f*8)*Math.PI/2)*(1-f)+.001;for(let j=0;j<10;j++){const a=j*Math.PI/5;v.push(Math.cos(a)*r,-f*length,bend*f*f+Math.sin(a)*r*.58);}}for(let i=0;i<10;i++)for(let j=0;j<10;j++){const a=i*10+j,b=i*10+(j+1)%10;ix.push(a,b,a+10,b,b+10,a+10);}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.setIndex(ix);g.computeVertexNormals();geometries.set(key,g);}const m=new T.Mesh(geometries.get(key),material(color));m.position.set(x,y,z);m.castShadow=true;p.add(m);return m;}
@@ -83,18 +138,18 @@ export function makeHero(kind,weapon){
   if(weapon==='fire'||weapon==='dark'){
     const fire=weapon==='fire',accent=fire?0xff954f:0xa995cf,metal=fire?0x96724a:0x9ba9ba;
     gun.name='SM_Weapon_'+(fire?'EmberwoodStaff':'NightfallStaff');
-    tube(gun,fire?0x57412e:0x252c42,[0,.26,.045],[.027,1.3,.027]);for(const y of [-.23,.1,.52])tube(gun,metal,[0,y,.045],[.036,.06,.036],.65);
+    staffShaft(gun,fire);for(const y of [-.23,.1,.52]){const collar=part(gun,'LatheGeometry',[[[.027,-.03],[.033,-.03],[.036,-.023],[.034,-.015],[.034,.015],[.036,.023],[.033,.03],[.027,.03]].map(p=>new T.Vector2(...p)),16],metal,[0,y,.045],undefined,.65);collar.name='SM_Staff_'+(fire?'Copper':'Silver')+'_Ferrule_'+y;collar.userData.identityDetail=true;}
     const head=joint(gun,[0,.98,.045]);head.name='SM_Staff_'+(fire?'SplitEmberCrown':'CrescentCrown');head.scale.y=fire?.85:.91;
     if(fire){
-      for(const s of[-1,1])weaponLine(head,'SM_EmberStaff_LeafProng_'+s,[[0,-.16,0],[s*.10,-.06,0],[s*.155,.095,0],[s*.075,.23,0],[s*.025,.27,0]],.018,metal,.6);
+      for(const s of[-1,1])forgedProng(weaponLine(head,'SM_EmberStaff_LeafProng_'+s,[[0,-.16,0],[s*.10,-.06,0],[s*.155,.095,0],[s*.075,.23,0],[s*.025,.27,0]],.018,metal,.6));
       part(head,'OctahedronGeometry',[.096,1],accent,[0,.07,0],[.78,1.58,.7],.12,.8).name='SM_EmberStaff_EmberSeed';
     }else{
-      weaponLine(head,'SM_NightfallStaff_MoonFrame',[[.085,.25,0],[-.11,.17,0],[-.16,.015,0],[-.07,-.13,0],[.085,-.10,0]],.019,metal,.64);
+      forgedProng(weaponLine(head,'SM_NightfallStaff_MoonFrame',[[.085,.25,0],[-.11,.17,0],[-.16,.015,0],[-.07,-.13,0],[.085,-.10,0]],.019,metal,.64));
       part(head,'OctahedronGeometry',[.087,1],accent,[0,.07,0],[.66,1.32,.66],.22,.5).name='SM_NightfallStaff_NightCore';
     }
   }else if(weapon==='crossbow'){
     gun.name='SM_Weapon_Crossbow_A';
-    weaponHull(gun,'SM_Crossbow_WoodStock_A',[[0,.035,-.14,.075,.095],[0,.047,-.075,.13,.12],[0,.047,.24,.11,.092],[0,.065,.435,.057,.06]],0x313d54);
+    woodFinish(weaponHull(gun,'SM_Crossbow_WoodStock_A',[[0,.035,-.14,.075,.095],[0,.047,-.075,.13,.12],[0,.047,.24,.11,.092],[0,.065,.435,.057,.06]],0x313d54));
     // The support contact remains (0,-.05,.18); shape the stock down to the
     // palm instead of moving an already calibrated hand rig to hide the gap.
     weaponHull(gun,'SM_Crossbow_PalmForeend_A',[[0,-.006,.11,.081,.064],[0,-.009,.18,.090,.082],[0,-.003,.28,.070,.060]],0x242b32);
@@ -111,15 +166,15 @@ export function makeHero(kind,weapon){
       for(let i=0;i<=10;i++){const t=i/10,c=curve.getPoint(t),a=curve.getTangent(t);rings.push([c.x,c.y,c.z,.054-.033*t,.025-.014*t]);directions.push(new T.Vector3(a.z,0,-a.x).normalize());}
       weaponHull(gun,'SM_Crossbow_RecurvedLimb_'+(s<0?'L':'R'),rings,0x687984,.64,directions);
       weaponLine(gun,'SM_Crossbow_LimbRidge_'+s,[[s*.07,.124,.441],[s*.20,.129,.455],[s*.33,.129,.426],[s*.426,.118,.374]],.0028,0xb2bec4,.72);
-      const tip=ell(gun,0xb4c6ca,[s*.44,.11,.36],[.019,.025,.021],.6);tip.name='SM_Crossbow_StringNock_'+s;
+      const tip=part(gun,'LatheGeometry',[[[0,-.025],[.014,-.025],[.019,-.020],[.019,-.011],[.012,-.006],[.012,.006],[.019,.011],[.019,.020],[.014,.025],[0,.025]].map(p=>new T.Vector2(...p)),12],0xb4c6ca,[s*.44,.11,.36],[1,1,1.05],.6);tip.name='SM_Crossbow_StringNock_'+s;tip.userData.identityDetail=true;
       const string=part(gun,'CylinderGeometry',[.003,.003,1,6],0x8e8d7e);string.name='SM_Crossbow_String_'+s;strings.push(string);
     }
     const latch=joint(gun,[0,0,-.30]);latch.name='SM_Crossbow_CockingSlide_A';
-    weaponHull(latch,'SM_Crossbow_Latch_A',[[0,.13,.263,.066,.025],[0,.134,.29,.072,.028],[0,.13,.31,.054,.021]],0x747e86,.66);
+    weaponHull(latch,'SM_Crossbow_Latch_A',[[0,.13,.263,.060,.021],[0,.131,.272,.068,.024],[0,.135,.278,.072,.026],[0,.135,.295,.072,.026],[0,.129,.300,.048,.015],[0,.129,.305,.048,.015],[0,.13,.31,.054,.021]],0x747e86,.66);
     weaponLine(latch,'SM_Crossbow_CockingTab_A',[[.02,.126,.29],[.059,.134,.29],[.073,.134,.29]],.008,0x9aabb6,.7);
     const bolt=new T.Group();bolt.name='SM_Crossbow_Bolt_A';gun.add(bolt);
     const shaft=part(bolt,'CylinderGeometry',[.009,.009,.53,8],0x99836b,[0,.16,.255]);shaft.rotation.x=Math.PI/2;shaft.name='SM_Crossbow_BoltShaft_A';
-    const arrow=part(bolt,'ConeGeometry',[.027,.13,4],0xc8d1d5,[0,.16,.57],[1,1,1],.78);arrow.rotation.x=Math.PI/2;arrow.name='SM_Crossbow_BoltHead_A';
+    weaponHull(bolt,'SM_Crossbow_BoltHead_A',[[0,.16,.505,.013,.012],[0,.16,.525,.048,.027],[0,.16,.546,.040,.020],[0,.16,.633,.001,.001]],0xc8d1d5,.78);
     for(const s of[-1,1])weaponHull(bolt,'SM_Crossbow_BoltFletching_'+s,[[s*.007,.16,.014,.007,.013],[s*.013,.16,.046,.007,.037],[s*.006,.16,.096,.005,.010]],0x718b98);
     gun.userData.crossbowStrings=strings;gun.userData.crossbowBolt=bolt;gun.userData.crossbowLatch=latch;gun.userData.stringPull=.30;
     const feather=[];for(const s of[-1,1])for(const [x,z]of[[.19,.449],[.29,.441]])feather.push([[s*(x-.024),.130,z+.010],[s*x,.132,z],[s*(x+.035),.130,z-.019]]);
@@ -130,7 +185,7 @@ export function makeHero(kind,weapon){
     part(gun,'TorusGeometry',[.095,.016,8,24],0x53627d,[0,0,.06],[1,1,1],.64).rotation.x=Math.PI/2;
     const bladeShape=new T.Shape();bladeShape.moveTo(-.068,-.12);bladeShape.quadraticCurveTo(-.11,.045,.035,.19);bladeShape.quadraticCurveTo(-.005,.055,.063,-.075);bladeShape.quadraticCurveTo(0,-.055,-.068,-.12);
     const blades=joint(gun,[0,0,.06]);blades.name='SM_Shuriken_CrescentAssembly';blades.scale.set(.612,1,.98);
-    for(let i=0;i<4;i++){const blade=part(blades,'ExtrudeGeometry',[bladeShape,{depth:.018,bevelEnabled:true,bevelSize:.005,bevelThickness:.004,bevelSegments:2,steps:1,curveSegments:10}],0xc4cddd,[Math.sin(i*Math.PI/2)*.18,-.009,Math.cos(i*Math.PI/2)*.18],[1,1,1],.76);blade.rotation.set(Math.PI/2,0,-i*Math.PI/2);blade.name='SM_Shuriken_MoonBlade_'+i;blade.userData.identityDetail=true;}
+    for(let i=0;i<4;i++){const blade=part(blades,'ExtrudeGeometry',[bladeShape,{depth:.018,bevelEnabled:true,bevelSize:.005,bevelThickness:.004,bevelSegments:2,steps:1,curveSegments:10}],0xc4cddd,[Math.sin(i*Math.PI/2)*.18,-.009,Math.cos(i*Math.PI/2)*.18],[1,1,1],.76);blade.rotation.set(Math.PI/2,0,-i*Math.PI/2);blade.name='SM_Shuriken_MoonBlade_'+i;blade.userData.identityDetail=true;refineMoonBlade(blade);}
   }else{
     const length=.69;
     gun.name='SM_Weapon_'+(weapon==='shotgun'?'RockbreakerShotgun':'RangerRepeater');
@@ -138,12 +193,13 @@ export function makeHero(kind,weapon){
     if(!materials.has('machined-bore'))materials.set('machined-bore',new T.MeshStandardMaterial({color:0x809097,vertexColors:true,metalness:.76,roughness:.32}));
     const barrel=(radius,size,pos,suffix)=>{const m=new T.Mesh(recessedBarrelGeometry(radius,size),materials.get('machined-bore'));m.position.set(...pos);m.name='SM_Firearm_RecessedBarrel_'+suffix;m.userData.identityDetail=true;m.castShadow=m.receiveShadow=true;gun.add(m);return m;};
     barrel(.036,.33,[0,.072,.545],'Main');
-    const grip=block(gun,0x5c4a3e,[0,-.065,.075],[.096,.21,.13]);grip.rotation.x=-.22;
+    const grip=woodFinish(weaponHull(gun,'SM_Firearm_ShapedGrip_'+weapon,[[0,0,-.10,.079,.109],[0,0,-.080,.096,.126],[0,0,-.040,.085,.119],[0,0,.038,.088,.122],[0,0,.10,.076,.114]],0x5c4a3e));grip.rotation.x=-Math.PI/2-.22;grip.position.set(0,-.065,.075);
     block(gun,trim,[.061,.072,.19],[.008,.032,.16],.8);block(gun,0x192831,[0,.169,.13],[.028,.044,.061]);
-    weaponHull(gun,'SM_Firearm_LeafwoodStock_'+weapon,[[0,.03,-.35,.088,.145],[0,.03,-.31,.115,.17],[0,.03,-.16,.115,.17],[0,.03,-.13,.085,.14]],0x6f5036);block(gun,dark,[0,-.098,.19],[.07,.18,.11]);
+    woodFinish(weaponHull(gun,'SM_Firearm_LeafwoodStock_'+weapon,[[0,.03,-.35,.088,.145],[0,.03,-.31,.115,.17],[0,.03,-.16,.115,.17],[0,.03,-.13,.085,.14]],0x6f5036));
+    weaponInlay(gun,'SM_Firearm_TriggerAssembly_'+weapon,[[[0,.005,.122],[0,-.081,.127],[0,-.102,.181],[0,-.077,.23],[0,.001,.244]],[[0,-.006,.159],[0,-.042,.16],[0,-.051,.182]]],0x687780,.006,.64);
     weaponInlay(gun,'SM_Firearm_LeafGrain_'+weapon,[[[0,.116,-.292],[.015,.117,-.25],[0,.116,-.193]],[[-.002,.117,-.272],[-.024,.117,-.25],[0,.117,-.227]]],0xb59868,.0018,.28);
-    if(weapon==='rifle'){tube(gun,dark,[0,.193,.21],[.045,.14,.045]).rotation.x=Math.PI/2;}
-    if(weapon==='shotgun'){barrel(.032,.43,[.075,.068,.47],'Side');const pump=joint(gun,[0,0,0]);for(let i=0;i<4;i++)block(pump,0x8c6e48,[0,.025,.28+i*.037],[.14,.08,.022]);gun.userData.pump=pump;}
+    if(weapon==='rifle'){tube(gun,dark,[0,.193,.21],[.045,.14,.045]).rotation.x=Math.PI/2;woodFinish(weaponHull(gun,'SM_Firearm_RiflePalmForeend',[[0,.002,.19,.062,.060],[0,.002,.24,.10,.085],[0,-.002,.34,.098,.086],[0,.001,.45,.069,.062]],0x6f5036));}
+    if(weapon==='shotgun'){barrel(.032,.43,[.075,.068,.47],'Side');const pump=joint(gun,[0,0,0]),rings=[[0,.020,.269,.108,.060]];for(let i=0;i<5;i++){const z=.278+i*.0255;rings.push([0,.0175,z,.140,.085],[0,.0175,z+.012,.140,.085],[0,.019,z+.020,.119,.067]);}rings.push([0,.022,.402,.106,.056]);woodFinish(weaponHull(pump,'SM_Firearm_ShotgunGroovedPump',rings,0x8c6e48));gun.userData.pump=pump;}
   }
   nameWeapon(gun,silver?'silver':'scout',weapon);
   return g;

@@ -1,9 +1,9 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
-import{mesh,mat}from'./world.js?v=183';
-import{naturalRockGeometry}from'./biome-scenery.js?v=183';
-import{polishEnvironmentModels,stoneSurfaceMaterial,wornStoneBlock}from'./environment-props.js?v=183';
-import{seeded,segmentDistance}from'./rules.js?v=183';
+import{mesh,mat}from'./world.js?v=184';
+import{naturalRockGeometry}from'./biome-scenery.js?v=184';
+import{polishEnvironmentModels,stoneSurfaceMaterial,wornStoneBlock}from'./environment-props.js?v=184';
+import{seeded,segmentDistance}from'./rules.js?v=184';
 
 // All new pieces share the existing scene geometry/material families. Bake the
 // few ruined structures into three opaque batches, with no extra lights or ticks.

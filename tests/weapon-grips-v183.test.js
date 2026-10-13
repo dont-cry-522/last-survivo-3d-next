@@ -19,15 +19,15 @@ function isolatedGrip(id,aimBlend=1){
 }
 const rotations=d=>[...d.bones.values()].flatMap(b=>b.quaternion.toArray());
 
-test('the ten other live weapons retain their v182 finger poses exactly',()=>{
+test('the v183 pouch, pod and lantern grips remain unchanged by the following weapon pass',()=>{
  const samples=[];
- // Also retain the dormant hammer pose; the digest was captured from v182,
- // before the pouch/cup/hook changes, at full and partial aiming weights.
- for(const id of['rifle','shotgun','crossbow','shuriken','fire','dark','shade','shadowblade','grimoire','harpoon','hammer'])for(const blend of[.4,1]){
+ // v184 deliberately refines the other ten weapons. Preserve the three accepted
+ // v183 hand poses (and the dormant hammer) at full/partial aiming weights.
+ for(const id of['boomerang','sporelantern','miasmalantern','hammer'])for(const blend of[.4,1]){
   const d=isolatedGrip(id,blend);poseGripFingers(d,{kick:.4,open:.7});
   for(const[key,bone]of d.bones)samples.push([id,blend,key,...bone.quaternion.toArray().map(n=>+n.toFixed(12))]);
  }
- assert.equal(createHash('sha256').update(JSON.stringify(samples)).digest('hex'),'6ac11c43e009082275a1ed9e81b58b6da4d543a8ed3ddec0c487f2bf65397fa6');
+ assert.equal(createHash('sha256').update(JSON.stringify(samples)).digest('hex'),'0297b000f2655e68a468096c2ab53aacd741397cd09d13acf9063b817c4ae040');
 });
 
 test('a held pod stays cupped through anticipation, then thumb and fingers release and recover together',()=>{

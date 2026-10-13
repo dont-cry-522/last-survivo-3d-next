@@ -17,6 +17,32 @@ import {POISON} from '../poison-config.js';
 function weapon(id){return ['shade','shadowblade','grimoire'].includes(id)?shadowFocus(id):id==='miasmalantern'?miasmaLantern():id==='sporelantern'?sporeLantern():id==='boomerang'?makeSlingshot():id==='harpoon'?makeHarpoon():makeHero(['crossbow','shuriken','dark'].includes(id)?'silver':'scout',id).userData.weapon;}
 const hero=gun=>({visible:false,userData:{gun}});
 
+test('firearm trigger squeeze leaves the supporting fingers fixed and pauses with the game',()=>{
+ const view=new FirstPersonView(new T.PerspectiveCamera(70,16/9,.1,100));
+ try{for(const id of ['rifle','shotgun','crossbow']){
+  const actor=hero(weapon(id));view.setHero(actor,id);Object.assign(actor.userData,{attackAge:10,reloadPhase:1,reloadDuration:1});view.update(1,1/60,{visible:true});
+  const g=view.hands[0].geometry,p=g.attributes.position,m=g.morphAttributes.position[1];assert(m);let changed=0;
+  for(let i=0;i<p.count;i++)if(new T.Vector3().fromBufferAttribute(p,i).distanceTo(new T.Vector3().fromBufferAttribute(m,i))>1e-8)changed++;
+  assert(changed>0&&changed<p.count*.12,'trigger squeeze moves the whole palm or does nothing');
+  assert.equal(view.hands[0].morphTargetInfluences[1],0);Object.assign(actor.userData,{attackAge:.02,reloadPhase:.02});view.update(1.02,1/60,{visible:true});assert(view.hands[0].morphTargetInfluences[1]>.1);
+  const pose=view.hands[0].morphTargetInfluences.slice();Object.assign(actor.userData,{attackAge:10,reloadPhase:1});view.update(30,0,{visible:true});assert.deepEqual(view.hands[0].morphTargetInfluences,pose);
+  view.update(30,1/60,{visible:true});assert.equal(view.hands[0].morphTargetInfluences[1],0);
+ }}finally{view.dispose();}
+});
+
+test('all ten remaining weapon hand poses retain finite shared topology and release their owned buffers',()=>{
+ const camera=new T.PerspectiveCamera(70,16/9,.1,100),view=new FirstPersonView(camera),contact=new T.Vector3(0,.045,-.023);
+ try{for(const id of ['rifle','shotgun','fire','crossbow','shuriken','dark','shade','shadowblade','grimoire','harpoon']){
+  const actor=hero(weapon(id));view.setHero(actor,id);Object.assign(actor.userData,{reloadDuration:1,shotSerial:1});const owned=new Set(view.hands.map(h=>h.geometry));let disposed=0;for(const g of owned)g.addEventListener('dispose',()=>disposed++);
+  for(const aspect of [16/9,844/390,390/844])for(const age of [0,.02,.08,.15,.28,.5,.8,1]){
+   camera.aspect=aspect;camera.updateProjectionMatrix();Object.assign(actor.userData,{attackAge:age,reloadPhase:age});view.update(age+.1,1/60,{visible:true,pitch:.8});camera.updateMatrixWorld(true);
+   assert(contact.clone().applyMatrix4(view.hands[0].matrixWorld).distanceTo(view.grip.clone().applyMatrix4(view.weapon.matrixWorld))<1e-6,id+' rear hand loses contact');
+   for(const h of view.hands){assert(h.position.toArray().every(Number.isFinite));assert(h.morphTargetInfluences.every(v=>Number.isFinite(v)&&v>=0&&v<=1));const g=h.geometry;for(const m of g.morphAttributes.position){assert.equal(m.count,g.attributes.position.count);assert([...m.array].every(Number.isFinite));}}
+  }
+  view.clear();assert.equal(disposed,owned.size,id+' leaks first person hand geometry');
+ }}finally{view.dispose();}
+});
+
 test('the herbalist throws one shared seed pod with her left hand while the lantern stays carried',()=>{
  const camera=new T.PerspectiveCamera(60,16/9,.1,100),view=new FirstPersonView(camera),actor=hero(sporeLantern()),pod=sporePod();actor.userData.sporePod=pod;
  try{
@@ -402,7 +428,9 @@ test('close equipment adds bounded real structure across firearms, thrown blades
   view.setHero(hero(gun),id);view.update(1,.016,{visible:true});
   const changed=view.parts.filter(([source,clone])=>source.isMesh&&source.geometry!==clone.geometry),names=view.ownedGeometry.map(g=>g.name).join(' ');
   if(['rifle','shotgun'].includes(id)){
-   assert(changed.length>=5,'old firearm fittings were left as cuboids');assert.match(names,/shaped-firearm/);
+   for(const name of ['SM_Firearm_ShapedGrip_'+id,id==='rifle'?'SM_Firearm_RiflePalmForeend':'SM_Firearm_ShotgunGroovedPump']){
+    const pair=view.parts.find(([s])=>s.name===name);assert(pair,'missing formed contact surface: '+name);assert.equal(pair[0].geometry,pair[1].geometry,'first person discarded the shared grip surface');assert(pair[0].geometry.attributes.position.count>24);
+   }
    const stock=view.parts.find(([s])=>s.name==='SM_Firearm_LeafwoodStock_'+id);assert(stock&&stock[0].geometry===stock[1].geometry);assert(stock[0].geometry.attributes.position.count>24,'shared stock has no tapered structure');
    const wood=stock[1].material,metal=view.parts.find(([s])=>s.material?.color?.getHex()===0x88948d)[1].material;
    assert(wood.roughness>metal.roughness+.25);assert(metal.metalness>wood.metalness+.5);
@@ -411,10 +439,10 @@ test('close equipment adds bounded real structure across firearms, thrown blades
   else if(['fire','dark'].includes(id)){assert.match(names,/wrapped-staff-inlay/);assert.equal(view.charged.length,1);}
   else if(id==='grimoire'){
    const pages=view.parts.filter(([s])=>s.name.startsWith('SM_Grimoire_AshenPages_'));assert.equal(pages.length,2);for(const [source,node]of pages){assert.equal(node.geometry,source.geometry);assert.equal(source.geometry.name,'SM_Grimoire_BoundPageLayers');assert(source.geometry.attributes.position.count>200,'book lost its real page layers');}assert.match(names,/turning-page/);assert.match(names,/book-corners-and-script/);
-   const ink=changed.filter(([,n])=>n.geometry.name==='First_person_fine-incantation');assert.equal(ink.length,6);
+   const ink=view.parts.filter(([s])=>s.name.startsWith('SM_Grimoire_BoundPageScript_'));assert.equal(ink.length,2);
    for(const [source,node]of ink){
     assert.equal(source.material.color.getHex(),SHADOW_PALETTE.lining,'third-person ink lost its shadow colour');assert(node.material.color.equals(source.material.color),'first-person ink overrides the real weapon palette');assert(Math.max(...node.material.color.toArray())<.15,'page ink is still a bright glow');assert.equal(node.material.toneMapped,true);
-    node.geometry.computeBoundingBox();assert(node.geometry.boundingBox.max.y-node.geometry.boundingBox.min.y<1e-6,'ink floats in a raised tube above the page');assert(node.geometry.index.count<=18);
+    assert.equal(node.geometry,source.geometry,'camera overlay discards the shared paper ink');node.geometry.computeBoundingBox();assert(node.geometry.boundingBox.max.y-node.geometry.boundingBox.min.y<.012,'ink floats in a raised tube above the page');
    }
   }else{
    assert.match(names,/lantern-rivets/);assert.doesNotMatch(names,/lantern-core-filaments/);

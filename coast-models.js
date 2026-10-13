@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=183';
+import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=184';
 const geometries=new Map(),materials=new Map();
 function part(p,color,pos,size,type='sphere',glow=false){
  if(!geometries.has(type))geometries.set(type,type==='rock'?new T.DodecahedronGeometry(1,1):type==='box'?new T.BoxGeometry(2,2,2):type==='cone'?new T.ConeGeometry(1,2,12):type==='barrel'?new T.CylinderGeometry(.88,1,2,10):type==='hoop'?new T.TorusGeometry(1,.055,5,12):new T.SphereGeometry(1,16,12));
@@ -55,21 +55,50 @@ export function coastProp(parent,index,rnd){
 }
 // Smooth shaft and forged, swept tines keep the silhouette readable without white blocks.
 let harpoonTemplate;
+function harpoonBinding(height,turns){
+ const geo=new T.CylinderGeometry(.034,.034,height,12,turns*3),p=geo.attributes.position,colors=[],base=new T.Color(0x294e5b),seam=new T.Color(0x152e37),worn=new T.Color(0x718984),color=new T.Color();
+ for(let i=0;i<p.count;i++){
+  const x=p.getX(i),z=p.getZ(i),v=(p.getY(i)/height+.5),angle=Math.atan2(z,x),phase=T.MathUtils.euclideanModulo(v*turns-angle/(Math.PI*2),1);
+  const rim=T.MathUtils.smoothstep(phase,.68,.87)*(1-T.MathUtils.smoothstep(phase,.93,1)),end=T.MathUtils.smoothstep(v,0,.035)*(1-T.MathUtils.smoothstep(v,.965,1)),r=Math.hypot(x,z);
+  if(r>.01){const radius=(.030+.004*end)+.002*rim*end;p.setX(i,x/r*radius);p.setZ(i,z/r*radius);}
+  color.copy(base).lerp(seam,T.MathUtils.smoothstep(phase,.90,1)*.68).lerp(worn,rim*.32);colors.push(color.r,color.g,color.b);
+ }
+ geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));geo.computeVertexNormals();geo.name='SM_Harpoon_ContinuousSailclothBinding';return geo;
+}
+function harpoonSocket(){
+ // A single rebated sleeve receives both the wooden haft and the forged fork;
+ // the shoulder is integral metal, not another disconnected decorative ring.
+ const profile=[[0,-.07],[.033,-.07],[.036,-.060],[.036,-.035],[.043,-.026],[.043,.015],[.034,.025],[.033,.07],[0,.07]];
+ const geo=new T.LatheGeometry(profile.map(p=>new T.Vector2(...p)),12);geo.name='SM_Harpoon_RebatedForkSocket';return geo;
+}
 export function makeHarpoon(){
  if(harpoonTemplate)return harpoonTemplate.clone();
- const g=new T.Group(),wood=new T.MeshStandardMaterial({color:0x655644,roughness:.78}),steel=new T.MeshStandardMaterial({color:0x567d86,metalness:.46,roughness:.39}),edge=new T.MeshStandardMaterial({color:0xb2c6c5,metalness:.62,roughness:.38}),brass=new T.MeshStandardMaterial({color:0x96794f,metalness:.55,roughness:.52}),wrap=new T.MeshStandardMaterial({color:0x294e5b,roughness:.92});
+ const g=new T.Group(),wood=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.78}),steel=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,metalness:.64,roughness:.36}),edge=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,metalness:.70,roughness:.31}),socketMetal=new T.MeshStandardMaterial({color:0x617781,metalness:.65,roughness:.43}),brass=new T.MeshStandardMaterial({color:0x887354,metalness:.55,roughness:.52}),wrap=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.92});
  const cylinder=(r,h,z,m)=>{const o=new T.Mesh(new T.CylinderGeometry(r,r,h,12),m);o.rotation.x=Math.PI/2;o.position.z=z;g.add(o);return o;};
- cylinder(.029,2.16,.33,wood);cylinder(.034,.54,-.08,wrap);for(let i=0;i<8;i++)cylinder(.037,.012,-.31+i*.065,brass);cylinder(.034,.30,.34,wrap);for(let i=0;i<5;i++)cylinder(.036,.010,.21+i*.065,brass);cylinder(.043,.14,1.32,brass);cylinder(.038,.10,-.73,brass);
+ const shaft=cylinder(.029,2.16,.33,wood);shaft.name='SM_Harpoon_SaltedWoodHaft';shaft.userData.identityDetail=true;
+ const positions=shaft.geometry.attributes.position,grain=[],woodDark=new T.Color(0x473f36),woodLight=new T.Color(0x82725a),tint=new T.Color();
+ for(let i=0;i<positions.count;i++){const a=Math.atan2(positions.getZ(i),positions.getX(i)),fiber=.5+.5*Math.sin(a*7+positions.getY(i)*1.7);tint.copy(woodDark).lerp(woodLight,.25+fiber*.48);grain.push(tint.r,tint.g,tint.b);}
+ shaft.geometry.setAttribute('color',new T.Float32BufferAttribute(grain,3));
+ for(const [index,height,z,turns]of[[0,.54,-.08,8],[1,.30,.34,5]]){
+  const grip=new T.Mesh(harpoonBinding(height,turns),wrap);grip.rotation.x=Math.PI/2;grip.position.z=z;grip.name='SM_Harpoon_SailclothGrip_'+index;grip.userData.identityDetail=true;g.add(grip);
+ }
+ const socket=new T.Mesh(harpoonSocket(),socketMetal);socket.rotation.x=Math.PI/2;socket.position.z=1.32;socket.name='SM_Harpoon_ForkSocket';socket.userData.identityDetail=true;g.add(socket);
+ const heel=cylinder(.038,.10,-.73,brass);heel.name='SM_Harpoon_ClosedHeel';heel.userData.identityDetail=true;
  const blade=(points,x,z,m,name)=>{
   const shape=new T.Shape(),tip=Math.max(...points.map(p=>p[1])),last=points.at(-1),first=points[0];shape.moveTo((last[0]+first[0])*.5,(last[1]+first[1])*.5);
   for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];if(a[1]===tip){shape.lineTo(...a);shape.lineTo((a[0]+b[0])*.5,(a[1]+b[1])*.5);}else shape.quadraticCurveTo(...a,(a[0]+b[0])*.5,(a[1]+b[1])*.5);}
   shape.closePath();const geo=new T.ExtrudeGeometry(shape,{depth:.024,bevelEnabled:true,bevelThickness:.007,bevelSize:.006,bevelSegments:2,steps:1,curveSegments:4});geo.translate(0,0,-.012);
-  const p=geo.attributes.position;for(let i=0;i<p.count;i++){const towardTip=T.MathUtils.smoothstep(p.getY(i),tip*.50,tip);p.setZ(i,p.getZ(i)*(1-.78*towardTip));}
+  const p=geo.attributes.position,colors=[],body=new T.Color(m===edge?0x738e93:0x3c626e),ground=new T.Color(0xc8d6d1),tint=new T.Color();
+  for(let i=0;i<p.count;i++){
+   const towardTip=T.MathUtils.smoothstep(p.getY(i),tip*.50,tip),bevel=1-T.MathUtils.smoothstep(Math.abs(p.getZ(i)),.0115,.019);
+   p.setZ(i,p.getZ(i)*(1-.78*towardTip));tint.copy(body).lerp(ground,Math.max(bevel*.83,towardTip*.7));colors.push(tint.r,tint.g,tint.b);
+  }
+  geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));
   geo.rotateX(Math.PI/2);geo.computeVertexNormals();geo.name=name;const o=new T.Mesh(geo,m);o.name=name;o.userData.identityDetail=true;o.position.set(x,0,z);o.scale.x=.78;g.add(o);return o;
  };
  blade([[-.042,0],[-.058,.14],[0,.39],[.058,.14],[.042,0]],0,1.36,edge,'SM_Harpoon_CentralGroundPoint');
  for(const side of[-1,1])blade([[0,0],[side*.12,.075],[side*.16,.24],[side*.13,.42],[side*.09,.25],[side*.06,.14],[-side*.015,.07]],0,1.20,steel,'SM_Harpoon_CurvedTine_'+side);
- const spine=new T.Mesh(new T.CylinderGeometry(.008,.016,.22,8),steel);spine.rotation.x=Math.PI/2;spine.position.set(0,.024,1.51);g.add(spine);
+ const spine=new T.Mesh(new T.CylinderGeometry(.008,.016,.22,8),socketMetal);spine.rotation.x=Math.PI/2;spine.position.set(0,.024,1.51);spine.name='SM_Harpoon_ForgedCentralRidge';spine.userData.identityDetail=true;g.add(spine);
  weaponInlay(g,'SM_Harpoon_TidalNeckEngraving',[[[-.018,.024,1.385],[-.028,.024,1.425],[-.012,.024,1.46]],[[.014,.024,1.405],[.031,.024,1.45],[.011,.024,1.492]]],0xbba477,.0023,.40);
  g.name='Tide_forged_harpoon';nameWeapon(g,'tide','harpoon');g.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true;});harpoonTemplate=g;return g.clone();
 }

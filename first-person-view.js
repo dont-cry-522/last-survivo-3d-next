@@ -1,12 +1,12 @@
-import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=183';
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=184';
 import * as T from './vendor/three.module.js';
-import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=183';
-import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=183';
-import {sporePod} from './wuling-appearance.js?v=183';
+import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=184';
+import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=184';
+import {sporePod} from './wuling-appearance.js?v=184';
 import {poseSlingshot} from './slingshot-model.js';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=183';
+import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=184';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
@@ -36,7 +36,7 @@ const CONTACT=new T.Vector3(0,.045,-.023),UP=new T.Vector3(0,1,0);
 const DODGE_POSES={roll:[.50,-.18,.18,-.04],blink:[.25,-.05,.07,-.08],dive:[.80,-.34,.07,-.10],hop:[.26,-.09,.12,-.025],mist:[.38,-.13,.07,-.05]};
 function colored(geometry,color){const c=new T.Color(color),p=geometry.attributes.position,values=[];for(let i=0;i<p.count;i++)values.push(c.r,c.g,c.b);geometry.setAttribute('color',new T.Float32BufferAttribute(values,3));geometry.deleteAttribute('uv');return geometry;}
 function handGeometry(palette,fingerless,grip='handle'){
- const make=open=>{
+ const make=(open,trigger=false)=>{
   const parts=[];
   // Palm, heel of thumb and knuckle web overlap into a solid glove instead of five hollow loops.
   for(const [scale,position]of[[[.036,.046,.021],[0,.003,0]],[[.027,.028,.018],[0,.019,-.014]],[[.016,.025,.017],[-.026,0,-.006]],[[.032,.012,.013],[0,.036,-.003]]]){
@@ -61,6 +61,15 @@ function handGeometry(palette,fingerless,grip='handle'){
    }else if(!open&&grip==='hook'){
     if(finger===4)points=[[-.028,-.013,0],[-.039,.011,-.017],[-.027,.036,-.029],[-.013,.034,-.033]];
     else{const x=(-1.5+finger)*.0165,drop=finger===3?.006:0;points=[[x,.028,0],[x,.066-drop,-.003],[x,.066-drop,-.025],[x,.042-drop,-.039]];}
+   }else if(!open&&grip==='trigger'){
+    // Only the index squeezes: the other fingers stay wrapped around the stock.
+    if(finger===0)points=[[-.02475,.028,0],[-.030,.065,-.006],[-.022,.071,-.026],[-.010,.056-(trigger?.007:0),-.038+(trigger?.006:0)]];
+   }else if(!open&&['shaft','guide'].includes(grip)){
+    if(finger===4)points=[[-.028,-.013,0],[-.039,.008,-.018],[-.028,.036,-.038],[-.014,.035,-.041]];
+    else{const x=(-1.5+finger)*.0165,drop=finger*.003,guide=grip==='guide'?.004:0;points=[[x,.028,0],[x,.057-drop,-.004],[x,.059-drop+guide,-.027],[x,.034-drop+guide,-.043]];}
+   }else if(!open&&['cast','read'].includes(grip)){
+    if(finger===4)points=[[-.028,-.013,0],[-.044,.010,-.012],[-.047,.029,-.026],[-.037,.039,-.035]];
+    else{const x=(-1.5+finger)*.0165,l=[.045,.055,.050,.036][finger],splay=(finger-1.5)*.003;points=[[x,.028,0],[x+splay,.028+l*.50,-.009],[x+splay,.028+l*.85,-.023],[x+splay*.8,.028+l*(grip==='read'?.95:.65),-.031]];}
    }
    const g=new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),8,radius,7,false);colored(g,palette[1]);
    if(fingerless){const c=new T.Color(palette[3]),colors=g.attributes.color;for(let i=5*8;i<colors.count;i++)colors.setXYZ(i,c.r,c.g,c.b);}
@@ -68,7 +77,9 @@ function handGeometry(palette,fingerless,grip='handle'){
   }
   const merged=mergeGeometries(parts,false);parts.forEach(g=>g.dispose());return merged;
  };
- const closed=make(false),open=make(true);closed.name='SM_Hand_'+grip;closed.morphAttributes.position=[open.attributes.position];closed.morphAttributes.normal=[open.attributes.normal];closed.computeBoundingSphere();open.dispose();return closed;
+ const closed=make(false),open=make(true);closed.name='SM_Hand_'+grip;closed.morphAttributes.position=[open.attributes.position];closed.morphAttributes.normal=[open.attributes.normal];
+ if(grip==='trigger'){const squeezed=make(false,true);closed.morphAttributes.position.push(squeezed.attributes.position);closed.morphAttributes.normal.push(squeezed.attributes.normal);squeezed.dispose();}
+ closed.computeBoundingSphere();open.dispose();return closed;
 }
 // Same elbow/wrist endpoints as the existing hand rig; only the fabric between
 // them differs. Cut, fold and cuff profiles make identity visible in first person.
@@ -256,7 +267,8 @@ export class FirstPersonView {
   const inferred=['shade','shadowblade','grimoire'].includes(weaponId)?'wraith':weaponId==='miasmalantern'?'mirage':weaponId==='sporelantern'?'wuling':weaponId==='boomerang'?'lingya':weaponId==='harpoon'?'tide':['crossbow','shuriken','dark'].includes(weaponId)?'silver':'scout';
   this.kind=hero.userData.kind||inferred;const palette=PALETTES[this.kind]||PALETTES.scout;
   const fingerless=['scout','lingya','tide','wuling'].includes(this.kind),lamp=this.profile.type==='lamp';
-  const hand=handGeometry(palette,fingerless,lamp?'hook':'handle'),supportGrip=weaponId==='boomerang'?'pinch':weaponId==='sporelantern'?'cup':lamp?'handle':null;
+  const type=this.profile.type,rightGrip=lamp?'hook':['gun','bow'].includes(type)?'trigger':['staff','scythe','thrust'].includes(type)?'shaft':type==='throw'?'pinch':type==='book'?'read':type==='palm'?'cast':'handle';
+  const hand=handGeometry(palette,fingerless,rightGrip),supportGrip=weaponId==='boomerang'?'pinch':weaponId==='sporelantern'?'cup':lamp?'handle':type==='gun'||type==='bow'||type==='scythe'||type==='thrust'?'guide':type==='book'?'read':type==='staff'?'cast':null;
   const supportHand=supportGrip?handGeometry(palette,fingerless,supportGrip):hand,sleeve=sleeveGeometry(palette,this.kind);this.ownedGeometry.push(hand,sleeve);if(supportHand!==hand)this.ownedGeometry.push(supportHand);
   const cloth=new T.MeshStandardMaterial({vertexColors:true,roughness:.9,fog:false}),glove=new T.MeshStandardMaterial({vertexColors:true,roughness:.67,metalness:.015,fog:false});this.materials.set(cloth,cloth);this.materials.set(glove,glove);
   if(this.kind==='wraith'){finishShadowTone(cloth);finishShadowTone(glove);}
@@ -412,6 +424,8 @@ export class FirstPersonView {
    if(i&&id==='boomerang')hand.rotation.set(-.55+.10*motion.open,-.28,.48-.12*motion.open);
    if(profile.type==='palm'&&!i)hand.rotation.set(-.52-.14*motion.gather+.07*kick,.10-.15*motion.gather,-.08+.14*kick);
    if(profile.type==='palm'&&i)hand.rotation.set(-.50-.10*motion.gather,-.20,.18-.12*motion.gather);
+   if(profile.type==='staff'&&i)hand.rotation.set(-.52-(id==='fire'?.12:.22)*motion.gather,-.20+(id==='fire'?.12:-.14)*kick,.18+(id==='fire'?-.10:.10)*kick);
+   if(profile.type==='book')hand.rotation.x-=.045*motion.sweep;
    if(!i&&(profile.type==='lamp'||id==='boomerang')){
     // Follow the handle's rotation delta, retaining the calibrated resting palm.
     this.restRotation.setFromEuler(new T.Euler(profile.pitch,Math.PI-.045,0)).invert();this.handRotation.copy(this.weapon.quaternion).multiply(this.restRotation);hand.quaternion.premultiply(this.handRotation);
@@ -424,6 +438,9 @@ export class FirstPersonView {
    if(i&&id==='sporelantern')hand.morphTargetInfluences[0]=.92*motion.open;
    if(id==='boomerang')hand.morphTargetInfluences[0]=i?.80*motion.open:0;
    if(profile.type==='palm')hand.morphTargetInfluences[0]=i?.82-.20*motion.gather:.88-.19*motion.gather+.07*kick;
+   if(hand.morphTargetInfluences.length>1)hand.morphTargetInfluences[1]=kick*.85;
+   if(profile.type==='staff'&&i)hand.morphTargetInfluences[0]=id==='fire'?.62+.30*kick-.14*motion.gather:.50+.17*kick-.23*motion.gather;
+   if(profile.type==='book')hand.morphTargetInfluences[0]=i?.56+.08*motion.sweep:.34+.07*motion.gather;
    // The arms remain after a thrown weapon leaves the hand; only the source weapon is hidden.
    hand.visible=arm.visible=true;
    this.wrist.set(0,-.038,0).multiply(hand.scale).applyQuaternion(hand.quaternion).add(hand.position);

@@ -1,4 +1,5 @@
 import * as T from './vendor/three.module.js';
+import {crossbowMechanism} from './weapon-performance.js?v=184';
 
 // Weapon-space contact points: the wrapped handle, not the model's origin.
 export const GRIP_POINTS={shade:[0,0,0],shadowblade:[0,-.035,.02],grimoire:[0,0,0],miasmalantern:[0,.015,0],sporelantern:[0,.015,0],rifle:[0,-.065,.075],shotgun:[0,-.065,.075],crossbow:[0,-.08,.01],fire:[0,0,.045],dark:[0,0,.045],shuriken:[-.07,0,.06],boomerang:[0,-.13,0],harpoon:[0,0,-.08],hammer:[0,.015,0]};
@@ -16,6 +17,20 @@ const fingerBase={l:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Mat
 const lanternHook={index:[.78,1.24,.86],middle:[.88,1.22,.84],ring:[.98,1.16,.78],pinky:[1.04,1.08,.70]};
 const pouchPinch={index:[.95,1.18,.70],middle:[.58,.78,.48],ring:[.72,.88,.54],pinky:[.84,.96,.60]};
 const podCup={index:[.62,.74,.44],middle:[.66,.78,.46],ring:[.72,.80,.48],pinky:[.82,.86,.52]};
+const handleWrap={index:[1.04,1.12,.70],middle:[1.10,1.16,.76],ring:[1.15,1.13,.74],pinky:[1.20,1.10,.68]};
+const stockCradle={index:[.88,.96,.56],middle:[.94,1.04,.62],ring:[1.02,1.08,.66],pinky:[1.08,1.10,.64]};
+const pumpWrap={index:[.94,1.04,.66],middle:[1.04,1.12,.72],ring:[1.10,1.16,.76],pinky:[1.14,1.12,.68]};
+const shaftBrace={index:[.92,1.12,.70],middle:[1.04,1.18,.78],ring:[1.12,1.18,.76],pinky:[1.16,1.10,.70]};
+const shaftGuide={index:[.72,.92,.52],middle:[.86,1.02,.64],ring:[.96,1.08,.68],pinky:[1.06,1.08,.64]};
+const staffWrap={index:[.94,1.06,.64],middle:[1.04,1.14,.74],ring:[1.12,1.16,.76],pinky:[1.18,1.10,.68]};
+const dartPinch={index:[.76,.88,.52],middle:[.92,1.04,.64],ring:[1.04,1.12,.72],pinky:[1.14,1.12,.72]};
+const fireGuide={index:[.16,.18,.10],middle:[.22,.22,.12],ring:[.28,.26,.15],pinky:[.34,.28,.18]};
+const darkGuide={index:[.34,.36,.22],middle:[.48,.44,.26],ring:[.58,.48,.28],pinky:[.66,.50,.30]};
+const shadowGuide={index:[.18,.23,.14],middle:[.30,.30,.18],ring:[.40,.36,.22],pinky:[.46,.39,.24]};
+const bookSupport={index:[.20,.26,.16],middle:[.27,.31,.19],ring:[.34,.34,.22],pinky:[.40,.38,.24]};
+const bookRead={index:[.12,.16,.09],middle:[.44,.46,.28],ring:[.52,.48,.30],pinky:[.60,.52,.32]};
+const fingerOrder={index:0,middle:1,ring:2,pinky:3};
+const fingerSpread={fire:[-.10,-.025,.055,.14],dark:[-.06,-.02,.04,.10],shade:[-.15,-.035,.06,.17],grimoire:[-.06,-.01,.045,.095]};
 export function primaryGripFrame(id){return(id==='harpoon'?underhand:id==='shuriken'?sideways:upright).clone();}
 
 export function fitWeaponToPalm(weapon,point,side='r'){
@@ -57,16 +72,27 @@ export function aimSupportGrip(d,blend){orient(d.support.hand,d.handGrips.suppor
 
 export function poseGripFingers(d,motion={}){
   const id=d.weaponId,h=d.handGrips,hasSupport=['rifle','shotgun','crossbow','harpoon','hammer','shadowblade','boomerang'].includes(id);
-  const lantern=id==='sporelantern'||id==='miasmalantern';
+  const lantern=id==='sporelantern'||id==='miasmalantern',caster=['fire','dark','shade','grimoire'].includes(id),gun=['rifle','shotgun','crossbow'].includes(id),pole=id==='harpoon'||id==='shadowblade';
+  const kick=motion.kick||0,gather=motion.gather||0,latch=id==='crossbow'?crossbowMechanism(d.reloadPhase??1).hand:0;
   const released=id==='shuriken'?(motion.kick||0):0;
   for(const {bone,side,name,i}of h.fingers){
-    if(side==='l'&&!hasSupport&&id!=='sporelantern')continue;
+    if(side==='l'&&!hasSupport&&id!=='sporelantern'&&!caster)continue;
     const release=side==='r'?released:id==='boomerang'||id==='sporelantern'?(motion.open||0):0;
-    const trigger=side==='r'&&['rifle','shotgun','crossbow'].includes(id)&&name==='index';
-    const profile=side==='r'&&lantern?lanternHook[name]:side==='l'&&id==='boomerang'?pouchPinch[name]:side==='l'&&id==='sporelantern'?podCup[name]:null;
-    const curl=(profile||(id==='shade'?[.22,.30,.22]:id==='grimoire'?[.30,.36,.24]:trigger?[.36,.64,.45]:id==='harpoon'?[1.02,1.08,.70]:[1.22,1.18,.76]))[i-1]*(1-release*.84);
+    const trigger=side==='r'&&gun&&name==='index';
+    const profile=side==='r'&&lantern?lanternHook[name]:side==='l'&&id==='boomerang'?pouchPinch[name]:side==='l'&&id==='sporelantern'?podCup[name]:
+      gun?(side==='r'?handleWrap: id==='shotgun'?pumpWrap:stockCradle)[name]:pole?(side==='r'?shaftBrace:shaftGuide)[name]:
+      id==='shade'?shadowGuide[name]:id==='grimoire'?(side==='r'?bookSupport:bookRead)[name]:
+      id==='fire'||id==='dark'?(side==='r'?staffWrap:id==='fire'?fireGuide:darkGuide)[name]:side==='r'&&id==='shuriken'?dartPinch[name]:null;
+    let curl=(trigger?([.28,.54,.32][i-1]+[.10,.16,.12][i-1]*kick):profile?profile[i-1]:[1.22,1.18,.76][i-1])*(1-release*.84);
+    // The left index hooks the cocking slide; it returns to supporting the stock.
+    // Pump and pole fingers brace a little at load, without sliding either palm.
+    if(side==='l'&&id==='crossbow')curl=T.MathUtils.lerp(curl,(name==='index'?[.72,1.18,.72]:[.57,.70,.43])[i-1],latch);
+    if(side==='l'&&id==='shotgun')curl+=(motion.draw||0)*.055;
+    if(pole)curl+=kick*(side==='r'?.065:.035);
+    if(caster&&(side==='l'||id==='shade'))curl*=id==='dark'?1+.20*gather-.20*kick:1-.32*kick;
     h.scratch.setFromAxisAngle(h.offset.set(1,0,0),curl);
     if(i===1)h.scratch.premultiply(fingerBase[side]);
+    if(i===1&&caster&&(side==='l'||id==='shade'||id==='grimoire'))h.scratch.multiply(h.inverse.setFromAxisAngle(h.offset.set(0,0,1),fingerSpread[id][fingerOrder[name]]*(side==='l'?1:-1)*(.65+.35*kick)));
     bone.quaternion.slerp(h.scratch,side==='l'&&id!=='hammer'?d.aimBlend:1);
   }
   for(const {bone,side,i,q}of h.thumb){
@@ -75,6 +101,9 @@ export function poseGripFingers(d,motion={}){
       // same shot clock. Work from the saved authored pose, never accumulated rotations.
       h.scratch.setFromAxisAngle(h.offset.set(1,0,0),-(motion.open||0)*(i===1?.28:i===2?.48:.32)).premultiply(q);
       bone.quaternion.slerp(h.scratch,d.aimBlend);
+    }else if(side==='l'&&id==='crossbow'||caster&&(side==='l'||id==='shade'||id==='grimoire')){
+      const loosen=side==='l'&&id==='crossbow'?latch*.18:((id==='dark'?.10:.18)+kick*.10)*(i===1?1:.7);
+      h.scratch.setFromAxisAngle(h.offset.set(1,0,0),-loosen).premultiply(q);bone.quaternion.slerp(h.scratch,side==='r'?1:d.aimBlend);
     }else if(side==='r'||hasSupport)bone.quaternion.slerp(q,side==='r'?1-released*.8:id==='hammer'?1:d.aimBlend);
   }
 }

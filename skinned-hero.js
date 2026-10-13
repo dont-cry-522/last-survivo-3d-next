@@ -1,28 +1,28 @@
-import {createShadowAura,updateShadowAura,disposeShadowAura} from './shadow-aura.js?v=182';
-import {shadowOutfit,shadowAccessories,finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=182';
-import {shadowFocus} from './shadow-gear.js?v=182';
-import {GRIP_POINTS,SCYTHE_SUPPORT,primaryGripFrame,fitWeaponToPalm,createHandGrips,restoreGripWrists,captureGripWrists,aimGrip,supportGripTarget,aimSupportGrip,poseGripFingers} from './weapon-grips.js?v=182';
-import {refineLingyaFace} from './lingya-face.js?v=182';
-import {createLingyaHair,animateLingyaHair} from './lingya-hair.js?v=182';
-import {finishHeroSurface,smoothSeams,prepareSilverHair,animateSilverHair} from './hero-finish.js?v=182';
-import {rebuildRanger} from './ranger-rebuild.js?v=182';
-import {rebuildShadowTide} from './shadow-tide-rebuild.js?v=182';
-import {rebuildWildMist} from './wild-mist-rebuild.js?v=182';
-import {applyHeroIdentity,settleHeroIdentity} from './hero-identity.js?v=182';
-import{WULING_PALETTE,wulingOutfit,wulingAccessories,wulingMask,sporeLantern,sporeSatchel,sporePod}from'./wuling-appearance.js?v=182';
-import{MIRAGE_PALETTE,mirageOutfit,mirageHair,prepareMirageHair,animateMirageHair,mirageMask,mirageAccessories,miragePetalTails,miasmaLantern}from'./mirage-appearance.js?v=182';
-import{newHeroAttack,heroCarryPose,committedWeaponYaw}from'./new-hero-motion.js?v=182';
-import{heroDodgePose}from'./hero-dodge.js?v=182';
-import{lingyaHopPose}from'./lingya-motion.js?v=182';
-import{lingyaOutfit,lingyaAccessories,lingyaLegs}from'./lingya-appearance.js?v=182';
-import{makeSlingshot,poseSlingshot}from'./slingshot-model.js?v=182';
-import{makeHarpoon}from'./coast-models.js?v=182';
-import{weaponGesture,shotStarted,scythePose,crossbowMechanism,slingshotMechanism}from'./weapon-performance.js?v=182';
-import{rollProgress,rollWeight}from'./dodge-motion.js?v=182';
+import {createShadowAura,updateShadowAura,disposeShadowAura} from './shadow-aura.js?v=183';
+import {shadowOutfit,shadowAccessories,finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=183';
+import {shadowFocus} from './shadow-gear.js?v=183';
+import {GRIP_POINTS,SCYTHE_SUPPORT,primaryGripFrame,fitWeaponToPalm,createHandGrips,restoreGripWrists,captureGripWrists,aimGrip,supportGripTarget,aimSupportGrip,poseGripFingers} from './weapon-grips.js?v=183';
+import {refineLingyaFace} from './lingya-face.js?v=183';
+import {createLingyaHair,animateLingyaHair} from './lingya-hair.js?v=183';
+import {finishHeroSurface,smoothSeams,prepareSilverHair,animateSilverHair} from './hero-finish.js?v=183';
+import {rebuildRanger} from './ranger-rebuild.js?v=183';
+import {rebuildShadowTide} from './shadow-tide-rebuild.js?v=183';
+import {rebuildWildMist} from './wild-mist-rebuild.js?v=183';
+import {applyHeroIdentity,settleHeroIdentity} from './hero-identity.js?v=183';
+import{WULING_PALETTE,wulingOutfit,wulingAccessories,wulingMask,sporeLantern,sporeSatchel,sporePod}from'./wuling-appearance.js?v=183';
+import{MIRAGE_PALETTE,mirageOutfit,mirageHair,prepareMirageHair,animateMirageHair,mirageMask,mirageAccessories,miragePetalTails,miasmaLantern}from'./mirage-appearance.js?v=183';
+import{newHeroAttack,heroCarryPose,committedWeaponYaw}from'./new-hero-motion.js?v=183';
+import{heroDodgePose}from'./hero-dodge.js?v=183';
+import{lingyaHopPose}from'./lingya-motion.js?v=183';
+import{lingyaOutfit,lingyaAccessories,lingyaLegs}from'./lingya-appearance.js?v=183';
+import{makeSlingshot,poseSlingshot}from'./slingshot-model.js?v=183';
+import{makeHarpoon}from'./coast-models.js?v=183';
+import{weaponGesture,shotStarted,scythePose,crossbowMechanism,slingshotMechanism}from'./weapon-performance.js?v=183';
+import{rollProgress,rollWeight}from'./dodge-motion.js?v=183';
 import * as T from './vendor/three.module.js';
 import {clone} from './vendor/SkeletonUtils.js';
-import {loadCharacterData} from './character-loader.js?v=182';
-import {makeHero as makePrototype,poseCrossbow} from './hero-model.js?v=182';
+import {loadCharacterData} from './character-loader.js?v=183';
+import {makeHero as makePrototype,poseCrossbow} from './hero-model.js?v=183';
 
 const templates=new Map(),clips=new Map();
 let lingyaFace;
@@ -469,6 +469,9 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
   const fired=shotStarted(d,attack,d.previousAttack||0);d.previousAttack=attack;d.attackAge=fired?0:(d.attackAge??2)+dt;
   if(d.cancelAttack&&['harpoon','shadowblade'].includes(d.weaponId)){d.cancelAttack=false;d.attackAge=2;d.harpoonTarget=d.scytheTarget=null;}
   const meleeWeapon=['harpoon','shadowblade'].includes(d.weaponId),motion=weaponGesture(d.weaponId,d.weaponId==='boomerang'&&d.shotSerial?(d.reloadPhase??1)*(d.reloadDuration||1):d.attackAge,d.reloadPhase??1,d.reloadDuration||1);
+  // The held pod and its fingers use the projectile's cycle, including haste;
+  // the existing smoothed whole-arm gesture keeps its own recovery unchanged.
+  const gripMotion=d.weaponId==='sporelantern'?weaponGesture(d.weaponId,d.shotSerial?(d.reloadPhase??1)*(d.reloadDuration||1):10,d.reloadPhase??1,d.reloadDuration||1):motion;
   const scythe=d.weaponId==='shadowblade'?scythePose(d.attackAge,d.reloadDuration||1,d.scytheCombo||0):null;
   const newHero=['tide','lingya','wuling','mirage'].includes(d.kind),action=newHeroAttack(d.kind,d.shotSerial?(d.reloadDuration?(d.reloadPhase??1)*d.reloadDuration:d.attackAge):10,d.reloadDuration||1);
   const readyTarget=d.aimActive||attack>0||d.shotSerial&&(d.reloadPhase??1)<1||d.dashTime>0?1:0;d.readyBlend=(d.readyBlend||0)+(readyTarget-(d.readyBlend||0))*(1-Math.exp(-dt*10));
@@ -529,7 +532,7 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
   // Remove last frame's procedural arm offsets before the mixer blends a new pose.
   if(d.crossbowBaseReady)for(const [bone,rotation]of d.crossbowBase)bone.quaternion.copy(rotation);
   if(d.attackBaseReady)for(const [bone,rotation]of d.attackBase)bone.quaternion.copy(rotation);
-  restoreGripWrists(d);d.mixer.update(dt);captureGripWrists(d);poseGripFingers(d,motion);if(d.kind==='tide'){d.slide=dodge.weight;d.rig.rotation.x+=dodge.brace;d.rig.position.y=dodge.height;}
+  restoreGripWrists(d);d.mixer.update(dt);captureGripWrists(d);poseGripFingers(d,gripMotion);if(d.kind==='tide'){d.slide=dodge.weight;d.rig.rotation.x+=dodge.brace;d.rig.position.y=dodge.height;}
   if(!isRoll&&Math.abs(d.gaitYaw)>.001){
     g.updateMatrixWorld(true);const chest=d.spine.getWorldQuaternion(new T.Quaternion()).normalize(),hips=d.pelvis.getWorldQuaternion(new T.Quaternion()).normalize();
     hips.premultiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),d.gaitYaw));d.pelvis.quaternion.copy(d.pelvis.parent.getWorldQuaternion(new T.Quaternion()).normalize().invert().multiply(hips)).normalize();
@@ -661,7 +664,7 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
   }
   if(d.weaponId==='shuriken')fitWeaponToPalm(d.gun,GRIP_POINTS.shuriken);
   if(d.weaponId==='boomerang')d.gun.visible=true;
-  if(d.kind==='wuling'){const cycle=Math.min(.68,Math.max(.12,(d.reloadDuration||1)*.9)),age=(d.reloadPhase??1)*(d.reloadDuration||1);d.sporePod.visible=!d.shotSerial||age<cycle*.32||age>cycle*.76;const heart=d.gun.userData.heart;if(heart)heart.scale.set(.068*(1+.035*Math.sin(t*3)),.105,.068);}
+  if(d.kind==='wuling'){d.sporePod.visible=!d.shotSerial||gripMotion.podHeld;const heart=d.gun.userData.heart;if(heart)heart.scale.set(.068*(1+.035*Math.sin(t*3)),.105,.068);}
   if(d.kind==='mirage'){
     const heart=d.gun.userData.heart;heart.scale.set(.050*(1+.22*gather+.30*kick),.088*(1+.12*gather+.15*kick),.050*(1+.22*gather+.30*kick));
     for(const petal of d.gun.userData.petals){petal.quaternion.copy(petal.userData.rest);petal.rotateX(kick*.34+gather*.11);}

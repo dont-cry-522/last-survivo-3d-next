@@ -1,12 +1,12 @@
-import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=182';
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=183';
 import * as T from './vendor/three.module.js';
-import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=182';
-import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=182';
-import {sporePod} from './wuling-appearance.js?v=182';
+import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=183';
+import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=183';
+import {sporePod} from './wuling-appearance.js?v=183';
 import {poseSlingshot} from './slingshot-model.js';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=182';
+import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=183';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
@@ -35,12 +35,12 @@ const CONTACT=new T.Vector3(0,.045,-.023),UP=new T.Vector3(0,1,0);
 // Screen-relative lowering, pitch and bank. The game owns dodge timing; this is presentation only.
 const DODGE_POSES={roll:[.50,-.18,.18,-.04],blink:[.25,-.05,.07,-.08],dive:[.80,-.34,.07,-.10],hop:[.26,-.09,.12,-.025],mist:[.38,-.13,.07,-.05]};
 function colored(geometry,color){const c=new T.Color(color),p=geometry.attributes.position,values=[];for(let i=0;i<p.count;i++)values.push(c.r,c.g,c.b);geometry.setAttribute('color',new T.Float32BufferAttribute(values,3));geometry.deleteAttribute('uv');return geometry;}
-function handGeometry(palette,fingerless){
+function handGeometry(palette,fingerless,grip='handle'){
  const make=open=>{
   const parts=[];
   // Palm, heel of thumb and knuckle web overlap into a solid glove instead of five hollow loops.
   for(const [scale,position]of[[[.036,.046,.021],[0,.003,0]],[[.027,.028,.018],[0,.019,-.014]],[[.016,.025,.017],[-.026,0,-.006]],[[.032,.012,.013],[0,.036,-.003]]]){
-   const pad=new T.SphereGeometry(1,12,8);pad.scale(...scale);pad.translate(...position);parts.push(colored(pad,palette[1]));
+   const pad=new T.SphereGeometry(1,12,8);pad.scale(...scale);if(grip!=='handle')pad.scale(1,1,.90);pad.translate(...position);parts.push(colored(pad,palette[1]));
   }
   for(let finger=0;finger<5;finger++){
    let points,radius;
@@ -49,13 +49,26 @@ function handGeometry(palette,fingerless){
     const x=(-1.5+finger)*.0165,length=[.052,.059,.055,.043][finger],spread=open?(finger-1.5)*.008:0;
     points=open?[[x,.028,0],[x+spread*.4,.028+length*.4,-.002],[x+spread,.028+length*.78,-.005],[x+spread*1.1,.028+length,-.010]]:[[x,.028,0],[x,.049,-.009],[x,.050,-.026],[x,.027,-.034]];radius=finger===3?.008:.009;
    }
+   // Different objects are held by different fingers. All poses retain the same
+   // contact frame and topology, so release blends need no extra mesh or draw call.
+   if(!open&&grip==='pinch'){
+    if(finger===0)points=[[-.02475,.028,0],[-.020,.067,-.006],[.006,.067,-.024],[.006,.040,-.032]];
+    else if(finger===4)points=[[-.028,-.013,0],[-.043,.010,-.015],[-.019,.040,-.041],[-.006,.040,-.032]];
+    else{const x=(-1.5+finger)*.0165;points=[[x,.028,0],[x+.003,.061,-.005],[x+.005,.067,-.023],[x+.006,.045,-.040]];}
+   }else if(!open&&grip==='cup'){
+    if(finger===4)points=[[-.028,-.013,0],[-.046,.010,-.016],[-.044,.038,-.044],[-.025,.046,-.057]];
+    else{const x=(-1.5+finger)*.0165,splay=(finger-1.5)*.004,l=[.048,.057,.052,.039][finger];points=[[x,.028,0],[x+splay,.028+l*.7,-.008],[x+splay,.028+l,-.036],[x+splay*.7,.028+l*.7,-.056]];}
+   }else if(!open&&grip==='hook'){
+    if(finger===4)points=[[-.028,-.013,0],[-.039,.011,-.017],[-.027,.036,-.029],[-.013,.034,-.033]];
+    else{const x=(-1.5+finger)*.0165,drop=finger===3?.006:0;points=[[x,.028,0],[x,.066-drop,-.003],[x,.066-drop,-.025],[x,.042-drop,-.039]];}
+   }
    const g=new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),8,radius,7,false);colored(g,palette[1]);
    if(fingerless){const c=new T.Color(palette[3]),colors=g.attributes.color;for(let i=5*8;i<colors.count;i++)colors.setXYZ(i,c.r,c.g,c.b);}
    parts.push(g);const tip=new T.SphereGeometry(radius,7,5);tip.translate(...points.at(-1));parts.push(colored(tip,fingerless?palette[3]:palette[1]));
   }
   const merged=mergeGeometries(parts,false);parts.forEach(g=>g.dispose());return merged;
  };
- const closed=make(false),open=make(true);closed.morphAttributes.position=[open.attributes.position];closed.morphAttributes.normal=[open.attributes.normal];closed.computeBoundingSphere();open.dispose();return closed;
+ const closed=make(false),open=make(true);closed.name='SM_Hand_'+grip;closed.morphAttributes.position=[open.attributes.position];closed.morphAttributes.normal=[open.attributes.normal];closed.computeBoundingSphere();open.dispose();return closed;
 }
 // Same elbow/wrist endpoints as the existing hand rig; only the fabric between
 // them differs. Cut, fold and cuff profiles make identity visible in first person.
@@ -216,12 +229,9 @@ export class FirstPersonView {
    const ribs=mist?(gun.userData.petals?.length||4):5;
    for(let i=0;i<ribs;i++){const a=i*Math.PI*2/ribs+(mist?Math.PI/4:0),r=mist?.081:.115,y=mist?-.196:-.240;batch.stud(Math.sin(a)*r,y,Math.cos(a)*r,.011,mist?0xa6a1b7:0xd7b671);}
    this.addDetail(batch,this.model,'lantern-rivets',{roughness:.31,metalness:.7});
-   if(heart){
-    const filaments=detailBatch();
-    for(let i=0;i<3;i++){const a=i*Math.PI*2/3,points=[];for(let j=0;j<=8;j++){const t=j/8,y=-.78+t*1.5,r=Math.sqrt(Math.max(0,1-y*y))*1.013;points.push([Math.sin(a+t*.9)*r,y,Math.cos(a+t*.9)*r]);}filaments.line(points,.019,mist?0xd0b6ea:0xffd494);}
-    const detail=this.addDetail(filaments,heart,'lantern-core-filaments',{roughness:.4,metalness:.1,emissive:mist?0x65457d:0x7d4421});
-    heart.material.roughness=.29;heart.material.emissive.copy(heart.material.color);this.charged.push({material:heart.material,base:.20,power:.75},{material:detail.material,base:.15,power:.35});
-   }
+   // Keep the actual core's granular spores or folded mist, including its PBR
+   // maps. Camera-space copying must not turn both lamps into the same light bulb.
+   if(heart)this.charged.push({material:heart.material,base:heart.material.emissiveIntensity,power:mist?.40:.30});
   }
  }
  setHero(hero,weaponId){
@@ -245,7 +255,9 @@ export class FirstPersonView {
   this.grip=new T.Vector3(...(this.profile.grip||GRIP_POINTS[weaponId]||[0,0,0])).sub(this.center);this.root.add(this.weapon);
   const inferred=['shade','shadowblade','grimoire'].includes(weaponId)?'wraith':weaponId==='miasmalantern'?'mirage':weaponId==='sporelantern'?'wuling':weaponId==='boomerang'?'lingya':weaponId==='harpoon'?'tide':['crossbow','shuriken','dark'].includes(weaponId)?'silver':'scout';
   this.kind=hero.userData.kind||inferred;const palette=PALETTES[this.kind]||PALETTES.scout;
-  const hand=handGeometry(palette,['scout','lingya','tide','wuling'].includes(this.kind)),sleeve=sleeveGeometry(palette,this.kind);this.ownedGeometry.push(hand,sleeve);
+  const fingerless=['scout','lingya','tide','wuling'].includes(this.kind),lamp=this.profile.type==='lamp';
+  const hand=handGeometry(palette,fingerless,lamp?'hook':'handle'),supportGrip=weaponId==='boomerang'?'pinch':weaponId==='sporelantern'?'cup':lamp?'handle':null;
+  const supportHand=supportGrip?handGeometry(palette,fingerless,supportGrip):hand,sleeve=sleeveGeometry(palette,this.kind);this.ownedGeometry.push(hand,sleeve);if(supportHand!==hand)this.ownedGeometry.push(supportHand);
   const cloth=new T.MeshStandardMaterial({vertexColors:true,roughness:.9,fog:false}),glove=new T.MeshStandardMaterial({vertexColors:true,roughness:.67,metalness:.015,fog:false});this.materials.set(cloth,cloth);this.materials.set(glove,glove);
   if(this.kind==='wraith'){finishShadowTone(cloth);finishShadowTone(glove);}
   // Share the real outfit's micro-surface without owning or recoloring its maps.
@@ -254,7 +266,7 @@ export class FirstPersonView {
   cloth.name='MAT_Hero_'+this.kind+'_FirstPersonCloth';glove.name='MAT_Hero_'+this.kind+'_FirstPersonLeather';
   this.hands=[];this.arms=[];this.handPoints=[this.grip,new T.Vector3(...(this.profile.support||[-.20,-.07,.08])).sub(this.center)];
   for(let i=0;i<2;i++){
-   const mesh=new T.Mesh(hand,glove);mesh.name=i?'First_person_support_hand':'First_person_grip_hand';this.root.add(mesh);this.hands.push(mesh);
+   const mesh=new T.Mesh(i?supportHand:hand,glove);mesh.name=i?'First_person_support_hand':'First_person_grip_hand';this.root.add(mesh);this.hands.push(mesh);
    const arm=new T.Mesh(sleeve,cloth);arm.name=i?'First_person_left_sleeve':'First_person_right_sleeve';this.root.add(arm);this.arms.push(arm);
    for(const node of[mesh,arm]){node.layers.set(1);node.renderOrder=10000;node.frustumCulled=false;node.castShadow=node.receiveShadow=false;}
   }
@@ -304,7 +316,7 @@ export class FirstPersonView {
   const profile=this.profile,id=this.weaponId,data=this.hero.userData,depth=.82,halfH=Math.tan(T.MathUtils.degToRad(this.camera.fov||50)/2)*depth,halfW=halfH*(this.camera.aspect||1);
   const scale=Math.min(halfW*profile.width/Math.max(.001,this.dimensions.x),halfH*profile.height/Math.max(.001,this.dimensions.y),profile.depth/Math.max(.001,this.dimensions.z),id==='harpoon'?.65:id==='shade'?1.8:2.4);
   const fired=attack>this.previousAttack+.025;this.previousAttack=attack;this.attackAge=fired?0:this.attackAge+step;
-  const age=Number.isFinite(data.attackAge)?data.attackAge:this.attackAge,period=data.reloadDuration||WEAPON_RECOVERY[id]||attackDuration,cycle=Number.isFinite(data.reloadPhase)?data.reloadPhase:Math.min(1,age/period),gestureAge=id==='boomerang'&&data.shotSerial?cycle*period:age,motion=weaponGesture(id,gestureAge,cycle,period),kick=motion.kick,sweep=motion.sweep,draw=motion.draw;
+  const age=Number.isFinite(data.attackAge)?data.attackAge:this.attackAge,period=data.reloadDuration||WEAPON_RECOVERY[id]||attackDuration,cycle=Number.isFinite(data.reloadPhase)?data.reloadPhase:Math.min(1,age/period),gestureAge=(id==='boomerang'||id==='sporelantern')&&data.shotSerial?cycle*period:age,motion=weaponGesture(id,gestureAge,cycle,period),kick=motion.kick,sweep=motion.sweep,draw=motion.draw;
   this.motion=motion;
   if(id==='boomerang')poseSlingshot(this.model,gestureAge,period);
   // Only the existing crystal/lantern core brightens; no extra light or screen-sized halo.
@@ -409,8 +421,8 @@ export class FirstPersonView {
    hand.scale.set(i?-handScale:handScale,handScale,handScale);
    hand.position.copy(point).sub(this.wrist.copy(CONTACT).multiply(hand.scale).applyQuaternion(hand.quaternion));
    hand.morphTargetInfluences[0]=i&&!support?.72+.20*kick:profile.type==='palm'?.78+.18*kick:profile.type==='book'?.48:profile.type==='throw'?Math.max(kick*.90,this.source.visible?0:.88):i&&id==='crossbow'?crossbowMechanism(cycle).hand*.24:0;
-   if(i&&id==='sporelantern')hand.morphTargetInfluences[0]=.20-.10*motion.gather+.70*motion.open;
-   if(id==='boomerang')hand.morphTargetInfluences[0]=i?.12+.68*motion.open:0;
+   if(i&&id==='sporelantern')hand.morphTargetInfluences[0]=.92*motion.open;
+   if(id==='boomerang')hand.morphTargetInfluences[0]=i?.80*motion.open:0;
    if(profile.type==='palm')hand.morphTargetInfluences[0]=i?.82-.20*motion.gather:.88-.19*motion.gather+.07*kick;
    // The arms remain after a thrown weapon leaves the hand; only the source weapon is hidden.
    hand.visible=arm.visible=true;

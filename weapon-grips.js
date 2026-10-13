@@ -11,6 +11,11 @@ const sideways=frame([0,-1,0],[0,0,-1],[1,0,0]);
 const poleSupport=frame([1,0,0],[0,0,-1],[0,1,0]);
 const support=frame([0,1,0],[1,0,0],[0,0,-1]);
 const fingerBase={l:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/2),r:new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),-Math.PI/2)};
+// Small objects need different joint bends from a thick weapon handle. The
+// contact point stays fixed: a hooked carrying hand, a pouch pinch and a cupped pod.
+const lanternHook={index:[.78,1.24,.86],middle:[.88,1.22,.84],ring:[.98,1.16,.78],pinky:[1.04,1.08,.70]};
+const pouchPinch={index:[.95,1.18,.70],middle:[.58,.78,.48],ring:[.72,.88,.54],pinky:[.84,.96,.60]};
+const podCup={index:[.62,.74,.44],middle:[.66,.78,.46],ring:[.72,.80,.48],pinky:[.82,.86,.52]};
 export function primaryGripFrame(id){return(id==='harpoon'?underhand:id==='shuriken'?sideways:upright).clone();}
 
 export function fitWeaponToPalm(weapon,point,side='r'){
@@ -23,7 +28,7 @@ export function createHandGrips(bones){
     const bone=bones.get(`${name}_0${i}_${side}`);if(bone)fingers.push({bone,side,name,i});
   }
   // Retain the authored opposed thumb, mirrored for a real left-hand grasp.
-  for(let i=1;i<=3;i++){const q=bones.get(`thumb_0${i}_r`).quaternion.clone();for(const side of ['l','r'])thumb.push({bone:bones.get(`thumb_0${i}_${side}`),side,q:side==='r'?q:new T.Quaternion(q.x,-q.y,-q.z,q.w)});}
+  for(let i=1;i<=3;i++){const q=bones.get(`thumb_0${i}_r`).quaternion.clone();for(const side of ['l','r'])thumb.push({bone:bones.get(`thumb_0${i}_${side}`),side,i,q:side==='r'?q:new T.Quaternion(q.x,-q.y,-q.z,q.w)});}
   return {fingers,thumb,wrists:['l','r'].map(side=>[bones.get('hand_'+side),new T.Quaternion()]),supportWorld:new T.Quaternion(),scratch:new T.Quaternion(),inverse:new T.Quaternion(),offset:new T.Vector3(),scale:new T.Vector3(),lastWrist:new T.Quaternion(),origin:new T.Vector3(),axis:new T.Vector3(),contact:new T.Vector3()};
 }
 
@@ -52,15 +57,24 @@ export function aimSupportGrip(d,blend){orient(d.support.hand,d.handGrips.suppor
 
 export function poseGripFingers(d,motion={}){
   const id=d.weaponId,h=d.handGrips,hasSupport=['rifle','shotgun','crossbow','harpoon','hammer','shadowblade','boomerang'].includes(id);
+  const lantern=id==='sporelantern'||id==='miasmalantern';
   const released=id==='shuriken'?(motion.kick||0):0;
   for(const {bone,side,name,i}of h.fingers){
     if(side==='l'&&!hasSupport&&id!=='sporelantern')continue;
-    const release=side==='r'?released:id==='boomerang'?(motion.open||0):id==='sporelantern'?(motion.kick||0):0;
+    const release=side==='r'?released:id==='boomerang'||id==='sporelantern'?(motion.open||0):0;
     const trigger=side==='r'&&['rifle','shotgun','crossbow'].includes(id)&&name==='index';
-    const curl=(id==='shade'?[.22,.30,.22]:id==='grimoire'?[.30,.36,.24]:trigger?[.36,.64,.45]:id==='harpoon'?[1.02,1.08,.70]:[1.22,1.18,.76])[i-1]*(1-release*.84);
+    const profile=side==='r'&&lantern?lanternHook[name]:side==='l'&&id==='boomerang'?pouchPinch[name]:side==='l'&&id==='sporelantern'?podCup[name]:null;
+    const curl=(profile||(id==='shade'?[.22,.30,.22]:id==='grimoire'?[.30,.36,.24]:trigger?[.36,.64,.45]:id==='harpoon'?[1.02,1.08,.70]:[1.22,1.18,.76]))[i-1]*(1-release*.84);
     h.scratch.setFromAxisAngle(h.offset.set(1,0,0),curl);
     if(i===1)h.scratch.premultiply(fingerBase[side]);
     bone.quaternion.slerp(h.scratch,side==='l'&&id!=='hammer'?d.aimBlend:1);
   }
-  for(const {bone,side,q}of h.thumb)if(side==='r'||hasSupport)bone.quaternion.slerp(q,side==='r'?1-released*.8:id==='hammer'?1:d.aimBlend);
+  for(const {bone,side,i,q}of h.thumb){
+    if(side==='l'&&(id==='boomerang'||id==='sporelantern')){
+      // The thumb must release the pouch/pod too, then oppose it again on the
+      // same shot clock. Work from the saved authored pose, never accumulated rotations.
+      h.scratch.setFromAxisAngle(h.offset.set(1,0,0),-(motion.open||0)*(i===1?.28:i===2?.48:.32)).premultiply(q);
+      bone.quaternion.slerp(h.scratch,d.aimBlend);
+    }else if(side==='r'||hasSupport)bone.quaternion.slerp(q,side==='r'?1-released*.8:id==='hammer'?1:d.aimBlend);
+  }
 }

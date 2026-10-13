@@ -34,6 +34,22 @@ test('the herbalist throws one shared seed pod with her left hand while the lant
  }finally{view.dispose();}
 });
 
+test('held seed pod and opening fingers follow the shot cycle even when the body animation clock lags',()=>{
+ const view=new FirstPersonView(new T.PerspectiveCamera(70,16/9,.1,100)),actor=hero(sporeLantern());
+ try{
+  view.setHero(actor,'sporelantern');
+  for(const period of [.2,.4,1.25]){
+   const release=Math.min(POISON.castRecovery,Math.max(.12,period*.9))*POISON.releaseFraction;
+   for(const delta of [-.0001,.0001]){
+    Object.assign(actor.userData,{shotSerial:1,attackAge:10,reloadDuration:period,reloadPhase:(release+delta)/period});view.update(2,.016,{visible:true});
+    assert.equal(view.pod.visible,delta<0,'viewmodel uses the lagging body clock instead of projectile release');
+    if(delta>0)assert(view.hands[1].morphTargetInfluences[0]>.6,'fingers still enclose the departing pod');
+   }
+   const heldPose=view.hands[1].geometry;Object.assign(actor.userData,{reloadPhase:1});view.update(3,.016,{visible:true});assert(view.pod.visible);assert.equal(view.hands[1].morphTargetInfluences[0],0);assert.equal(view.hands[1].geometry,heldPose);
+  }
+ }finally{view.dispose();}
+});
+
 test('both lamp grips keep their local orientation through distinct gestures and mobile framing',()=>{
  const camera=new T.PerspectiveCamera(60,16/9,.1,100),view=new FirstPersonView(camera),contact=new T.Vector3(0,.045,-.023),signatures=[];
  try{for(const id of ['sporelantern','miasmalantern']){
@@ -400,7 +416,12 @@ test('close equipment adds bounded real structure across firearms, thrown blades
     assert.equal(source.material.color.getHex(),SHADOW_PALETTE.lining,'third-person ink lost its shadow colour');assert(node.material.color.equals(source.material.color),'first-person ink overrides the real weapon palette');assert(Math.max(...node.material.color.toArray())<.15,'page ink is still a bright glow');assert.equal(node.material.toneMapped,true);
     node.geometry.computeBoundingBox();assert(node.geometry.boundingBox.max.y-node.geometry.boundingBox.min.y<1e-6,'ink floats in a raised tube above the page');assert(node.geometry.index.count<=18);
    }
-  }else{assert.match(names,/lantern-rivets/);assert.match(names,/lantern-core-filaments/);const core=view.parts.find(([s])=>s===gun.userData.heart)[1];assert(view.details.some(mesh=>mesh.parent===core),'core detail lost the real heart animation');}
+  }else{
+   assert.match(names,/lantern-rivets/);assert.doesNotMatch(names,/lantern-core-filaments/);
+   const source=gun.userData.heart,core=view.parts.find(([s])=>s===source)[1];
+   for(const property of ['map','roughnessMap','emissiveMap','roughness'])assert.equal(core.material[property],source.material[property],'held core overrides the real lamp finish');
+   assert(core.material.emissive.equals(source.material.emissive));assert.equal(view.charged[0].material,core.material);
+  }
   let detailTriangles=0;
   for(const mesh of view.details){
    assert.equal(mesh.layers.mask,2);assert.equal(mesh.material.transparent,false);assert(mesh.material.depthTest&&mesh.material.depthWrite);assert.equal(mesh.castShadow,false);
@@ -411,7 +432,7 @@ test('close equipment adds bounded real structure across firearms, thrown blades
  }}finally{view.dispose();}
 });
 
-test('crystals and lantern filaments charge with existing gesture timing, freeze and recover without a new light',()=>{
+test('crystals and distinct lantern cores charge with existing gesture timing, freeze and recover without a new light',()=>{
  const view=new FirstPersonView(new T.PerspectiveCamera(60,16/9,.1,100));
  try{for(const id of['fire','dark','sporelantern','miasmalantern']){
   const gun=weapon(id),actor=hero(gun);Object.assign(actor.userData,{attackAge:10,reloadDuration:1,reloadPhase:1});view.setHero(actor,id);view.update(1,.016,{visible:true});

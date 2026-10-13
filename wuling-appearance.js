@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=182';
+import{weaponInlay,nameWeapon,lanternCoreMaterial}from'./weapon-identity.js?v=183';
 // Programmatic prototype: existing rig and cloth surfaces, original herb-gatherer accessories.
 export const WULING_PALETTE=Object.freeze({cloak:0x342139,trim:0x927955,copper:0x9d7f4d,leather:0x322730,ivory:0xb6a995,glass:0xe4c484});
 const geometry=new Map(),materials=new Map();
@@ -67,7 +67,7 @@ export function sporeLantern(){
  const gills=[];for(let i=0;i<16;i++){const a=i*Math.PI/8;gills.push([[Math.sin(a)*.031,-.219,Math.cos(a)*.031],[Math.sin(a)*.070,-.228,Math.cos(a)*.070],[Math.sin(a)*.116,-.239,Math.cos(a)*.116]]);}
  weaponInlay(g,'SM_Weapon_Spore_GillRibs',gills,0x5d4937,.0020,.18);
  part(g,'TorusGeometry',[.121,.009,6,24],WULING_PALETTE.copper,0,-.24,0).rotation.x=Math.PI/2;
- const heart=ell(g,0xb5bc7c,0,-.335,0,.068,.105,.068);heart.name='Spore_lantern_heart';
+ const heart=ell(g,0xb5bc7c,0,-.335,0,.068,.105,.068);heart.name='Spore_lantern_heart';heart.material=lanternCoreMaterial('spore');
  for(let i=0;i<5;i++){const a=i*Math.PI*2/5,s=Math.sin(a),c=Math.cos(a),curve=new T.CatmullRomCurve3([new T.Vector3(s*.115,-.233,c*.115),new T.Vector3(s*.117,-.255,c*.117),new T.Vector3(s*.125,-.32,c*.125),new T.Vector3(s*.083,-.43,c*.083),new T.Vector3(0,-.48,0)]);part(g,'TubeGeometry',[curve,16,.007,6,false],WULING_PALETTE.copper,0,0,0);}
  ell(g,WULING_PALETTE.cloak,0,-.463,0,.073,.032,.073);ell(g,WULING_PALETTE.copper,0,-.507,0,.016,.034,.016);g.userData.heart=heart;return nameWeapon(g,'wuling','sporelantern');
 }

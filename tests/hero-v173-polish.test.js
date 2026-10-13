@@ -32,7 +32,9 @@ test('v173 real face, connected robes and flowing hair retain their original ani
     // v177 bakes the continuous facial profile and matching Blink from Rain.
     // Do not require the old second nose/lip compression merely to pass a test.
     assert.deepEqual(p.array,q.array);assert.deepEqual(g.attributes.normal.array,original.attributes.normal.array);
-    for(let target=0;target<(g.morphAttributes.position?.length||0);target++){const delta=g.morphAttributes.position[target],old=original.morphAttributes.position[target];assert.deepEqual(delta.array,old.array);let amplitude=0;for(let i=0;i<delta.count;i++)amplitude=Math.max(amplitude,Math.hypot(delta.getX(i),delta.getY(i),delta.getZ(i)));assert(amplitude>.018,'Blink no longer closes the authored eyelids');}
+    // Preserve the delivered morph exactly. Eyelid coverage is ray-tested against
+    // the real eyeballs in lingya-model-v176.test.js, not a former eye's travel.
+    for(let target=0;target<(g.morphAttributes.position?.length||0);target++){const delta=g.morphAttributes.position[target],old=original.morphAttributes.position[target];assert.deepEqual(delta.array,old.array);assert(delta.array.every(Number.isFinite));assert(delta.array.some(v=>Math.abs(v)>1e-6),'Blink morph lost all movement');}
     for(const a of Object.values(g.attributes))assert(a.array.every(Number.isFinite));
    });
    refineLingyaFace(face);let i=0;face.traverse(o=>{if(o.isMesh)assert.equal(o.geometry,geometries[i++]);});source.traverse(o=>{if(o.isMesh)assert.equal(o.geometry,before.get(o.name));});

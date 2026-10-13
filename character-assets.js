@@ -34,8 +34,8 @@ export const CHARACTER_ASSETS={
       "bytes": 82599
     },
     "lingya-face": {
-      "file": "lingya-face-137f4ebabd59.glb.gz",
-      "bytes": 1302046
+      "file": "lingya-face-99c810839126.glb.gz",
+      "bytes": 1305218
     }
   },
   "textures": [

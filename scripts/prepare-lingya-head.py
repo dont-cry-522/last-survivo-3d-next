@@ -14,10 +14,8 @@ for o in bpy.data.objects:
   for k in o.data.shape_keys.key_blocks:k.value=0
 for n in ['LipsAdjust']:
  bpy.data.objects['GEO-rain-head'].data.shape_keys.key_blocks[n].value=1
-for n in ['Smile.L','Smile.R']:
- bpy.data.objects['GEO-rain-head'].data.shape_keys.key_blocks[n].value=.15
 for side in ['L','R']:
- bpy.data.objects['RIG-rain'].pose.bones['ACT-Lips_Corner.'+side].location.y=.0012
+ bpy.data.objects['RIG-rain'].pose.bones['ACT-Lips_Corner.'+side].location.y=0
  bpy.data.objects['RIG-rain'].pose.bones['ACT-Eyelid_Upper.'+side].location.y=-.003
 for o in bpy.data.objects:
  if o.type=='MESH':
@@ -35,8 +33,8 @@ def smooth(a,b,value):
  t=max(0,min(1,(value-a)/(b-a)));return t*t*(3-2*t)
 def fitted(name,src):
   x=src.x*.70;y=src.y*.70+.02;z=1.632+(src.z-1.475)*.73
-  # Preserve the authored continuous face. Only extend the neck behind it to
-  # meet the existing body; nose, lips, sockets and Blink use the same affine fit.
+  # Preserve the existing neck fitting before the shared proportion changes.
+  # Every visible face component and both Blink endpoints use this same fit.
   if name=='GEO-rain-head':
    neck=max(0,min(1,(y+.052)/.031))
    if z<1.54:z-=.065*max(0,min(1,(1.54-z)/.05))*neck
@@ -46,19 +44,32 @@ def fitted(name,src):
    # The viewport pupil is in front of Rain's original highlight plane.
    center=math.copysign(.03273,x)
    x=center+(x-center)*1.35-.002;y-=.002;z+=.003
-  # One broad depth fit for every component and both Blink endpoints. Keep the
-  # lower neck and rear skull fixed; the whole front face is only 10% shallower.
-  y+=(-.020-y)*.10*smooth(1.485,1.585,z-.006)*smooth(.020,.060,-y)
-  # Shorten the lower face as one broad, continuous field shared by eyes,
-  # eyelashes and both Blink endpoints. Nothing below the neck seam or behind
-  # the cheeks moves; there is no separate nose, lip or eye-socket sculpt.
+  # A single eye-region cage includes the sockets, eyeballs, lashes, brows and
+  # both Blink endpoints. Its broad falloff preserves the continuous cheek and
+  # forehead instead of moving a detached eye pair inside the old sockets.
+  eye=smooth(.003,.018,abs(x))*(1-smooth(.060,.090,abs(x)))*(1-smooth(.026,.066,abs(z-1.631)))*smooth(1.587,1.613,z-.006)*smooth(-.005,.020,-y)
+  center=math.copysign(.03273,x)
+  x=center+(x-center)*(1-.18*eye);z=1.631+(z-1.631)*(1-.24*eye)
+  # One broad depth fit for the whole front face. Nose, lips and eye area share
+  # it; the anchored lower neck and rear skull remain fixed.
+  y+=(-.020-y)*.40*smooth(1.485,1.585,z-.006)*smooth(.020,.060,-y)
+  # Shorten and round the lower face with one broad, continuous field. The neck
+  # seam and rear skull remain fixed; the same fit is used for Blink endpoints.
   lower=smooth(1.485,1.525,z-.006)*(1-smooth(1.585,1.640,z-.006))*smooth(.020,.060,-y)
-  x*=1+.020*lower;z+=(1.626-z)*.060*lower
+  x*=1+.080*lower;z+=(1.626-z)*.100*lower
+  # Fit nose/mouth width and lip height as a broad connected region. Lip rims,
+  # corners and inner mouth move together, with a smooth transition into the
+  # cheeks; their depth still comes only from the whole-face fit above.
+  h=z-.006
+  muzzle=smooth(.018,.050,-y)*(1-smooth(.022,.065,abs(x)))*smooth(1.520,1.546,h)*(1-smooth(1.590,1.617,h))
+  x*=1-.27*muzzle
+  z+=(1.571-z)*.30*muzzle*(1-smooth(1.573,1.595,h))
   return Vector((x,y,z-.006))
 
 created=[]
 for name in names:
  o=bpy.data.objects[name];dg=bpy.context.evaluated_depsgraph_get();ev=o.evaluated_get(dg);data=bpy.data.meshes.new_from_object(ev,depsgraph=dg)
+ tint_points=[Vector((p.x*.70,p.y*.70+.02,1.626+(p.z-1.475)*.73)) for p in (o.matrix_world@v.co for v in data.vertices)] if name=='GEO-rain-head' else []
  for v in data.vertices:v.co=fitted(name,o.matrix_world@v.co)
  ob=bpy.data.objects.new(name.replace('GEO-rain','Lingya'),data);bpy.context.scene.collection.objects.link(ob);created.append(ob)
  if name in ['GEO-rain-head','GEO-rain-eyelashes']:
@@ -82,8 +93,9 @@ for name in names:
   data.materials.append(skin)
   for old_color in list(data.color_attributes):data.color_attributes.remove(old_color)
   color=data.color_attributes.new(name='face_tint',type='FLOAT_COLOR',domain='POINT')
-  for v,c in zip(data.vertices,color.data):
-   x,y,z=v.co;front=max(0,min(1,(-y-.035)/.04))
+  # Colour stays on the same source lip/cheek vertices as proportions change.
+  for point,c in zip(tint_points,color.data):
+   x,y,z=point;front=max(0,min(1,(-y-.035)/.04))
    lip=math.exp(-((z-1.552)/.007)**2-(x/.024)**2)*front*.4
    cheek=math.exp(-((z-1.593)/.020)**2-((abs(x)-.048)/.019)**2)*front*.27
    c.color=(.88,.51*(1-lip*.45-cheek*.3),.415*(1-lip*.30-cheek*.14),1)

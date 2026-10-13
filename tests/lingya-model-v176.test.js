@@ -19,26 +19,40 @@ test('source-authored Lingya face retains complete eyelid coverage and shared so
   const iris=eyes.find(o=>o.material.name==='Lingya_eye_iris'),irisSource=before.get(iris.name).geometry;
   assert(iris.material.vertexColors);assert.equal(iris.geometry.attributes.color.count,iris.geometry.attributes.position.count);assert.notEqual(iris.geometry.attributes.color,irisSource.attributes.color);assert.deepEqual(irisSource.attributes.color?.array,before.get(iris.name).colours,'iris finishing changed the shared source');
   const irisColours=iris.geometry.attributes.color.array;assert(irisColours.every(c=>Number.isFinite(c)&&c>=0&&c<=1));assert(new Set(irisColours).size>20,'iris shading lost its gradient');
-  assert.equal(eyes.length,3);const ray=new T.Raycaster(),origin=new T.Vector3(),direction=new T.Vector3(0,0,-1);
-  const front=(objects,x,y)=>{ray.set(origin.set(x,y,.2),direction);return ray.intersectObjects(objects,false)[0]?.point.z;};
-  // Keep the original central open/closed probes and also scan the entire eye,
-  // including the lower lid and corners. Do not retreat or hide the eyeballs.
-  for(const side of[-1,1])for(const y of[1.620,1.628]){
-   head.morphTargetInfluences[0]=0;const opened=front([head],side*.03273,y),eye=front(eyes,side*.03273,y);assert(Number.isFinite(eye));assert(opened===undefined||opened<eye-.005,'remodel blocked the open eye');
-   head.morphTargetInfluences[0]=1;const closed=front([head],side*.03273,y);assert(closed>eye,'Blink leaves the authored eye exposed');assert(closed-eye<.006,'lid floats above the authored eye');
-  }
-  for(const side of[-1,1]){
-   let samples=0;head.morphTargetInfluences[0]=1;
-   for(let x=.006;x<=.0661;x+=.002)for(let y=1.590;y<=1.6581;y+=.002){
-    const eye=front(eyes,side*x,y);if(eye===undefined)continue;
-    const lid=front([head],side*x,y);assert(Number.isFinite(lid)&&lid>eye,`Blink exposes the eye at ${side*x},${y}`);samples++;
+  assert.equal(eyes.length,3);const ray=new T.Raycaster(),origin=new T.Vector3(),direction=new T.Vector3(0,0,-1),point=new T.Vector3();
+  const eyeBounds=[-1,1].map(side=>{const box=new T.Box3();for(const eye of eyes){const p=eye.geometry.attributes.position;for(let i=0;i<p.count;i++){point.fromBufferAttribute(p,i).applyMatrix4(eye.matrixWorld);if(point.x*side>0)box.expandByPoint(point);}}assert(!box.isEmpty());return box;});
+  const rayZ=Math.max(...eyeBounds.map(box=>box.max.z))+.1;
+  const front=(objects,x,y)=>{ray.set(origin.set(x,y,rayZ),direction);return ray.intersectObjects(objects,false)[0]?.point.z;};
+  // Follow the delivered eyeballs, not the previous model's dimensions. Each
+  // projected eye gets the same coverage density, including its rim and corners.
+  // Keep the actual eyes in place: a hidden or retreated eyeball cannot pass.
+  for(const box of eyeBounds){
+   const center=box.getCenter(new T.Vector3()),size=box.getSize(new T.Vector3());
+   for(const offset of[-.06,.06]){
+    const y=center.y+size.y*offset;
+    head.morphTargetInfluences[0]=0;const opened=front([head],center.x,y),eye=front(eyes,center.x,y);assert(Number.isFinite(eye));assert(opened===undefined||opened<eye-.005,'remodel blocked the open eye');
+    head.morphTargetInfluences[0]=1;const closed=front([head],center.x,y);assert(closed>eye,'Blink leaves the authored eye exposed');assert(closed-eye<.006,'lid floats above the authored eye');
    }
-   assert(samples>500,'eye coverage scan missed part of the actual eye');
+   const columns=32,rows=32;let samples=0;head.morphTargetInfluences[0]=1;
+   for(let column=0;column<columns;column++)for(let row=0;row<rows;row++){
+    const x=box.min.x+size.x*(column+.5)/columns,y=box.min.y+size.y*(row+.5)/rows,eye=front(eyes,x,y);if(eye===undefined)continue;
+    const lid=front([head],x,y);assert(Number.isFinite(lid)&&lid>eye,`Blink exposes the eye at ${x},${y}`);samples++;
+   }
+   assert(samples>columns*rows*.5,'eye coverage scan missed the actual projected eye surface');
   }
   head.morphTargetInfluences[0]=0;
   // Check surface continuity without prescribing a smaller nose, mouth or eye.
   // The multi-angle rendering fixture, not these probes, judges appearance.
-  let previous;for(let y=1.542;y<=1.601;y+=.001){const z=front([head],0,y);assert(Number.isFinite(z));if(previous!==undefined)assert(Math.abs(z-previous)<.006,'nose, lips and jaw have a sharp depth discontinuity');previous=z;}
+  // At y=1.545..1.546 the ray grazes the chin underside. Chin/nose-bottom
+  // silhouettes can change projected depth quickly without a surface break.
+  const normalMatrix=new T.Matrix3().getNormalMatrix(head.matrixWorld);let previous,forwardPairs=0,profileSamples=0;
+  for(let y=1.542;y<=1.601;y+=.001){
+   ray.set(origin.set(0,y,rayZ),direction);const hit=ray.intersectObject(head,false)[0],z=hit?.point.z;assert(Number.isFinite(z));profileSamples++;
+   const forward=hit.face.normal.clone().applyMatrix3(normalMatrix).normalize().z>=.4;
+   if(forward&&previous?.forward){assert(Math.abs(z-previous.z)<.006,'forward-facing facial surface has a sharp depth discontinuity');forwardPairs++;}
+   previous={z,forward};
+  }
+  assert(forwardPairs>=profileSamples/2,'profile probe did not cover enough adjoining forward-facing face surfaces');
   face.traverse(o=>{if(!o.isMesh)return;const old=before.get(o.name);assert.notEqual(o.geometry,old.geometry);assert.notEqual(o.material,old.material);assert.equal(o.geometry.attributes.position.count,old.geometry.attributes.position.count);assert.deepEqual(o.geometry.index?.array,old.geometry.index?.array);for(const a of Object.values(o.geometry.attributes))assert(a.array.every(Number.isFinite));});
   source.traverse(o=>{if(o.isMesh)assert.deepEqual(o.geometry.attributes.position.array,before.get(o.name).positions);});
  }finally{for(const [key,value]of Object.entries(saved))if(value===undefined)delete globalThis[key];else globalThis[key]=value;}

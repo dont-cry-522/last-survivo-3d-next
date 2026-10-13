@@ -20,7 +20,7 @@ import{weaponGesture,shotStarted,scythePose,crossbowMechanism,slingshotMechanism
 import{rollProgress,rollWeight}from'./dodge-motion.js?v=114';
 import * as T from './vendor/three.module.js';
 import {clone} from './vendor/SkeletonUtils.js';
-import {loadCharacterData} from './character-loader.js?v=178';
+import {loadCharacterData} from './character-loader.js?v=179';
 import {makeHero as makePrototype,poseCrossbow} from './hero-model.js?v=176';
 
 const templates=new Map(),clips=new Map();

@@ -4,8 +4,8 @@
 <section><h2>三人连续动作</h2><p>以实际基础射速连续推进角色与第一人称动作，检查待机、准备、释放前后、回收。此页是动作验证场景，不进行伤害或碰撞结算；铃芽按实际拉带、释弹与收手时钟推进。</p><button id="motion-check" disabled>播放并生成三人动作对比</button><p id="motion-status">等待默认检查完成</p><div id="motion-live"></div><div id="motion-sheet"></div><p><a id="motion-save-png">保存动作画面</a> · <a id="motion-save-json">保存动作报告</a></p><pre id="motion-report"></pre></section>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=179';
-import {FirstPersonView} from '../first-person-view.js?v=176';
+import {actor,animateActor} from '../world.js?v=180';
+import {FirstPersonView} from '../first-person-view.js?v=180';
 import {WEAPON_RECOVERY,mirageShotDelay} from '../weapon-performance.js?v=176';
 import {weaponStats} from '../rules.js';
 import {POISON} from '../poison-config.js';
@@ -15,9 +15,11 @@ const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}),
 addEventListener('error',e=>errors.push(e.message));addEventListener('unhandledrejection',e=>errors.push(String(e.reason)));
 renderer.setSize(384,216);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;scene.background=new T.Color(0x526773);scene.add(camera);camera.layers.enable(1);
 const sky=new T.HemisphereLight(0x9cabb9,0x394a3f,1.3),sun=new T.DirectionalLight(0xffe0b5,3.4);sun.position.set(-8,14,10);sky.layers.enable(1);sun.layers.enable(1);scene.add(sky,sun);
-const sheet=document.createElement('canvas');sheet.width=1152;sheet.height=7*246;document.querySelector('#sheet').append(sheet);const ctx=sheet.getContext('2d');ctx.fillStyle='#17262b';ctx.fillRect(0,0,sheet.width,sheet.height);
+const shadowOnly=new URLSearchParams(location.search).has('shadow');
+const kinds=shadowOnly?[['牵影咒','wraith','shade'],['战镰','wraith','shadowblade'],['魔典','wraith','grimoire']]:[['游侠','scout','rifle'],['霜影','silver','crossbow'],['影裔','wraith','shadowblade'],['潮行者','tide','harpoon'],['铃芽','lingya','boomerang'],['雾苓','wuling','sporelantern'],['蜃影','mirage','miasmalantern']];
+const sheet=document.createElement('canvas');sheet.width=1152;sheet.height=kinds.length*246;document.querySelector('#sheet').append(sheet);const ctx=sheet.getContext('2d');ctx.fillStyle='#17262b';ctx.fillRect(0,0,sheet.width,sheet.height);
 await loadHeroAssets();
-for(const [row,[label,kind,weapon]]of [['游侠','scout','rifle'],['霜影','silver','crossbow'],['影裔','wraith','shadowblade'],['潮行者','tide','harpoon'],['铃芽','lingya','boomerang'],['雾苓','wuling','sporelantern'],['蜃影','mirage','miasmalantern']].entries()){
+for(const [row,[label,kind,weapon]]of kinds.entries()){
  const model=actor(kind,weapon);if(!model.userData.skinned)throw Error('Missing actual hero: '+kind);view.setHero(model,weapon);
  for(const [column,phase]of [1,.25,.65].entries()){
   for(let f=0;f<45;f++){const d=model.userData,age=column?phase*WEAPON_RECOVERY[weapon]:2;d.aimActive=column>0;d.shotSerial=column;d.reloadDuration=1;d.attackAge=age;d.reloadPhase=column?age:1;animateActor(model,3+column+f/60,0,column===1?.15:0);d.attackAge=age;view.update(3+column+f/60,1/60,{visible:true,attack:column===1?.15:0,attackDuration:1});}
@@ -26,8 +28,8 @@ for(const [row,[label,kind,weapon]]of [['游侠','scout','rifle'],['霜影','sil
  }
  view.clear();disposeHero(model);await new Promise(r=>setTimeout(r,0));
 }
-document.querySelector('#status').textContent=results.every(r=>r.pass)&&!errors.length?'完成：七人第一人称 21 个画面':'失败';document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);const link=document.querySelector('#save-png');link.href=sheet.toDataURL('image/png');link.download='hero-firstperson-check.png';view.dispose();renderer.dispose();
-const motionButton=document.querySelector('#motion-check');motionButton.disabled=false;document.querySelector('#motion-status').textContent='可以开始；默认 21 项报告保持不变';
+document.querySelector('#status').textContent=results.every(r=>r.pass)&&!errors.length?'完成：'+kinds.length+' 套武器第一人称 '+results.length+' 个画面':'失败';document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);const link=document.querySelector('#save-png');link.href=sheet.toDataURL('image/png');link.download='hero-firstperson-check.png';view.dispose();renderer.dispose();
+const motionButton=document.querySelector('#motion-check');motionButton.disabled=false;document.querySelector('#motion-status').textContent='可以开始；默认报告保持不变';
 motionButton.onclick=async()=>{
  motionButton.disabled=true;const status=document.querySelector('#motion-status'),startErrors=errors.length,motionResults=[],timelines=[];
  const live=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}),motionView=new FirstPersonView(camera),motionSheet=document.createElement('canvas');let model=null;

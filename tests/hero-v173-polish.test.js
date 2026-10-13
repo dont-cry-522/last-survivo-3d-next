@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import * as T from '../vendor/three.module.js';
 import {loadCharacterData} from '../character-loader.js';
 import {clone} from '../vendor/SkeletonUtils.js';
-import {refineLingyaFace,refineLingyaAccessories} from '../lingya-face.js?v=178';
+import {refineLingyaFace,refineLingyaAccessories} from '../lingya-face.js?v=180';
 import {lingyaAccessories} from '../lingya-appearance.js';
 import {mirageHair,miasmaLantern} from '../mirage-appearance.js?v=174';
 import {sporeLantern} from '../wuling-appearance.js?v=174';
@@ -29,7 +29,7 @@ test('v173 real face, connected robes and flowing hair retain their original ani
    const source=models['lingya-face'].scene,face=source.clone(true),before=new Map();source.traverse(o=>{if(o.isMesh)before.set(o.name,o.geometry);});refineLingyaFace(face);const geometries=[];
    face.traverse(o=>{
     if(!o.isMesh)return;const original=before.get(o.name),g=o.geometry,p=g.attributes.position,q=original.attributes.position;geometries.push(g);assert.notEqual(g,original);assert.equal(p.count,q.count);assert.equal(g.morphTargetsRelative,original.morphTargetsRelative);
-    // v177 bakes the continuous facial profile and matching Blink from Rain.
+    // The independent source bakes its continuous head surface and matching Blink.
     // Do not require the old second nose/lip compression merely to pass a test.
     assert.deepEqual(p.array,q.array);assert.deepEqual(g.attributes.normal.array,original.attributes.normal.array);
     // Preserve the delivered morph exactly. Eyelid coverage is ray-tested against
@@ -39,9 +39,10 @@ test('v173 real face, connected robes and flowing hair retain their original ani
    });
    refineLingyaFace(face);let i=0;face.traverse(o=>{if(o.isMesh)assert.equal(o.geometry,geometries[i++]);});source.traverse(o=>{if(o.isMesh)assert.equal(o.geometry,before.get(o.name));});
   });
-  await t.test('smaller hood ears and recessed lining do not enlarge the head envelope',()=>{
-   const a=lingyaAccessories(),before=new T.Box3().setFromObject(a.hood),geometry=a.hood.children.map(e=>e.children[0].geometry);refineLingyaAccessories(a);const after=new T.Box3().setFromObject(a.hood);assert(after.max.y<before.max.y-.015);assert(after.max.x<before.max.x);assert(after.min.x>before.min.x);assert(after.max.z<=before.max.z);
-   a.hood.children.forEach((ear,i)=>assert.equal(ear.children[0].geometry,geometry[i]));const matrices=a.hood.children.map(e=>e.matrix.clone());refineLingyaAccessories(a);a.hood.updateMatrixWorld(true);a.hood.children.forEach((ear,i)=>assert.deepEqual(ear.matrix.elements,matrices[i].elements));
+  await t.test('woodland redesign removes the old ear covers while preserving attachment and cloth interfaces',()=>{
+   const a=lingyaAccessories();assert.equal(a.hood.children.length,0);assert.equal(refineLingyaAccessories(a),a);assert.equal(refineLingyaAccessories(a),a);
+   for(const name of ['hood','chest','bag','skirt'])assert(a[name].isGroup);
+   assert(a.chest.children.length>0&&a.bag.children.length>0);assert.deepEqual(Object.keys(a.skirt.children[0].userData.cloth).sort(),['hop','motion','time','turn']);
   });
   await t.test('long hair preserves the five actual fringe pieces and uses normalized weights on the new curved rear samples',()=>{
    const source=models['silver-hair'].scene,root=clone(source);let old,mesh;source.traverse(o=>{if(o.isSkinnedMesh)old=o;});root.traverse(o=>{if(o.isSkinnedMesh)mesh=o;});const original=old.geometry.attributes.position.array.slice();mirageHair(root);const g=mesh.geometry,p=g.attributes.position,region=g.attributes.hairRegion;

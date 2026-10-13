@@ -1,4 +1,4 @@
-import {shadowFocus} from './shadow-gear.js?v=176';
+import {shadowFocus} from './shadow-gear.js?v=180';
 import{weaponGesture,shotStarted,crossbowMechanism}from'./weapon-performance.js?v=176';
 import{miasmaLantern}from'./mirage-appearance.js?v=174';
 import{weaponInlay,nameWeapon,recessedBarrelGeometry}from'./weapon-identity.js?v=173';

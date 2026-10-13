@@ -171,48 +171,48 @@ export function weaponRouteEffect(vfx,w,phase,x,z,angle=0,detail={}){
   // Endpoints describe a completed flight, never a predicted next target.
   if(Number.isFinite(detail.x2)&&Number.isFinite(detail.z2)){
    const distance=Math.hypot(detail.x2-cx,detail.z2-cz);
-   if(distance>.05&&distance<=7.5)vfx.segment({x:detail.x2,y:Number.isFinite(detail.y2)?detail.y2:contact?cy:.95,z:detail.z2},{x:cx,y:contact?cy:.95,z:cz},0x7a8aa1,.022*scale,compact?.10:.14,false,0,compact?.28:.43);
+   if(distance>.05&&distance<=7.5)vfx.segment({x:detail.x2,y:Number.isFinite(detail.y2)?detail.y2:contact?cy:.95,z:detail.z2},{x:cx,y:contact?cy:.95,z:cz},0x999f9f,.022*scale,compact?.10:.14,false,0,compact?.28:.43);
   }
-  line([-.19,-.13,.88],[0,0,1.03],0xc9d3df,.036,.22,1,.8);
-  line([0,0,1.03],[.2,-.1,1.16],0x8c9eb5,.024,.26,0,.6);
+  line([-.19,-.13,.88],[0,0,1.03],0xf4f3ee,.036,.22,1,.8);
+  line([0,0,1.03],[.2,-.1,1.16],0x393b41,.024,.26,0,.6);
   break;
  }
  case'shade_blight':{
   const strong=!!detail.empowered,count=strong?3:Math.max(1,Math.min(2,detail.combo||1));
   for(let i=0;i<count;i++){
-   const side=(i-(count-1)/2)*.18,core=strong&&i===1,m=particle('claw',strong?(core?0x142030:0xd8e2eb):0x869ab0,0,side,.5,{life:strong?.34:.3,size:[strong?(core?.75:.20):.45,(strong?.65:.25)*level,1],velocity:strong?velocity(.15,side*2.4,.35):[0,0,0],motion:strong?'lash':'erupt',endColor:strong?(core?0x142030:0x566781):null,priority:i===0?1:0,opacity:strong?.76:.62});
+   const side=(i-(count-1)/2)*.18,core=strong&&i===1,m=particle('claw',strong?(core?0x101115:0xf4f3ee):0xc6c8c6,0,side,.5,{life:strong?.34:.3,size:[strong?(core?.75:.20):.45,(strong?.65:.25)*level,1],velocity:strong?velocity(.15,side*2.4,.35):[0,0,0],motion:strong?'lash':'erupt',endColor:strong?(core?0x101115:0x393b41):null,priority:i===0?1:0,opacity:strong?.76:.62});
    orient(m,-.2,a,side*2);
   }
-  if(strong){if(!contact)particle('veil',0x16202c,0,0,.07,{life:.28,size:[.58,.46,1],opacity:.24});for(const side of[-1,1])chip('crystal',0x9aaabd,.03,side*.15,.7,[.04,.13,.04],.6,1);}
+  if(strong){if(!contact)particle('veil',0x101115,0,0,.07,{life:.28,size:[.58,.46,1],opacity:.24});for(const side of[-1,1])chip('crystal',0xe7e4db,.03,side*.15,.7,[.04,.13,.04],.6,1);}
   break;
  }
  case'shadowblade_fan':
-  if(phase==='cast')for(const side of[-1,1])curl(side<0?0x718397:0xc1cedc,.17,side*.25,1,.46,.38*level,{roll:side*2,velocity:velocity(.5,side*.55),priority:side<0?1:0,opacity:.76});
-  else curl(0xa4b3c6,.02,0,.95,.38,.27,{rotation:-.5,roll:2,life:.19,priority:1,opacity:.62});
+  if(phase==='cast')for(const side of[-1,1])curl(side<0?0x24252a:0xf4f3ee,.17,side*.25,1,.46,.38*level,{roll:side*2,velocity:velocity(.5,side*.55),priority:side<0?1:0,opacity:.76});
+  else curl(0xe7e4db,.02,0,.95,.38,.27,{rotation:-.5,roll:2,life:.19,priority:1,opacity:.62});
   break;
  case'shadowblade_return':
-  curl(0xb4c2d1,0,0,.95,.52*level,.42,{rotation:phase==='hit'?-.65:-Math.PI/2,roll:-2.4,priority:1,opacity:.76});
-  curl(0x253346,-.14,.13,.9,.38,.3,{roll:-1.9,life:.32,opacity:.43});
+  curl(0xf4f3ee,0,0,.95,.52*level,.42,{rotation:phase==='hit'?-.65:-Math.PI/2,roll:-2.4,priority:1,opacity:.76});
+  curl(0x101115,-.14,.13,.9,.38,.3,{roll:-1.9,life:.32,opacity:.43});
   break;
  case'grimoire_wide':{
   const r=Math.max(.5,detail.radius||w.radius||1.7+.4*rank),release=phase==='hit';
   for(const side of[-1,1]){
-   const m=particle('claw',release?0x182331:0x7f94aa,0,side*r*.27,.07,{life:release?.4:.28,size:[r*.45,r*(release?.55:.2),1],motion:'erupt',priority:side<0?1:0,opacity:release?.76:.44});
+   const m=particle('claw',release?0x101115:0xc6c8c6,0,side*r*.27,.07,{life:release?.4:.28,size:[r*.45,r*(release?.55:.2),1],motion:'erupt',priority:side<0?1:0,opacity:release?.76:.44});
    orient(m,-.3,a,side*.38);
-   if(release){const edge=particle('claw',0xd8e4ec,.03,side*r*.27+.035,.08,{life:.28,delay:.03,size:[r*.10,r*.53,1],motion:'erupt',endColor:0x657a91,opacity:.78});orient(edge,-.3,a,side*.38);}
+   if(release){const edge=particle('claw',0xf4f3ee,.03,side*r*.27+.035,.08,{life:.28,delay:.03,size:[r*.10,r*.53,1],motion:'erupt',endColor:0x393b41,opacity:.78});orient(edge,-.3,a,side*.38);}
   }
-  line([-.07,-r*.55,.065],[.08,r*.55,.065],0x53677e,.045,.25,0,.5);
+  line([-.07,-r*.55,.065],[.08,r*.55,.065],0x999f9f,.045,.25,0,.5);
   break;
  }
  case'grimoire_echo':{
   const echo=phase==='echo',release=phase==='hit',r=Math.max(.5,detail.radius||w.radius||1.7),width=r*(echo?.44:.31);
-  line([0,-width,.07],[.11,0,echo?.22:.1],echo?0xc1cfdd:0x65788e,echo?.04:.027,echo?.3:.25,1,echo?.73:.46);
-  line([.11,0,echo?.22:.1],[-.08,width,.07],echo?0xa8b9cb:0x65788e,echo?.034:.022,echo?.34:.25,0,.6);
+  line([0,-width,.07],[.11,0,echo?.22:.1],echo?0xf4f3ee:0x999f9f,echo?.04:.027,echo?.3:.25,1,echo?.73:.46);
+  line([.11,0,echo?.22:.1],[-.08,width,.07],echo?0xe7e4db:0x999f9f,echo?.034:.022,echo?.34:.25,0,.6);
   if(echo)for(const side of[-1,1]){
-   const m=particle('claw',side<0?0x718296:0xb5c4d3,.05,side*.52,.1,{life:.38,size:[.75,.68*level,1],motion:'erupt',opacity:.76,priority:side<0?1:0});
+   const m=particle('claw',side<0?0x24252a:0xf4f3ee,.05,side*.52,.1,{life:.38,size:[.75,.68*level,1],motion:'erupt',opacity:.76,priority:side<0?1:0});
    orient(m,-.3,a,side*.35);
   }
-  else if(release)particle('veil',0x182230,0,0,.05,{life:.31,size:[.43,.33,1],opacity:.21});
+  else if(release)particle('veil',0x101115,0,0,.05,{life:.31,size:[.43,.33,1],opacity:.21});
   break;
  }
  case'harpoon_reef':

@@ -4,6 +4,7 @@ import * as T from '../vendor/three.module.js';
 import {FirstPersonView} from '../first-person-view.js';
 import {makeHero,poseCrossbow} from '../hero-model.js';
 import {shadowFocus} from '../shadow-gear.js';
+import {SHADOW_PALETTE} from '../shadow-appearance.js';
 import {createShadowAura,updateShadowAura,disposeShadowAura} from '../shadow-aura.js';
 import {miasmaLantern} from '../mirage-appearance.js';
 import {sporeLantern,sporePod} from '../wuling-appearance.js';
@@ -396,7 +397,7 @@ test('close equipment adds bounded real structure across firearms, thrown blades
    const pages=view.parts.filter(([s])=>s.name.startsWith('SM_Grimoire_AshenPages_'));assert.equal(pages.length,2);for(const [source,node]of pages){assert.equal(node.geometry,source.geometry);assert.equal(source.geometry.name,'SM_Grimoire_BoundPageLayers');assert(source.geometry.attributes.position.count>200,'book lost its real page layers');}assert.match(names,/turning-page/);assert.match(names,/book-corners-and-script/);
    const ink=changed.filter(([,n])=>n.geometry.name==='First_person_fine-incantation');assert.equal(ink.length,6);
    for(const [source,node]of ink){
-    assert.equal(source.material.color.getHex(),0xbac5cc,'third-person rune color changed');assert(Math.max(...node.material.color.toArray())<.15,'page ink is still a bright glow');assert.equal(node.material.toneMapped,true);
+    assert.equal(source.material.color.getHex(),SHADOW_PALETTE.lining,'third-person ink lost its shadow colour');assert(node.material.color.equals(source.material.color),'first-person ink overrides the real weapon palette');assert(Math.max(...node.material.color.toArray())<.15,'page ink is still a bright glow');assert.equal(node.material.toneMapped,true);
     node.geometry.computeBoundingBox();assert(node.geometry.boundingBox.max.y-node.geometry.boundingBox.min.y<1e-6,'ink floats in a raised tube above the page');assert(node.geometry.index.count<=18);
    }
   }else{assert.match(names,/lantern-rivets/);assert.match(names,/lantern-core-filaments/);const core=view.parts.find(([s])=>s===gun.userData.heart)[1];assert(view.details.some(mesh=>mesh.parent===core),'core detail lost the real heart animation');}

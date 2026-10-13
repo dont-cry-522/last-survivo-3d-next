@@ -30,7 +30,8 @@ test('wild/mist wardrobes rebuild the complete weighted silhouettes without chan
    const root=prepare(kind),other=prepare(kind),bones=root.skeleton.bones.slice(),rest=bones.map(b=>[...b.position.toArray(),...b.quaternion.toArray(),...b.scale.toArray()]),hands=root.getObjectByName('Female_Ranger_Arms_2'),handGeometry=hands.geometry,handMaterial=hands.material;
    const count=r=>{let n=0;r.traverse(o=>{if(o.isMesh&&o.visible)n++;});return n;},oldCalls=count(root),before=new Map();root.traverse(o=>{if(o.isSkinnedMesh)before.set(o,o.geometry);});
    rebuildWildMist(root,kind);assert.equal(rebuildWildMist(root,kind),root);assert.deepEqual(root.skeleton.bones,bones);assert.deepEqual(bones.map(b=>[...b.position.toArray(),...b.quaternion.toArray(),...b.scale.toArray()]),rest);assert.equal(hands.geometry,handGeometry);assert.equal(hands.material,handMaterial);assert(count(root)<=oldCalls);
-   const parts=[];root.traverse(o=>{if(o.userData.wildMistPart)parts.push(o);});const names=new Set(parts.map(o=>o.userData.wildMistPart));for(const part of['robe','sleeves','cuffs','legs','boots',kind==='mirage'?'long-hair':'hood'])assert(names.has(part));
+   const parts=[];root.traverse(o=>{if(o.userData.wildMistPart)parts.push(o);});const names=new Set(parts.map(o=>o.userData.wildMistPart));for(const part of['robe','sleeves','cuffs','legs','boots',...(kind==='lingya'?[]:[kind==='mirage'?'long-hair':'hood'])])assert(names.has(part));
+   if(kind==='lingya')assert.equal(root.getObjectByName('Female_Ranger_Head_Hood').visible,false,'retired hood still covers the new short hair');
    const triangles=m=>(m.geometry.index?.count??m.geometry.attributes.position.count)/3,geometry=parts.reduce((n,m)=>n+triangles(m),0);assert(geometry<10000);assert(parts.filter(m=>m.userData.wildMistPart!=='long-hair').reduce((n,m)=>n+triangles(m),0)<8000);
    for(const mesh of parts){const g=mesh.geometry,a=g.attributes;assert.notEqual(g,before.get(mesh));assert(mesh.castShadow&&mesh.receiveShadow);assert(g.boundingBox&&g.boundingSphere);for(const attr of Object.values(a))assert(attr.array.every(Number.isFinite));assert.equal(a.position.count,a.skinIndex.count);assert.equal(a.position.count,a.skinWeight.count);
     for(let i=0;i<a.position.count;i++){let sum=0;for(let j=0;j<4;j++){const k=i*4+j;assert(a.skinIndex.array[k]<mesh.skeleton.bones.length);assert(a.skinWeight.array[k]>=0);sum+=a.skinWeight.array[k];}assert(Math.abs(sum-1)<1e-5);}
@@ -38,7 +39,16 @@ test('wild/mist wardrobes rebuild the complete weighted silhouettes without chan
    }
    assert.equal(other.userData.wildMistRebuilt,undefined);other.traverse(o=>{if(o.isSkinnedMesh)assert(!o.userData.wildMistPart);});assert.deepEqual(root.scale.toArray(),[1,1,1]);
    const boots=parts.find(o=>o.userData.wildMistPart==='boots').geometry.boundingBox;assert.equal(boots.min.y,Math.fround(.004));assert(Math.abs(boots.max.y-({lingya:.28,wuling:.47,mirage:.60}[kind]))<1e-6);
-   const robe=parts.find(o=>o.userData.wildMistPart==='robe').geometry.boundingBox;assert(robe.min.y<({lingya:1.0,wuling:.83,mirage:.94}[kind]));built[kind]={root,parts};
+   const robeMesh=parts.find(o=>o.userData.wildMistPart==='robe'),robe=robeMesh.geometry.boundingBox;assert(robe.min.y<({lingya:1.0,wuling:.83,mirage:.94}[kind]));
+   if(kind==='lingya'){
+    const a=robeMesh.geometry.attributes,seams=new Map();let joined=0;
+    for(let i=0;i<a.position.count;i++){
+     const key=[a.position.getX(i),a.position.getY(i),a.position.getZ(i)].map(v=>Math.round(v*1e6)).join(','),prior=seams.get(key);
+     if(prior!==undefined){for(const field of ['skinIndex','skinWeight'])assert.deepEqual(a[field].array.slice(i*4,i*4+4),a[field].array.slice(prior*4,prior*4+4),'coincident garment seam separates under animation');joined++;}else seams.set(key,i);
+    }
+    assert(joined>20,'missing the closed front seam samples');
+   }
+   built[kind]={root,parts};
   });
   await t.test('the rebuilt sleeves and soles remain finite through original walking, running, aiming and casting clips',()=>{
    const point=new T.Vector3();

@@ -176,8 +176,8 @@ export class SkillVFX{
   const count=strong?10:6;for(let i=0;i<count;i++){const a=i*2.39996,d=r*(.45+Math.random()*.35),solid=i%3===0,shape=solid?'crystal':'vapor';this.groundParticle(shape,solid?0xbfa1dd:0x69537d,x+Math.cos(a)*d,.16,z+Math.sin(a)*d,{life:.4+Math.random()*.18,size:solid?[.03,.13,.03]:[.43,.30,1],velocity:[-Math.cos(a)*d*1.7,.25,-Math.sin(a)*d*1.7],spin:solid?3:0,orbit:[x,z,2.2],motion:'implode',endColor:solid?0x73558e:0x35293f,opacity:solid?.78:.5,additive:false});}
  }
  shadowStep(ax,az,bx,bz){
-  for(const [x,z]of [[ax,az],[bx,bz]]){this.groundParticle('veil',0x182233,x,.08,z,{life:.32,size:[.70,1.30,1],opacity:.55,additive:false});for(let i=0;i<5;i++){const a=i*Math.PI*2/5;this.groundParticle('crystal',0xc1ccd9,x,.4,z,{life:.28,size:[.055,.28,.055],velocity:[Math.cos(a)*2,1.2,Math.sin(a)*2],gravity:4});}}
-  this.groundSegment(new T.Vector3(ax,.8,az),new T.Vector3(bx,.8,bz),0x8190a5,.09,.18,true);
+  for(const [x,z]of [[ax,az],[bx,bz]]){this.groundParticle('veil',0x101115,x,.08,z,{life:.32,size:[.70,1.30,1],opacity:.55,additive:false});for(let i=0;i<5;i++){const a=i*Math.PI*2/5;this.groundParticle('crystal',0xf4f3ee,x,.4,z,{life:.28,size:[.055,.28,.055],velocity:[Math.cos(a)*2,1.2,Math.sin(a)*2],gravity:4});}}
+  this.groundSegment(new T.Vector3(ax,.8,az),new T.Vector3(bx,.8,bz),0xc6c8c6,.09,.18,true);
  }
  dust(x,z,r=1,y=this.groundHeight(x,z)){
   for(let i=0;i<6;i++){const a=Math.random()*Math.PI*2;this.particle('veil',0xb8a287,x+Math.cos(a)*r*.3,y+.12,z+Math.sin(a)*r*.3,{life:.35+Math.random()*.2,size:[r*.3,r*.23,1],velocity:[Math.cos(a)*r,.12,Math.sin(a)*r],opacity:.24,additive:false});}
@@ -195,17 +195,17 @@ export class SkillVFX{
   let last=new T.Vector3(x,.09,z).addScaledVector(axis,-r*.75);
   for(let i=1;i<=6;i++){
    const point=new T.Vector3(x,.09,z).addScaledVector(axis,r*(i/6*1.5-.75)).addScaledVector(across,i===6?0:Math.sin(i*2.4)*r*.10);
-   this.groundSegment(last,point,release?0xbdc9d8:0x58677d,release?.045:.025,release?.32:.28,false,1,.72);
+   this.groundSegment(last,point,release?0xf4f3ee:0x999f9f,release?.045:.025,release?.32:.28,false,1,.72);
    last=point;
   }
   if(!release)return;
-  for(let i=-1;i<=1;i++){const off=i*r*.4,height=r*(i===0?.65:.46),m=this.groundParticle('claw',0x101720,x+axis.x*off,.06,z+axis.z*off,{life:.4,size:[.75,height,1],motion:'erupt',opacity:.82,additive:false,priority:1});if(m)m.rotation.y=angle;
-   const rim=this.groundParticle('claw',0xe0e9f0,x+axis.x*(off+.06)+across.x*.025,.075,z+axis.z*(off+.06)+across.z*.025,{life:.30,delay:.025,size:[.13,height*.98,1],motion:'erupt',opacity:.86,endColor:0x65738a,priority:1});if(rim)rim.rotation.y=angle;
+  for(let i=-1;i<=1;i++){const off=i*r*.4,height=r*(i===0?.65:.46),m=this.groundParticle('claw',0x101115,x+axis.x*off,.06,z+axis.z*off,{life:.4,size:[.75,height,1],motion:'erupt',opacity:.82,additive:false,priority:1});if(m)m.rotation.y=angle;
+   const rim=this.groundParticle('claw',0xf4f3ee,x+axis.x*(off+.06)+across.x*.025,.075,z+axis.z*(off+.06)+across.z*.025,{life:.30,delay:.025,size:[.13,height*.98,1],motion:'erupt',opacity:.86,endColor:0x6b6e72,priority:1});if(rim)rim.rotation.y=angle;
   }
-  this.groundParticle('veil',0x111927,x,.06,z,{life:.5,size:[r,r*.58,1],opacity:.30,additive:false});
+  this.groundParticle('veil',0x101115,x,.06,z,{life:.5,size:[r,r*.58,1],opacity:.30,additive:false});
   for(let i=-2;i<=2;i++){const off=i*r*.26,px=x+axis.x*off,pz=z+axis.z*off;
-   if(Math.abs(i)===2){const plume=this.groundParticle('claw',0x435269,px,.35,pz,{life:.42,size:[.18,.4,1],velocity:[across.x*.25,.7,across.z*.25],grow:true,additive:false,opacity:.45});if(plume)plume.rotation.y=angle;}
-   this.groundParticle('ember',0xd4dce5,px,.2,pz,{life:.4,size:[.035,.07,.035],velocity:[0,2,0]});
+   if(Math.abs(i)===2){const plume=this.groundParticle('claw',0x393b41,px,.35,pz,{life:.42,size:[.18,.4,1],velocity:[across.x*.25,.7,across.z*.25],grow:true,additive:false,opacity:.45});if(plume)plume.rotation.y=angle;}
+   this.groundParticle('ember',0xe7e4db,px,.2,pz,{life:.4,size:[.035,.07,.035],velocity:[0,2,0]});
   }
  }
  bladeImpact(x,z,angle,shadow=false,contact){
@@ -213,32 +213,32 @@ export class SkillVFX{
   for(let i=1;i<=4;i++){
    const u=i/4;
    const roll=contact?.slashRoll,dx=Number.isFinite(roll)?Math.cos(roll)*.60:.54,dy=Number.isFinite(roll)?Math.sin(roll)*.60:.32;
-   this.contactStroke(f,((i-1)/4-.5)*dx,((i-1)/4-.5)*dy,(u-.5)*dx,(u-.5)*dy,shadow?0xc5d0df:0xb9dfd5,.030+Math.sin(u*Math.PI)*.025,f.compact?.13:.18,.76);
+   this.contactStroke(f,((i-1)/4-.5)*dx,((i-1)/4-.5)*dy,(u-.5)*dx,(u-.5)*dy,shadow?0xf4f3ee:0xb9dfd5,.030+Math.sin(u*Math.PI)*.025,f.compact?.13:.18,.76);
   }
-  const count=f.compact?2:3;for(let i=0;i<count;i++)this.particle('crystal',shadow?0x718299:0x85bbae,p.x,p.y,p.z,{life:.19,size:[.016*f.scale,.064*f.scale,.016*f.scale],velocity:f.velocity((i-(count-1)/2)*.8,.25+i*.15,.8),gravity:3,spin:6,opacity:.65,additive:false});
+  const count=f.compact?2:3;for(let i=0;i<count;i++)this.particle('crystal',shadow?0x999f9f:0x85bbae,p.x,p.y,p.z,{life:.19,size:[.016*f.scale,.064*f.scale,.016*f.scale],velocity:f.velocity((i-(count-1)/2)*.8,.25+i*.15,.8),gravity:3,spin:6,opacity:.65,additive:false});
  }
  shadowMark(x,z,strong=false,contact){
   if(contact){
-   const f=contactFrame(x,z,0,contact,this.groundHeight(x,z)+.95),base=f.at(0,strong?-.17:-.10),core=this.particle('claw',0x111822,base.x,base.y,base.z,{life:strong?(f.compact?.20:.28):.15,size:[(strong?.30:.17)*f.scale,(strong?.27:.16)*f.scale,1],motion:'implode',opacity:.74,additive:false,priority:1});
+   const f=contactFrame(x,z,0,contact,this.groundHeight(x,z)+.95),base=f.at(0,strong?-.17:-.10),core=this.particle('claw',0x101115,base.x,base.y,base.z,{life:strong?(f.compact?.20:.28):.15,size:[(strong?.30:.17)*f.scale,(strong?.27:.16)*f.scale,1],motion:'implode',opacity:.74,additive:false,priority:1});
    if(core)core.quaternion.copy(f.rotation);
-   for(const side of[-1,1])this.contactStroke(f,side*(strong?.12:.07),-.10,-side*.025,strong?.17:.12,0xcad7e3,strong?.055:.035,strong?.19:.14,.78);
-   if(strong){const p=f.at(),count=f.compact?3:4;for(let i=0;i<count;i++)this.particle('crystal',i%2?0x67778c:0xc8d4df,p.x,p.y,p.z,{life:.23,size:[.020*f.scale,.074*f.scale,.020*f.scale],velocity:f.velocity((i-(count-1)/2)*.6,.3,.7),gravity:3,spin:4,opacity:.7,additive:false,endColor:0x39485d});}
+   for(const side of[-1,1])this.contactStroke(f,side*(strong?.12:.07),-.10,-side*.025,strong?.17:.12,0xf4f3ee,strong?.055:.035,strong?.19:.14,.78);
+   if(strong){const p=f.at(),count=f.compact?3:4;for(let i=0;i<count;i++)this.particle('crystal',i%2?0x393b41:0xe7e4db,p.x,p.y,p.z,{life:.23,size:[.020*f.scale,.074*f.scale,.020*f.scale],velocity:f.velocity((i-(count-1)/2)*.6,.3,.7),gravity:3,spin:4,opacity:.7,additive:false,endColor:0x24252a});}
    return;
   }
-  const core=this.groundParticle('claw',0x111822,x,.67,z,{life:strong?.34:.17,size:strong?[.85,.6,1]:[.32,.24,1],motion:'implode',opacity:.8,additive:false,priority:1});if(core)core.rotation.set(-.35,.6,-.2);
-  for(const side of[-1,1])this.groundSegment(new T.Vector3(x+side*(strong?.3:.1),strong?.65:.86,z+.025),new T.Vector3(x-side*.05,strong?1.35:1.10,z+.025),0xdde7ef,strong?.025:.015,strong?.18:.11,false,1,.85,{delay:strong?.025:0,endColor:0x71829a});
-  if(strong)for(let i=0;i<6;i++){const a=i*Math.PI/3;this.groundParticle('crystal',i%2?0x67778c:0xdde4ee,x,1,z,{life:.31,delay:.035,size:[.032,.18,.032],velocity:[Math.sin(a)*2.6,1.4,Math.cos(a)*2.6],gravity:4,spin:5,endColor:0x39485d});}
+  const core=this.groundParticle('claw',0x101115,x,.67,z,{life:strong?.34:.17,size:strong?[.85,.6,1]:[.32,.24,1],motion:'implode',opacity:.8,additive:false,priority:1});if(core)core.rotation.set(-.35,.6,-.2);
+  for(const side of[-1,1])this.groundSegment(new T.Vector3(x+side*(strong?.3:.1),strong?.65:.86,z+.025),new T.Vector3(x-side*.05,strong?1.35:1.10,z+.025),0xf4f3ee,strong?.025:.015,strong?.18:.11,false,1,.85,{delay:strong?.025:0,endColor:0x999f9f});
+  if(strong)for(let i=0;i<6;i++){const a=i*Math.PI/3;this.groundParticle('crystal',i%2?0x393b41:0xe7e4db,x,1,z,{life:.31,delay:.035,size:[.032,.18,.032],velocity:[Math.sin(a)*2.6,1.4,Math.cos(a)*2.6],gravity:4,spin:5,endColor:0x24252a});}
  }
  shadowSpell(kind,x,z,targets=[]){
   if(kind==='veil'){
-   this.groundParticle('veil',0x182332,x,.09,z,{life:2.4,size:[4.8,4.8,1],opacity:.30,additive:false,priority:1});
+   this.groundParticle('veil',0x101115,x,.09,z,{life:2.4,size:[4.8,4.8,1],opacity:.30,additive:false,priority:1});
    for(let i=0;i<8;i++){const a=i*2.39996,r=Math.sqrt((i+.5)/8)*3.4;
-    this.groundParticle('claw',i%2?0x394654:0x687481,x+Math.cos(a)*r,.45,z+Math.sin(a)*r,{life:.65+i*.06,size:[.16,.68,1],velocity:[Math.sin(a)*.45,.3,-Math.cos(a)*.45],opacity:.28,additive:false,grow:true});
+    this.groundParticle('claw',i%2?0x24252a:0xc6c8c6,x+Math.cos(a)*r,.45,z+Math.sin(a)*r,{life:.65+i*.06,size:[.16,.68,1],velocity:[Math.sin(a)*.45,.3,-Math.cos(a)*.45],opacity:.28,additive:false,grow:true});
    }
   }else if(kind==='chain'){
    for(const e of targets){const a=new T.Vector3(x,.8,z),b=new T.Vector3(e.x,1,e.z),dx=e.x-x,dz=e.z-z,len=Math.hypot(dx,dz)||1;let last=a;
     for(let i=1;i<=5;i++){const u=i/5,bow=Math.sin(u*Math.PI),next=new T.Vector3().lerpVectors(a,b,u);next.x+=dz/len*bow*.35;next.z-=dx/len*bow*.35;next.y+=bow*.28;
-     this.groundSegment(last,next,i===5?0xd5dfed:0x69798c,.06*(1-u)+.025,.22+(1-u)*.09,false,1,.72);last=next;
+     this.groundSegment(last,next,i===5?0xf4f3ee:0xc6c8c6,.06*(1-u)+.025,.22+(1-u)*.09,false,1,.72);last=next;
     }this.shadowMark(e.x,e.z);
    }
   }else{this.riftCast(x,z,2.8,.65,true);}
@@ -345,7 +345,7 @@ export class SkillVFX{
   model.updateWorldMatrix(true,false);
   const edge=(id==='harpoon'?[[0,0,1.75],[.13,0,1.57]]:[[1.075,.25,.045],[.50,.71,.045]]).map(p=>model.localToWorld(new T.Vector3(...p))),last=this.meleeEdge;
   if(last?.model===model&&last.serial===serial)for(let i=0;i<2;i++){
-   const distance=edge[i].distanceTo(last.edge[i]);if(distance>.004&&distance<2)this.segment(last.edge[i],edge[i],id==='harpoon'?0xa1ccc9:0xc0cddd,i?.008:.017,.075,false,i?0:1,i?.22:.48);
+   const distance=edge[i].distanceTo(last.edge[i]);if(distance>.004&&distance<2)this.segment(last.edge[i],edge[i],id==='harpoon'?0xa1ccc9:0xf4f3ee,i?.008:.017,.075,false,i?0:1,i?.22:.48);
   }
   this.meleeEdge={model,serial,edge};
  }
@@ -362,13 +362,13 @@ export class SkillVFX{
   }else if(w.id==='boomerang'){
    this.segment(new T.Vector3(px,height,pz),new T.Vector3(px+dx*.20,height,pz+dz*.20),0xe2d2aa,.012,.065,false,0,.30);
   }else if(['shuriken','shadowblade'].includes(w.id)){
-   const swipe=this.particle('sweep',w.id==='shuriken'?0xb9eedd:w.id==='boomerang'?0xe1cb97:0xb5c4d7,px,height-.1,pz,{life:.14,size:[.28,.21,1],motion:'lash',roll:-4,opacity:.55});if(swipe)swipe.rotation.set(-Math.PI/2,0,-angle);
+   const swipe=this.particle('sweep',w.id==='shuriken'?0xb9eedd:w.id==='boomerang'?0xe1cb97:0xe7e4db,px,height-.1,pz,{life:.14,size:[.28,.21,1],motion:'lash',roll:-4,opacity:.55});if(swipe)swipe.rotation.set(-Math.PI/2,0,-angle);
   }else if(w.id==='fire'){
    this.particle('flame',path==='fire_blast'?0xffd999:0xffa054,px,height,pz,{life:.16,size:[.14,.23,1],velocity:[dx*2,.2,dz*2],opacity:.75});
    this.particle('ember',0xffde9e,px,height,pz,{life:.12,size:[.035,.06,.035],velocity:[dx*3,.4,dz*3],additive:false});
   }else if(['dark','shade'].includes(w.id)){
-   const curl=this.particle('sweep',w.id==='dark'?0xa486c9:0x344152,px,height-.05,pz,{life:.18,size:[.24,.19,1],velocity:[dx*.6,.1,dz*.6],motion:'lash',roll:-4,opacity:.55,additive:false});if(curl)curl.rotation.set(-.8,angle,.4);
-   this.particle('ember',w.id==='dark'?0xd3b4ed:0xccd5e2,px,height,pz,{life:.12,size:[.035,.05,.035],velocity:[dx*2,0,dz*2],opacity:.8});
+   const curl=this.particle('sweep',w.id==='dark'?0xa486c9:0x101115,px,height-.05,pz,{life:.18,size:[.24,.19,1],velocity:[dx*.6,.1,dz*.6],motion:'lash',roll:-4,opacity:.55,additive:false});if(curl)curl.rotation.set(-.8,angle,.4);
+   this.particle('ember',w.id==='dark'?0xd3b4ed:0xf4f3ee,px,height,pz,{life:.12,size:[.035,.05,.035],velocity:[dx*2,0,dz*2],opacity:.8});
   }
  }
  flight(b,dt){
@@ -379,7 +379,7 @@ export class SkillVFX{
   if(b.kind==='boomerang'){
    this.segment(new T.Vector3(b.x-dx*.08,y,b.z-dz*.08),new T.Vector3(b.x-dx*.28,y,b.z-dz*.28),0xd5c7ad,.012,.08,false,0,.28);
   }else if(['shuriken','shadowblade'].includes(b.kind)){
-   const bone=b.kind==='boomerang',shadow=b.kind==='shadowblade',color=bone?(b.returning?0xa9c995:0xe3cf9f):shadow?0x8496b0:0x9bdace;
+   const bone=b.kind==='boomerang',shadow=b.kind==='shadowblade',color=bone?(b.returning?0xa9c995:0xe3cf9f):shadow?0xc6c8c6:0x9bdace;
    const arc=this.particle('sweep',color,b.x-dx*.12,bone?(b.height??(this.groundHeight(b.x,b.z)+.82)):y,b.z-dz*.12,{life:.13,size:[bone?.28:.23,bone?.20:.17,1],opacity:b.returning?.5:.34,motion:'lash',roll:b.returning?-5:5,additive:false});if(arc)arc.rotation.set(-Math.PI/2,0,-b.mesh.rotation.y);
   }else if(b.kind==='fire'){
    this.particle('flame',path==='fire_blast'?0xffba68:0xff762b,b.x-dx*.18,y,b.z-dz*.18,{life:path==='fire_burn'?.27:.21,size:[.16,path==='fire_burn'?.28:.22,1],velocity:[-b.vx*.08,.4,-b.vz*.08],opacity:.65});
@@ -387,7 +387,7 @@ export class SkillVFX{
   }else if(b.kind==='dark'){
    const curl=this.particle('sweep',path==='dark_seek'?0xab92cd:0x775a96,b.x-dx*.17,y,b.z-dz*.17,{life:.23,size:[.20,.16,1],motion:'lash',roll:path==='dark_gravity'?-5:-2,opacity:.45,additive:false,velocity:[-b.vx*.04,.06,-b.vz*.04]});if(curl)curl.rotation.set(-.9,Math.atan2(dx,dz),.5);
   }else if(b.kind==='shade'){
-   this.segment(new T.Vector3(b.x-dx*.12,y,b.z-dz*.12),new T.Vector3(b.x-dx*.5,y,b.z-dz*.5),path==='shade_echo'?0xc3d0df:0x93a2b9,.022,.14,false,0,.58);
+   this.segment(new T.Vector3(b.x-dx*.12,y,b.z-dz*.12),new T.Vector3(b.x-dx*.5,y,b.z-dz*.5),path==='shade_echo'?0xf4f3ee:0xc6c8c6,.022,.14,false,0,.58);
   }else if(b.kind==='miasmalantern'){
    b.trail=.11;
    this.particle('smoke',0x64447d,b.x-dx*.22,y-.035,b.z-dz*.22,{life:.30,size:[.16,.13,.20],velocity:[-dx*.75,.12,-dz*.75],grow:true,opacity:.23,additive:false});
@@ -420,10 +420,10 @@ export class SkillVFX{
    const aura=new T.Group();g.add(aura);g.userData.aura=aura;const key='fire-flight';if(!this.materials.has(key))this.materials.set(key,new T.MeshBasicMaterial({map:this.flameTexture,color:0xff8a34,transparent:true,opacity:.68,depthWrite:false,side:T.DoubleSide,forceSinglePass:true,blending:T.AdditiveBlending}));for(const angle of [0,Math.PI/2]){const flame=new T.Mesh(this.geometry.flame,this.materials.get(key));flame.scale.set(.24,burn?.55+rank*.025:.43,1);flame.position.z=burn?-.30:-.23;flame.rotation.set(Math.PI/2,angle,0);aura.add(flame);}
    if(blast)for(const side of [-1,1]){const seam=part('crystal',0xffc36e,[.025,.17,.025]);seam.position.x=side*.16;seam.rotation.x=Math.PI/2;}
   }else if(w.id==='shade'){
-   part('ember',0x101925,[.14,.13,.23]);for(const side of [-1,0,1]){const barb=part('crystal',side===0?0xd6dfe8:path==='shade_blight'?0x9eafc6:0x65788f,[side===0?.045:.028,side===0?.28:.20,.035],side===0?.12:-.06);barb.position.x=side*.10;barb.rotation.set(Math.PI/2,0,-side*.23);}
+   part('ember',0x101115,[.14,.13,.23]);for(const side of [-1,0,1]){const barb=part('crystal',side===0?0xf4f3ee:path==='shade_blight'?0xe7e4db:0x393b41,[side===0?.045:.028,side===0?.28:.20,.035],side===0?.12:-.06);barb.position.x=side*.10;barb.rotation.set(Math.PI/2,0,-side*.23);}
   }else if(w.id==='shadowblade'){
-   const blade=part('ember',0x243347,[1,1,1]);blade.geometry=shadowCrescentGeometry;blade.rotation.x=Math.PI/2;
-   const edge=part('ember',path==='shadowblade_return'?0xd2dbe7:0x9caec5,[.87,.87,.87]);edge.geometry=shadowCrescentGeometry;edge.rotation.x=Math.PI/2;edge.position.y=.012;
+   const blade=part('ember',0x101115,[1,1,1]);blade.geometry=shadowCrescentGeometry;blade.rotation.x=Math.PI/2;
+   const edge=part('ember',path==='shadowblade_return'?0xf4f3ee:0xe7e4db,[.87,.87,.87]);edge.geometry=shadowCrescentGeometry;edge.rotation.x=Math.PI/2;edge.position.y=.012;
   }else if(w.id==='dark'){
    const seek=path==='dark_seek',gravity=path==='dark_gravity';part('ember',0x352542,seek?[.17,.17,.30]:[.25,.24,.29]);part('crystal',gravity?0xb596d6:0xd2b4ed,[.065,seek?.30:.21,.065],.09).rotation.x=Math.PI/2;
    const aura=new T.Group();g.add(aura);g.userData.aura=aura;

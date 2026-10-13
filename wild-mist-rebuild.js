@@ -4,7 +4,7 @@ import {smoothSeams} from './hero-finish.js';
 // Three authored wardrobes on the existing female rig. Vertices inherit the
 // nearby source garment's weights; no new bone, actor transform or grip exists.
 const palettes={
- lingya:{cloth:0xece2cc,shade:0xc0b296,trim:0xf0e7d5,leaf:0x84977b,leather:0x806249,sole:0x544733},
+ lingya:{cloth:0x6d8474,shade:0x526a5a,trim:0xd2c4a8,leaf:0x8a9a82,leather:0x665143,sole:0x403c33},
  wuling:{cloth:0x352339,shade:0x221d2b,trim:0x927955,leaf:0x51324f,leather:0x322730,sole:0x504333},
  mirage:{cloth:0x1e2331,shade:0x131622,trim:0xa9b4c4,leaf:0x353750,leather:0x202430,sole:0x181b23}
 };
@@ -81,7 +81,7 @@ function profileAt(profile,y){
 }
 function torso(mesh,kind){
  const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage';
- const sections=child?[[.99,.179,.117],[1.075,.173,.121],[1.14,.151,.116],[1.23,.149,.123],[1.32,.170,.134],[1.39,.188,.127],[1.44,.177,.103],[1.472,.094,.076],[1.493,.076,.065]]:
+ const sections=child?[[.99,.174,.114],[1.075,.165,.116],[1.14,.144,.110],[1.23,.147,.120],[1.32,.171,.128],[1.39,.184,.121],[1.44,.166,.097],[1.472,.091,.073],[1.493,.069,.062],[1.503,.064,.060],[1.505,.060,.058]]:
  mist?[[.925,.206,.124],[1.015,.182,.120],[1.11,.142,.103],[1.19,.126,.110],[1.27,.151,.135],[1.35,.179,.143],[1.405,.198,.121],[1.452,.174,.088],[1.48,.080,.060],[1.515,.064,.060]]:
  [[.82,.219,.149],[.90,.211,.147],[1.015,.190,.135],[1.10,.165,.117],[1.18,.140,.110],[1.26,.158,.137],[1.35,.183,.144],[1.41,.201,.120],[1.463,.135,.079],[1.49,.074,.063]];
  const facing=(y,a)=>{const start=mist?1.425:1.405,height=mist?.38:.54,v=clamp((start-y)/height,0,1),angle=Math.atan2(Math.sin(a),Math.cos(a)),center=mist?0:.14*(1-v),edge=Math.abs(angle-center)/(mist?.50:.73);return{v,edge,inside:!child&&y<start&&y>start-height&&edge<1};};
@@ -89,25 +89,27 @@ function torso(mesh,kind){
   // Folds open below the tied waist and compress at the ribs; their small
   // changing depth catches light without turning the whole coat into fluting.
   const tension=Math.exp(-(((y-1.15)/.14)**2)),f=facing(y,a),seam=f.inside?.0012*Math.exp(-(((f.edge-.94)/.08)**2))*Math.sin(Math.PI*f.v):0,fold=(.0042*Math.sin(a*9+(y-1.1)*9)+.002*Math.sin(a*15-y*14))*tension+.004*Math.cos(a*(mist?6:10)+.4)*hem-seam;
-  return[Math.sin(a)*(rx+fold),y+(mist?-.032*(.5+.5*Math.cos(a*4))*hem:child?0:.025*Math.sin(a-.5)*hem),Math.cos(a)*(rz+fold)-.028];
+  return[Math.sin(a)*(rx+fold),y+(mist?-.032*(.5+.5*Math.cos(a*4))*hem:child?0:.025*Math.sin(a-.5)*hem),Math.cos(a)*(rz+fold)-.028-(child?.012*smooth(y,1.46,1.50):0)];
  };
  const dense=[];for(let j=0;j<sections.length-1;j++)for(let step=0;step<3;step++)dense.push(sections[j][0]+(sections[j+1][0]-sections[j][0])*step/3);dense.push(sections.at(-1)[0]);
  // The front facing is part of the same surface. The previous separate patch
  // sampled different triangles/weights only 2.5 mm above the robe, intersecting
  // it in cast poses and leaving sharp dark slivers across the chest.
- rings(out,dense,(y,a,j)=>{const f=facing(y,a),leafShoulder=child&&y>1.32&&Math.abs(Math.sin(a))>.70;return[...shape(y,a),j===0||j===dense.length-1?p.trim:y>1.11&&y<1.165?p.shade:f.inside||leafShoulder?p.leaf:Math.abs(Math.sin(a))>.88?p.shade:p.cloth];},32);
+ // Exact wrap coordinates also select identical skin weights at the front seam.
+ rings(out,dense,(y,a,j)=>{if(child&&a===Math.PI*2)a=0;const f=facing(y,a),leafShoulder=child&&y>1.32&&Math.abs(Math.sin(a))>.70;return[...shape(y,a),j===0||j===dense.length-1||child&&y>1.465?p.trim:y>1.11&&y<1.165?p.shade:f.inside||leafShoulder?p.leaf:Math.abs(Math.sin(a))>.88?p.shade:p.cloth];},32);
  return out.build();
 }
 function sleeves(mesh,kind){
  const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage';
  for(const side of[-1,1]){
-  const profile=child?[[.148,.064],[.21,.077],[.28,.074],[.35,.063],[.405,.058],[.46,.059],[.53,.051],[.59,.049],[.63,.046]]:
+  // The new uncovered shoulder needs its sleeve root tucked inside the torso.
+  const profile=child?[[.075,.030],[.12,.047],[.175,.065],[.21,.070],[.28,.067],[.35,.059],[.405,.055],[.46,.055],[.53,.049],[.59,.046],[.63,.046]]:
    mist?[[.148,.065],[.21,.069],[.30,.064],[.39,.060],[.45,.054],[.52,.056],[.585,.075],[.645,.066]]:
    [[.148,.068],[.21,.077],[.30,.073],[.39,.065],[.45,.062],[.52,.070],[.58,.072],[.625,.064]];
   const dense=[];for(let j=0;j<profile.length-1;j++)for(let step=0;step<2;step++){const x=T.MathUtils.lerp(profile[j][0],profile[j+1][0],step/2);dense.push([x,profileAt(profile,x)[0]]);}dense.push(profile.at(-1));
   rings(out,dense,([x,r],a,j)=>{const elbow=Math.exp(-(((x-.41)/.075)**2)),crease=(.0028*Math.sin((x-.35)*105+a*1.6)+.0012*Math.cos(a*5))*elbow,tip=mist?smooth(x,.53,.645)*.020*Math.cos(a):0;
    const radius=(r+crease)*(1-.13*smooth(x,.48,.52)*(1-smooth(x,.605,.625)));
-   return[side*(x+tip),1.415+Math.cos(a)*radius,-.049+Math.sin(a)*radius*.90,j===dense.length-1||child&&j===10?p.trim:mist&&x>.52?p.leaf:p.cloth];
+   return[side*(x+tip),1.415+Math.cos(a)*radius,-.049+Math.sin(a)*radius*.90,j===dense.length-1||child&&x>=.45&&x<=.47?p.trim:mist&&x>.52?p.leaf:p.cloth];
   },20,side<0);
  }
  // Retain the authored glove/finger triangles exactly outside the new cuffs.
@@ -159,6 +161,6 @@ export function rebuildWildMist(root,kind){
  const lower=kind==='lingya'?meshes.find(o=>o.name==='Superhero_Female'&&!o.material.name):find('_Legs');
  if(!lower)throw new Error('Wild/mist rebuild requires weighted legs');replace(lower,legs(lower,kind),kind,'legs');
  for(const m of meshes)if(/_Body_Belt_|Pauldrons/.test(m.name))m.visible=false;
- if(kind==='mirage'){head.visible=false;for(const m of meshes)if(m.userData.mirageLongHair)longHair(m);}else replace(head,hood(head,kind),kind,'hood');
+ if(kind==='mirage'){head.visible=false;for(const m of meshes)if(m.userData.mirageLongHair)longHair(m);}else if(kind==='lingya')head.visible=false;else replace(head,hood(head,kind),kind,'hood');
  root.userData.wildMistRebuilt=kind;return root;
 }

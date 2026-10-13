@@ -1,7 +1,7 @@
 import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=176';
 import * as T from './vendor/three.module.js';
 import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=176';
-import {finishShadowTone} from './shadow-appearance.js?v=176';
+import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=180';
 import {sporePod} from './wuling-appearance.js?v=174';
 import {poseSlingshot} from './slingshot-model.js';
 
@@ -12,8 +12,8 @@ import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weap
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
 const PALETTES={
  scout:[0x4c654c,0x593f2b,0x94815b,0xc39879],silver:[0x304455,0x192633,0xb0c5ce,0xe1c5b1],
- wraith:[0x607086,0x333f50,0x9bacbd,0x8895a3],tide:[0x4f7387,0x253c4c,0x7c99a5,0xbe9f84],
- lingya:[0xece2cc,0x806249,0x84977b,0xe8bda2],wuling:[0x352339,0x322730,0x927955,0xdbbca7],mirage:[0x1e2331,0x202430,0xa9b4c4,0xdacade]
+ wraith:[SHADOW_PALETTE.cloth,SHADOW_PALETTE.leather,SHADOW_PALETTE.ivory,SHADOW_PALETTE.soul],tide:[0x4f7387,0x253c4c,0x7c99a5,0xbe9f84],
+ lingya:[0x6d8474,0x665143,0xd2c4a8,0xe8bda2],wuling:[0x352339,0x322730,0x927955,0xdbbca7],mirage:[0x1e2331,0x202430,0xa9b4c4,0xdacade]
 };
 const PROFILES={
  rifle:{type:'gun',width:.85,height:1,depth:.62,x:.38,y:-.48,pitch:.025,support:[0,-.045,.34]},
@@ -66,7 +66,7 @@ function sleeveGeometry(palette,kind){
   let radius=.057*(1-t)+.032*t,hex=t>.88?palette[1]:palette[0];
   if(kind==='scout'){radius+=.007*envelope;if(t>.52)hex=palette[1];if(t>.52&&t<.59||t>.77&&t<.81){radius+=.0035;hex=palette[2];}}
   else if(kind==='silver'){radius*=.90;radius+=.003*envelope;if(t>.62)hex=palette[1];if(t>.81&&t<.85){radius+=.002;hex=palette[2];}}
-  else if(kind==='wraith'){radius+=.014*envelope**2;if(t>.70){radius+=.0015*Math.sin(t*120);hex=Math.sin(t*100)>.82?palette[2]:0x303b4b;}}
+  else if(kind==='wraith'){radius+=.014*envelope**2;if(t>.62&&t<.82){radius+=.0015*Math.sin(t*120);hex=palette[2];}else if(t>=.82)hex=palette[1];}
   else if(kind==='tide'){if(t<.51)radius+=.009*envelope;else if(t<.62){radius+=.013*Math.sin((t-.51)/.11*Math.PI);hex=palette[2];}else if(t<.86){radius*=.91;hex=palette[3];}else hex=palette[1];}
   else if(kind==='lingya'){radius+=.018*Math.sin(Math.min(1,t/.6)*Math.PI)**2;if(t>.76){radius+=.002;hex=t<.80||t>.90&&t<.94?0xf0e7d5:t<.94?palette[2]:palette[1];}}
   else if(kind==='wuling'){radius+=.008*envelope+.008*Math.exp(-(((t-.83)/.12)**2));if(t>.72)hex=t<.76||t>.87&&t<.91?palette[2]:palette[1];}
@@ -196,18 +196,20 @@ export class FirstPersonView {
      strokes.push([[sign*x,z],[sign*(x+length*.64),z],[sign*(x+length*.71),z+.002],[sign*(x+length),z+.002]]);
     }
     strokes.push([[sign*.178,-.105],[sign*.178,.103]],[[sign*.026,-.104],[sign*.026,-.086]]);
-    local.add(pageInk(strokes,.00075),0x5c5064);
-    local.add(pageInk([[[sign*.104,-.021],[sign*.124,0],[sign*.104,.021],[sign*.084,0],[sign*.104,-.021]],[[sign*.096,-.008],[sign*.112,0],[sign*.096,.008]],[[sign*.104,-.028],[sign*.104,-.024]],[[sign*.104,.024],[sign*.104,.028]]],.001),0x493e52);
-    for(const z of[-.116,.116])local.line([[sign*.18,.010,z],[sign*.217,.011,z],[sign*.217,.011,z-Math.sign(z)*.027]],.004,0x777a84);
+    local.add(pageInk(strokes,.00075),SHADOW_PALETTE.lining);
+    local.add(pageInk([[[sign*.104,-.021],[sign*.124,0],[sign*.104,.021],[sign*.084,0],[sign*.104,-.021]],[[sign*.096,-.008],[sign*.112,0],[sign*.096,.008]],[[sign*.104,-.028],[sign*.104,-.024]],[[sign*.104,.024],[sign*.104,.028]]],.001),SHADOW_PALETTE.cloth);
+    for(const z of[-.116,.116])local.line([[sign*.18,.010,z],[sign*.217,.011,z],[sign*.217,.011,z-Math.sign(z)*.027]],.004,SHADOW_PALETTE.edge);
     const g=local.finish();g.applyMatrix4(new T.Matrix4().compose(leaf.position,leaf.quaternion,leaf.scale));batch.add(g);
    }
    this.addDetail(batch,this.model,'book-corners-and-script',{roughness:.63,metalness:.25});
    for(const [source,node]of this.parts){
     if(source.userData.identityDetail||source.material?.userData.identityFinish)continue;
     if(source.geometry?.type==='BoxGeometry'){
-     if(source.position.y>.01){node.material.color.setHex(source===gun.userData.page?0xaaa2b0:0x8b8392);node.material.roughness=.95;node.material.metalness=0;}
-     if(source===gun.userData.page){node.material.side=T.DoubleSide;node.material.needsUpdate=true;}
-    }else if(source.geometry?.type==='TubeGeometry'){node.material.color.setHex(0x5c5064);node.material.toneMapped=true;}
+     if(source.position.y>.01){node.material.roughness=.95;node.material.metalness=0;}
+     // The thin moving sheet needs two sides without changing the bound pages
+     // that share its source parchment material. Both keep the original colour.
+     if(source===gun.userData.page){node.material=this.material(node.material);node.material.side=T.DoubleSide;node.material.needsUpdate=true;}
+    }else if(source.geometry?.type==='TubeGeometry')node.material.toneMapped=true;
    }
   }else if(['sporelantern','miasmalantern'].includes(id)){
    const mist=id==='miasmalantern',heart=find(gun.userData.heart),batch=detailBatch();

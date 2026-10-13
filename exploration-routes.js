@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
-import {segmentDistance} from './rules.js?v=176';
-import {waterDepth} from './water.js?v=176';
+import {segmentDistance} from './rules.js?v=180';
+import {waterDepth} from './water.js?v=180';
 import {bridgeContains} from './coast.js?v=114';
 
 const STEP=2,CLEARANCE=.60,MAX_POINTS=40;

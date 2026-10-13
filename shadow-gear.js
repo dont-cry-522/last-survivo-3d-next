@@ -1,6 +1,7 @@
 import * as T from './vendor/three.module.js';
 import {weaponInlay,nameWeapon} from './weapon-identity.js?v=173';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
+import {SHADOW_PALETTE as SHADOW} from './shadow-appearance.js?v=180';
 
 const geometry=new Map(),materials=new Map();
 function part(parent,key,create,color,position=[0,0,0],scale=[1,1,1],glow=false){
@@ -14,7 +15,7 @@ function line(parent,color,points,radius=.006,glow=false,segments=24){
 function warScytheBlade(){
  const outer=new T.CubicBezierCurve(new T.Vector2(-.045,.03),new T.Vector2(.32,.36),new T.Vector2(.94,.32),new T.Vector2(1.06,-.45));
  const inner=new T.CubicBezierCurve(new T.Vector2(.03,-.04),new T.Vector2(.45,.12),new T.Vector2(.80,.01),new T.Vector2(1.06,-.45));
- const p=[],c=[],ix=[],steps=32,section=[0,.18,.70,.90,1],tints=[0x77838f,0x535e70,0x303849,0xadb7c0,0xd2d7da];
+ const p=[],c=[],ix=[],steps=32,section=[0,.18,.70,.90,1],tints=[SHADOW.fold,SHADOW.cloth,SHADOW.lining,SHADOW.metal,SHADOW.soul];
  // Forged ridge on both faces, tapering into a genuinely thin cutting edge.
  // The silhouette and established world-space contact point remain unchanged.
  for(const face of[-1,1])for(let i=0;i<=steps;i++){
@@ -33,8 +34,10 @@ function warScytheBlade(){
 function riftVeil(){
  // Two curved, tapering sheets leave actual negative space between the fingers.
  // Their thin surface reads as a held shadow tear instead of solid glove armour.
- const p=[],uv=[],c=[],ix=[],rows=32,cols=4,inner=new T.Color(0x627b9b),outer=new T.Color(0x182435),shade=new T.Color();
+ const p=[],uv=[],c=[],ix=[],rows=32,cols=4,inner=new T.Color(),outer=new T.Color(),shade=new T.Color();
  for(const side of[-1,1]){
+  // One lip drinks the light; the other carries a narrow, pale soul edge.
+  inner.set(side<0?SHADOW.cloth:SHADOW.ivory);outer.set(side<0?SHADOW.lining:SHADOW.fold);
   const start=p.length/3;
   for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++){
    const v=j/rows,u=i/cols,taper=Math.sin(v*Math.PI),center=.045*Math.sin(v*7.0)+.025*Math.sin(v*15),gap=.024+.016*taper;
@@ -70,19 +73,19 @@ export function shadowFocus(id){
  const g=new T.Group();g.name='shadow-focus-'+id;
  if(id==='shadowblade'){
   g.name='SM_Weapon_WarScythe_A';
-  const shaft=line(g,0x242733,[[0,-.48,.02],[0,.05,.02],[.025,.72,.02]],.030);shaft.name='SM_Scythe_BlackwoodShaft_A';
+  const shaft=line(g,SHADOW.lining,[[0,-.48,.02],[0,.05,.02],[.025,.72,.02]],.030);shaft.name='SM_Scythe_BlackwoodShaft_A';
   for(const [index,base]of[-.13,.24].entries()){
    const wrap=[];for(let i=0;i<=80;i++){const t=i/80,a=t*Math.PI*12,y=base+t*.22,x=Math.max(0,y-.05)*.025/.67;wrap.push([x+Math.cos(a)*.032,y,.02+Math.sin(a)*.032]);}
-   const leather=line(g,0x42414c,wrap,.0045,false,96);leather.name='SM_Scythe_LeatherBinding_'+index;
+   const leather=line(g,SHADOW.edge,wrap,.0045,false,96);leather.name='SM_Scythe_LeatherBinding_'+index;
   }
   for(const [i,y]of[-.43,.55,.66].entries()){
-   const collar=part(g,'scythe-collar',()=>new T.CylinderGeometry(.037,.040,.048,12),0x85919e,[Math.max(0,y-.05)*.025/.67,y,.02]);collar.name='SM_Scythe_SteelCollar_'+i;collar.material.roughness=.37;collar.material.metalness=.64;
+   const collar=part(g,'scythe-collar',()=>new T.CylinderGeometry(.037,.040,.048,12),SHADOW.metal,[Math.max(0,y-.05)*.025/.67,y,.02]);collar.name='SM_Scythe_SteelCollar_'+i;collar.material.roughness=.37;collar.material.metalness=.64;
   }
-  const socket=part(g,'scythe-socket',()=>new T.CylinderGeometry(.040,.052,.15,12),0x6d7b89,[.025,.69,.02]);socket.name='SM_Scythe_BladeSocket_A';socket.material.roughness=.38;socket.material.metalness=.68;
+  const socket=part(g,'scythe-socket',()=>new T.CylinderGeometry(.040,.052,.15,12),SHADOW.fold,[.025,.69,.02]);socket.name='SM_Scythe_BladeSocket_A';socket.material.roughness=.38;socket.material.metalness=.68;
   const blade=part(g,'war-scythe',warScytheBlade,0xffffff,[.015,.70,.02]);blade.name='SM_Scythe_ForgedBlade_A';blade.material.vertexColors=true;blade.material.roughness=.34;blade.material.metalness=.72;
-  const brace=line(g,0x8895a1,[[.025,.60,.02],[.065,.70,.02],[.20,.79,.025]],.016);brace.name='SM_Scythe_SocketBrace_A';brace.material.roughness=.4;brace.material.metalness=.62;
+  const brace=line(g,SHADOW.metal,[[.025,.60,.02],[.065,.70,.02],[.20,.79,.025]],.016);brace.name='SM_Scythe_SocketBrace_A';brace.material.roughness=.4;brace.material.metalness=.62;
   for(const side of[-1,1]){
-   const pin=part(g,'scythe-pin',()=>new T.SphereGeometry(.018,10,6),0xa6b2ba,[.060,.72,.02+side*.045],[1,1,.45]);pin.name='SM_Scythe_Rivet_'+side;pin.material.roughness=.31;pin.material.metalness=.76;
+   const pin=part(g,'scythe-pin',()=>new T.SphereGeometry(.018,10,6),SHADOW.soul,[.060,.72,.02+side*.045],[1,1,.45]);pin.name='SM_Scythe_Rivet_'+side;pin.material.roughness=.31;pin.material.metalness=.76;
   }
   // Both faces carry the same small soul scar. Project it onto the forged
   // surface so it never floats above, or disappears inside, the raised ridge.
@@ -95,18 +98,20 @@ export function shadowFocus(id){
    }
    if(points.length>1)scars.push(points);
   }
-  weaponInlay(g,'SM_Scythe_SoulRiftEngraving',scars,0xa09bac,.0017,.42);
+  weaponInlay(g,'SM_Scythe_SoulRiftEngraving',scars,SHADOW.ivory,.0017,.42);
  }else if(id==='grimoire'){
   for(const sign of [-1,1]){
    const leaf=new T.Group();leaf.rotation.z=sign*.18;leaf.position.set(0,.075,.06);g.add(leaf);
-   const cover=part(leaf,'book-cover',bookCover,0x262332,[sign*.115,0,0],[.23,.028,.29]);cover.name='SM_Grimoire_SoulhideCover_'+sign;cover.userData.identityDetail=true;cover.material.userData.identityFinish=true;
-   const pages=part(leaf,'book-pages',bookPages,0x8b8392,[sign*.11,.022,0],[.21,.018,.26]);pages.name='SM_Grimoire_AshenPages_'+sign;pages.userData.identityDetail=true;pages.material.roughness=.95;pages.material.metalness=0;
-   for(const z of [-.07,0,.07])line(leaf,0xbac5cc,[[sign*.040,.036,z],[sign*.090,.038,z],[sign*.105,.038,z+.010],[sign*.148,.036,z+.010]],.0014,true);
-   weaponInlay(leaf,'SM_Grimoire_SoulMargin_'+sign,[[[sign*.176,.0325,-.10],[sign*.167,.033,-.057],[sign*.177,.033,-.025]],[[sign*.182,.033,.016],[sign*.190,.033,.05],[sign*.181,.0325,.103]]],0x665c77,.0014,.22);
+   const cover=part(leaf,'book-cover',bookCover,SHADOW.lining,[sign*.115,0,0],[.23,.028,.29]);cover.name='SM_Grimoire_SoulhideCover_'+sign;cover.userData.identityDetail=true;cover.material.userData.identityFinish=true;
+   const pages=part(leaf,'book-pages',bookPages,SHADOW.ivory,[sign*.11,.022,0],[.21,.018,.26]);pages.name='SM_Grimoire_AshenPages_'+sign;pages.userData.identityDetail=true;pages.material.roughness=.95;pages.material.metalness=0;
+   for(const z of [-.07,0,.07])line(leaf,SHADOW.lining,[[sign*.040,.036,z],[sign*.090,.038,z],[sign*.105,.038,z+.010],[sign*.148,.036,z+.010]],.0014,false);
+   weaponInlay(leaf,'SM_Grimoire_SoulMargin_'+sign,[[[sign*.176,.0325,-.10],[sign*.167,.033,-.057],[sign*.177,.033,-.025]],[[sign*.182,.033,.016],[sign*.190,.033,.05],[sign*.181,.0325,.103]]],SHADOW.cloth,.0014,.22);
   }
-  g.userData.page=part(g,'box',()=>new T.BoxGeometry(1,1,1),0x44434d,[.095,.12,.06],[.18,.004,.25]);
+  g.userData.page=part(g,'box',()=>new T.BoxGeometry(1,1,1),SHADOW.ivory,[.095,.12,.06],[.18,.004,.25]);
+  // Ink belongs to the existing turning page, so it follows its original hinge.
+  weaponInlay(g.userData.page,'SM_Grimoire_TurningPageInk',[-.23,0,.23].map(z=>[[-.34,.65,z],[-.16,.65,z],[.01,.65,z+.045],[.15,.65,z+.045],[.32,.65,z+.018]]),SHADOW.lining,.006,0);
  }else{
-  const focus=part(g,'curved-shadow-tear',riftVeil,0xf9fdff,[0,.11,.13],[.052,.052,.052]);g.userData.focus=focus;focus.name='SM_Weapon_Shade_ControlledRift';focus.userData.identityDetail=true;
+  const focus=part(g,'curved-shadow-tear',riftVeil,0xfefefe,[0,.11,.13],[.052,.052,.052]);g.userData.focus=focus;focus.name='SM_Weapon_Shade_ControlledRift';focus.userData.identityDetail=true;
   const material=focus.material;focus.castShadow=focus.receiveShadow=false;
   if(!material.userData.controlledRift){
   material.userData.controlledRift=true;material.vertexColors=true;material.metalness=0;material.roughness=.86;material.transparent=true;material.opacity=.86;material.depthWrite=false;material.side=T.DoubleSide;
@@ -116,8 +121,8 @@ export function shadowFocus(id){
   };material.customProgramCacheKey=()=> 'shade-controlled-rift';
   }
   // Fine open seams echo the face scar, without forming a ring around the hand.
-  line(focus,0x9aaec8,[[-.015,1.02,.055],[-.068,.66,.068],[-.055,.25,.070],[-.082,-.16,.068]],.012,true);
-  line(focus,0x728cae,[[.005,-.31,.068],[.044,-.67,.055],[.025,-1.10,.035]],.012,true);
+  line(focus,SHADOW.soul,[[-.015,1.02,.055],[-.068,.66,.068],[-.055,.25,.070],[-.082,-.16,.068]],.012,true);
+  line(focus,SHADOW.cloth,[[.005,-.31,.068],[.044,-.67,.055],[.025,-1.10,.035]],.012,false);
  }
  return nameWeapon(g,'wraith',id);
 }

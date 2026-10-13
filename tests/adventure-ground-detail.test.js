@@ -8,14 +8,14 @@ import {segmentDistance} from '../rules.js';
 import {installForestHabitats,forestHabitatAt} from '../forest-habitats.js';
 import {polishEnvironmentModels} from '../environment-props.js';
 import {installForestVista} from '../forest-vista.js';
-import {installBiomePlaces} from '../biome-places.js?v=176';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=176';
+import {installBiomePlaces} from '../biome-places.js?v=180';
+import {installEnvironmentClusters} from '../environment-clusters.js?v=180';
 import {installExplorationRoutes} from '../exploration-routes.js';
 import {installExplorationLandmarks} from '../exploration-landmarks.js';
 import {installExplorationComposition} from '../exploration-composition.js';
 import {installForestTerrain} from '../forest-terrain.js';
 import {installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
-import {naturalRockGeometry} from '../biome-scenery.js?v=176';
+import {naturalRockGeometry} from '../biome-scenery.js?v=180';
 import {surfaceUniforms} from '../surface-textures.js?v=120';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};

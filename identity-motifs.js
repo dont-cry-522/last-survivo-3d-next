@@ -6,9 +6,9 @@ import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 export const HERO_SIGNATURES=Object.freeze({
  scout:{primary:0x4c654c,accent:0xa79361,metal:0x726044,motif:'woodland-leaf',label:'林叶',description:'林绿叶裁领、棕皮护具与旧铜林叶扣，木质枪托呼应林地游侠。'},
  silver:{primary:0x304455,accent:0xc2d7df,metal:0x718c9a,motif:'frost-feather',label:'霜羽',description:'白短发与黑面具，深靛衣装用冰蓝灰翻领和渐淡霜边呼应霜影。'},
- wraith:{primary:0x303940,accent:0xb2afb9,metal:0x65717d,motif:'soul-rift',label:'魂痕',description:'煤黑兜帽、冷灰布层与无面魂痕，暗影武器用断裂刻隙呼应影裔。'},
+ wraith:{primary:0x24252a,accent:0xe7e4db,metal:0x999f9f,motif:'soul-rift',label:'魂痕',description:'墨黑兜帽、单侧骨白衣片与无面魂痕，黑刃白锋和黑封白页呼应影裔。'},
  tide:{primary:0x284b60,accent:0xbb9e67,metal:0x668e96,motif:'tidal-crest',label:'潮纹',description:'深海蓝猎装、青灰卷袖与浅浪衣摆，长叉与唯一浪扣呼应潮行者。'},
- lingya:{primary:0xdfcda2,accent:0xc4a364,metal:0x60795d,motif:'sprout-bell',label:'芽铃',description:'奶油短衣、两瓣嫩叶披肩与一枚芽铃，骨镖和兽耳保留御兽少女身份。'},
+ lingya:{primary:0x6d8474,accent:0xc4a364,metal:0x60795d,motif:'sprout-bell',label:'芽铃',description:'栗棕短发、苔青短衣与一枚芽铃，木质弹弓和小挎包呼应林间御兽少女。'},
  wuling:{primary:0x352339,accent:0x9d7f4d,metal:0x806340,motif:'spore-gill',label:'菌褶',description:'哑光深葡紫采药袍与旧铜菌褶扣，菌盖孢灯呼应雾中采苓人。'},
  mirage:{primary:0x1e2331,accent:0xc0c8d5,metal:0x8e9eae,motif:'mirror-petal',label:'镜瓣',description:'柔顺长发、冷墨紫衣与镜瓣缝边，冷银蜃花灯呼应蜃影的替身幻象。'}
 });

@@ -24,16 +24,22 @@ The hashed delivery GLBs use lossless gzip compression. Baked animation tracks p
 
 The game does not contain extracted models, textures or audio from Ori, NieR, Chainsaw Man, Rozen Maiden, or other commercial reference works.
 
-## Lingya head — Rain Rig, CC BY 4.0
+## Current Lingya head — Quaternius Universal Base, CC0 1.0
+
+Starting with v180, Lingya uses an independent head extracted from the repository's `silver-base.gltf`, part of the Quaternius Universal Base Characters pack credited above. The original female base, eye texture and eyebrow mesh are CC0; see `assets/characters/universal-base-characters-LICENSE.txt`.
+
+Local adaptations: head/neck extraction, one compact rest-space fit, soft skin vertex colours, native brown eyes, and a connected socket-surface Blink morph. The short chestnut bob, soft moss-green clothing and smaller satchel retain the game's existing rig, attachment points and animation interface. This replacement does not use the Rain facial mesh.
+
+Reproduction: run `python scripts/prepare-lingya-head.py`, then `node scripts/pack-characters.mjs`. Current fallback files are `assets/characters/lingya-face.gltf` and `.bin`; `character-assets.js` identifies their active gzip delivery file. Shared Quaternius source files are not modified.
+
+## Historical Lingya heads — Rain Rig, CC BY 4.0
 
 “Rain Rig (CC) Blender Foundation | studio.blender.org”
 
 - Original asset: [Rain v3](https://studio.blender.org/characters/rain/v3/), Blender Studio / Blender Foundation.
 - License: [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/).
-- Used portions: head, eyes, eyebrows, and eyelashes. No source rig scripts are executed or included.
-- Adaptations: extracted head, relaxed smile, resized and positioned to fit Lingya's existing hood and body, new skin/eye/brow/lash materials and baked eyelid morph animation, attached to the game's head bone, exported as glTF and gzip delivery GLB.
-- Adapted files: `assets/characters/lingya-face*`. The adapted head remains available under CC BY 4.0. The remaining character outfit/animation assets retain their own licenses.
-- Reproduction: `scripts/prepare-lingya-head.py`, run with Blender 4.5 LTS and the official Rain v3 source, with embedded Python auto-execution disabled.
+- Earlier Lingya versions extracted the head, eyes, eyebrows and eyelashes, fitted facial proportions and baked eyelid animation. No source rig scripts were included or executed at runtime.
+- Those historical head assets, including retained earlier hashed delivery files, remain CC BY 4.0. They are not the active v180 head selected by `character-assets.js`. This historical attribution is retained for those copies and project history.
 
 ## Three.js — MIT
 

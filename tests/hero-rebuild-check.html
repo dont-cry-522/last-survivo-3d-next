@@ -4,7 +4,7 @@
 <p id="status">正在载入</p><a id="save-png">保存对照图</a> · <a id="save-overview">保存七人总览</a><div id="overview"></div><div id="sheet"></div><pre id="report"></pre>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=180';
+import {actor,animateActor} from '../world.js?v=181';
 const source=await(await fetch('../world.js',{cache:'no-store'})).text(),entry=source.match(/from['"](.\/skinned-hero\.js[^'"]*)['"]/)[1];
 const {loadHeroAssets,disposeHero}=await import(new URL('../'+entry,location.href));
 const errors=[];addEventListener('error',e=>errors.push(e.message));addEventListener('unhandledrejection',e=>errors.push(String(e.reason)));

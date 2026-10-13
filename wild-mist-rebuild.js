@@ -4,7 +4,7 @@ import {smoothSeams} from './hero-finish.js';
 // Three authored wardrobes on the existing female rig. Vertices inherit the
 // nearby source garment's weights; no new bone, actor transform or grip exists.
 const palettes={
- lingya:{cloth:0x6d8474,shade:0x526a5a,trim:0xd2c4a8,leaf:0x8a9a82,leather:0x665143,sole:0x403c33},
+ lingya:{cloth:0xf2e8d5,shade:0xa65f42,trim:0xe4d6bb,leaf:0x81442f,leather:0x76503b,sole:0x49372c,skin:0xefbda1},
  wuling:{cloth:0x352339,shade:0x221d2b,trim:0x927955,leaf:0x51324f,leather:0x322730,sole:0x504333},
  mirage:{cloth:0x1e2331,shade:0x131622,trim:0xa9b4c4,leaf:0x353750,leather:0x202430,sole:0x181b23}
 };
@@ -80,6 +80,7 @@ function profileAt(profile,y){
  return b.slice(1).map((v,k)=>{const q=k+1,m0=(c[q]-a[q])/(c[0]-a[0]),m1=(d[q]-b[q])/(d[0]-b[0]);return(2*t3-3*t2+1)*v+(t3-2*t2+t)*span*m0+(-2*t3+3*t2)*c[q]+(t3-t2)*span*m1;});
 }
 function torso(mesh,kind){
+ if(kind==='lingya')return lingyaBlouse(mesh);
  const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage';
  const sections=child?[[.99,.174,.114],[1.075,.165,.116],[1.14,.144,.110],[1.23,.147,.120],[1.32,.171,.128],[1.39,.184,.121],[1.44,.166,.097],[1.472,.091,.073],[1.493,.069,.062],[1.503,.064,.060],[1.505,.060,.058]]:
  mist?[[.925,.206,.124],[1.015,.182,.120],[1.11,.142,.103],[1.19,.126,.110],[1.27,.151,.135],[1.35,.179,.143],[1.405,.198,.121],[1.452,.174,.088],[1.48,.080,.060],[1.515,.064,.060]]:
@@ -99,7 +100,24 @@ function torso(mesh,kind){
  rings(out,dense,(y,a,j)=>{if(child&&a===Math.PI*2)a=0;const f=facing(y,a),leafShoulder=child&&y>1.32&&Math.abs(Math.sin(a))>.70;return[...shape(y,a),j===0||j===dense.length-1||child&&y>1.465?p.trim:y>1.11&&y<1.165?p.shade:f.inside||leafShoulder?p.leaf:Math.abs(Math.sin(a))>.88?p.shade:p.cloth];},32);
  return out.build();
 }
+function lingyaBlouse(mesh){
+ const p=palettes.lingya,out=surface(mesh),profile=[[1.085,.143,.098],[1.115,.146,.104],[1.16,.151,.111],[1.24,.158,.119],[1.33,.174,.127],[1.405,.183,.116],[1.445,.154,.092],[1.478,.099,.069],[1.495,.065,.060]];
+ const cross=(x,y,front=1)=>{const[rx,rz]=profileAt(profile,y);return front*Math.sqrt(Math.max(0,1-(x/rx)**2))*rz-.028;};
+ const rows=Array.from({length:25},(_,i)=>1.085+i/24*.410);
+ rings(out,rows,(y,a,j)=>{if(a===Math.PI*2)a=0;const[rx,rz]=profileAt(profile,y),gather=.003*Math.sin(a*12+y*14)*(1-smooth(y,1.12,1.3));return[Math.sin(a)*(rx+gather),y,Math.cos(a)*(rz+gather)-.028,j<2||j>22?p.trim:p.cloth];},24);
+ rings(out,[[1.488,.074,.064],[1.503,.067,.058],[1.506,.058,.050],[1.495,.048,.041]],([y,rx,rz],a)=>[Math.sin(a)*rx,y,Math.cos(a)*rz-.028,p.trim],24);
+ // A separate raised bib and two conforming shoulder straps make real overalls.
+ grid(out,12,12,(u,v)=>{const y=1.10+v*.239,x=(u*2-1)*(.083+.012*v),edge=u<.06||u>.94||v>.94;return[x,y,cross(x,y)+.008+.002*Math.sin(u*Math.PI)*Math.sin(v*Math.PI),edge?p.leaf:p.shade];});
+ for(const side of[-1,1])grid(out,32,2,(u,v)=>{
+  const x=side*(.092+(u-.5)*.029);let low=1.44,high=1.495;for(let i=0;i<18;i++){const mid=(low+high)/2;if(profileAt(profile,mid)[0]>Math.abs(x))low=mid;else high=mid;}
+  const base=1.105-.075*smooth(v,.55,1),y=base+(low-base)*Math.sin(v*Math.PI),front=v<.5?1:-1;
+  return[x,y+.002,cross(x,y,front)+front*.005,u<.1||u>.9?p.leaf:p.shade];
+ });
+ grid(out,7,10,(u,v)=>{const y=1.155+v*.081,x=(u*2-1)*(.047+.004*v),edge=u<.1||u>.9||v>.86;return[x,y,cross(x,y)+.017+.002*Math.sin(v*Math.PI),edge?p.leaf:p.shade];});
+ const g=out.build();g.name='SM_Hero_Lingya_BlouseBibAndStraps';return g;
+}
 function sleeves(mesh,kind){
+ if(kind==='lingya')return lingyaSleeves(mesh);
  const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage';
  for(const side of[-1,1]){
   // The new uncovered shoulder needs its sleeve root tucked inside the torso.
@@ -117,13 +135,29 @@ function sleeves(mesh,kind){
  for(let i=0;i<ids.length;i+=3){const tri=[ids[i],ids[i+1],ids[i+2]];if(Math.min(...tri.map(i=>Math.abs(a.position.getX(i))))<.625)continue;const mapped=tri.map(i=>{if(!copied.has(i))copied.set(i,out.vertex(a.position.getX(i),a.position.getY(i),a.position.getZ(i),p.leather,a.uv?.getX(i)||0,a.uv?.getY(i)||0,[a.skinIndex.array.slice(i*4,i*4+4),a.skinWeight.array.slice(i*4,i*4+4)]));return copied.get(i);});out.triangle(...mapped);}
  return out.build();
 }
+function lingyaSleeves(mesh){
+ const p=palettes.lingya,out=surface(mesh);
+ for(const side of[-1,1]){
+  rings(out,[[.10,.035],[.145,.064],[.165,.075],[.185,.081],[.205,.085],[.225,.086],[.245,.083],[.265,.078],[.30,.062],[.32,.057],[.328,.055]],([x,r],a,j)=>{
+   const fold=.0026*Math.cos(a*10)*(j/10)**2;return[side*x,1.415+Math.cos(a)*(r+fold),-.049+Math.sin(a)*(r+fold)*.94,j>8?p.trim:p.cloth];
+  },24,side<0);
+  // Bare forearms run underneath the gathered cuff into the unchanged hands.
+  rings(out,[[.306,.045],[.36,.043],[.405,.042],[.44,.045],[.49,.044],[.55,.038],[.60,.033],[.655,.030]],([x,r],a)=>[side*x,1.411+Math.cos(a)*r,-.047+Math.sin(a)*r*.92,p.skin],24,side<0);
+ }
+ // The authored hand is split between Arms_1 (wrist/palm back) and Arms_2
+ // (fingers). Keep the first part, skin-coloured, so the new forearm has no gap.
+ const a=mesh.geometry.attributes,ids=mesh.geometry.index.array,copied=new Map();
+ for(let i=0;i<ids.length;i+=3){const tri=[ids[i],ids[i+1],ids[i+2]],xs=tri.map(i=>Math.abs(a.position.getX(i)));if(Math.min(...xs)<.625||Math.max(...xs)>.71)continue;const mapped=tri.map(i=>{if(!copied.has(i))copied.set(i,out.vertex(a.position.getX(i),a.position.getY(i),a.position.getZ(i),p.skin,a.uv?.getX(i)||0,a.uv?.getY(i)||0,[a.skinIndex.array.slice(i*4,i*4+4),a.skinWeight.array.slice(i*4,i*4+4)]));return copied.get(i);});out.triangle(...mapped);}
+ const g=out.build();g.name='SM_Hero_Lingya_PuffSleevesAndForearms';return g;
+}
 function cuffs(mesh,kind){
  const p=palettes[kind],out=surface(mesh),mist=kind==='mirage',child=kind==='lingya';
- const profile=child?[[.535,.058],[.55,.063],[.565,.062],[.585,.059],[.601,.056],[.607,.054]]:[[.49,.074],[.507,.077],[.535,.078],[.57,.077],[.597,.071],[.607,.069]];
- for(const side of[-1,1])rings(out,profile,([x,r],a,j)=>[side*x,1.415+Math.cos(a)*r,-.049+Math.sin(a)*r*.95,j===0||j===5?p.trim:mist||child?p.leaf:p.leather],16,side<0);
+ const profile=child?[[.302,.061],[.307,.064],[.314,.065],[.323,.062],[.329,.059],[.332,.055]]:[[.49,.074],[.507,.077],[.535,.078],[.57,.077],[.597,.071],[.607,.069]];
+ for(const side of[-1,1])rings(out,profile,([x,r],a,j)=>[side*x,1.415+Math.cos(a)*r,-.049+Math.sin(a)*r*.95,j===0||j===5?p.trim:child?p.cloth:mist?p.leaf:p.leather],16,side<0);
  return out.build();
 }
 function legs(mesh,kind){
+ if(kind==='lingya')return lingyaShorts(mesh);
  const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage';
  for(const side of[-1,1])rings(out,[[.24,.061,.065],[.36,.063,.068],[.47,.069,.074],[.57,.070,.076],[.66,.079,.081],[.76,.085,.090],[.87,.089,.095],[.97,.092,.096],[1.04,.084,.087]],([y,rx,rz],a)=>{
   const cx=side*(.10+.025*smooth(y,.30,.97)),z=-.033+Math.cos(a)*rz,color=child?(y<.49?p.trim:y>.79?p.leaf:0xe4b391):mist?(Math.abs(Math.sin(a))>.8?p.leaf:p.shade):p.shade;
@@ -131,9 +165,32 @@ function legs(mesh,kind){
  },20);
  return out.build();
 }
+function lingyaShorts(mesh){
+ const p=palettes.lingya,out=surface(mesh),a=mesh.geometry.attributes,ids=mesh.geometry.index.array;
+ // Ease the body-template muscle contours into soft cloth before cutting the
+ // shorts. Weld UV seams for smoothing; the original bones/weights stay intact.
+ const vertices=[],keys=new Map(),lookup=new Map(),neighbors=[];
+ for(const i of new Set(ids)){const v=new T.Vector3().fromBufferAttribute(a.position,i),key=v.toArray().map(n=>Math.round(n*1e5)).join(',');let k=keys.get(key);if(k===undefined){k=vertices.length;keys.set(key,k);vertices.push(v);neighbors.push(new Set());}lookup.set(i,k);}
+ for(let i=0;i<ids.length;i+=3)for(let j=0;j<3;j++){const from=lookup.get(ids[i+j]),to=lookup.get(ids[i+(j+1)%3]);neighbors[from].add(to);neighbors[to].add(from);}
+ for(let pass=0;pass<5;pass++){const next=vertices.map((v,i)=>{if(v.y<.70||v.y>1.15)return v.clone();const average=new T.Vector3();for(const k of neighbors[i])average.add(vertices[k]);return v.clone().lerp(average.multiplyScalar(1/neighbors[i].size),.48);});vertices.splice(0,vertices.length,...next);}
+ // Keep the source pelvis/crotch topology, then cut real leg openings and give
+ // the fabric ease. Independent coloured cylinders cannot form a trouser seat.
+ const cut=(poly,y,above)=>{const result=[];for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],inside=above?a.y>=y:a.y<=y,next=above?b.y>=y:b.y<=y;if(inside)result.push(a);if(inside!==next)result.push(a.clone().lerp(b,(y-a.y)/(b.y-a.y)));}return result;};
+ for(let i=0;i<ids.length;i+=3){
+  let poly=[0,1,2].map(k=>vertices[lookup.get(ids[i+k])].clone());poly=cut(cut(poly,.755,true),1.125,false);if(poly.length<3)continue;
+  const mapped=poly.map(v=>{const side=Math.sign(v.x)||1,cx=side*.112,ease=1-smooth(v.y,.94,1.12),x=v.x*1.07+(v.x-cx)*.12*ease*smooth(Math.abs(v.x),.025,.10),z=-.033+(v.z+.033)*(1.075+.105*ease),hem=v.y<.780,waist=v.y>1.10;return out.vertex(x,v.y,z,hem||waist?p.leaf:p.shade,v.x*3,v.y*4,out.binding(v.x,v.y,v.z));});
+  for(let j=1;j<mapped.length-1;j++)out.triangle(mapped[0],mapped[j],mapped[j+1]);
+ }
+ for(const side of[-1,1]){
+  rings(out,[[.24,.050,.056],[.30,.055,.061],[.365,.058,.065],[.405,.058,.064],[.425,.059,.065],[.442,.054,.060],[.49,.059,.066],[.54,.064,.070],[.60,.069,.073],[.68,.075,.080],[.735,.079,.085],[.790,.082,.089]],([y,rx,rz],angle,j)=>{
+   const cx=side*(.10+.02*smooth(y,.30,.80));return[cx+Math.sin(angle)*rx,y,-.033+Math.cos(angle)*rz,j<=5?p.trim:p.skin];
+  },24);
+ }
+ const g=out.build();g.name='SM_Hero_Lingya_ShortsLegsAndSocks';return g;
+}
 function boots(mesh,kind){
- const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage',height=child?.28:mist?.60:.47;
- const profile=[[.004,.064,.105,.013],[.023,.073,.121,.014],[.043,.073,.121,.014],[.070,.070,.114,.012],[.112,.063,.089,-.018],[.16,.062,.075,-.030],...(!child?[[height*.68,mist?.078:.073,mist?.084:.080,-.035]]:[]),[height-.038,mist?.079:.070,mist?.084:.076,-.033],[height-.023,mist?.081:.080,mist?.086:.086,-.033],[height,mist?.078:.079,mist?.083:.084,-.033]];
+ const p=palettes[kind],out=surface(mesh),child=kind==='lingya',mist=kind==='mirage',height=child?.25:mist?.60:.47;
+ const profile=child?[[.004,.060,.095,.024],[.020,.070,.111,.024],[.039,.074,.116,.024],[.061,.075,.117,.023],[.086,.069,.104,.013],[.122,.060,.077,-.024],[.174,.058,.065,-.033],[.215,.062,.069,-.033],[.232,.069,.074,-.033],[.244,.070,.075,-.033],[.25,.066,.071,-.033]]:[[.004,.064,.105,.013],[.023,.073,.121,.014],[.043,.073,.121,.014],[.070,.070,.114,.012],[.112,.063,.089,-.018],[.16,.062,.075,-.030],[height*.68,mist?.078:.073,mist?.084:.080,-.035],[height-.038,mist?.079:.070,mist?.084:.076,-.033],[height-.023,mist?.081:.080,mist?.086:.086,-.033],[height,mist?.078:.079,mist?.083:.084,-.033]];
  for(const side of[-1,1]){const ids=rings(out,profile,([y,rx,rz,cz],a,j)=>{
   const toe=Math.max(0,Math.cos(a)),x=side*(.10+.025*smooth(y,.30,.97))+Math.sin(a)*rx,z=cz+Math.cos(a)*rz+toe*.015*(1-smooth(y,.045,.13)),mud=!mist&&y<.105;
   return[x,y,z,j<3||mud?p.sole:y>=height-.023?p.trim:p.leather];
@@ -157,7 +214,8 @@ export function rebuildWildMist(root,kind){
  const find=ending=>meshes.find(o=>o.name.endsWith(ending));
  const body=find('_Body'),arms=find('_Arms_1'),feet=find('_Feet'),cuff=find('_Arms_Bracer'),head=find('_Head_Hood');
  if(!body||!arms||!feet||!cuff||!head)throw new Error('Wild/mist rebuild requires the complete female ranger template');
- replace(body,torso(body,kind),kind,'robe');replace(arms,sleeves(arms,kind),kind,'sleeves');replace(cuff,cuffs(cuff,kind),kind,'cuffs');replace(feet,boots(feet,kind),kind,'boots');
+ const cuffGeometry=cuffs(kind==='lingya'?arms:cuff,kind);
+ replace(body,torso(body,kind),kind,'robe');replace(arms,sleeves(arms,kind),kind,'sleeves');replace(cuff,cuffGeometry,kind,'cuffs');replace(feet,boots(feet,kind),kind,'boots');
  const lower=kind==='lingya'?meshes.find(o=>o.name==='Superhero_Female'&&!o.material.name):find('_Legs');
  if(!lower)throw new Error('Wild/mist rebuild requires weighted legs');replace(lower,legs(lower,kind),kind,'legs');
  for(const m of meshes)if(/_Body_Belt_|Pauldrons/.test(m.name))m.visible=false;

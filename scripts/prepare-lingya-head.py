@@ -7,7 +7,7 @@ from pathlib import Path
 out=Path(__file__).resolve().parents[1]/'assets/characters'
 source=json.loads((out/'silver-base.gltf').read_text())
 binary=(out/source['buffers'][0]['uri']).read_bytes()
-result={'asset':{'version':'2.0','generator':'Lingya independent woodland head v180'},'scene':0,'scenes':[{'nodes':[0,1,2,3]}],'nodes':[], 'meshes':[], 'materials':[], 'accessors':[], 'bufferViews':[], 'buffers':[]}
+result={'asset':{'version':'2.0','generator':'Lingya independent woodland head, twin-plait redesign'},'scene':0,'scenes':[{'nodes':[0,1,2,3]}],'nodes':[], 'meshes':[], 'materials':[], 'accessors':[], 'bufferViews':[], 'buffers':[]}
 data=bytearray()
 
 def smooth(a,b,x):
@@ -130,15 +130,16 @@ def subdivide(raw,indices):
  result=[]
  for a,b,c in triangles:
   ab=midpoint[tuple(sorted((a,b)))];bc=midpoint[tuple(sorted((b,c)))];ca=midpoint[tuple(sorted((c,a)))];result.extend([a,ab,ca,b,bc,ab,c,ca,bc,ab,bc,ca])
- # Relax the authored lip roll instead of shrinking a detached mouth block.
+ # Relax the adult base's pronounced nose/lip folds into one softer front
+ # surface. Eye sockets and the outer skull/neck outline are left intact.
  adjacent=[set() for _ in refined]
  for i in range(0,len(result),3):
   tri=result[i:i+3]
   for a in tri:adjacent[a].update(b for b in tri if b!=a)
- for _ in range(8):
+ for _ in range(12):
   next_points=[]
   for i,p in enumerate(refined):
-   x,y,z=p;w=.45*smooth(1.54,1.563,y)*(1-smooth(1.611,1.638,y))*(1-smooth(.027,.055,abs(x)))*smooth(.02,.05,z)
+   x,y,z=p;w=.23*(1-smooth(1.605,1.65,y))*smooth(-.01,.03,z)
    avg=[sum(refined[j][k] for j in adjacent[i])/len(adjacent[i]) for k in range(3)]
    next_points.append(tuple(p[k]*(1-w)+avg[k]*w for k in range(3)))
   refined=next_points
@@ -171,11 +172,11 @@ def normals(p,indices):
  return n
 
 def linear(c):return c/12.92 if c<=.04045 else ((c+.055)/1.055)**2.4
-skin=[linear(v/255) for v in (239,189,161)]
+skin=[linear(v/255) for v in (246,202,174)]
 result['materials']=[{'name':'Lingya_face_skin','doubleSided':True,'pbrMetallicRoughness':{'baseColorFactor':[1,1,1,1],'metallicFactor':0,'roughnessFactor':.86}},dict(source['materials'][1]),dict(source['materials'][0])]
 result['materials'][1]['name']='Lingya_eye_brown';result['materials'][1].pop('normalTexture',None)
 result['materials'][2]['name']='Lingya_face_brow';result['materials'][2].pop('normalTexture',None)
-result['materials'][2]['pbrMetallicRoughness']['baseColorFactor']=[.35,.24,.17,1]
+result['materials'][2]['pbrMetallicRoughness']['baseColorFactor']=[.31,.23,.17,1]
 result['images']=source['images'];result['textures']=source['textures'];result['samplers']=source['samplers']
 
 for source_name,name,material in [('Superhero_Female','Lingya-head',0),('Eyes','Lingya-eyes_viewport',1),('Eyebrows','Lingya-eyebrows',2)]:
@@ -188,7 +189,7 @@ for source_name,name,material in [('Superhero_Female','Lingya-head',0),('Eyes','
   for x,y,z in original:
    near=[p[1] for p in original if abs(abs(p[0])-abs(x))<.003]
    center=(min(near)+max(near))/2;s=max(0,min(1,(abs(x)-.009)/.054))
-   brows.append((x*.90,1.670+.004*math.sin(math.pi*s)-.003*s+(y-center)*.42,z-.002))
+   brows.append((x*.86,1.673+.003*math.sin(math.pi*s)-.0015*s+(y-center)*.34,z-.002))
   raw=brows
   # Keep the front ribbon only; projecting both sides of the old solid brow
   # onto the same face would create coincident, flickering triangles.
@@ -201,7 +202,9 @@ for source_name,name,material in [('Superhero_Female','Lingya-head',0),('Eyes','
   colors=[]
   for i in used:
    x,y,z=raw[i];lip=(1-smooth(.009,.020,abs(y-1.579)))*(1-smooth(.015,.032,abs(x)))*smooth(.060,.082,z)
-   colors.append(tuple(skin[k]*(1-lip*.20)+(.50,.24,.20)[k]*lip*.20 for k in range(3)))
+   blush=smooth(.024,.043,abs(x))*(1-smooth(.055,.079,abs(x)))*smooth(1.59,1.61,y)*(1-smooth(1.63,1.65,y))*smooth(.026,.053,z)
+   tint=[skin[k]*(1-lip*.16)+(.54,.28,.23)[k]*lip*.16 for k in range(3)]
+   colors.append(tuple(tint[k]*(1-blush*.055)+(.72,.34,.29)[k]*blush*.055 for k in range(3)))
   attrs['COLOR_0']=accessor(colors)
  item={'name':name,'primitives':[{'attributes':attrs,'indices':accessor([(i,) for i in indices],'SCALAR',5125),'material':material}]}
  if material<2:
@@ -225,6 +228,31 @@ for source_name,name,material in [('Superhero_Female','Lingya-head',0),('Eyes','
   item['primitives'][0]['targets']=[{'POSITION':accessor(closed),'NORMAL':accessor([tuple(b[k]-a[k] for k in range(3)) for a,b in zip(rest_normal,closed_normal)])}];item['weights']=[0];item['extras']={'targetNames':['Blink']}
  result['meshes'].append(item);result['nodes'].append({'name':name,'mesh':len(result['meshes'])-1})
 result['nodes'].append({'name':'Lingya-eye_dots'})
+# The new hairstyle follows this actual scalp. A guessed ellipsoid left broad
+# forehead holes where the authored head is flatter/wider than an ellipsoid.
+# Export only the crown skin, offset 2.8 mm; the runtime shares this light mesh.
+hair_points=[];hair_indices=[];hair_lookup={};skin_normal=normals(skin_points,skin_indices)
+def hairline(p):
+ x,y,z=p;angle=abs(math.atan2(x,z+.023))
+ # The hairline descends at the temple, curves above the real ear and then
+ # gathers low behind it. A constant-height forehead cut reads as a bowl hat.
+ keys=[(0,1.683),(.60,1.673),(1.00,1.636),(1.35,1.650),(1.60,1.647),(1.95,1.604),(math.pi,1.584)]
+ for a,b in zip(keys,keys[1:]):
+  if angle<=b[0]:return y-(a[1]+(b[1]-a[1])*smooth(a[0],b[0],angle))
+ return y-keys[-1][1]
+def hair_vertex(p,n):
+ key=tuple(round(p[k]+n[k]*.0028,6) for k in range(3))
+ if key not in hair_lookup:hair_lookup[key]=len(hair_points);hair_points.append(key)
+ return hair_lookup[key]
+for i in range(0,len(skin_indices),3):
+ polygon=[(skin_points[k],skin_normal[k]) for k in skin_indices[i:i+3]];clipped=[]
+ for j,(a,an) in enumerate(polygon):
+  b,bn=polygon[(j+1)%3];da,db=hairline(a),hairline(b)
+  if da>=0:clipped.append((a,an))
+  if (da>=0)!=(db>=0):
+   t=da/(da-db);clipped.append((tuple(a[k]+t*(b[k]-a[k]) for k in range(3)),tuple(an[k]+t*(bn[k]-an[k]) for k in range(3))))
+ for j in range(1,len(clipped)-1):hair_indices.extend(hair_vertex(*p) for p in (clipped[0],clipped[j],clipped[j+1]))
+(out.parents[1]/'lingya-hair-crown.js').write_text('// Generated from the independent Lingya scalp by scripts/prepare-lingya-head.py.\nexport const crownPositions='+json.dumps([v for p in hair_points for v in p],separators=(',',':'))+';\nexport const crownIndices='+json.dumps(hair_indices,separators=(',',':'))+';\n')
 result['buffers']=[{'byteLength':len(data),'uri':'lingya-face.bin'}]
 (out/'lingya-face.bin').write_bytes(data);(out/'lingya-face.gltf').write_text(json.dumps(result,separators=(',',':')))
 print(json.dumps({'source':'CC0 universal-base silver-base','bytes':len(data),'minimumVerticalDerivative':minimum_y_slope,'vertices':{m['name']:result['accessors'][m['primitives'][0]['attributes']['POSITION']]['count'] for m in result['meshes']}}))

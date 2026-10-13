@@ -68,11 +68,11 @@ test('source-authored Lingya face retains complete eyelid coverage and shared so
  }finally{for(const [key,value]of Object.entries(saved))if(value===undefined)delete globalThis[key];else globalThis[key]=value;}
 });
 
-test('redesigned woodland outfit drops ear covers and preserves the small satchel and animated hem',()=>{
+test('short-overall outfit drops ear covers and skirt while preserving the round satchel attachment',()=>{
  const a=lingyaAccessories(),b=lingyaAccessories();refineLingyaAccessories(a);
  assert.equal(a.hood.children.length,0,'the old round ear covers must not return');
- for(const part of ['hood','chest','bag','skirt'])assert(a[part]?.isGroup);
- const skirt=a.skirt.children[0],g=skirt.geometry;g.computeBoundingBox();assert(g.boundingBox.min.y>.78);assert(g.boundingBox.max.x<.215&&g.boundingBox.min.x>-.215);
- assert.deepEqual(Object.keys(skirt.userData.cloth).sort(),['hop','motion','time','turn']);assert.notEqual(skirt.material,b.skirt.children[0].material);assert.notEqual(skirt.geometry,b.skirt.children[0].geometry);
- a.bag.updateMatrixWorld(true);const box=new T.Box3().setFromObject(a.bag);assert(box.getSize(new T.Vector3()).x<.21,'satchel must remain smaller than the torso');
+ for(const part of ['hood','chest','bag'])assert(a[part]?.isGroup);assert.equal(a.skirt,undefined,'the retired dress must not return below the new shorts');
+ assert.notEqual(a.bag,b.bag);assert.notEqual(a.bag.children[0],b.bag.children[0]);assert.equal(a.bag.children[0].geometry,b.bag.children[0].geometry,'static accessory geometry remains shareable');
+ a.bag.updateMatrixWorld(true);const size=new T.Box3().setFromObject(a.bag).getSize(new T.Vector3());assert(size.x<.21,'satchel must remain smaller than the torso');assert(Math.abs(size.x-size.y)<.025,'satchel should have the new round silhouette');
+ assert(a.chest.children.some(o=>o.isMesh&&o.position.y===1.27),'the existing identity clasp attachment was lost');
 });

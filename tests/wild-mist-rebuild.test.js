@@ -38,8 +38,8 @@ test('wild/mist wardrobes rebuild the complete weighted silhouettes without chan
     if(mesh.userData.wildMistPart!=='long-hair'){assert(a.color);assert.equal(mesh.material.map,null);assert(mesh.material.roughness>=.7);for(const map of[mesh.material.normalMap,mesh.material.roughnessMap]){assert(map.isDataTexture);assert.equal(map.image.width,128);assert.equal(map.image.height,128);assert.equal(map.wrapS,T.RepeatWrapping);assert.equal(map.colorSpace,T.NoColorSpace);assert(map.generateMipmaps);}}
    }
    assert.equal(other.userData.wildMistRebuilt,undefined);other.traverse(o=>{if(o.isSkinnedMesh)assert(!o.userData.wildMistPart);});assert.deepEqual(root.scale.toArray(),[1,1,1]);
-   const boots=parts.find(o=>o.userData.wildMistPart==='boots').geometry.boundingBox;assert.equal(boots.min.y,Math.fround(.004));assert(Math.abs(boots.max.y-({lingya:.28,wuling:.47,mirage:.60}[kind]))<1e-6);
-   const robeMesh=parts.find(o=>o.userData.wildMistPart==='robe'),robe=robeMesh.geometry.boundingBox;assert(robe.min.y<({lingya:1.0,wuling:.83,mirage:.94}[kind]));
+   const boots=parts.find(o=>o.userData.wildMistPart==='boots').geometry.boundingBox;assert.equal(boots.min.y,Math.fround(.004));assert(Math.abs(boots.max.y-({lingya:.25,wuling:.47,mirage:.60}[kind]))<1e-6);
+   const robeMesh=parts.find(o=>o.userData.wildMistPart==='robe'),robe=robeMesh.geometry.boundingBox;assert(robe.min.y<({lingya:1.11,wuling:.83,mirage:.94}[kind]));
    if(kind==='lingya'){
     const a=robeMesh.geometry.attributes,seams=new Map();let joined=0;
     for(let i=0;i<a.position.count;i++){

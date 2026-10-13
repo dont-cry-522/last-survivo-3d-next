@@ -1,7 +1,7 @@
 import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=176';
 import * as T from './vendor/three.module.js';
 import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=176';
-import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=180';
+import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=181';
 import {sporePod} from './wuling-appearance.js?v=174';
 import {poseSlingshot} from './slingshot-model.js';
 
@@ -13,7 +13,7 @@ import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weap
 const PALETTES={
  scout:[0x4c654c,0x593f2b,0x94815b,0xc39879],silver:[0x304455,0x192633,0xb0c5ce,0xe1c5b1],
  wraith:[SHADOW_PALETTE.cloth,SHADOW_PALETTE.leather,SHADOW_PALETTE.ivory,SHADOW_PALETTE.soul],tide:[0x4f7387,0x253c4c,0x7c99a5,0xbe9f84],
- lingya:[0x6d8474,0x665143,0xd2c4a8,0xe8bda2],wuling:[0x352339,0x322730,0x927955,0xdbbca7],mirage:[0x1e2331,0x202430,0xa9b4c4,0xdacade]
+ lingya:[0xf2e8d5,0x76503b,0xa65f42,0xefbda1],wuling:[0x352339,0x322730,0x927955,0xdbbca7],mirage:[0x1e2331,0x202430,0xa9b4c4,0xdacade]
 };
 const PROFILES={
  rifle:{type:'gun',width:.85,height:1,depth:.62,x:.38,y:-.48,pitch:.025,support:[0,-.045,.34]},
@@ -66,14 +66,14 @@ function sleeveGeometry(palette,kind){
   let radius=.057*(1-t)+.032*t,hex=t>.88?palette[1]:palette[0];
   if(kind==='scout'){radius+=.007*envelope;if(t>.52)hex=palette[1];if(t>.52&&t<.59||t>.77&&t<.81){radius+=.0035;hex=palette[2];}}
   else if(kind==='silver'){radius*=.90;radius+=.003*envelope;if(t>.62)hex=palette[1];if(t>.81&&t<.85){radius+=.002;hex=palette[2];}}
-  else if(kind==='wraith'){radius+=.014*envelope**2;if(t>.62&&t<.82){radius+=.0015*Math.sin(t*120);hex=palette[2];}else if(t>=.82)hex=palette[1];}
+  else if(kind==='wraith'){radius+=.014*envelope**2;if(t>.79&&t<.82){radius+=.0015;hex=palette[2];}else if(t>=.82)hex=palette[1];}
   else if(kind==='tide'){if(t<.51)radius+=.009*envelope;else if(t<.62){radius+=.013*Math.sin((t-.51)/.11*Math.PI);hex=palette[2];}else if(t<.86){radius*=.91;hex=palette[3];}else hex=palette[1];}
-  else if(kind==='lingya'){radius+=.018*Math.sin(Math.min(1,t/.6)*Math.PI)**2;if(t>.76){radius+=.002;hex=t<.80||t>.90&&t<.94?0xf0e7d5:t<.94?palette[2]:palette[1];}}
+  else if(kind==='lingya'){if(t<.24){radius+=.016*Math.sin(t/.24*Math.PI);hex=t>.19?palette[2]:palette[0];}else if(t<.86){radius*=.90;hex=palette[3];}else{radius+=.0015;hex=t<.90?palette[2]:palette[1];}}
   else if(kind==='wuling'){radius+=.008*envelope+.008*Math.exp(-(((t-.83)/.12)**2));if(t>.72)hex=t<.76||t>.87&&t<.91?palette[2]:palette[1];}
   else if(kind==='mirage'){radius*=.92;radius+=.010*Math.exp(-(((t-.82)/.11)**2));if(t>.72&&t<.88)hex=t>.81&&t<.85?palette[2]:0x353750;}
   color.setHex(hex);
   for(let j=0;j<sides;j++){
-   const a=j/sides*Math.PI*2,cloth=!(kind==='tide'&&t>.62&&t<.86),crease=1+(cloth?.027:0)*envelope*Math.sin(a*5+t*15),cuff=kind==='mirage'?.023*envelope*Math.sin(a*2)*Math.exp(-(((t-.82)/.07)**2)):0;
+   const a=j/sides*Math.PI*2,cloth=!(kind==='tide'&&t>.62&&t<.86||kind==='lingya'&&t>=.24&&t<.86),crease=1+(cloth?.027:0)*envelope*Math.sin(a*5+t*15),cuff=kind==='mirage'?.023*envelope*Math.sin(a*2)*Math.exp(-(((t-.82)/.07)**2)):0;
    vertices.push(Math.cos(a)*radius*crease+bend,t+cuff,Math.sin(a)*radius*.84*crease);colors.push(color.r,color.g,color.b);uv.push(j/sides,t*2.5);
   }
  }

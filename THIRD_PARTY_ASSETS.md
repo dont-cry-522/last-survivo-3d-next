@@ -28,9 +28,9 @@ The game does not contain extracted models, textures or audio from Ori, NieR, Ch
 
 Starting with v180, Lingya uses an independent head extracted from the repository's `silver-base.gltf`, part of the Quaternius Universal Base Characters pack credited above. The original female base, eye texture and eyebrow mesh are CC0; see `assets/characters/universal-base-characters-LICENSE.txt`.
 
-Local adaptations: head/neck extraction, one compact rest-space fit, soft skin vertex colours, native brown eyes, and a connected socket-surface Blink morph. The short chestnut bob, soft moss-green clothing and smaller satchel retain the game's existing rig, attachment points and animation interface. This replacement does not use the Rain facial mesh.
+Local adaptations: head/neck extraction, continuous rest-space proportions, soft skin vertex colours, native brown eyes, and a connected socket-surface Blink morph. In v181 the scalp-derived hair cap, locally generated twin plaits and fringe replace the old bob; a cream blouse, terracotta short overalls, round boots and satchel replace the moss-green outfit. Existing bones, gameplay attachment points and animation interfaces remain compatible. This replacement does not use the Rain facial mesh.
 
-Reproduction: run `python scripts/prepare-lingya-head.py`, then `node scripts/pack-characters.mjs`. Current fallback files are `assets/characters/lingya-face.gltf` and `.bin`; `character-assets.js` identifies their active gzip delivery file. Shared Quaternius source files are not modified.
+Reproduction: run `python scripts/prepare-lingya-head.py`, then `node scripts/pack-characters.mjs`. Current fallback files are `assets/characters/lingya-face.gltf` and `.bin`; `character-assets.js` identifies their active gzip delivery file. The same preparation step exports `lingya-hair-crown.js` from the CC0 scalp, used by the procedural plaits/fringe in `lingya-hair.js`. Shared Quaternius source files are not modified.
 
 ## Historical Lingya heads — Rain Rig, CC BY 4.0
 

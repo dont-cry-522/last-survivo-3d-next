@@ -41,8 +41,8 @@ test('v173 real face, connected robes and flowing hair retain their original ani
   });
   await t.test('woodland redesign removes the old ear covers while preserving attachment and cloth interfaces',()=>{
    const a=lingyaAccessories();assert.equal(a.hood.children.length,0);assert.equal(refineLingyaAccessories(a),a);assert.equal(refineLingyaAccessories(a),a);
-   for(const name of ['hood','chest','bag','skirt'])assert(a[name].isGroup);
-   assert(a.chest.children.length>0&&a.bag.children.length>0);assert.deepEqual(Object.keys(a.skirt.children[0].userData.cloth).sort(),['hop','motion','time','turn']);
+   for(const name of ['hood','chest','bag'])assert(a[name].isGroup);
+   assert(a.chest.children.length>0&&a.bag.children.length>0);assert.equal(a.skirt,undefined);assert.equal(a.bag.name,'SM_Hero_Lingya_RoundSatchel');
   });
   await t.test('long hair preserves the five actual fringe pieces and uses normalized weights on the new curved rear samples',()=>{
    const source=models['silver-hair'].scene,root=clone(source);let old,mesh;source.traverse(o=>{if(o.isSkinnedMesh)old=o;});root.traverse(o=>{if(o.isSkinnedMesh)mesh=o;});const original=old.geometry.attributes.position.array.slice();mirageHair(root);const g=mesh.geometry,p=g.attributes.position,region=g.attributes.hairRegion;
@@ -54,7 +54,7 @@ test('v173 real face, connected robes and flowing hair retain their original ani
   });
   await loadHeroAssets();
   for(const [kind,weapon]of[['wuling','sporelantern'],['mirage','miasmalantern'],['lingya','boomerang']])await t.test(kind+' retains finite walking, turning, attacks and dodge poses',()=>{
-   const hero=createSkinnedHero(kind,weapon),d=hero.userData,wardrobe=[];hero.traverse(o=>{if(o.userData.wildMistPart)wardrobe.push(o);});assert(d.skinned);const robe=wardrobe.find(o=>o.userData.wildMistPart==='robe');assert.equal(components(robe.geometry),1,'a disconnected facing would collide with the robe again');
+   const hero=createSkinnedHero(kind,weapon),d=hero.userData,wardrobe=[];hero.traverse(o=>{if(o.userData.wildMistPart)wardrobe.push(o);});assert(d.skinned);const robe=wardrobe.find(o=>o.userData.wildMistPart==='robe');if(kind==='lingya')assert.equal(robe.geometry.name,'SM_Hero_Lingya_BlouseBibAndStraps');else assert.equal(components(robe.geometry),1,'a disconnected facing would collide with the robe again');
    const hair=d.mirageHair?.[0],rest=hair?.geometry.attributes.position.array.slice(),other=hair?createSkinnedHero(kind,weapon):null;let blinkMin=1,blinkMax=0,moved=false;const vertex=new T.Vector3();
    for(let frame=0;frame<180;frame++){
     d.travelAngle=Math.sin(frame/24)*.8;d.turnRate=Math.cos(frame/24)*1.7;d.aimActive=frame%60>30;d.reloadDuration=.9;d.reloadPhase=(frame%54)/54;d.shotSerial=1+Math.floor(frame/54);d.dashTime=frame>=100&&frame<130?(130-frame)/60:0;d.dashAngle=.5;

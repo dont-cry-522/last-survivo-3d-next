@@ -64,15 +64,16 @@ function clothForm(weapon){
   panels=[neck,sash];claspPanel=sash;claspV=.18;
  }
  const positions=[],colors=[],indices=[],slices=8,rows=14;
- const cloth=new T.Color(SHADOW_PALETTE.cloth),edge=new T.Color(SHADOW_PALETTE.edge),ivory=new T.Color(SHADOW_PALETTE.ivory);
- for(const [panelIndex,surface] of panels.entries()){
+ const cloth=new T.Color(SHADOW_PALETTE.cloth),edge=new T.Color(SHADOW_PALETTE.edge);
+ for(const surface of panels){
   const offset=positions.length/3;
   for(let j=0;j<=rows;j++)for(let i=0;i<=slices;i++){
    const u=i/slices,v=j/rows;
    positions.push(...surface(u,v));
-   // One existing cloth panel carries the light half of the garment. The
-   // neighbouring black panel keeps the asymmetric cut legible at game scale.
-   const color=(panelIndex===1?ivory:cloth).clone().lerp(edge,(i===0||i===slices)?.06:0).multiplyScalar(.91+.09*Math.cos(u*Math.PI*3+v));
+   // Both folds are the same cloth. A narrow, continuous sewn edge carries
+   // the pale element without turning one half into a separate white plate.
+   const hem=Math.max(Math.abs(u-.5)*2,v),trim=T.MathUtils.smoothstep(hem,.975,1);
+   const color=cloth.clone().lerp(edge,trim*.68).multiplyScalar(.91+.09*Math.cos(u*Math.PI*3+v));
    colors.push(color.r,color.g,color.b);
    if(j<rows&&i<slices){const n=offset+j*(slices+1)+i;indices.push(n,n+slices+1,n+1,n+1,n+slices+1,n+slices+2);}
   }

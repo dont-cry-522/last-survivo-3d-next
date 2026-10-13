@@ -115,7 +115,8 @@ test('weapon forms have distinct cloth silhouettes without changing another acto
  try{
   const size=h=>{const g=h.userData.cape.geometry;g.computeBoundingBox();return g.boundingBox.getSize(new T.Vector3());};
   const [traveller,assassin,mage]=forms.map(size);
-  assert(traveller.x<assassin.x*.5,'scarf became a broad cape');
+  assert(traveller.x<assassin.x&&traveller.x>assassin.x*.8,'traveller cloth is no longer a complete narrow mantle');
+  assert(traveller.y>assassin.y*1.2&&traveller.y<mage.y*.8,'mid-length cloth lost its separate silhouette');
   assert(assassin.y<mage.y*.6,'short and long forms lost their silhouette difference');
   assert.equal(forms[0].userData.shadowRobe,undefined);assert.equal(forms[1].userData.shadowRobe,undefined);
   const panels=forms[2].userData.shadowRobe;assert.equal(panels.length,2);assert.equal(panels[0].parent,forms[2].userData.pelvis);assert.equal(panels[1].parent,forms[2].userData.pelvis);

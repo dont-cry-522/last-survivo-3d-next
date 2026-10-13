@@ -5,7 +5,7 @@
 <p id="status">正在载入</p><a id="save-png">保存实拍</a><div id="sheet"></div><pre id="report"></pre>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=180';
+import {actor,animateActor} from '../world.js?v=181';
 const source=await(await fetch('../world.js',{cache:'no-store'})).text(),entry=source.match(/from['"](.\/skinned-hero\.js[^'"]*)['"]/)[1];
 const {loadHeroAssets,disposeHero}=await import(new URL('../'+entry,location.href));
 const errors=[],results=[];addEventListener('error',e=>errors.push(e.message));addEventListener('unhandledrejection',e=>errors.push(String(e.reason)));
@@ -20,7 +20,7 @@ if(!hero.userData.skinned)throw Error('Missing real Lingya rig');
 for(let f=0;f<100;f++){hero.userData.aimActive=false;animateActor(hero,5+f/60,0,0);}
 hero.updateMatrixWorld(true);
 const face=hero.userData.face,box=new T.Box3().setFromObject(face,true),center=box.getCenter(new T.Vector3());center.y+=.028;
-const cover=[];hero.traverse(o=>{if(o.name.includes('Head_Hood')||o.name==='Hair_Long'||o.name==='SM_Hero_Lingya_SoftEars')cover.push([o,o.visible]);});
+const cover=[];hero.traverse(o=>{if(o.name.includes('Head_Hood')||o.name==='Hair_Long'||o.name==='SM_Hero_Lingya_SoftEars'||o.name==='SM_Hero_Lingya_Hair')cover.push([o,o.visible]);});
 const directions=[[0,0,5],[2.5,0,4],[5,0,.15],[0,0,5]];
 for(const[row,light]of ['自然光','林荫光'].entries()){
  sky.intensity=row?1.5:1.3;sky.color.set(row?0xa2bac2:0x9cabb9);sun.intensity=row?.65:3.4;rim.intensity=row?.45:.9;

@@ -2,7 +2,7 @@ import * as T from './vendor/three.module.js';
 import {smoothSeams} from './hero-finish.js?v=172';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {tideHarness} from './tide-appearance.js?v=174';
-import {SHADOW_PALETTE} from './shadow-appearance.js?v=180';
+import {SHADOW_PALETTE} from './shadow-appearance.js?v=181';
 
 const smooth=(a,b,x)=>T.MathUtils.smoothstep(x,a,b);
 const bell=(x,center,width)=>Math.exp(-(((x-center)/width)**2));
@@ -95,7 +95,7 @@ function roundedHood(mesh){
  for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++){
   const v=j/rows,u=i/cols,theta=.035+v*2.19,opening=.91*smooth(.22,.72,theta),a=opening+u*(Math.PI*2-opening*2),r=Math.sin(theta),edge=Math.pow(Math.abs(u-.5)*2,12),fold=Math.sin(a*7+v)*.0025*smooth(.45,1,v);
   p.push(Math.sin(a)*(.160*r+fold)*(1-.035*edge),1.65+.178*Math.cos(theta),-.025+Math.cos(a)*(.186*r+fold)+.012*edge*smooth(.45,.95,theta));uv.push(u,v);
-  color.setHex(SHADOW_PALETTE.cloth).lerp(new T.Color(SHADOW_PALETTE.fold),.10*(1-v)).lerp(new T.Color(SHADOW_PALETTE.ivory),edge*.92);c.push(color.r,color.g,color.b);
+  color.setHex(SHADOW_PALETTE.cloth).lerp(new T.Color(SHADOW_PALETTE.fold),.10*(1-v)).lerp(new T.Color(SHADOW_PALETTE.ivory),edge**3*.78);c.push(color.r,color.g,color.b);
   if(j<rows&&i<cols){const n=j*(cols+1)+i;ix.push(n,n+cols+1,n+1,n+1,n+cols+1,n+cols+2);}
  }
  const crown=p.length/3;p.push(0,1.828,-.025);uv.push(.5,0);color.setHex(SHADOW_PALETTE.cloth);c.push(color.r,color.g,color.b);for(let i=0;i<cols;i++)ix.push(crown,i,i+1);
@@ -141,16 +141,13 @@ function shadow(root){
     return[x*(1+.055*chest-.055*waist+.055*hem),y-.032*hem*(1-.48*Math.cos(x*19)),depth];
    },(x,y,z)=>{
     const inside=(1-smooth(.045,.135,Math.abs(x)))*smooth(.02,.085,z)*smooth(1.16,1.28,y);
-    // One sewn light panel runs from the left shoulder into the chest, with a
-    // quiet diagonal join. The back, waist and opposite side stay layered black.
-    const lightPanel=(1-smooth(-.005,.022,x+.21*(1.43-y)))*smooth(1.16,1.195,y)*smooth(-.018,.02,z);
-    return tint.copy(cloth).lerp(lining,inside*.7).lerp(ivory,lightPanel).multiplyScalar(y<1.12?.84:1).getHex();
+    return tint.copy(cloth).lerp(lining,inside*.7).multiplyScalar(y<1.12?.84:1).getHex();
    },false,(x,y)=>bell(y,1.46,.12));
   }else if(/_Arms_1/.test(name)){
    reshape(mesh,'Wraith','SoftSleeves',(x,y,z)=>{
     const a=Math.abs(x),sleeve=1.0+.11*bell(a,.40,.13),fold=.003*Math.sin(a*77)*bell(a,.50,.15);
     return[x,1.435+(y-1.435)*sleeve+fold,-.047+(z+.047)*sleeve];
-   },x=>tint.copy(cloth).lerp(ivory,smooth(.20,.25,-x)*(1-smooth(.64,.69,-x))).getHex(),false,x=>bell(Math.abs(x),.40,.13));
+   },x=>{const a=Math.abs(x),cuff=smooth(.614,.625,a)*(1-smooth(.643,.653,a));return tint.copy(cloth).lerp(ivory,cuff*.78).getHex();},false,x=>bell(Math.abs(x),.40,.13));
   }else if(/_Arms_Bracer/.test(name)){
    reshape(mesh,'Wraith','WrappedForearm',(x,y,z)=>[x,1.443+(y-1.443)*.84,-.064+(z+.064)*.84],x=>Math.sin(Math.abs(x)*125)>.72?SHADOW_PALETTE.fold:SHADOW_PALETTE.leather,true);
   }else if(/_Arms_2/.test(name)){

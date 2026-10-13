@@ -1,12 +1,12 @@
-import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=184';
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=185';
 import * as T from './vendor/three.module.js';
-import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=184';
-import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=184';
-import {sporePod} from './wuling-appearance.js?v=184';
+import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=185';
+import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=185';
+import {sporePod} from './wuling-appearance.js?v=185';
 import {poseSlingshot} from './slingshot-model.js';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=184';
+import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=185';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
@@ -380,7 +380,7 @@ export class FirstPersonView {
   }else if(profile.type==='book'){
    this.weapon.rotation.x+=kick*.10;this.weapon.rotation.z=Math.sin((Number(time)||0)*1.8)*.018;this.weapon.position.y=kick*.035;
   }else if(profile.type==='palm'){
-   this.weapon.position.set(-.032*motion.gather+.018*kick,.020*motion.gather+.012*kick,.022*motion.gather-.018*kick);
+   this.weapon.position.set(-.022*motion.gather+.025*kick,.012*motion.gather+.024*kick,.028*motion.gather-.052*kick);
    this.weapon.rotation.x+=.08*motion.gather-.045*kick;this.weapon.rotation.z=-.11*motion.gather+.06*kick;
   }else{
    this.weapon.rotation.x-=kick*(id==='fire'?.27:.20);this.weapon.rotation.z=sweep*(id==='dark'?-.16:.10);this.weapon.position.z=-kick*.065;
@@ -415,15 +415,15 @@ export class FirstPersonView {
    if(i&&!support)point.set(-halfW*.48-this.root.position.x,-halfH*.72-this.root.position.y+kick*.045,.11-kick*.06);
    if(i&&id==='sporelantern')point.add(this.wrist.set(-.035*motion.gather+.065*kick,.045*motion.gather+.095*kick-.025*sweep,.065*motion.gather-.135*kick));
    if(i&&id==='miasmalantern')point.add(this.wrist.set(.075*motion.gather+.035*kick,.055*motion.gather+.020*kick,-.025*motion.gather-.045*kick));
-   if(i&&profile.type==='palm')point.add(this.wrist.set(.045*motion.gather,halfH*.07+.030*motion.gather,-.018*motion.gather));
+   if(i&&profile.type==='palm')point.add(this.wrist.set(.025*motion.gather+.018*kick,halfH*.05+.020*motion.gather+.014*kick,-.014*motion.gather-.030*kick));
    hand.rotation.set(i?(support?-.30:-.45):-.18,i?-.20:.12,i?(support?-.38:.18):-.38);
    if(profile.type==='book')hand.rotation.set(-.75,i?-.20:.20,i?.55:-.55);
    if(profile.type==='lamp'&&!i)hand.rotation.set(-.12,0,-.92);
    if(i&&id==='sporelantern')hand.rotation.set(-.60-.22*motion.gather+.36*kick,-.20+.22*kick,.18-.13*kick);
    if(i&&id==='miasmalantern')hand.rotation.set(-.45-.18*motion.gather,-.20-.15*motion.gather,.18-.16*kick);
    if(i&&id==='boomerang')hand.rotation.set(-.55+.10*motion.open,-.28,.48-.12*motion.open);
-   if(profile.type==='palm'&&!i)hand.rotation.set(-.52-.14*motion.gather+.07*kick,.10-.15*motion.gather,-.08+.14*kick);
-   if(profile.type==='palm'&&i)hand.rotation.set(-.50-.10*motion.gather,-.20,.18-.12*motion.gather);
+   if(profile.type==='palm'&&!i)hand.rotation.set(-.96-.10*motion.gather+.15*kick,.12-.10*motion.gather,-.10+.10*kick);
+   if(profile.type==='palm'&&i)hand.rotation.set(-.94-.08*motion.gather+.10*kick,-.22,.20-.08*motion.gather);
    if(profile.type==='staff'&&i)hand.rotation.set(-.52-(id==='fire'?.12:.22)*motion.gather,-.20+(id==='fire'?.12:-.14)*kick,.18+(id==='fire'?-.10:.10)*kick);
    if(profile.type==='book')hand.rotation.x-=.045*motion.sweep;
    if(!i&&(profile.type==='lamp'||id==='boomerang')){
@@ -437,7 +437,7 @@ export class FirstPersonView {
    hand.morphTargetInfluences[0]=i&&!support?.72+.20*kick:profile.type==='palm'?.78+.18*kick:profile.type==='book'?.48:profile.type==='throw'?Math.max(kick*.90,this.source.visible?0:.88):i&&id==='crossbow'?crossbowMechanism(cycle).hand*.24:0;
    if(i&&id==='sporelantern')hand.morphTargetInfluences[0]=.92*motion.open;
    if(id==='boomerang')hand.morphTargetInfluences[0]=i?.80*motion.open:0;
-   if(profile.type==='palm')hand.morphTargetInfluences[0]=i?.82-.20*motion.gather:.88-.19*motion.gather+.07*kick;
+   if(profile.type==='palm')hand.morphTargetInfluences[0]=i?.79-.10*motion.gather+.07*kick:.84-.12*motion.gather+.09*kick;
    if(hand.morphTargetInfluences.length>1)hand.morphTargetInfluences[1]=kick*.85;
    if(profile.type==='staff'&&i)hand.morphTargetInfluences[0]=id==='fire'?.62+.30*kick-.14*motion.gather:.50+.17*kick-.23*motion.gather;
    if(profile.type==='book')hand.morphTargetInfluences[0]=i?.56+.08*motion.sweep:.34+.07*motion.gather;
@@ -468,9 +468,12 @@ export class FirstPersonView {
  }
  render(renderer,scene){
   if(this.disposed||!this.root.visible||!this.weapon)return;
-  const mask=this.camera.layers.mask,background=scene.background,autoClear=renderer.autoClear;
-  try{this.camera.layers.set(1);scene.background=null;renderer.autoClear=false;renderer.clearDepth();renderer.render(scene,this.camera);}
-  finally{this.camera.layers.mask=mask;scene.background=background;renderer.autoClear=autoClear;}
+  const mask=this.camera.layers.mask,background=scene.background,autoClear=renderer.autoClear,autoMatrix=scene.matrixWorldAutoUpdate;
+  // The world pass immediately before this overlay updated the whole scene,
+  // including the camera's held rig. Layer filtering alone would still compose
+  // every tree and monster a second time. No transforms change between passes.
+  try{this.camera.layers.set(1);scene.background=null;renderer.autoClear=false;scene.matrixWorldAutoUpdate=false;renderer.clearDepth();renderer.render(scene,this.camera);}
+  finally{this.camera.layers.mask=mask;scene.background=background;renderer.autoClear=autoClear;scene.matrixWorldAutoUpdate=autoMatrix;}
  }
  dispose(){if(this.disposed)return;this.clear();this.root.removeFromParent();this.disposed=true;}
 }

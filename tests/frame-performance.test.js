@@ -35,7 +35,7 @@ test('auto aim skips terrain and obstacle scans for candidates unable to beat th
 test('hidden and paused frame scheduling skips work without throttling gameplay or catching up hidden time',()=>{
  // Execute the real frame entry with a sentinel at the rendering boundary.
  const entry=source.slice(source.indexOf('function frame(now){'),source.indexOf('if(renderWidth!==innerWidth',source.indexOf('function frame(now){')))+'draws.push({dt,active});requestAnimationFrame(frame);}';
- const context=vm.createContext({state:'paused',last:0,document:{hidden:false},draws:[],scheduled:0,resets:0,
+ const context=vm.createContext({preparing:false,state:'paused',last:0,document:{hidden:false},draws:[],scheduled:0,resets:0,
   renderBudget:{sample(){context.resets++;}},requestAnimationFrame(){context.scheduled++;}});
  vm.runInContext(entry,context);
  const tick=now=>vm.runInContext(`frame(${now})`,context);

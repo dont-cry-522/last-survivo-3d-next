@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {crossbowMechanism} from './weapon-performance.js?v=184';
+import {crossbowMechanism} from './weapon-performance.js?v=185';
 
 // Weapon-space contact points: the wrapped handle, not the model's origin.
 export const GRIP_POINTS={shade:[0,0,0],shadowblade:[0,-.035,.02],grimoire:[0,0,0],miasmalantern:[0,.015,0],sporelantern:[0,.015,0],rifle:[0,-.065,.075],shotgun:[0,-.065,.075],crossbow:[0,-.08,.01],fire:[0,0,.045],dark:[0,0,.045],shuriken:[-.07,0,.06],boomerang:[0,-.13,0],harpoon:[0,0,-.08],hammer:[0,.015,0]};
@@ -26,7 +26,7 @@ const staffWrap={index:[.94,1.06,.64],middle:[1.04,1.14,.74],ring:[1.12,1.16,.76
 const dartPinch={index:[.76,.88,.52],middle:[.92,1.04,.64],ring:[1.04,1.12,.72],pinky:[1.14,1.12,.72]};
 const fireGuide={index:[.16,.18,.10],middle:[.22,.22,.12],ring:[.28,.26,.15],pinky:[.34,.28,.18]};
 const darkGuide={index:[.34,.36,.22],middle:[.48,.44,.26],ring:[.58,.48,.28],pinky:[.66,.50,.30]};
-const shadowGuide={index:[.18,.23,.14],middle:[.30,.30,.18],ring:[.40,.36,.22],pinky:[.46,.39,.24]};
+const shadowGuide={index:[.09,.12,.055],middle:[.14,.17,.07],ring:[.20,.22,.09],pinky:[.26,.25,.11]};
 const bookSupport={index:[.20,.26,.16],middle:[.27,.31,.19],ring:[.34,.34,.22],pinky:[.40,.38,.24]};
 const bookRead={index:[.12,.16,.09],middle:[.44,.46,.28],ring:[.52,.48,.30],pinky:[.60,.52,.32]};
 const fingerOrder={index:0,middle:1,ring:2,pinky:3};
@@ -70,6 +70,14 @@ export function supportGripTarget(d,target){
 }
 export function aimSupportGrip(d,blend){orient(d.support.hand,d.handGrips.supportWorld,blend,d.handGrips.scratch);}
 
+// Shade has no physical foregrip: the free palm cups the air beside the tear.
+// Orient only this wrist after the existing arm solve; never move the held focus.
+export function aimShadeGuide(d,blend){
+  const h=d.handGrips;d.gun.getWorldQuaternion(h.supportWorld).multiply(upright);
+  h.supportWorld.multiply(h.inverse.setFromAxisAngle(h.offset.set(0,1,0),.22));
+  orient(d.support.hand,h.supportWorld,blend,h.scratch);
+}
+
 export function poseGripFingers(d,motion={}){
   const id=d.weaponId,h=d.handGrips,hasSupport=['rifle','shotgun','crossbow','harpoon','hammer','shadowblade','boomerang'].includes(id);
   const lantern=id==='sporelantern'||id==='miasmalantern',caster=['fire','dark','shade','grimoire'].includes(id),gun=['rifle','shotgun','crossbow'].includes(id),pole=id==='harpoon'||id==='shadowblade';
@@ -102,7 +110,7 @@ export function poseGripFingers(d,motion={}){
       h.scratch.setFromAxisAngle(h.offset.set(1,0,0),-(motion.open||0)*(i===1?.28:i===2?.48:.32)).premultiply(q);
       bone.quaternion.slerp(h.scratch,d.aimBlend);
     }else if(side==='l'&&id==='crossbow'||caster&&(side==='l'||id==='shade'||id==='grimoire')){
-      const loosen=side==='l'&&id==='crossbow'?latch*.18:((id==='dark'?.10:.18)+kick*.10)*(i===1?1:.7);
+      const loosen=side==='l'&&id==='crossbow'?latch*.18:id==='shade'?(i===1?.42:i===2?.52:.30)+kick*.10-gather*.08:((id==='dark'?.10:.18)+kick*.10)*(i===1?1:.7);
       h.scratch.setFromAxisAngle(h.offset.set(1,0,0),-loosen).premultiply(q);bone.quaternion.slerp(h.scratch,side==='r'?1:d.aimBlend);
     }else if(side==='r'||hasSupport)bone.quaternion.slerp(q,side==='r'?1-released*.8:id==='hammer'?1:d.aimBlend);
   }

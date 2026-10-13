@@ -1,4 +1,4 @@
-import{MIRAGE}from'./mirage-config.js?v=184';
+import{MIRAGE}from'./mirage-config.js?v=185';
 // One clock drives travel, the skeletal action, landing and gameplay hooks.
 export const HERO_DODGES={mirage:{duration:MIRAGE.dodgeDuration,distance:MIRAGE.dodgeDistance,cooldown:MIRAGE.dodgeCooldown,name:'蜕影'},wuling:{duration:.52,distance:4.8,cooldown:2.3,name:'牵瘴步'},tide:{duration:2,distance:0,cooldown:6.5,name:'潜潮'},lingya:{duration:.58,distance:6.2,cooldown:3.6,name:'换位'}};
 const clamp=t=>Math.max(0,Math.min(1,t));

@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
-import {slingshotMechanism} from './weapon-performance.js?v=184';
-import {nameWeapon,weaponInlay} from './weapon-identity.js?v=184';
+import {slingshotMechanism} from './weapon-performance.js?v=185';
+import {nameWeapon,weaponInlay} from './weapon-identity.js?v=185';
 
 // +Z is the firing direction. Immutable geometry/materials are shared between
 // characters; only the two bands, pouch and loaded pebble change their pose.

@@ -1,0 +1,61 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>一屏准备页验证</title><style>body{margin:16px;background:#142824;color:#e0eadc;font:14px/1.6 system-ui}button{font:inherit;padding:9px 14px;margin:4px;background:#35594b;color:inherit;border:1px solid #8ca589;border-radius:7px}#view{overflow:auto;margin-top:14px}iframe{display:block;border:0}pre{white-space:pre-wrap;overflow-wrap:anywhere}#status{min-height:24px}</style>
+<h1>一屏准备页验证</h1><p>使用真实首页、角色与地图选择监听器，隔离存档。检查按钮命中、页内溢出、默认收起的说明、详情关闭及开始对局。手机尺寸与粗指针是浏览器模拟，不是真机测试。</p>
+<button id="run">运行全部尺寸</button><button id="phone">预览 320×568</button><button id="wide">预览 844×390</button><button id="desktop">预览 1024×600</button>
+<p id="status" role="status">等待运行。</p><div id="view"></div><pre id="report"></pre>
+<script type="module">
+const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(ok,message)=>{if(!ok)throw Error(message);};
+const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text(),checks=[],errors=[];
+let frame,win,g,mobile=false;window.menuLayoutReport={checks,errors,mobileSimulation:true,trueDeviceTest:false};
+const el=s=>win.document.querySelector(s);
+function publish(){window.menuLayoutReport={checks:[...checks],errors:[...errors],mobileSimulation:true,trueDeviceTest:false};$('#report').textContent=JSON.stringify(window.menuLayoutReport,null,2);}
+function dimensions(width,height){frame.style.width=width+'px';frame.style.height=height+'px';}
+async function load(touch,width,height){
+ if(g){g.audio.stopMusic();g.cinema?.dispose();g.renderer.dispose();g.renderer.forceContextLoss();}frame?.remove();g=null;mobile=touch;
+ frame=document.createElement('iframe');frame.title='真实远征准备页';dimensions(width,height);$('#view').append(frame);
+ const boot=`<base href="../"><script>
+ window.qaErrors=[];addEventListener('error',e=>qaErrors.push(e.message));addEventListener('unhandledrejection',e=>qaErrors.push(String(e.reason)));
+ let seed=522;Math.random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};
+ const data=new Map();Object.defineProperty(window,'localStorage',{value:{getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,String(v)),removeItem:k=>data.delete(k)}});
+ const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${touch},media:q,addEventListener(){},removeEventListener(){}}:media(q);
+ <\/script>`;
+ frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
+ for(let i=0;i<1200;i++){if(win.game3d&&!el('#start')?.disabled&&el('#asset-loading')?.hidden)break;await sleep(50);}
+ assert(win.game3d&&!el('#start')?.disabled&&el('#asset-loading')?.hidden,'真实首页准备超时：'+JSON.stringify(win.qaErrors));g=win.game3d;g.audio.setMuted(true);g.audio.init=async()=>true;
+ if(touch){const style=win.document.createElement('style');style.textContent=css.replaceAll(/\(pointer:\s*coarse\)/g,'(min-width:0px)').replaceAll(/\(pointer:\s*fine\)/g,'(min-width:100000px)');win.document.head.append(style);}
+ await resize(width,height);
+}
+async function resize(width,height){dimensions(width,height);win.dispatchEvent(new win.Event('resize'));await sleep(160);}
+function box(selector){const e=typeof selector==='string'?el(selector):selector,r=e.getBoundingClientRect();assert(r.width>0&&r.height>0,'未显示：'+(e.id||e.textContent));return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};}
+function inside(selector){const r=box(selector);assert(r.x>=-.6&&r.right<=win.innerWidth+.6&&r.y>=-.6&&r.bottom<=win.innerHeight+.6,'超出视口 '+selector+' '+JSON.stringify(r));return r;}
+function reachable(e){if(typeof e==='string')e=el(e);const r=inside(e),hit=win.document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);assert(hit&&(hit===e||e.contains(hit)),'被遮挡：'+(e.id||e.textContent)+'，上层 '+hit?.id);assert(!e.disabled,'按钮禁用：'+(e.id||e.textContent));return r;}
+function closed(){for(const detail of win.document.querySelectorAll('#menu .menu-details'))detail.open=false;}
+function layoutDiagnostics(){return{viewport:[win.innerWidth,win.innerHeight],items:Object.fromEntries(['#menu','#menu .intro','.hero-showcase','#hero-preview','.setup-tabs','.setup-grid','.setup-panel:not([hidden])','.hero-options','#weapons','.attack-modes','.launch-row','#start','header'].map(selector=>{const e=el(selector);if(!e)return[selector,null];const r=e.getBoundingClientRect(),s=win.getComputedStyle(e);return[selector,{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom,scroll:[e.scrollWidth,e.scrollHeight],client:[e.clientWidth,e.clientHeight],columns:s.gridTemplateColumns,rows:s.gridTemplateRows,position:s.position}];}))};}
+function defaultFits(){
+ const menu=el('#menu'),root=win.document.documentElement;assert(menu.scrollHeight<=menu.clientHeight+1,'首页纵向仍需滚动');assert(menu.scrollWidth<=menu.clientWidth+1,'首页横向溢出');assert(root.scrollHeight<=win.innerHeight+1,'body 仍需滚动');assert(win.scrollY===0&&menu.scrollTop===0,'首页已被滚动');
+ const preview=inside('#hero-preview'),minPreview=win.innerWidth<=700&&win.innerHeight>=568&&win.innerHeight>win.innerWidth?145:80;assert(preview.height>=minPreview&&preview.width>=100,'人物展示区被压小：'+JSON.stringify({preview,minPreview}));
+ for(const s of ['#start','#loadout-tab','#travel-tab','#journal-open','#control-details>summary'])reachable(s);
+ for(const e of win.document.querySelectorAll('.setup-panel:not([hidden]) button,.setup-panel:not([hidden])>.menu-details>summary')){if(e.closest('details:not([open])')&&!e.matches('summary'))continue;const r=reachable(e);assert(r.height>=28,'触点过薄：'+e.textContent);if(e.matches('[data-hero],#weapons button,[data-map]'))assert(r.height>=39,'核心选择触点被压小：'+e.textContent);}
+ for(const e of win.document.querySelectorAll('header .top-actions>button,header .top-actions>details>summary'))if(e.getBoundingClientRect().width&&e.getBoundingClientRect().height)reachable(e);
+ const start=box('#start'),panel=box('.setup-panel:not([hidden])');assert(panel.bottom<=start.y+.5,'选择面板压住开局行');
+ return{viewport:[win.innerWidth,win.innerHeight],mobile,preview,start,panel};
+}
+async function detailFits(id){const detail=el(id),summary=detail.querySelector('summary');reachable(summary);summary.click();await sleep(20);assert(detail.open,'说明不能打开 '+id);const content=inside(id+' .menu-detail-content');reachable(summary);reachable('#start');if(id==='#weapon-details'){const previous=el('[data-attack-mode][aria-pressed="true"]').dataset.attackMode;for(const mode of ['manual','auto',previous]){const button=el('[data-attack-mode="'+mode+'"]');reachable(button);button.click();assert(button.getAttribute('aria-pressed')==='true','详情内攻击方式无法切换 '+mode);}}summary.click();await sleep(20);assert(!detail.open,'说明不能收起 '+id);defaultFits();return{content};}
+async function check(name,fn){$('#status').textContent=name;try{checks.push({name,pass:true,detail:await fn()});}catch(error){checks.push({name,pass:false,error:error.message,layout:layoutDiagnostics()});}publish();}
+async function layout(width,height){
+ await resize(width,height);closed();el('#loadout-tab').click();const loadout=defaultFits();await detailFits('#weapon-details');await detailFits('#control-details');
+ el('#travel-tab').click();assert(!el('#travel-panel').hidden&&el('#loadout-panel').hidden,'地图标签未切换');const travel=defaultFits();await detailFits('#map-details');el('#loadout-tab').click();return{loadout,travel};
+}
+async function preview(touch,width,height){$('#status').textContent='准备真实预览…';if(!g||mobile!==touch)await load(touch,width,height);else await resize(width,height);closed();el('#loadout-tab').click();$('#status').textContent=width+'×'+height+' 真实首页（可直接操作）';}
+$('#phone').onclick=()=>preview(true,320,568);$('#wide').onclick=()=>preview(true,844,390);$('#desktop').onclick=()=>preview(false,1024,600);
+$('#run').onclick=async()=>{
+ for(const b of document.querySelectorAll('body>button'))b.disabled=true;checks.length=0;errors.length=0;
+ try{
+  await load(false,1366,768);for(const size of [[1366,768],[1024,600],[800,600]])await check('电脑 '+size.join('×')+' 一屏、标签和详情',()=>layout(...size));errors.push(...win.qaErrors);
+  await load(true,320,568);for(const size of [[320,568],[390,844],[667,375],[844,390]])await check('手机尺寸 '+size.join('×')+' 一屏、标签和详情',()=>layout(...size));
+  await check('320×568 七位角色、所有随行武器均可直接选择',async()=>{await resize(320,568);closed();el('#loadout-tab').click();const samples=[];for(const hero of ['scout','silver','wraith','tide','lingya','wuling','mirage']){reachable('[data-hero="'+hero+'"]');el('[data-hero="'+hero+'"]').click();await sleep(20);assert(g.player.heroId===hero,'选角未生效 '+hero);const count=win.document.querySelectorAll('#weapons button').length;for(let i=0;i<count;i++){const b=win.document.querySelectorAll('#weapons button')[i];reachable(b);b.click();await sleep(10);defaultFits();}samples.push({hero,weapon:g.player.weaponId,layout:defaultFits()});}return samples;});
+  await check('320×568 六张地图与迷雾选项可达，预览随地图更新',async()=>{closed();el('#travel-tab').click();const samples=[];for(const map of ['forest','snow','ash','sand','coast','confluence']){const b=el('[data-map="'+map+'"]');reachable(b);b.click();await sleep(20);assert(b.classList.contains('selected'),'地图未选中 '+map);assert(el('#preview-map-name').textContent.includes(b.textContent.trim().slice(3).split(' · ')[0]),'展示背景地图标题不同步');samples.push({map,layout:defaultFits()});}for(const value of ['visible','explore']){const b=el('[data-map-visibility="'+value+'"]');reachable(b);b.click();assert(b.getAttribute('aria-pressed')==='true','迷雾切换未生效');}return samples;});
+  await check('从可见开局键进入真实对局并返回首页',async()=>{closed();el('#loadout-tab').click();reachable('#start');el('#start').click();for(let i=0;i<1200&&!(g.state==='playing'&&el('#asset-loading').hidden);i++)await sleep(50);assert(g.state==='playing'&&el('#menu').hidden,'无法进入对局');g.menu();await sleep(100);return defaultFits();});errors.push(...win.qaErrors);
+ }catch(error){errors.push(error.stack||error.message);}finally{publish();$('#status').textContent='完成：'+checks.filter(c=>c.pass).length+' / '+checks.length+' 项通过；错误 '+errors.length;for(const b of document.querySelectorAll('body>button'))b.disabled=false;}
+};
+</script></html>

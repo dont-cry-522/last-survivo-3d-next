@@ -17,7 +17,7 @@ export class HeroPreview {
  render(scene,hero,pet){
   const rect=this.element.getBoundingClientRect(),width=innerWidth,height=innerHeight;
   if(rect.width<=0||rect.height<=0)return;
-  const petPosition=pet?.position.clone(),petVisible=pet?.visible,fogDensity=scene.fog?.density,clippedMaterials=new Map();
+  const petPosition=pet?.position.clone(),petVisible=pet?.visible,fogDensity=scene.fog?.density,clippedMaterials=new Map(),autoMatrix=scene.matrixWorldAutoUpdate;
   try{
    // Soft distant haze frames the nearby landmark and bounds menu draw distance.
    if(scene.fog?.isFogExp2)scene.fog.density=Math.max(fogDensity,.028);
@@ -56,8 +56,12 @@ export class HeroPreview {
    this.fill.color.set(warm?0xffe8d1:cold?0xe4e9f5:0xe7edf1);
    this.fill.intensity=kind==='wraith'?1.95:cold?2.45:warm?2.65:2.9;
    this.fill.position.copy(center).addScaledVector(direction,cold?1.65:1.8).addScaledVector(right,cold?1.05:warm?.42:.6);this.fill.position.y+=cold?.75:warm?.46:.55;scene.add(this.fill);
+   // The framing pass already updated the scene. Only this newly positioned
+   // fill light still needs a matrix; camera updates above remain independent.
+   this.fill.updateMatrixWorld();scene.matrixWorldAutoUpdate=false;
    this.renderer.render(scene,this.camera);
   }finally{
+   scene.matrixWorldAutoUpdate=autoMatrix;
    if(fogDensity!==undefined)scene.fog.density=fogDensity;
    this.fill.removeFromParent();
    for(const [material,planes] of clippedMaterials)material.clippingPlanes=planes;

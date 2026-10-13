@@ -1,4 +1,4 @@
-import{HERO_DODGES,dodgeTravel}from'./hero-dodge.js?v=184';
+import{HERO_DODGES,dodgeTravel}from'./hero-dodge.js?v=185';
 const smooth=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
 export const GUARDIAN_ATTACKS=[
  {name:'盾牌顶击',impact:.43,damage:.8,reach:.86,arc:.65,sound:'shield'},

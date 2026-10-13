@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
-import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=184';
-import {segmentHitsBody} from './adventure-combat.js?v=184';
+import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=185';
+import {segmentHitsBody} from './adventure-combat.js?v=185';
 
 export const AIR_ROSTERS={forest:'duskbat',snow:'frostwing',ash:'cinderwing',sand:'sunscarab',coast:'skyray'};
 export const AIR_ENEMIES={

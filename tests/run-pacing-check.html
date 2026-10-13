@@ -54,7 +54,7 @@ function fits(selector){const e=dom(selector),r=e.getBoundingClientRect();assert
 async function layout(mobile,width,height){
  await load(mobile,width,height);const maps=[];
  for(const map of ['forest','snow','ash','sand','coast','confluence']){
-  g.select('silver',map,0);dom('#travel-tab').click();dom('.expedition-brief').scrollIntoView({block:'center'});await sleep(0);draw();
+  g.select('silver',map,0);dom('#travel-tab').click();dom('#map-details').open=true;dom('.expedition-brief').scrollIntoView({block:'center'});await sleep(0);draw();
   const name=dom('#map-boss-name').textContent,arrival=dom('#map-boss-arrival').textContent;assert(name,'地图没有首领名称');assert(map==='confluence'?arrival.includes('地标'):arrival.includes('2 分钟'),'地图首领时机不正确');maps.push({map,name,arrival,brief:fits('.expedition-brief')});
  }
  reset();g.player.attack=9999;fixedFoe();g.grant(160);for(let i=0;i<5;i++)tick();assert(g.state==='playing','布局测试被自动升级打断');const ready=fits('#upgrade-ready'),button=dom('#upgrade-ready'),rect=button.getBoundingClientRect(),hit=win.document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);assert(hit&&(hit===button||button.contains(hit)),'成长入口被其他界面遮住：'+hit?.id);assert(!!dom('#boss-arrival').textContent,'HUD 缺少首领倒计时');button.click();assert(g.state==='upgrade','可见成长入口无法打开选卡');draw();return{width,height,mobileSimulation:mobile,maps,ready,readyHitTest:true};

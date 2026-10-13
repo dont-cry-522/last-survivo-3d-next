@@ -1,28 +1,28 @@
-import {createShadowAura,updateShadowAura,disposeShadowAura} from './shadow-aura.js?v=184';
-import {shadowOutfit,shadowAccessories,finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=184';
-import {shadowFocus} from './shadow-gear.js?v=184';
-import {GRIP_POINTS,SCYTHE_SUPPORT,primaryGripFrame,fitWeaponToPalm,createHandGrips,restoreGripWrists,captureGripWrists,aimGrip,supportGripTarget,aimSupportGrip,poseGripFingers} from './weapon-grips.js?v=184';
-import {refineLingyaFace} from './lingya-face.js?v=184';
-import {createLingyaHair,animateLingyaHair} from './lingya-hair.js?v=184';
-import {finishHeroSurface,smoothSeams,prepareSilverHair,animateSilverHair} from './hero-finish.js?v=184';
-import {rebuildRanger} from './ranger-rebuild.js?v=184';
-import {rebuildShadowTide} from './shadow-tide-rebuild.js?v=184';
-import {rebuildWildMist} from './wild-mist-rebuild.js?v=184';
-import {applyHeroIdentity,settleHeroIdentity} from './hero-identity.js?v=184';
-import{WULING_PALETTE,wulingOutfit,wulingAccessories,wulingMask,sporeLantern,sporeSatchel,sporePod}from'./wuling-appearance.js?v=184';
-import{MIRAGE_PALETTE,mirageOutfit,mirageHair,prepareMirageHair,animateMirageHair,mirageMask,mirageAccessories,miragePetalTails,miasmaLantern}from'./mirage-appearance.js?v=184';
-import{newHeroAttack,heroCarryPose,committedWeaponYaw}from'./new-hero-motion.js?v=184';
-import{heroDodgePose}from'./hero-dodge.js?v=184';
-import{lingyaHopPose}from'./lingya-motion.js?v=184';
-import{lingyaOutfit,lingyaAccessories,lingyaLegs}from'./lingya-appearance.js?v=184';
-import{makeSlingshot,poseSlingshot}from'./slingshot-model.js?v=184';
-import{makeHarpoon}from'./coast-models.js?v=184';
-import{weaponGesture,shotStarted,scythePose,crossbowMechanism,slingshotMechanism}from'./weapon-performance.js?v=184';
-import{rollProgress,rollWeight}from'./dodge-motion.js?v=184';
+import {createShadowAura,updateShadowAura,disposeShadowAura} from './shadow-aura.js?v=185';
+import {shadowOutfit,shadowAccessories,finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=185';
+import {shadowFocus} from './shadow-gear.js?v=185';
+import {GRIP_POINTS,SCYTHE_SUPPORT,primaryGripFrame,fitWeaponToPalm,createHandGrips,restoreGripWrists,captureGripWrists,aimGrip,supportGripTarget,aimSupportGrip,aimShadeGuide,poseGripFingers} from './weapon-grips.js?v=185';
+import {refineLingyaFace} from './lingya-face.js?v=185';
+import {createLingyaHair,animateLingyaHair} from './lingya-hair.js?v=185';
+import {finishHeroSurface,smoothSeams,prepareSilverHair,animateSilverHair} from './hero-finish.js?v=185';
+import {rebuildRanger} from './ranger-rebuild.js?v=185';
+import {rebuildShadowTide} from './shadow-tide-rebuild.js?v=185';
+import {rebuildWildMist} from './wild-mist-rebuild.js?v=185';
+import {applyHeroIdentity,settleHeroIdentity} from './hero-identity.js?v=185';
+import{WULING_PALETTE,wulingOutfit,wulingAccessories,wulingMask,sporeLantern,sporeSatchel,sporePod}from'./wuling-appearance.js?v=185';
+import{MIRAGE_PALETTE,mirageOutfit,mirageHair,prepareMirageHair,animateMirageHair,mirageMask,mirageAccessories,miragePetalTails,miasmaLantern}from'./mirage-appearance.js?v=185';
+import{newHeroAttack,heroCarryPose,committedWeaponYaw}from'./new-hero-motion.js?v=185';
+import{heroDodgePose}from'./hero-dodge.js?v=185';
+import{lingyaHopPose}from'./lingya-motion.js?v=185';
+import{lingyaOutfit,lingyaAccessories,lingyaLegs}from'./lingya-appearance.js?v=185';
+import{makeSlingshot,poseSlingshot}from'./slingshot-model.js?v=185';
+import{makeHarpoon}from'./coast-models.js?v=185';
+import{weaponGesture,shotStarted,scythePose,crossbowMechanism,slingshotMechanism}from'./weapon-performance.js?v=185';
+import{rollProgress,rollWeight}from'./dodge-motion.js?v=185';
 import * as T from './vendor/three.module.js';
 import {clone} from './vendor/SkeletonUtils.js';
-import {loadCharacterData} from './character-loader.js?v=184';
-import {makeHero as makePrototype,poseCrossbow} from './hero-model.js?v=184';
+import {loadCharacterData} from './character-loader.js?v=185';
+import {makeHero as makePrototype,poseCrossbow} from './hero-model.js?v=185';
 
 const templates=new Map(),clips=new Map();
 let lingyaFace;
@@ -566,6 +566,12 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
       d.aimArm.rotateY(-.95*sweep+.25*gather);d.aimArm.rotateZ(.5*sweep);
       d.firingForearm.rotateX(-.7*gesture+.35*gather);d.firingForearm.rotateY(.4*sweep);d.offArm.rotateY(.35*sweep);d.offForearm.rotateX(-.28*gather);
       d.gun.scale.setScalar(.65*(1-.6*gesture));
+    }else if(d.weaponId==='shade'){
+      // Lift and guide an airborne tear with open palms, rather than the shared
+      // inward forearm strike used by the other shadow implements.
+      d.spine.rotateY(-.035*sweep);d.spine.rotateX(-.015*gather+.018*gesture);
+      d.aimArm.rotateY(-.08*gather+.10*sweep);d.firingForearm.rotateX(-.10*gesture);
+      d.offArm.rotateX(-.08*sweep);d.offForearm.rotateZ(.08*gather);
     }else if(d.kind==='wraith'){
       d.spine.rotateY((d.weaponId==='shadowblade'?.25:-.10)*sweep);d.spine.rotateX(-.035*gather+.04*gesture);
       d.aimArm.rotateY(-.30*gather+.25*sweep);d.firingForearm.rotateX(-.25*gesture);
@@ -611,7 +617,7 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
     if(id==='harpoon')s.to.set(-.21+(d.harpoonCombo===1?-.18*gather+.34*kick+.12*sweep:.05*kick),-.27+.045*kick+dodge.weight*.06,.05+(d.harpoonCombo===1?.32:.49)*kick-.20*gather-(d.harpoonCombo===2?.38*sweep:0)-dodge.weight*.14);
     else if(mirage){const rest=(1-d.readyBlend)*(1-d.blend);s.to.set(-.245+.025*kick+.025*gather,-.245+.125*kick+.025*gather-.035*rest,.13+.255*kick-.10*gather);}
     else if(lantern){const rest=(1-d.readyBlend)*(1-d.blend)*(1-(d.waterBlend||0));s.to.set(-.27,-.26+.035*kick,.10+.06*kick-.03*rest);}
-    else if(id==='shade')s.to.set(-.20-.045*sweep,-.16+.03*kick,.28+.07*kick-.03*gather);
+    else if(id==='shade')s.to.set(-.22-.035*sweep,-.22+.045*kick+.025*gather,.24+.12*kick+.035*sweep-.02*gather);
     else if(scythe){s.to.set(scythe.x,scythe.y,scythe.z);if(d.scytheGripPosition)d.scytheGripPosition.lerp(s.to,1-Math.exp(-dt*24));else d.scytheGripPosition=s.to.clone();s.to.copy(d.scytheGripPosition);}
     else if(id==='grimoire')s.to.set(-.22,-.22+.025*kick,.22+.06*kick);
     else if(staff)s.to.set(-.19,-.23,id==='fire'?.24+.22*kick:.22+.09*gather);
@@ -625,7 +631,7 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
     const melee=id==='harpoon'||id==='shadowblade',commit=melee?motion.weight:action.weight;
     const yaw=(newHero||melee?committedWeaponYaw(g.rotation.y,d.aimAngle,d.attackAngle,commit):bow?g.rotation.y:Number.isFinite(d.aimAngle)?d.aimAngle:g.rotation.y)+(id==='shadowblade'?scythe.yaw:id==='harpoon'&&d.harpoonCombo===1?-.62*gather+.48*kick+.27*sweep:0);
     s.world.setFromAxisAngle(s.to.set(0,1,0),yaw);
-    const pitch=id==='grimoire'?.02:id==='shade'?-.12+.15*sweep:id==='shadowblade'?scythe.pitch:id==='harpoon'?-.04+(1-d.readyBlend)*.30+.08*gather-.06*kick-(d.harpoonCombo===2?.24*sweep:0)-dodge.weight*.30:mirage?-.04-.20*kick+.05*gather:lantern?-.035+.06*Math.sin(d.gaitPhase*Math.PI*2)*d.blend:staff?(id==='fire'?-.15-.4*kick:.08+.15*gather):sling?.02+.03*gather-.03*kick+(1-d.readyBlend)*.20:throwing?-.2+.5*sweep:-kick*(id==='shotgun'?.14:.055);
+    const pitch=id==='grimoire'?.02:id==='shade'?-.20+.14*kick+.10*sweep-.08*gather:id==='shadowblade'?scythe.pitch:id==='harpoon'?-.04+(1-d.readyBlend)*.30+.08*gather-.06*kick-(d.harpoonCombo===2?.24*sweep:0)-dodge.weight*.30:mirage?-.04-.20*kick+.05*gather:lantern?-.035+.06*Math.sin(d.gaitPhase*Math.PI*2)*d.blend:staff?(id==='fire'?-.15-.4*kick:.08+.15*gather):sling?.02+.03*gather-.03*kick+(1-d.readyBlend)*.20:throwing?-.2+.5*sweep:-kick*(id==='shotgun'?.14:.055);
     s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(1,0,0),pitch-T.MathUtils.clamp(melee?T.MathUtils.lerp(d.aimPitch||0,d.attackPitch??d.aimPitch??0,commit):d.aimPitch||0,-1.3,1.3)));if(id==='shadowblade')s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(0,0,1),scythe.roll));if(id==='boomerang')s.world.multiply(new T.Quaternion().setFromAxisAngle(s.to.set(0,0,1),-.025*gather+.025*kick));if((newHero||meleeWeapon)&&!scythe){if(d.weaponWorld)d.weaponWorld.rotateTowards(s.world,dt*12);else d.weaponWorld=s.world.clone();s.world.copy(d.weaponWorld);}if(scythe){if(d.scytheGripRotation)d.scytheGripRotation.rotateTowards(s.world,dt*8);else d.scytheGripRotation=s.world.clone();s.world.copy(d.scytheGripRotation);}aimGrip(d,s.world,scythe?1:poseBlend*d.aimBlend,dt);
     if(scythe){
       // Keep both palms reachable as a coupled grip. Correct the rear hand rather
@@ -641,7 +647,7 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
       s.target.set(...SCYTHE_SUPPORT);d.gun.localToWorld(s.target);
     }
     else if(sling){const mechanism=slingshotMechanism(d.shotSerial?(d.reloadPhase??1)*(d.reloadDuration||1):10,d.reloadDuration||1);s.target.set(0,.22,-.07-.30*mechanism.handPull);d.gun.localToWorld(s.target);}
-    else if(d.kind==='wraith'){if(id==='shade')s.to.set(.13-.045*gather,-.18+.05*gather,.25+.03*gather);else s.to.set(.20-.08*gather,-.22+.07*sweep,.13+.15*gather);g.getWorldQuaternion(s.world);s.target.copy(chest).add(s.to.applyQuaternion(s.world));}
+    else if(d.kind==='wraith'){if(id==='shade')s.to.set(.17-.04*sweep-.015*gather,-.20+.035*kick+.025*gather,.21+.06*kick-.025*sweep);else s.to.set(.20-.08*gather,-.22+.07*sweep,.13+.15*gather);g.getWorldQuaternion(s.world);s.target.copy(chest).add(s.to.applyQuaternion(s.world));}
     else if(mirage){const rest=(1-d.readyBlend)*(1-d.blend);s.to.set(.23-.035*kick-.08*gather,-.30+.075*kick+.10*gather-.075*rest,.12+.14*kick+.13*gather-.055*rest);g.getWorldQuaternion(s.world);s.target.copy(chest).add(s.to.applyQuaternion(s.world));
     }else if(lantern){const rest=(1-d.readyBlend)*(1-d.blend)*(1-(d.waterBlend||0));s.to.set(.24+.10*gather-.035*kick-.04*rest,-.36+.29*kick+.13*gather-.05*rest,.12-.19*gather+.47*kick-.085*rest);g.getWorldQuaternion(s.world);s.target.copy(chest).add(s.to.applyQuaternion(s.world));
     }else if(staff||throwing){
@@ -652,6 +658,7 @@ export function animateSkinnedHero(g,t,speed,attack,hurt){
     if(scythe||!staff&&!throwing&&!lantern&&d.kind!=='wraith')supportGripTarget(d,s.target);
     solve([d.offForearm,d.offArm],s.hand);
     if(scythe||!staff&&!throwing&&!lantern&&d.kind!=='wraith')aimSupportGrip(d,scythe?1:poseBlend*d.aimBlend);
+    if(id==='shade')aimShadeGuide(d,poseBlend*d.aimBlend);
     if(bow)poseCrossbow(d.gun,T.MathUtils.clamp(d.reloadPhase??1,0,1));
   }
   if(d.kind==='wraith'){

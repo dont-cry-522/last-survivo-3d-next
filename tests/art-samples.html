@@ -4,11 +4,11 @@
 <p id="status">正在载入</p><a id="save-png">保存对照图</a><div id="sheet"></div><pre id="report"></pre>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=182';
+import {actor,animateActor} from '../world.js?v=185';
 document.querySelector('#status').textContent='模块已加载，核对模型入口';
 const worldSource=await(await fetch('../world.js',{cache:'no-store'})).text(),skinEntry=worldSource.match(/from['"](.\/skinned-hero\.js[^'"]*)['"]/)[1];
 const {loadHeroAssets,disposeHero}=await import(new URL('../'+skinEntry,location.href));
-import {ENEMY_MOTION} from '../enemy-motion.js?v=182';
+import {ENEMY_MOTION} from '../enemy-motion.js?v=185';
 const errors=[];addEventListener('error',e=>errors.push(e.message));addEventListener('unhandledrejection',e=>errors.push(String(e.reason)));
 const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}),scene=new T.Scene(),camera=new T.PerspectiveCamera(31,1,.02,80);
 renderer.setSize(430,410);camera.aspect=430/410;camera.updateProjectionMatrix();renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;

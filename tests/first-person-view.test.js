@@ -109,7 +109,8 @@ test('shadow focus remains in an open palm with restrained finger-led casting',(
  const camera=new T.PerspectiveCamera(60,16/9,.1,100),view=new FirstPersonView(camera),actor=hero(shadowFocus('shade'));view.setHero(actor,'shade');
  try{for(const aspect of [16/9,19.5/9,9/19.5])for(const fov of [50,72])for(let i=0;i<=60;i++){
   camera.aspect=aspect;camera.fov=fov;camera.updateProjectionMatrix();Object.assign(actor.userData,{attackAge:i/60,reloadDuration:1,reloadPhase:i/60});view.update(1,.016,{visible:true});camera.updateMatrixWorld(true);
-  assert(view.hands[0].morphTargetInfluences[0]>.65);assert(Math.abs(view.weapon.position.z)<.025);assert(Math.abs(view.weapon.position.x)<.04);
+  assert(view.hands[0].morphTargetInfluences[0]>.65);assert(Math.abs(view.weapon.position.z)<.055);assert(Math.abs(view.weapon.position.x)<.04);
+  for(const hand of view.hands)assert(new T.Vector3(0,0,1).applyQuaternion(hand.quaternion).y>.6,'palm no longer supports the hovering focus');
   for(const hand of view.hands){const point=hand.getWorldPosition(new T.Vector3()).project(camera);assert(point.y>-.93&&point.y<-.3&&Math.abs(point.x)<.92,'a casting hand is hidden beyond the view');}
   // The upper edge of the cuff needs to be visible as well as the fingertips.
   const cuff=view.hands[0].localToWorld(new T.Vector3(0,-.038,0)).project(camera);assert(cuff.y>-1,'right cuff falls wholly below the frame');

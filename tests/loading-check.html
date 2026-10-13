@@ -1,0 +1,43 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 真实加载检查</title>
+<style>body{margin:16px;background:#182721;color:#e5e9dd;font:14px system-ui}button,select{padding:10px;margin:4px;border:1px solid #778871;border-radius:6px;background:#304c40;color:inherit}iframe{display:block;border:1px solid #657763;margin-top:12px}#view{overflow:auto}pre{white-space:pre-wrap}</style>
+<button id="desktop">检查电脑入场</button><button id="mobile">检查手机横屏入场</button><button id="portrait">检查手机竖屏入场</button>
+<select id="map" aria-label="检查地图"><option value="forest">森林</option><option value="confluence">五境大远征</option><option value="snow">雪地</option><option value="ash">灰烬</option><option value="sand">沙漠</option><option value="coast">海港</option></select>
+<p id="status">使用真实游戏与原生动画帧；手机按钮为尺寸及触控模拟，不是真机测试。存档留在 iframe 内存中。</p><div id="view"></div><pre id="report"></pre>
+<script type="module">
+const $=id=>document.getElementById(id),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),assert=(value,message)=>{if(!value)throw Error(message);};
+const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();
+let frame,game,win,watching=false,raf=0;
+function stop(){watching=false;cancelAnimationFrame(raf);if(game){if(game.state==='playing')game.pause();game.audio.stopMusic();game.renderer.dispose();game.renderer.forceContextLoss();}frame?.remove();game=null;}
+async function run(mobile,width,height){
+ stop();for(const id of ['desktop','mobile','portrait'])$(id).disabled=true;
+ const report={mobileSimulation:mobile,size:[width,height],map:$('map').value,startup:[],entry:[],errors:[]};$('report').textContent='';$('status').textContent='正在检查真实加载与入场…';
+ try{
+  frame=document.createElement('iframe');frame.title='独立存档加载检查';frame.width=width;frame.height=height;$('view').append(frame);
+  const boot=`<base href="../"><script>
+   window.qaErrors=[];addEventListener('error',event=>qaErrors.push(event.message));addEventListener('unhandledrejection',event=>qaErrors.push(String(event.reason)));
+   const memory=new Map();Object.defineProperty(window,'localStorage',{value:{getItem:key=>memory.get(key)??null,setItem:(key,value)=>memory.set(key,String(value)),removeItem:key=>memory.delete(key)}});
+   const media=matchMedia.bind(window);window.matchMedia=query=>query.includes('pointer:coarse')||query.includes('pointer: coarse')?{matches:${mobile},media:query,addEventListener(){},removeEventListener(){}}:media(query);
+  <\/script>`;
+  frame.srcdoc=html.replace('<head>','<head>'+boot).replace(/<script type="module" src="offline\.js[^\"]*"><\/script>/,'');win=frame.contentWindow;
+  const sample=phase=>{const overlay=win.document.getElementById('asset-loading');if(!overlay||overlay.hidden)return;const item={stage:win.document.getElementById('asset-loading-stage')?.textContent,progress:win.document.getElementById('asset-loading-meter')?.getAttribute('aria-valuenow'),state:win.game3d?.state,time:win.game3d?.time};const list=report[phase];if(!list.length||JSON.stringify(list.at(-1))!==JSON.stringify(item))list.push(item);};
+  let phase='startup';watching=true;const watch=()=>{if(!watching)return;sample(phase);raf=requestAnimationFrame(watch);};raf=requestAnimationFrame(watch);
+  for(let i=0;i<1200&&!win.game3d;i++){if(win.qaErrors?.length)throw Error(win.qaErrors.join('\n'));await sleep(50);}game=win.game3d;assert(game,'大厅准备超时');assert(report.startup.length,'未观察到初次加载遮罩');
+  assert(win.document.getElementById('asset-loading').hidden,'大厅就绪后遮罩未隐藏');assert(!win.document.getElementById('menu').inert,'大厅仍不可点击');
+  if(mobile){const style=win.document.createElement('style');style.textContent=css.replaceAll(/\(pointer:\s*coarse\)/g,'(min-width:0px)');win.document.head.append(style);}
+  game.select('silver',report.map,0);game.audio.init=async()=>true;
+  const before=game.time,views=new Set(),render=game.renderer.render.bind(game.renderer);let sampleGroupSeen=false;
+  game.renderer.render=(scene,camera)=>{if(game.state==='loading'){views.add(game.adventureCamera.mode);if(scene.getObjectByName('Combat_Prewarm_Samples'))sampleGroupSeen=true;}return render(scene,camera);};
+  phase='entry';const pending=game.prepareStart();sample(phase);assert(game.state==='loading','准备时对局已提前开始');assert(win.document.getElementById('menu').inert&&win.document.getElementById('start').disabled,'准备时未锁定重复操作');await game.prepareStart();await pending;
+  watching=false;cancelAnimationFrame(raf);
+  assert(report.entry.length>1,'未观察到分阶段真实进度');assert(report.entry.every(item=>item.time===before&&item.state==='loading'),'加载期间游戏时间推进');
+  assert(sampleGroupSeen,'没有实际绘制预准备怪物');assert(views.has('first')&&views.has('third'),'未预绘制两个视角');
+  assert(!game.hero.parent.getObjectByName('Combat_Prewarm_Samples'),'预准备模型未清理');assert(game.vfx.active.length===0,'预准备粒子未回池');assert(game.vfx.pool.length>=12,'特效池未保留');
+  const overlay=win.document.getElementById('asset-loading');assert(overlay.hidden&&overlay.inert&&win.getComputedStyle(overlay).pointerEvents==='none','隐藏遮罩仍可能拦截操作');assert(!win.document.getElementById('menu').inert&&!win.document.getElementById('start').disabled,'准备完成后入口仍锁定');
+  if(game.state==='playing')game.pause();game.audio.stopMusic();
+  for(const mode of ['third','first']){game.setView(mode);await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);assert(game.renderer.info.programs.every(p=>p.diagnostics?.runnable!==false),'着色器不可运行 '+mode);assert(game.renderer.getContext().getError()===0,'WebGL 错误 '+mode);}
+  report.errors=[...(win.qaErrors||[])];assert(!report.errors.length,report.errors.join('\n'));report.result='passed';report.views=[...views];report.pool=game.vfx.pool.length;report.finalState=game.state;report.renderCalls=game.renderer.info.render.calls;$('status').textContent='检查通过；游戏已暂停。手机结果仅代表尺寸模拟。';
+ }catch(error){report.result='failed';report.errors.push(String(error));$('status').textContent='检查失败，请查看报告。';if(game?.state==='playing')game.pause();game?.audio.stopMusic();}
+ finally{watching=false;cancelAnimationFrame(raf);for(const id of ['desktop','mobile','portrait'])$(id).disabled=false;$('report').textContent=JSON.stringify(report,null,2);window.loadingReport=report;}
+}
+$('desktop').onclick=()=>run(false,1180,720);$('mobile').onclick=()=>run(true,844,390);$('portrait').onclick=()=>run(true,390,844);
+</script></html>

@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
-import{mirrorPetalGeometry,nameWeapon,lanternCoreMaterial}from'./weapon-identity.js?v=185';
-import {wulingOutfit,wulingMask} from './wuling-appearance.js?v=185';
+import{mirrorPetalGeometry,nameWeapon,lanternCoreMaterial}from'./weapon-identity.js?v=186';
+import {wulingOutfit,wulingMask} from './wuling-appearance.js?v=186';
 
 // Authored procedural prototype on the existing female rig; no extra model download.
 export const MIRAGE_PALETTE=Object.freeze({cloth:0x1c2030,violet:0x394057,mist:0x8e9eae,ivory:0xe9e3f2,silver:0xa5afbe,glow:0x8f5cff});

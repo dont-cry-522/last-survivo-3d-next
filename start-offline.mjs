@@ -16,6 +16,6 @@ const server=createServer(async(req,res)=>{
 });
 server.on('error',error=>{console.error(error.code==='EADDRINUSE'?'Port 8897 is in use. Close the previous local game server, then retry.':error.message);process.exitCode=1;});
 server.listen(port,'127.0.0.1',()=>{
- const url='http://127.0.0.1:'+server.address().port+'/play.html';console.log('Forest Echoes NEXT: '+url+'\nKeep this window open. Press Ctrl+C to stop.');
+ const url='http://127.0.0.1:'+server.address().port+'/play.html';console.log('Realm Echoes: '+url+'\nKeep this window open. Press Ctrl+C to stop.');
  if(!process.argv.includes('--no-open')){const command=process.platform==='win32'?'rundll32':process.platform==='darwin'?'open':'xdg-open',args=process.platform==='win32'?['url.dll,FileProtocolHandler',url]:[url];spawn(command,args,{stdio:'ignore',windowsHide:true}).on('error',()=>console.log('Open the address above in your browser.'));}
 });

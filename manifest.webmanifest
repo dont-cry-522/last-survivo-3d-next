@@ -1,7 +1,7 @@
 {
  "id": "./",
- "name": "林地远征 3D NEXT · 离线单机",
- "short_name": "林地远征NEXT",
+ "name": "异境回响",
+ "short_name": "异境回响",
  "lang": "zh-CN",
  "start_url": "./",
  "scope": "./",
@@ -9,7 +9,7 @@
  "orientation": "landscape",
  "background_color": "#102e2c",
  "theme_color": "#112c2c",
- "description": "七位冒险者、五种生态与五境大远征。v114 独立开发副本，完整资源下载后可断网游玩。",
+ "description": "自由切换第一与第三人称的奇幻生存冒险。七位英雄、五种生态与五境大远征，完整资源下载后可断网游玩。",
  "icons": [
   {
    "src": "assets/icons/icon-192.png",

@@ -32,7 +32,7 @@ async function fetchFile(url,signal){
 export async function exportOfflinePackage({release,handle=null,signal,onProgress=()=>{},base=new URL('./',import.meta.url)}){
  let writer;const chunks=[];
  try{
-  const raw=await fetchFile(new URL('offline-package.json',base),signal),manifest=validatePackage(JSON.parse(new TextDecoder().decode(raw)),release),prefix='forest-echoes-next-v'+release+'/';
+  const raw=await fetchFile(new URL('offline-package.json',base),signal),manifest=validatePackage(JSON.parse(new TextDecoder().decode(raw)),release),prefix='realm-echoes-v'+release+'/';
   if(!crypto.subtle)throw Error('当前页面不支持资源校验，请从 HTTPS 游戏网址下载');
   if(handle)writer=await handle.createWritable();
   const zip=new StoredZip(data=>writer?writer.write(data):chunks.push(data));let bytes=0,done=0;

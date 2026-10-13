@@ -94,7 +94,7 @@ if(packageButton){
   if(exporting)return;if(busy){packageStatus.textContent='正在保存浏览器资源，请等待完成后再下载 ZIP。';return;}
   exporting=true;packageButton.disabled=true;packageController=new AbortController();packageCancel.hidden=false;packageLink.hidden=true;
   if(packageURL){URL.revokeObjectURL(packageURL);packageURL=null;}
-  const filename='forest-echoes-next-v'+RELEASE+'.zip';
+  const filename='realm-echoes-v'+RELEASE+'.zip';
   try{
    // Open before import/fetch: a real click's activation is required.
    let handle=null;

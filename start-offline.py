@@ -20,7 +20,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 try:
     with http.server.ThreadingHTTPServer(('127.0.0.1', port), functools.partial(Handler, directory=str(root))) as server:
         url = 'http://127.0.0.1:%d/play.html' % server.server_port
-        print('Forest Echoes NEXT: ' + url, flush=True)
+        print('Realm Echoes: ' + url, flush=True)
         print('Keep this window open. Press Ctrl+C to stop.', flush=True)
         if '--no-open' not in sys.argv:
             webbrowser.open(url)

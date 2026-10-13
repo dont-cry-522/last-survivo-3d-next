@@ -1,4 +1,4 @@
-import{waterDepth}from'./water.js?v=185';
+import{waterDepth}from'./water.js?v=186';
 
 // New-run composition only. Resume and free-look never call this function.
 export function entryLandscapeYaw(world){

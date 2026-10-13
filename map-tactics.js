@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
-import{MAP_HALF}from'./map-layout.js?v=185';
+import{MAP_HALF}from'./map-layout.js?v=186';
 export const TERRAIN_TIPS={
  forest:'浅色裂口的枯木可以打倒。倒木短暂挡路约 8 秒，可跳过低矮树干或从两端绕行；追来的怪物也会破坏它，不能永久堵怪。',
  snow:'浅蓝裂纹冰面会保留一点滑行惯性，人和地面怪物都会滑。提前转向、借冰面拉开距离；离开冰面立即恢复普通移动。',

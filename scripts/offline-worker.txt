@@ -58,6 +58,8 @@ self.addEventListener('message',event=>{
 self.addEventListener('fetch',event=>{
  const request=event.request,url=new URL(request.url);
  if(request.method!=='GET'||url.origin!==BASE.origin||!url.pathname.startsWith(BASE.pathname))return;
+ // Disk export verifies the current manifest; an older cache cannot replace it.
+ if(url.searchParams.has('offline-export'))return;
  if(request.mode==='navigate'&&[BASE.pathname,BASE.pathname+'index.html',BASE.pathname+'play.html'].includes(url.pathname)){
   event.respondWith((async()=>{
    // A fresh online entry must not remain pinned to an old installed HTML page.

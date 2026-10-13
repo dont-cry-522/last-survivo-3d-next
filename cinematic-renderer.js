@@ -8,9 +8,12 @@ uniform vec2 direction;
 uniform float extract;
 vec3 readLight(vec2 uv){
  vec3 c=texture2D(source,uv).rgb;
+ // The vertical filter already receives extracted light. All fragments take
+ // the same branch, avoiding five redundant brightness gates per output pixel.
+ if(extract<.5)return c;
  float brightness=max(dot(c,vec3(.2126,.7152,.0722)),max(c.r,max(c.g,c.b))*.72);
  float gate=smoothstep(.70,1.25,brightness);
- return mix(c,c*gate,extract);
+ return c*gate;
 }
 void main(){
  vec3 c=readLight(vUv)*.227027;
@@ -43,12 +46,15 @@ export class CinematicRenderer{
   const options={type:T.HalfFloatType,format:T.RGBAFormat,minFilter:T.LinearFilter,magFilter:T.LinearFilter};
   // Scene drawing needs depth; the color-only postprocess does not need it resolved from MSAA.
   this.sceneTarget=new T.WebGLRenderTarget(1,1,{...options,depthBuffer:true,resolveDepthBuffer:false});
-  this.sceneTarget.samples=mobile?0:Math.min(2,renderer.capabilities.maxSamples||0);
+  this.maxSamples=mobile?0:Math.min(2,renderer.capabilities.maxSamples||0);this.sceneTarget.samples=this.maxSamples;
   this.glowA=new T.WebGLRenderTarget(1,1,{...options,depthBuffer:false});
   this.glowB=new T.WebGLRenderTarget(1,1,{...options,depthBuffer:false});
   this.blur=new T.ShaderMaterial({vertexShader,fragmentShader:blurShader,depthTest:false,depthWrite:false,toneMapped:false,uniforms:{source:{value:null},direction:{value:new T.Vector2()},extract:{value:0}}});
   this.finish=new T.ShaderMaterial({vertexShader,fragmentShader:finishShader,depthTest:false,depthWrite:false,uniforms:{sceneColor:{value:this.sceneTarget.texture},glowColor:{value:this.glowB.texture},glowStrength:{value:0}}});
-  this.quad=new T.Mesh(new T.PlaneGeometry(2,2),this.finish);this.quad.frustumCulled=false;
+  // A single oversized triangle covers the same viewport without duplicate
+  // fragment-quad work along the diagonal of a two-triangle fullscreen plane.
+  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute([-1,-1,0,3,-1,0,-1,3,0],3));geometry.setAttribute('uv',new T.Float32BufferAttribute([0,0,2,0,0,2],2));
+  this.quad=new T.Mesh(geometry,this.finish);this.quad.frustumCulled=false;
   this.screen=new T.Scene();this.screen.add(this.quad);this.camera=new T.Camera();this.size=new T.Vector2();
  }
  render(draw,quality=1){
@@ -60,7 +66,12 @@ export class CinematicRenderer{
   }
   r.getDrawingBufferSize(this.size);
   const width=Math.max(1,this.size.x),height=Math.max(1,this.size.y),smallW=Math.max(1,Math.ceil(width/4)),smallH=Math.max(1,Math.ceil(height/4));
-  if(this.sceneTarget.width!==width||this.sceneTarget.height!==height){this.sceneTarget.setSize(width,height);this.glowA.setSize(smallW,smallH);this.glowB.setSize(smallW,smallH);}
+  const resized=this.sceneTarget.width!==width||this.sceneTarget.height!==height;
+  // Leave highlights and tone mapping intact under moderate load; shed the
+  // extra HDR multisample storage/resolve first. Restore it only at full quality.
+  const samples=quality<=.9?0:quality>=1?this.maxSamples:this.sceneTarget.samples;
+  if(samples!==this.sceneTarget.samples){this.sceneTarget.samples=samples;if(!resized)this.sceneTarget.dispose();}
+  if(resized){this.sceneTarget.setSize(width,height);this.glowA.setSize(smallW,smallH);this.glowB.setSize(smallW,smallH);}
   const previous=r.getRenderTarget();
   try{
    r.setRenderTarget(this.sceneTarget);draw();

@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {smoothSeams} from './hero-finish.js?v=172';
+import {smoothSeams} from './hero-finish.js?v=182';
 
 export const lingyaHeadY=y=>y-.029*T.MathUtils.smoothstep(y,1.44,1.59);
 

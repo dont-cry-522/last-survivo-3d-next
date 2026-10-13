@@ -1,31 +1,32 @@
-import{bodyTravel}from'./actor-collision.js?v=136';
-import{followNaturalGround}from'./adventure-mobility.js?v=157';
-import{canMoveBelowOverhead}from'./adventure-overheads.js?v=157';
-import{buildConfluence,biomeWeights}from'./confluence.js?v=180';
-import{addTree,updateTreeDetail,animateTreeCanopy}from'./tree-scenery.js?v=169';
-import{installTactics}from'./map-tactics.js?v=158';
-import{installRoaming}from'./roaming-events.js?v=180';
-import{installDiscoveries}from'./map-discoveries.js?v=180';
-import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=114';
-import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=180';
-import{districtLayout,buildDistricts}from'./map-districts.js?v=180';
-import{makeCoastEnemy,animateCoastEnemy,coastProp}from'./coast-models.js?v=173';
-import{installCoast}from'./coast.js?v=114';
-import{coastLayout as buildCoastLayout}from'./coast-layout.js?v=114';
-import{makeBoss,animateBoss,makeSandEnemy,animateSandEnemy}from'./expansion-models.js?v=114';
-import{siteSchedule}from'./site-discovery.js?v=114';
-import{MAP_EVENTS,biomeEvent,eventNodes}from'./map-events.js?v=114';
-import{MAP_HALF,MAP_SCALE}from'./map-layout.js?v=114';
-import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=180';
-import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=170';
-import{polishEnemyAppearance}from'./enemy-appearance.js?v=170';
-import{REGIONAL_ENEMIES}from'./map-enemies.js?v=114';
-import{groundCue}from'./ground-cues.js?v=167';
-import{heroesReady,createSkinnedHero,animateSkinnedHero}from'./skinned-hero.js?v=181';
+import{bodyTravel}from'./actor-collision.js?v=182';
+import{followNaturalGround}from'./adventure-mobility.js?v=182';
+import{canMoveBelowOverhead}from'./adventure-overheads.js?v=182';
+import{buildConfluence,biomeWeights}from'./confluence.js?v=182';
+import{addTree,updateTreeDetail,animateTreeCanopy}from'./tree-scenery.js?v=182';
+import{installTactics}from'./map-tactics.js?v=182';
+import{installRoaming}from'./roaming-events.js?v=182';
+import{installDiscoveries}from'./map-discoveries.js?v=182';
+import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=182';
+import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=182';
+import{districtLayout,buildDistricts}from'./map-districts.js?v=182';
+import{makeCoastEnemy,animateCoastEnemy,coastProp}from'./coast-models.js?v=182';
+import{installCoast}from'./coast.js?v=182';
+import{coastLayout as buildCoastLayout}from'./coast-layout.js?v=182';
+import{makeBoss,animateBoss,makeSandEnemy,animateSandEnemy}from'./expansion-models.js?v=182';
+import{siteSchedule}from'./site-discovery.js?v=182';
+import{MAP_EVENTS,biomeEvent,eventNodes}from'./map-events.js?v=182';
+import{MAP_HALF,MAP_SCALE}from'./map-layout.js?v=182';
+import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=182';
+import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=182';
+import{polishEnemyAppearance}from'./enemy-appearance.js?v=182';
+import{REGIONAL_ENEMIES}from'./map-enemies.js?v=182';
+import{groundCue}from'./ground-cues.js?v=182';
+import{heroesReady,createSkinnedHero,animateSkinnedHero}from'./skinned-hero.js?v=182';
 import * as T from './vendor/three.module.js';
-import{makeHero,animateHero}from'./hero-model.js?v=181';
-import{MAPS,seeded}from'./rules.js?v=180';
+import{makeHero,animateHero}from'./hero-model.js?v=182';
+import{MAPS,seeded}from'./rules.js?v=182';
 const geo=new Map(),materials=new Map(),terrainMaterials=new Map(),detailMaterials=new Map(),weatherMaterials=new Map();
+const hiddenWeatherMatrix=new T.Matrix4().makeScale(0,0,0);
 let fireflyTexture;
 function softFirefly(){
  if(fireflyTexture)return fireflyTexture;
@@ -178,7 +179,7 @@ function makeWeather(id,rnd,group,spawn,half=MAP_HALF){
  const material=weatherMaterials.get(id);
  const cloud=new T.InstancedMesh(['forest','snow'].includes(id)?geometry('PlaneGeometry',id==='forest'?[.42,.42]:[.22,.22]):geometry('DodecahedronGeometry',[id==='snow'?.115:.075,0]),material,count);
  cloud.castShadow=false;cloud.receiveShadow=false;cloud.frustumCulled=false;cloud.instanceMatrix.setUsage(T.DynamicDrawUsage);
- const weather={kind:id,half,mesh:cloud,particles:[],dummy:new T.Object3D(),random:rnd,lastTime:undefined};
+ const weather={kind:id,half,mesh:cloud,particles:[],hidden:new Uint8Array(count),dummy:new T.Object3D(),random:rnd,lastTime:undefined};
  for(let i=0;i<count;i++){const p={};placeWeatherParticle(weather,p,spawn.x,spawn.z,true);weather.particles.push(p);cloud.setColorAt(i,new T.Color(colors[i%colors.length]));}
  cloud.instanceColor.needsUpdate=true;group.add(cloud);return weather;
 }
@@ -241,20 +242,31 @@ export function animateWorld(world,t,focusX=world.spawn.x,focusZ=world.spawn.z,g
  animateWater(world.weather.kind,t);animateScenery(world,t,focusX,focusZ);
  for(const f of world.foliage){updateTreeDetail(f.leaf,focusX,focusZ);animateTreeCanopy(f.leaf,t,f);}
  const weather=world.weather,dt=weather.lastTime===undefined?0:Math.max(0,Math.min(.05,t-weather.lastTime));weather.lastTime=t;
+ let matrixChanged=false,visibleCount=0;
  for(let i=0;i<weather.particles.length;i++){
   const p=weather.particles[i],d=weather.dummy;
   const gust=weather.kind==='sand'?1+3*(world.sandstorm?.strength||0):weather.kind==='coast'&&world.tide?.high?1.8:1;p.x+=p.vx*dt*gust;p.z+=p.vz*dt;p.y+=p.vy*dt;p.life-=dt;
   if(p.life<=0||p.y<.3||p.y>4.3||Math.hypot(p.x-focusX,p.z-focusZ)>30)placeWeatherParticle(weather,p,focusX,focusZ);
+  // A zero player-centre weight does not exclude particles across a climate
+  // boundary. Cull each particle after simulation so renewal/randomness stays
+  // identical; only its invisible grounding, matrix work and upload are skipped.
+  const weight=world.regional?(biomeWeights(p.x,p.z)[weather.kind]||0):1;
+  if(weight===0){
+   if(!weather.hidden[i]){weather.mesh.setMatrixAt(i,hiddenWeatherMatrix);weather.hidden[i]=1;matrixChanged=true;}
+   continue;
+  }
+  weather.hidden[i]=0;visibleCount++;
   d.position.set(p.x+Math.sin(t*1.3+p.phase)*.05,weather.kind==='forest'?p.y+Math.sin(t*2+p.phase)*.16:p.y,p.z);
   // Keep particle motion relative to soil without altering its lifetime/random
   // sequence. Joined regions share the main world's rendered terrain sampler.
   d.position.y+=groundHeight?.(d.position.x,d.position.z)||0;
-  d.scale.setScalar(p.scale*(weather.kind==='snow'?1:.8)*Math.min(1,p.life*1.5)*(world.regional?(biomeWeights(p.x,p.z)[weather.kind]||0):1));
+  d.scale.setScalar(p.scale*(weather.kind==='snow'?1:.8)*Math.min(1,p.life*1.5)*weight);
   if(['forest','snow'].includes(weather.kind)){d.rotation.set(-.79,Math.PI/4,0,'YXZ');d.scale.multiplyScalar(.84+.16*Math.sin(t*1.8+p.phase));}
   else d.rotation.set(0,t*.6+p.phase,0);
-  if(weather.kind==='sand'&&world.sandstorm?.active){d.scale.x*=3;d.scale.y*=.5;d.rotation.y=0;}d.updateMatrix();weather.mesh.setMatrixAt(i,d.matrix);
+  if(weather.kind==='sand'&&world.sandstorm?.active){d.scale.x*=3;d.scale.y*=.5;d.rotation.y=0;}d.updateMatrix();weather.mesh.setMatrixAt(i,d.matrix);matrixChanged=true;
  }
- weather.mesh.instanceMatrix.needsUpdate=true;
+ weather.mesh.visible=visibleCount>0;
+ if(matrixChanged)weather.mesh.instanceMatrix.needsUpdate=true;
 }
 // The default remains a ground query for spawns, teleports, rewards and AI.
 export function clearAt(world,x,z,r=.45,feet=0){

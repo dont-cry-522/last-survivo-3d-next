@@ -1,12 +1,12 @@
-import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=176';
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=182';
 import * as T from './vendor/three.module.js';
-import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=176';
-import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=181';
-import {sporePod} from './wuling-appearance.js?v=174';
+import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=182';
+import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=182';
+import {sporePod} from './wuling-appearance.js?v=182';
 import {poseSlingshot} from './slingshot-model.js';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=176';
+import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=182';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.

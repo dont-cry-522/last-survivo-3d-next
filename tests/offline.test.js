@@ -40,6 +40,7 @@ test('online navigation prefers the current page, while current modules stay cac
  for(const path of ['?v=999','index.html','play.html?v=999'])assert.equal(await (await h.request(path,'navigate')).text(),'new online page');
  assert.equal(h.fetched.length,3);h.fetched.length=0;assert.equal(await (await h.request('main.js?v=77','cors')).text(),'resource');assert.equal(h.fetched.length,0);
  assert.equal(await h.request('main.js?v=78','cors'),undefined);assert.equal(await h.request('unknown','navigate'),undefined);
+ assert.equal(await h.request('assets/model.bin?offline-export=78-test','cors'),undefined,'disk export must reach the requested release instead of an old cached asset');
  assert.equal(await (await h.request('assets/model.bin?v=42','cors')).text(),'resource');assert.equal(h.fetched.length,0);
  const data=h.stores.get('forest3d-offline:/game/:77-test');data.delete(h.scope+'assets/model.bin');assert.equal((await h.status()).ready,false);
 });
@@ -82,21 +83,21 @@ test('the actual v109 worker pins versioned home URLs but lets the new play entr
  assert.equal(await request('play.html?v=114'),undefined,'old worker intercepts the fresh entry');assert.equal(responds,1,'play entry called respondWith');assert.equal(network,0,'unhandled navigation should be left to the browser');
 });
 
-function pageHarness({registered=true,online=true,waiting=false,updateFailure=false}={}){
+function pageHarness({registered=true,online=true,waiting=false,updateFailure=false,picker}={}){
  const nodes=new Map(),events={},serviceEvents={},messages=[],calls={register:0,update:0,reload:0},body={playing:false};
  const element=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',hidden:true,disabled:false,addEventListener(){},contains(){return false;},querySelector(){return element('summary');},focus(){}});return nodes.get(id);};
  const worker=version=>({addEventListener(){},postMessage(data,ports){messages.push(data.type);if(data.type==='STATUS'||data.type==='REPAIR')ports[0].postMessage({ready:true,version});if(data.type==='ACTIVATE')for(const callback of serviceEvents.controllerchange||[])callback();}});
  const reg={active:worker('110'),waiting:waiting?worker('111'):null,installing:null,addEventListener(){},async update(){calls.update++;if(updateFailure)throw Error('offline');}};
- const sandbox={URL,WeakSet,setTimeout,clearTimeout,isSecureContext:true,matchMedia:()=>({matches:false}),
+ const sandbox={URL,WeakSet,AbortController,setTimeout,clearTimeout,isSecureContext:true,matchMedia:()=>({matches:false}),
   MessageChannel:class{constructor(){this.port1={close(){}};this.port2={postMessage:data=>queueMicrotask(()=>this.port1.onmessage?.({data}))};}},
   document:{querySelector:element,body:{classList:{contains:()=>body.playing}},addEventListener(){}},
   navigator:{onLine:online,storage:{persist:async()=>true},serviceWorker:{async getRegistration(){return registered?reg:undefined;},async register(){calls.register++;return reg;},addEventListener:(type,fn)=>(serviceEvents[type]??=[]).push(fn)}},
-  window:{addEventListener:(type,fn)=>(events[type]??=[]).push(fn)},location:{reload(){calls.reload++;}},
+  window:{showSaveFilePicker:picker,addEventListener:(type,fn)=>(events[type]??=[]).push(fn)},location:{reload(){calls.reload++;}},
   localStorage:{clear(){throw Error('must never erase player saves');},removeItem(){throw Error('must never erase player saves');}}
  };
  const source=readFileSync(new URL('../offline.js',import.meta.url),'utf8').replaceAll('import.meta.url',JSON.stringify('https://example.test/game/offline.js?v=114'));
  vm.runInNewContext(source,sandbox);
- return{nodes,calls,messages,body,async settle(){for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));},online(){sandbox.navigator.onLine=true;for(const callback of events.online||[])callback();},click:()=>element('#offline-download').onclick()};
+ return{nodes,calls,messages,body,async settle(){for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));},online(){sandbox.navigator.onLine=true;for(const callback of events.online||[])callback();},click:()=>element('#offline-download').onclick(),export:()=>element('#offline-export').onclick()};
 }
 
 test('only an existing online installation is checked automatically; first download stays manual',async()=>{
@@ -111,4 +112,8 @@ test('a downloaded update is visible in the existing menu and never reloads an o
  const h=pageHarness({waiting:true});await h.settle();assert.match(h.nodes.get('#offline-panel summary').textContent,/新版 v111/);assert.equal(h.calls.update,0);assert.equal(h.calls.reload,0);
  h.body.playing=true;await h.click();assert(!h.messages.includes('ACTIVATE'));assert.equal(h.calls.reload,0);assert.match(h.nodes.get('#offline-status').textContent,/返回大厅/);
  h.body.playing=false;await h.click();assert(h.messages.includes('ACTIVATE'));assert.equal(h.calls.reload,1);
+});
+
+test('canceling the native save picker restores controls without beginning a package download',async()=>{
+ let selected=0;const h=pageHarness({registered:false,picker:async()=>{selected++;throw new DOMException('Canceled','AbortError');}});await h.settle();await h.export();assert.equal(selected,1);assert.equal(h.nodes.get('#offline-export').disabled,false);assert.equal(h.nodes.get('#offline-export-cancel').hidden,true);assert.equal(h.nodes.get('#offline-export-link').hidden,true);assert.match(h.nodes.get('#offline-export-status').textContent,/已取消/);assert.equal(h.calls.register,0);
 });

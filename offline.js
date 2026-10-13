@@ -1,5 +1,5 @@
 const RELEASE=new URL(import.meta.url).searchParams.get('v'),button=document.querySelector('#offline-download'),status=document.querySelector('#offline-status'),install=document.querySelector('#offline-install');
-let registration,busy=false,installed=false,installPrompt,checking=false;
+let registration,busy=false,installed=false,installPrompt,checking=false,exporting=false;
 const observed=new WeakSet(),watched=new WeakSet(),summary=document.querySelector('#offline-panel summary');
 function message(worker,type,timeout=15000){return new Promise((resolve,reject)=>{
  if(!worker){reject(Error('离线服务尚未就绪'));return;}
@@ -8,7 +8,7 @@ function message(worker,type,timeout=15000){return new Promise((resolve,reject)=
 });}
 function show(text){status.textContent=text;}
 function label(text='下载 / 离线'){if(summary)summary.textContent=text;}
-function idle(){busy=false;button.disabled=false;button.textContent=installed?'检查更新 / 修复资源':'下载完整离线资源';}
+function idle(){busy=false;button.disabled=false;button.textContent=installed?'检查更新 / 修复缓存':'保存到本浏览器';}
 function networkWait(promise){let timer;return Promise.race([promise,new Promise((resolve,reject)=>{timer=setTimeout(()=>reject(Error('更新检查超时')),12000);})]).finally(()=>clearTimeout(timer));}
 async function check(){
  if(registration?.waiting){
@@ -57,6 +57,7 @@ install.onclick=async()=>{
  else show('请打开浏览器菜单，选择“安装应用”或“添加到主屏幕”。若没有此项，仍可用当前浏览器打开原网址离线玩。');
 };
 button.onclick=async()=>{
+ if(exporting){show('请先等待离线包保存完成，或取消后再准备浏览器缓存。');return;}
  if(busy)return;
  if(!navigator.onLine&&installed&&!registration?.waiting){show('当前离线，已下载的版本可以直接游玩；需要更新时再联网。');return;}
  if(registration?.waiting){
@@ -83,6 +84,34 @@ else navigator.serviceWorker.getRegistration('./').then(async reg=>{
  watch(reg);if(reg){await check();await checkInstalledUpdate();}
 }).catch(()=>{show('暂时无法读取离线资源，仍可在线游玩；稍后点击下载重试。');});
 window.addEventListener('online',()=>{checkInstalledUpdate();});
+
+// Browser cache and a user-chosen disk package are separate operations.
+const packageButton=document.querySelector('#offline-export'),packageStatus=document.querySelector('#offline-export-status'),packageCancel=document.querySelector('#offline-export-cancel'),packageLink=document.querySelector('#offline-export-link');
+let packageController,packageURL;
+if(packageButton){
+ packageCancel.onclick=()=>packageController?.abort();
+ packageButton.onclick=async()=>{
+  if(exporting)return;if(busy){packageStatus.textContent='正在保存浏览器资源，请等待完成后再下载 ZIP。';return;}
+  exporting=true;packageButton.disabled=true;packageController=new AbortController();packageCancel.hidden=false;packageLink.hidden=true;
+  if(packageURL){URL.revokeObjectURL(packageURL);packageURL=null;}
+  const filename='forest-echoes-next-v'+RELEASE+'.zip';
+  try{
+   // Open before import/fetch: a real click's activation is required.
+   let handle=null;
+   if(typeof window.showSaveFilePicker==='function'){
+    packageStatus.textContent='请选择保存 ZIP 的文件夹。';
+    try{handle=await window.showSaveFilePicker({suggestedName:filename,types:[{description:'完整离线游戏 ZIP',accept:{'application/zip':['.zip']}}]});}
+    catch(error){if(error.name!=='SecurityError')throw error;}
+   }
+   packageController.signal.throwIfAborted();packageStatus.textContent=handle?'正在读取完整资源，完成后保存到你选择的位置…':'此浏览器不能选择文件夹，将使用浏览器下载；位置由浏览器设置决定。正在准备…';
+   const {exportOfflinePackage}=await import('./offline-export.js?v='+RELEASE),blob=await exportOfflinePackage({release:RELEASE,handle,signal:packageController.signal,onProgress:({done,total,bytes,totalBytes})=>{packageStatus.textContent='正在准备 ZIP '+Math.round(bytes/totalBytes*100)+'% · '+done+'/'+total+' 项'+(handle?' · 保存到所选位置':' · 完成后由浏览器下载');}});
+   if(blob){packageURL=URL.createObjectURL(blob);packageLink.href=packageURL;packageLink.download=filename;packageLink.hidden=false;packageLink.click();packageStatus.textContent='完整 ZIP 已交给浏览器下载；如果没有弹出下载，请点“保存 ZIP”。保存位置由浏览器设置决定。';}
+   else packageStatus.textContent='完整 ZIP 已保存到你选择的位置。解压后双击 START_OFFLINE.cmd；需要本机已装 Python 3 或 Node.js。';
+  }catch(error){packageStatus.textContent=error.name==='AbortError'?'已取消或下载超时，离线包未保存完整，可以重试。':'离线包未完成：'+error.message;}
+  finally{exporting=false;packageButton.disabled=false;packageCancel.hidden=true;packageController=null;}
+ };
+ window.addEventListener('beforeunload',()=>{packageController?.abort();if(packageURL)URL.revokeObjectURL(packageURL);});
+}
 
 const offlinePanel=document.querySelector('#offline-panel'),audioPanel=document.querySelector('#audio-settings');
 if(offlinePanel){

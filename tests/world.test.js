@@ -31,6 +31,7 @@ test('all five weather layers follow raised soil and joined regions share its sa
     assert.deepEqual(a.particles,b.particles,'terrain altered particle lifetimes, velocities or renewal');assert.equal(a.mesh.count,b.mesh.count);assert.equal(a.mesh.geometry,b.mesh.geometry);assert.equal(a.mesh.material,b.mesh.material);
     for(let i=0;i<a.mesh.count;i++){
      a.mesh.getMatrixAt(i,matrix);b.mesh.getMatrixAt(i,baseline);
+     if(a.hidden[i]){assert.equal(b.hidden[i],1);assert.equal(matrix.elements[0],0);assert.equal(matrix.elements[5],0);assert.equal(matrix.elements[10],0);continue;}
      assert(Math.abs(matrix.elements[13]-baseline.elements[13]-ground(matrix.elements[12],matrix.elements[14]))<3e-6,id+' weather did not follow its rendered world position');
      for(let k=0;k<16;k++)if(k!==13)assert.equal(matrix.elements[k],baseline.elements[k],'terrain changed weather scale, orientation or horizontal position');
     }

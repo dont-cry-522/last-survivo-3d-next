@@ -15,9 +15,9 @@ for o in bpy.data.objects:
 for n in ['LipsAdjust']:
  bpy.data.objects['GEO-rain-head'].data.shape_keys.key_blocks[n].value=1
 for n in ['Smile.L','Smile.R']:
- bpy.data.objects['GEO-rain-head'].data.shape_keys.key_blocks[n].value=.26
+ bpy.data.objects['GEO-rain-head'].data.shape_keys.key_blocks[n].value=.10
 for side in ['L','R']:
- bpy.data.objects['RIG-rain'].pose.bones['ACT-Lips_Corner.'+side].location.y=.006
+ bpy.data.objects['RIG-rain'].pose.bones['ACT-Lips_Corner.'+side].location.y=0
 for o in bpy.data.objects:
  if o.type=='MESH':
   for m in o.modifiers:
@@ -29,20 +29,14 @@ def mat(name,color,rough=.8):
  b=m.node_tree.nodes.get('Principled BSDF');b.inputs['Base Color'].default_value=(*color,1);b.inputs['Roughness'].default_value=rough
  return m
 skin=mat('Lingya_face_skin',(.88,.51,.415));white=mat('Lingya_eye_white',(.93,.90,.83),.55);iris=mat('Lingya_eye_iris',(.25,.125,.045),.4);pupil=mat('Lingya_eye_pupil',(.009,.006,.004),.4);brow=mat('Lingya_face_brow',(.20,.095,.045));lash=mat('Lingya_face_lash',(.05,.025,.013));glint=mat('Lingya_eye_glint',(1,1,1),.6)
+
+def smooth(a,b,value):
+ t=max(0,min(1,(value-a)/(b-a)));return t*t*(3-2*t)
 def fitted(name,src):
   x=src.x*.70;y=src.y*.70+.02;z=1.632+(src.z-1.475)*.73
-  # Refine nose, mouth and jaw without disturbing the authored eye sockets.
+  # Preserve the authored continuous face. Only extend the neck behind it to
+  # meet the existing body; nose, lips, sockets and Blink use the same affine fit.
   if name=='GEO-rain-head':
-   front=max(0,min(1,(-y-.025)/.04))
-   nose=math.exp(-((z-1.588)/.015)**2-(x/.027)**2)*front
-   x*=1-.34*nose;y+=.013*nose
-   mouth=math.exp(-((z-1.553)/.014)**2-(x/.045)**2)*front
-   x*=1-.12*mouth;y+=.006*mouth
-   z+=.003*math.exp(-((abs(x)-.019)/.008)**2-((z-1.552)/.012)**2)*front
-   # Full cheeks and a shorter, rounded jaw. Extend only the neck behind it.
-   cheek=math.exp(-((z-1.588)/.030)**2)*front
-   x*=1+.09*cheek;y-=.003*cheek*math.exp(-((abs(x)-.047)/.024)**2)
-   z+=.009*math.exp(-((z-1.541)/.022)**2)*front
    neck=max(0,min(1,(y+.052)/.031))
    if z<1.54:z-=.065*max(0,min(1,(1.54-z)/.05))*neck
   if name=='GEO-rain-eyebrows':
@@ -51,6 +45,9 @@ def fitted(name,src):
    # The viewport pupil is in front of Rain's original highlight plane.
    center=math.copysign(.03273,x)
    x=center+(x-center)*1.35-.002;y-=.002;z+=.003
+  # One broad depth fit for every component and both Blink endpoints. Keep the
+  # lower neck and rear skull fixed; the whole front face is only 10% shallower.
+  y+=(-.020-y)*.10*smooth(1.485,1.585,z-.006)*smooth(.020,.060,-y)
   return Vector((x,y,z-.006))
 
 created=[]

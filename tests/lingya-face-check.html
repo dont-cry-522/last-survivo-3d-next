@@ -1,0 +1,37 @@
+<!doctype html><meta charset="utf-8"><title>铃芽面部多角度实拍</title>
+<style>body{background:#243137;color:#e1e7e2;font:14px system-ui}canvas{max-width:100%;height:auto}pre{white-space:pre-wrap}a{color:#b6ddcf}</style>
+<h1>铃芽 · 正面 / 三分之二侧面 / 侧面 / 闭眼</h1>
+<p>游戏实际骨骼、脸、头发及兜帽；相同机位检查自然光和林荫光。第三列仅为检查侧面轮廓隐去头发和兜帽，其余均保留；不模拟伤害、不读取玩家存档。</p>
+<p id="status">正在载入</p><a id="save-png">保存实拍</a><div id="sheet"></div><pre id="report"></pre>
+<script type="module">
+import * as T from '../vendor/three.module.js';
+import {actor,animateActor} from '../world.js?v=177';
+const source=await(await fetch('../world.js',{cache:'no-store'})).text(),entry=source.match(/from['"](.\/skinned-hero\.js[^'"]*)['"]/)[1];
+const {loadHeroAssets,disposeHero}=await import(new URL('../'+entry,location.href));
+const errors=[],results=[];addEventListener('error',e=>errors.push(e.message));addEventListener('unhandledrejection',e=>errors.push(String(e.reason)));
+const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}),scene=new T.Scene(),camera=new T.PerspectiveCamera(31,340/380,.02,80);
+renderer.setSize(340,380);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;scene.background=new T.Color(0x34434a);
+const sky=new T.HemisphereLight(0x9cabb9,0x394a3f,1.3),sun=new T.DirectionalLight(0xffe0b5,3.4),rim=new T.DirectionalLight(0x9dbbcf,.9);
+sun.position.set(-8,14,10);rim.position.set(4,7,-6);scene.add(sky,sun,rim);
+const sheet=document.createElement('canvas');sheet.width=1360;sheet.height=820;document.querySelector('#sheet').append(sheet);const ctx=sheet.getContext('2d');ctx.fillStyle='#243137';ctx.fillRect(0,0,sheet.width,sheet.height);
+await loadHeroAssets();const hero=actor('lingya','boomerang');scene.add(hero);
+if(!hero.userData.skinned)throw Error('Missing real Lingya rig');
+for(let f=0;f<100;f++){hero.userData.aimActive=false;animateActor(hero,5+f/60,0,0);}
+hero.updateMatrixWorld(true);
+const face=hero.userData.face,box=new T.Box3().setFromObject(face,true),center=box.getCenter(new T.Vector3());center.y+=.028;
+const cover=[];hero.traverse(o=>{if(o.name.includes('Head_Hood')||o.name==='Hair_Long'||o.name==='SM_Hero_Lingya_SoftEars')cover.push([o,o.visible]);});
+const directions=[[0,0,5],[2.5,0,4],[5,0,.15],[0,0,5]];
+for(const[row,light]of ['自然光','林荫光'].entries()){
+ sky.intensity=row?1.5:1.3;sky.color.set(row?0xa2bac2:0x9cabb9);sun.intensity=row?.65:3.4;rim.intensity=row?.45:.9;
+ for(const[column,direction]of directions.entries()){
+  for(const[o,visible]of cover)o.visible=column===2?false:visible;
+  for(const mesh of hero.userData.faceMorphs)mesh.morphTargetInfluences[0]=column===3?1:0;
+  hero.userData.faceEyes.position.z=hero.userData.faceEyeRest-(column===3?.008:0);
+  camera.position.copy(center).add(new T.Vector3(...direction).normalize().multiplyScalar(.45/(2*Math.tan(T.MathUtils.degToRad(camera.fov/2)))));camera.lookAt(center);camera.updateMatrixWorld(true);
+  renderer.render(scene,camera);ctx.drawImage(renderer.domElement,column*340,row*410);ctx.fillStyle='#e1e7e2';ctx.font='16px system-ui';ctx.fillText(light+' · '+['正面','侧前','侧面结构（无兜帽）','闭眼'][column],column*340+10,row*410+403);
+  results.push({light,view:column,pass:renderer.getContext().getError()===0&&renderer.info.programs.every(p=>p.diagnostics?.runnable!==false),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles});
+  await new Promise(r=>setTimeout(r,0));
+ }
+}
+document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);document.querySelector('#status').textContent=results.every(r=>r.pass)&&!errors.length?'完成：8 个实际面部画面':'检查失败';const link=document.querySelector('#save-png');link.href=sheet.toDataURL('image/png');link.download='lingya-face-check.png';disposeHero(hero);renderer.dispose();
+</script>

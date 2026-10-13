@@ -19,33 +19,15 @@ export function refineLingyaHead(root){
  });
 }
 
-// Reshape the authored face and every eye surface with one continuous field.
-// Applying the same field to the open and Blink poses keeps the lid seated over
-// the resized eyeball, rather than shrinking a detached pair of eye meshes.
-function facePoint(x,y,z){
- const front=T.MathUtils.smoothstep(z,.027,.055),eye=Math.exp(-(((Math.abs(x)-.03273)/.035)**4)-(((y-1.62473)/.041)**4))*T.MathUtils.smoothstep(z,.005,.025)*T.MathUtils.smoothstep(Math.abs(x),.004,.019);
- const nose=Math.exp(-((x/.018)**2)-(((y-1.596)/.014)**2))*front,upperLip=Math.exp(-((x/.023)**2)-(((y-1.567)/.011)**2))*front,lip=Math.exp(-((x/.020)**2)-(((y-1.552)/.008)**2))*front;
- const cheek=Math.exp(-(((Math.abs(x)-.049)/.024)**2)-(((y-1.583)/.020)**2))*front,jaw=Math.exp(-(((y-1.548)/.022)**2))*front;
- return[Math.sign(x)*(.03273+(Math.abs(x)-.03273)*(1-.08*eye))*(1-.025*jaw-.04*nose),1.62473+(y-1.62473)*(1-.16*eye)-.0025*jaw,z-.0042*eye-.0055*nose-.008*upperLip-.001*lip+.0004*cheek];
-}
+// Facial proportions and matching Blink are authored in prepare-lingya-head.py.
+// Keep the shared source isolated and finish its materials without reshaping the
+// new nose, lips and sockets for a second time at runtime.
 export function refineLingyaFace(root){
  if(root.userData.lingyaFaceRefined)return root;
  root.traverse(mesh=>{
   if(!mesh.isMesh)return;
-  const g=mesh.geometry.clone(),source=g.attributes.position.array.slice(),p=g.attributes.position;
-  for(let i=0;i<p.count;i++)p.setXYZ(i,...facePoint(source[i*3],source[i*3+1],source[i*3+2]));
-  for(const delta of g.morphAttributes.position||[])for(let i=0;i<p.count;i++){
-   const x=g.morphTargetsRelative?source[i*3]+delta.getX(i):delta.getX(i),y=g.morphTargetsRelative?source[i*3+1]+delta.getY(i):delta.getY(i),z=g.morphTargetsRelative?source[i*3+2]+delta.getZ(i):delta.getZ(i),q=facePoint(x,y,z);
-   delta.setXYZ(i,q[0]-(g.morphTargetsRelative?p.getX(i):0),q[1]-(g.morphTargetsRelative?p.getY(i):0),q[2]-(g.morphTargetsRelative?p.getZ(i):0));
-  }
+  const g=mesh.geometry.clone();
   if(mesh.material.name==='Lingya_face_skin'&&g.attributes.color){const c=g.attributes.color;for(let i=0;i<c.count;i++)c.setXYZ(i,T.MathUtils.lerp(c.getX(i),.90,.08),T.MathUtils.lerp(c.getY(i),.59,.16),T.MathUtils.lerp(c.getZ(i),.48,.12));}
-  g.computeVertexNormals();smoothSeams(g);
-  for(let k=0;k<(g.morphAttributes.normal?.length||0);k++){
-   const delta=g.morphAttributes.position[k];if(!delta)continue;
-   const posed=new T.BufferGeometry(),positions=p.clone();for(let i=0;i<p.count;i++)positions.setXYZ(i,delta.getX(i)+(g.morphTargetsRelative?p.getX(i):0),delta.getY(i)+(g.morphTargetsRelative?p.getY(i):0),delta.getZ(i)+(g.morphTargetsRelative?p.getZ(i):0));
-   posed.setAttribute('position',positions);posed.setIndex(g.index);posed.computeVertexNormals();smoothSeams(posed);const n=posed.attributes.normal,normal=g.morphAttributes.normal[k];
-   for(let i=0;i<n.count;i++)normal.setXYZ(i,n.getX(i)-(g.morphTargetsRelative?g.attributes.normal.getX(i):0),n.getY(i)-(g.morphTargetsRelative?g.attributes.normal.getY(i):0),n.getZ(i)-(g.morphTargetsRelative?g.attributes.normal.getZ(i):0));posed.dispose();
-  }
   g.computeBoundingBox();g.computeBoundingSphere();mesh.geometry=g;
   const polish=m=>{const next=m.clone();if(m.name==='Lingya_eye_white'){next.color.multiplyScalar(.91);next.roughness=.62;}if(m.name==='Lingya_face_skin')next.roughness=.87;if(m.name==='Lingya_face_brow')next.color.lerp(new T.Color(.24,.13,.073),.35);return next;};
   mesh.material=Array.isArray(mesh.material)?mesh.material.map(polish):polish(mesh.material);

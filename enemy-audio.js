@@ -85,3 +85,82 @@ export function creatureSpatial(event,dx,dz){
   const range=event==='step'?7:event==='hurt'?10:event==='death'?14:22,d=Math.hypot(dx,dz);
   return {gain:d>=range?0:(1-d/range)**1.5,pan:Math.max(-.85,Math.min(.85,(dx-dz)*.7071/Math.max(d,2)))};
 }
+
+// New foley keeps the legacy renderer above intact, including weapon/terrain
+// callers. Five physical articulations replace its common pitched sweep.
+// Values are cavity size, articulation spacing and breath/abrasion balance.
+export const CREATURE_FOLEY={
+  wolf:['beast',1,.071,.78],frostwolf:['beast',.86,.052,.94],
+  yeti:['beast',1.45,.101,.52],frostking:['beast',1.8,.130,.42],
+  tidecrab:['shell',1,.055,.65],clawbeetle:['shell',.76,.033,.9],dunescorpion:['shell',1.6,.085,.72],
+  mushroom:['spore',1,.080,.38],spitter:['spore',1.27,.056,.78],sandworm:['spore',1.45,.115,.54],
+  golem:['stone',1.1,.080,.82],lavabrute:['stone',1.5,.123,.65],sandguard:['stone',.72,.057,.94],
+  foamling:['water',.68,.048,.86],reefturtle:['water',1.65,.104,.46],
+  jellyseer:['water',1.12,.089,.34],tidestar:['water',1.35,.133,.61]
+};
+const FOLEY_EVENTS={step:[.115,.020],wind:[.34,.050],attack:[.245,.074],impact:[.28,.074],hurt:[.17,.050],death:[.48,.051]};
+// Broad bandpass resonances colour air/noise. They are not sustained notes.
+function cavity(rate,frequency,q){
+  const w=2*Math.PI*Math.min(rate*.4,frequency)/rate,a=Math.sin(w)/(2*q),b=a/(1+a),c=-2*Math.cos(w)/(1+a),d=(1-a)/(1+a);let x1=0,x2=0,y1=0,y2=0;
+  return x=>{const y=b*(x-x2)-c*y1-d*y2;x2=x1;x1=x;y2=y1;y1=y;return y;};
+}
+function burst(t,start,decay){const x=t-start;return x<0?0:(1-Math.exp(-x/.0025))*Math.exp(-x/decay);}
+export function creatureFoleySample(kind,event,sampleRate,take=0,material=null){
+  const profile=CREATURE_FOLEY[kind],setting=FOLEY_EVENTS[event];
+  if(!profile||!setting)return creatureSample(kind,event,sampleRate);
+  // Existing real foot-contact events already have fitted, quiet pad/leaf sounds.
+  if(event==='step'&&(kind==='wolf'||kind==='mushroom'))return creatureSample(kind,event,sampleRate);
+  const [family,size,spacing,air]=profile,variant=Math.abs(Math.trunc(take))%2;
+  const warning=event==='wind',fall=event==='death',foot=event==='step',hurt=event==='hurt';
+  const duration=setting[0]*(.86+.20*size),data=new Float32Array(Math.ceil(sampleRate*duration));
+  let seed=ENEMY_VOICES[kind].pitch*7919+ENEMY_VOICES[kind].grain*107+variant*104729;
+  const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/2147483648-1;};
+  const filter=f=>1-Math.exp(-2*Math.PI*f/sampleRate),bassFilter=filter(150/size),midFilter=filter(1250/Math.sqrt(size)),airFilter=filter(4100),slowFilter=filter(19);
+  let bass=0,mid=0,high=0,slow=0,phase=0,power=0;
+  const throat=cavity(sampleRate,460/size,1.4),mouth=cavity(sampleRate,1260/size,1.2),hollow=cavity(sampleRate,330/size,2.6);
+  const gap=spacing*(variant?1.11:.94),start=.009+variant*.003;
+  // Irregular contacts use fixed deterministic locations, not a periodic grain clock.
+  const contacts=Array.from({length:family==='stone'?9:family==='shell'?4:3},(_,i)=>start+i*gap*(.8+Math.abs(random())*.4));
+  for(let i=0;i<data.length;i++){
+    const t=i/sampleRate,u=i/(data.length-1),n=random();bass+=(n-bass)*bassFilter;mid+=(n-mid)*midFilter;high+=(n-high)*airFilter;slow+=(n-slow)*slowFilter;
+    const band=mid-bass,grit=high-mid,pressure=warning?Math.sin(Math.PI*Math.min(1,u/.93))**1.4:Math.exp(-u*(fall?2.6:5.8));
+    let v=0;
+    if(family==='beast'){
+      phase+=2*Math.PI*(hurt?128:fall?70:89)/size*(1+slow*.85)/sampleRate;
+      const glottis=Math.max(0,Math.sin(phase))**5,exhale=burst(t,warning?.095:.012,warning?.18:.10),voice=throat(n)+mouth(n)*.32;
+      v=voice*(.26+.74*glottis)*pressure*2.0+band*exhale*air*.8+bass*pressure*1.2;
+    }else if(family==='shell'){
+      let clicks=0;for(let j=0;j<contacts.length;j++)clicks+=burst(t,contacts[j]+(warning?.035:0),.007+size*.003)/(1+j*.34);
+      const scrape=burst(t,warning?.018:.045,warning?.13:.055);
+      v=(grit*1.9+band*.9)*clicks+band*scrape*air*.42+bass*clicks*2;
+    }else if(family==='spore'){
+      const inflate=burst(t,.014,warning?.13:.045),split=burst(t,warning?duration*.54:.018,.023),seeds=burst(t,.045+gap,.055);
+      v=bass*inflate*3.2+hollow(band)*inflate*.9+grit*split*.54+band*seeds*air*.68;
+    }else if(family==='stone'){
+      let knocks=0;for(let j=0;j<contacts.length;j++)knocks+=burst(t,contacts[j]*(warning?1:.48),.009+size*.004)/(1+j*.38);
+      const drag=burst(t,.010,warning?.16:.09);
+      v=bass*(knocks*3.5+drag*1.5)+band*(knocks*.9+drag*air*.9)+grit*knocks*.24;
+    }else{
+      const cavityPulse=burst(t,.012,warning?.14:.06)+burst(t,.016+gap,warning?.045:.032)*.38;
+      const drain=burst(t,warning?duration*.47:.043,.09);
+      v=hollow(n)*cavityPulse*2.8+bass*cavityPulse*1.7+band*drain*air*.52;
+    }
+    if(foot)v=bass*burst(t,.006,.025)*2.5+band*burst(t,.014,.032)*.25;
+    const envelope=Math.min(1,t/(warning?.018:.004))*Math.min(1,(duration-t)/.024);
+    data[i]=v*envelope;power+=data[i]*data[i];
+  }
+  // Match the existing mix headroom; neither a quiet sample nor a resonator can
+  // turn into an unexpectedly loud warning. This runs once per cached take.
+  const level=Math.min(3,setting[1]/Math.max(.001,Math.sqrt(power/data.length)));
+  const clip=material?.buffer,pcm=clip?.getChannelData?.(0),rate=clip?.sampleRate;
+  const recordedLength=pcm&&Number.isFinite(rate)?Math.min(material.duration,duration):0;
+  for(let i=0;i<data.length;i++){
+    const t=i/sampleRate;let foley=0;
+    if(t<recordedLength){
+      const at=(material.offset+t)*rate,n=Math.floor(at),fraction=at-n;
+      foley=((pcm[n]||0)*(1-fraction)+(pcm[n+1]||0)*fraction)*(material.gain??1)*.38*Math.min(1,t/.005,(recordedLength-t)/.020);
+    }
+    data[i]=Math.tanh((data[i]*level+foley)/.38)*.38;
+  }
+  return data;
+}

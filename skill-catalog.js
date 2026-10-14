@@ -1,5 +1,5 @@
-import{POISON}from'./poison-config.js?v=191';
-import{MIRAGE}from'./mirage-config.js?v=191';
+import{POISON}from'./poison-config.js?v=192';
+import{MIRAGE}from'./mirage-config.js?v=192';
 export const EXTRA_SKILLS=[
  {id:'scythe_mark',hero:'wraith',weapon:'shadowblade',name:'冥镰刻痕',icon:'⋀',max:3,describe:r=>`断魂战镰在同一目标身上连续命中三次（相邻间隔不超过 3 秒），第三次额外造成 ${18+10*r} 伤害，随后清空刻痕；不由其他技能叠层。`},
  {id:'scythe_step',hero:'wraith',weapon:'shadowblade',name:'影步斩',icon:'↝',max:3,describe:r=>`影步结束后 2 秒内第一次战镰攻击，伤害提高 ${20*r}%；空挥也会消耗机会，不提供额外无敌。`},

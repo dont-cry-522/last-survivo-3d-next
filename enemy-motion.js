@@ -1,5 +1,5 @@
-import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=191';
-import{updateEnemyGrip}from'./enemy-appearance.js?v=191';
+import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=192';
+import{updateEnemyGrip,animateEnemyExpression}from'./enemy-appearance.js?v=192';
 // Attack timings are shared with the pose driver so the strike matches its hit.
 export const ENEMY_MOTION={
  foamling:{wind:.55,recover:.25,cadence:9,range:2.1},tidecrab:{wind:.7,recover:.35,cadence:10,range:3.1},reefturtle:{wind:1.1,recover:.6,cadence:4,range:4},jellyseer:{wind:.85,recover:.4,cadence:4,range:12},tidestar:{wind:.9,recover:.45,cadence:4,range:11},wreckwarden:{wind:1.25,recover:1.7,cadence:4},
@@ -148,7 +148,7 @@ export function animateEnemyIdentity(d,t,stride,phase,wind,release,impact){
  if(d.regionalAppearance){animateRegionalAppearance(d,t,stride,phase,wind,release,impact);return;}
  const id=d.species||d.kind,rig=d.rig,pounce=d.pounce||0,active=d.previousAttack>0;
  const drive=active?smooth((wind-.66)/.34):release,gather=active?smooth(wind/.6)*(1-.85*drive):release*.15;
- if(d.appearance){animateForestEnemy(d,t,stride,phase,gather,drive,impact);followEnemyHit(d,t,impact);updateEnemyGrip(d);return;}
+ if(d.appearance){animateForestEnemy(d,t,stride,phase,gather,drive,impact);followEnemyHit(d,t,impact);updateEnemyGrip(d);animateEnemyExpression(d,t,stride,gather,drive,impact);return;}
  const hand=(i,x,z=0)=>{if(d.arms[i])d.arms[i].rotation.set(x,0,z);};
  const legs=(amp,spread=0)=>d.legs.forEach(({joint,phase:offset})=>{joint.rotation.x=Math.sin(phase+offset)*amp*stride;joint.rotation.z=Math.sign(joint.position.x)*spread;});
  // All poses use absolute offsets: repeated casts cannot accumulate transforms.

@@ -20,7 +20,8 @@ test('ten regional templates preserve spawn hit heights and gameplay data while 
  }
  // Separate planted paws and hind hocks add moving batches; reduced cross-section
  // tessellation more than offsets them in triangle cost (v190: 37,648 triangles).
- assert(calls<=120,'articulated body batches exceeded budget');assert(triangles<31000,'regional templates exceeded the reduced mesh budget');assert.equal(materials.size,2);assert.equal(JSON.stringify(ENEMIES),rules);assert.equal(JSON.stringify(ENEMY_MOTION),motion);
+ // Four paired-lid batches and two noses add six independent face motions.
+ assert(calls<=126,'articulated body/face batches exceeded budget');assert(triangles<33700,'regional templates exceeded the bounded detail budget');assert.equal(materials.size,2);assert.equal(JSON.stringify(ENEMIES),rules);assert.equal(JSON.stringify(ENEMY_MOTION),motion);
 });
 
 test('warm regional construction reuses species fitting without repeating bounds traversal',()=>{

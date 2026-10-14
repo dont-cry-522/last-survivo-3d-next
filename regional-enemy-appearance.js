@@ -1,12 +1,14 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {updateEnemyGrip} from './enemy-appearance.js?v=191';
+import {updateEnemyGrip,animateEnemyExpression} from './enemy-appearance.js?v=192';
+
+import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=192';
 
 // Bounded shared templates; every moving part is a batch, not a collection of
 // decorative meshes. Only joints move after construction.
 const kinds=new Set(['snowhare','frostwolf','yeti','icewitch','snowtotem','emberling','ashstalker','lavabrute','cinderwisp','ashseer']);
 const templates=new Map(),fittings=new Map(),skin=new T.MeshStandardMaterial({vertexColors:true,roughness:.87,metalness:0}),glow=new T.MeshStandardMaterial({vertexColors:true,roughness:.48,emissive:0xff7933,emissiveIntensity:.07});
-skin.name='M_Regional_Creature_A';glow.name='M_Regional_Core_A';
+skin.name='M_Regional_Creature_A';glow.name='M_Regional_Core_A';installCreatureSurface(skin);
 const clamp=T.MathUtils.clamp,smooth=x=>{x=clamp(x,0,1);return x*x*(3-2*x);};
 function color(g,c){const base=new T.Color(c),p=g.attributes.position,n=g.attributes.normal,a=[];for(let i=0;i<p.count;i++){const grain=.94+.045*Math.sin(p.getX(i)*13+p.getY(i)*8+p.getZ(i)*11),shade=grain*(.93+.07*Math.max(0,n?.getY(i)||0));a.push(base.r*shade,base.g*shade,base.b*shade);}g.setAttribute('color',new T.Float32BufferAttribute(a,3));g.deleteAttribute('uv');return g;}
 function piece(g,c,x=0,y=0,z=0,sx=1,sy=1,sz=1,rx=0,ry=0,rz=0){g.scale(sx,sy,sz);g.rotateX(rx);g.rotateY(ry);g.rotateZ(rz);g.translate(x,y,z);return color(g,c);}
@@ -33,7 +35,8 @@ function crystalShape(c,r,h,bend=0){const g=new T.OctahedronGeometry(1,0);g.scal
 function horn(c,points,radii,steps=10,sides=6){const curve=new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),g=new T.TubeGeometry(curve,steps,1,sides,false),p=g.attributes.position;for(let i=0;i<p.count;i++){const row=Math.floor(i/(sides+1)),t=row/steps,center=curve.getPointAt(t),k=t*(radii.length-1),j=Math.min(radii.length-2,Math.floor(k)),r=T.MathUtils.lerp(radii[j],radii[j+1],k-j);p.setXYZ(i,center.x+(p.getX(i)-center.x)*r,center.y+(p.getY(i)-center.y)*r,center.z+(p.getZ(i)-center.z)*r);}g.computeVertexNormals();return color(g,c);}
 
 // Narrow, recessed eyes sit under the brow; no protruding iris/highlight balls.
-function eyes(c,x,y,z,r=.025){return[-1,1].flatMap(side=>[oval(0x202a2d,side*x,y,z,r*1.5,r*.52,r*.38),oval(c,side*x,y,z+r*.29,r*.80,r*.20,r*.16)]);}
+function eyes(c,x,y,z,r=.025){return[-1,1].flatMap(side=>[oval(0x202a2d,side*x,y,z,r*1.5,r*.52,r*.38),oval(c,side*x,y,z+r*.29,r*.80,r*.20,r*.16),oval(0xd8dfcd,side*x-r*.20,y+r*.055,z+r*.45,r*.13,r*.11,r*.07)]);}
+function lids(c,x,w,h){return joined([-1,1].map(side=>oval(c,side*x,-h,0,w,h,.008)));}
 function link(c,length,width,end=width*.6,rock=false){const g=skinLoft([[width*.25,.012,.012],[0,width,width*.9],[-length*.35,width*.94,width*.84],[-length*.78,end*1.2,end],[-length,end,end]],c,'y',rock?7:10,8);return rock?faceted(g):g;}
 function paw(c,w,l,claw=0x526064){const g=joined([oval(c,0,.054,.018,w,.054,l),...[-1,0,1].map(s=>horn(claw,[[s*w*.57,.043,l*.55],[s*w*.61,.033,l*.95],[s*w*.61,.018,l*1.13]],[w*.19,w*.15,.002],4,5))]);return g;}
 function robe(c,ice){const g=skinLoft([[.10,.36,.28],[.29,.37,.28],[.67,.25,.20],[.94,.225,.18],[1.19,.315,.19],[1.34,.18,.15]],c,'y',12,12,.08),p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getZ(i),p.getX(i)),low=1-smooth((y-.08)/.42);p.setY(i,y+low*(.055+.05*Math.sin(a*3+.6)+.022*Math.cos(a*5)));p.setZ(i,p.getZ(i)+(1-smooth((y-.25)/1.0))*(ice?-.10:-.035));}g.computeVertexNormals();return g;}
@@ -42,7 +45,7 @@ function template(id){
  if(id==='snowhare'){
   // One horizontal back flows from powerful rear haunches into the small chest.
   p.body=joined([skinLoft([[-.53,.07,.08,.42],[-.38,.31,.32,.45],[-.12,.34,.33,.46],[.18,.25,.26,.46],[.38,.16,.18,.53],[.50,.10,.12,.62]],0xc7d6cf,'z',12,12)]);
-  p.head=joined([skinLoft([[-.18,.035,.07,.015],[-.10,.155,.19,.03],[.05,.185,.18,.015],[.18,.135,.10,-.035],[.30,.069,.054,-.052]],0xdde4da,'z',10,10),...eyes(0x3e4c51,.135,.047,.172,.018),oval(0x806c69,0,-.037,.293,.037,.022,.022)]);
+  p.head=joined([skinLoft([[-.18,.035,.07,.015],[-.10,.155,.19,.03],[.05,.185,.18,.015],[.18,.135,.10,-.035],[.30,.069,.054,-.052]],0xdde4da,'z',10,10),...eyes(0x3e4c51,.135,.047,.172,.018)]);
   p.ear=joined([skinLoft([[0,.066,.045],[.17,.069,.03],[.40,.050,.022],[.60,.018,.009],[.66,.002,.002]],0xcddbd3,'y',8,10),horn(0x829997,[[0,.08,.035],[0,.27,.025],[0,.48,.020]],[.026,.030,.008],7,5)]);
   p.haunch=joined([skinLoft([[.07,.05,.07],[.01,.18,.20],[-.12,.22,.22],[-.27,.13,.15],[-.34,.063,.085]],0xc2d0c8,'y',10,10)]);
   p.shin=joined([link(0xb8cac5,.29,.085,.04)]);p.fore=joined([skinLoft([[.025,.058,.060],[-.06,.083,.074,-.01],[-.15,.074,.065,-.025],[-.245,.051,.048]],0xd1ded3,'y',10,8)]);p.foreLower=joined([link(0xb9ceca,.235,.057,.041)]);
@@ -58,9 +61,9 @@ function template(id){
  }else if(id==='frostwolf'){
   // Deep brisket / tucked flank / high withers, not a cylindrical dog torso.
   p.body=joined([skinLoft([[-.70,.065,.09,.71],[-.52,.235,.255,.75],[-.30,.19,.21,.79],[-.05,.205,.25,.80],[.23,.30,.375,.82],[.45,.28,.355,.87],[.61,.18,.23,.96],[.68,.13,.17,1.03]],0x93abb6,'z',12,12)]);
-  p.head=joined([skinLoft([[-.23,.04,.06,.035],[-.13,.18,.22,.07],[.015,.205,.19,.04],[.16,.145,.105,-.005],[.34,.079,.065,-.04],[.47,.063,.05,-.035]],0xc9d7d4,'z',12,12),oval(0x293e4b,0,-.028,.47,.065,.034,.025),...eyes(0x97cee0,.148,.058,.15,.020),...[-1,1].map(s=>horn(0x698494,[[s*.08,.098,.18],[s*.155,.11,.10],[s*.18,.084,.04]],[.019,.029,.020],5,5))]);
+  p.head=joined([skinLoft([[-.23,.04,.06,.035],[-.13,.18,.22,.07],[.015,.205,.19,.04],[.16,.145,.105,-.005],[.34,.079,.065,-.04],[.47,.063,.05,-.035]],0xc9d7d4,'z',12,12),...eyes(0x97cee0,.148,.058,.15,.020),...[-1,1].map(side=>tube(0x3c5360,[[side*.092,-.081,.16],[side*.081,-.082,.30],[side*.056,-.060,.45]],.006,6)),...[-1,1].map(side=>piece(new T.ConeGeometry(.010,.045,5),0xc8cdb8,side*.065,-.098,.315,1,1,1,Math.PI)),...[-1,1].map(s=>horn(0x698494,[[s*.08,.098,.18],[s*.155,.11,.10],[s*.18,.084,.04]],[.019,.029,.020],5,5))]);
   p.ear=joined([skinLoft([[0,.078,.058],[.13,.059,.038],[.27,.006,.005]],0xb7cccd,'y',8,8),horn(0x627f8c,[[0,.055,.044],[0,.13,.028],[0,.19,.013]],[.028,.024,.003],5,5)]);
-  p.jaw=joined([skinLoft([[.05,.07,.027],[.23,.066,.035],[.42,.052,.02]],0xa5bdc3,'z',8,8)]);
+  p.jaw=joined([skinLoft([[.05,.07,.027],[.23,.066,.035],[.42,.052,.02]],0xa5bdc3,'z',8,8),...[-1,1].map(side=>piece(new T.ConeGeometry(.008,.022,5),0xbac2af,side*.043,.032,.34))]);
   p.tail=joined([horn(0x90aeb8,[[0,0,0],[0,-.08,-.17],[0,-.20,-.34],[0,-.25,-.51]],[.12,.15,.13,.072],10,8)]);p.tailTip=joined([horn(0xc7d4cf,[[0,0,0],[0,-.025,-.14],[0,.025,-.26]],[.077,.047,.002],8,7)]);
   p.frontUpper=joined([link(0x8daab6,.35,.128,.082)]);p.frontLower=joined([link(0x9eb9c3,.37,.083,.052)]);
   p.haunch=joined([skinLoft([[.10,.016,.02],[.03,.17,.21],[-.15,.18,.20],[-.34,.082,.075],[-.39,.063,.061]],0x88a3b0,'y',10,10)]);
@@ -72,8 +75,8 @@ function template(id){
   p.tail=joined([horn(0x594b40,[[0,0,0],[0,-.01,-.28],[0,-.04,-.57],[0,-.06,-.81]],[.16,.125,.069,.027],10,8)]);p.tailTip=joined([horn(0x8c6641,[[0,0,0],[0,-.005,-.20],[.10,.04,-.41]],[.034,.019,.002],8,6)]);
   p.upper=joined([link(0x645847,.30,.104,.071)]);p.lower=joined([link(0x8a7053,.30,.065,.039)]);p.foot=paw(0x967d56,.10,.16,0xbaac86);
  }else if(id==='yeti'){
-  p.body=joined([tintFront(skinLoft([[.41,.21,.19,-.17],[.68,.39,.34,-.19],[1.00,.51,.44,-.16],[1.36,.68,.47,-.12],[1.60,.62,.38,-.15],[1.80,.35,.21,-.19],[1.85,.12,.09,-.18]],0xbacdc8,'y',12,12,.018),0x91abaa,1.08,.70,.17)]);
-  p.head=joined([skinLoft([[-.17,.045,.10],[0,.265,.28,-.005],[.18,.255,.205,-.07],[.35,.15,.087,-.15]],0xc2d3cc,'z',12,12),oval(0x758f91,0,-.10,.265,.20,.135,.065),...eyes(0x495e62,.102,.034,.257,.018),horn(0x91aaab,[[-.19,.092,.234],[-.095,.105,.288],[0,.069,.296],[.095,.105,.288],[.19,.092,.234]],[.038,.045,.032,.045,.038],10,6),oval(0x435e63,0,-.07,.342,.078,.032,.022),tube(0x617a7c,[[-.11,-.16,.300],[0,-.177,.322],[.11,-.16,.300]],.011,5)]);
+  p.body=joined([tintFront(skinLoft([[.41,.21,.19,-.17],[.68,.39,.34,-.19],[1.00,.51,.44,-.16],[1.36,.68,.47,-.12],[1.60,.62,.38,-.15],[1.80,.35,.21,-.19],[1.85,.12,.09,-.18]],0xbacdc8,'y',12,12,.018),0x91abaa,1.08,.70,.17),...[-1,1].flatMap(side=>Array.from({length:3},(_,i)=>horn(i%2?0xa3bbb7:0xc0cfc5,[[side*(.27+i*.055),1.67-i*.022,.13],[side*(.30+i*.066),1.57-i*.015,.246],[side*(.31+i*.07),1.48-i*.025,.28]],[.039,.043,.003],6,5)))]);
+  p.head=joined([skinLoft([[-.17,.045,.10],[0,.265,.28,-.005],[.18,.255,.205,-.07],[.35,.15,.087,-.15]],0xc2d3cc,'z',12,12),oval(0x758f91,0,-.10,.265,.20,.135,.065),...eyes(0x495e62,.102,.034,.257,.018),horn(0x91aaab,[[-.19,.092,.234],[-.095,.105,.288],[0,.069,.296],[.095,.105,.288],[.19,.092,.234]],[.038,.045,.032,.045,.038],10,6),oval(0x435e63,0,-.07,.342,.078,.032,.022),tube(0x516d70,[[-.10,-.165,.302],[0,-.165,.326],[.10,-.165,.302]],.007,5),...[-1,1].map(side=>oval(0x263e44,side*.035,-.080,.359,.018,.013,.006)),horn(0x9bb2ad,[[-.083,-.187,.29],[0,-.190,.316],[.083,-.187,.29]],[.012,.019,.012],6,5)]);
   p.upper=joined([skinLoft([[.19,.012,.015],[.10,.25,.25],[-.08,.26,.26],[-.34,.20,.22],[-.62,.17,.17],[-.68,.16,.16],[-.75,.02,.02]],0xb5cbc7,'y',12,12,.015)]);
   p.lower=joined([skinLoft([[.12,.11,.115],[.065,.16,.16],[.01,.17,.17],[-.24,.21,.19],[-.49,.225,.20],[-.72,.16,.15]],0xa0bab8,'y',12,12)]);
   p.knuckle=joined([oval(0x607d82,0,.115,.06,.22,.115,.18),...[-1,0,1,2].map(s=>oval(0x829c9b,(s-.5)*.085,.065,.19,.056,.065,.079))]);
@@ -102,10 +105,14 @@ function template(id){
   p.cores=[joined([horn(0xc9752d,[[0,-.26,0],[0,-.06,.035],[.06,.18,0],[-.07,.44,-.05],[.02,.68,-.08]],[.018,.19,.13,.074,.002],12,9),horn(0xe5a647,[[.015,-.12,.11],[.04,.07,.13],[.09,.28,.05]],[.070,.074,.002],8,6)])];
   p.shard=joined([horn(0x3d3834,[[0,-.34,.01],[.13,-.15,.015],[.15,.09,0],[.07,.24,-.04]],[.015,.10,.070,.003],9,6)]);
  }
+ if(id==='snowhare'){p.lids=lids(0xcddbd0,.135,.030,.015);p.nose=joined([piece(new T.OctahedronGeometry(1,0),0x846c64,0,0,0,.027,.016,.014),tube(0x867467,[[0,-.013,.006],[0,-.036,.004]],.005,3),...[-1,1].map(side=>tube(0x9c8d7c,[[0,-.036,.004],[side*.035,-.043,-.006],[side*.065,-.026,-.018]],.005,5))]);}
+ else if(id==='frostwolf'){p.lids=lids(0xa3bdc3,.148,.033,.016);p.nose=joined([oval(0x293e4b,0,0,0,.065,.034,.025),...[-1,1].map(side=>oval(0x13252e,side*.036,-.004,.021,.015,.009,.006)),oval(0x6c848c,-.017,.010,.025,.025,.007,.003)]);}
+ else if(id==='yeti')p.lids=lids(0x96b0ad,.102,.030,.015);
+ else if(id==='emberling')p.lids=lids(0x8f5036,.096,.039,.019);
  templates.set(id,p);return p;
 }
 function group(parent,x=0,y=0,z=0){const g=new T.Group();g.position.set(x,y,z);parent.add(g);return g;}
-function add(parent,geometry,id,part,lit=false){const m=new T.Mesh(geometry,lit?glow:skin);m.name='SM_Enemy_'+id+'_'+part;m.castShadow=!lit;m.receiveShadow=!lit;parent.add(m);return m;}
+function add(parent,geometry,id,part,lit=false){prepareCreatureSurface(geometry,id,part);const m=new T.Mesh(geometry,lit?glow:skin);m.name='SM_Enemy_'+id+'_'+part;m.castShadow=!lit;m.receiveShadow=!lit;parent.add(m);return m;}
 function makeLeg(root,p,id,{x,y,z,a,b,upper,lower,foot,phase=0,reach=0,back=false,drop=0,width=1}){
  // The legacy swim overlay turns `joint`. Keep the complete chain inside this
  // carrier, so paddling turns the knee/ankle/paw together without opening seams.
@@ -148,6 +155,9 @@ export function polishRegionalEnemy(g,id=g.userData.species){
   for(const s of [-1,1]){const shard=group(d.satellites,s*(crystal?.38:.25),crystal?(s>0?.75:.97):.74,s*.07);add(shard,p.shard,id,'Satellite');shard.rotation.z=s*(crystal?-.18:-.44);if(!crystal)shard.scale.x=s;}
   d.attackSocket=d.cores[0];
  }
+ if(p.lids){const parent=d.cap||d.head,anchor=id==='snowhare'?[0,.062,.189]:id==='frostwolf'?[0,.074,.169]:id==='yeti'?[0,.049,.272]:[0,.044,.169];d.expressionLids=group(parent,...anchor);add(d.expressionLids,p.lids,id,'Eyelids');d.expressionLids.scale.y=.08;}
+ if(p.nose){const anchor=id==='snowhare'?[0,-.037,.293]:[0,-.028,.47];d.expressionNose=group(d.cap||d.head,...anchor);const nose=add(d.expressionNose,p.nose,id,'nose');nose.userData.creatureFinish='nose';d.expressionNose.userData.rest=anchor;}
+ d.expressionSeed=(g.id*.61803398875)%1;
  // Calibrate the entire authored animal, never stretch its anatomy vertically.
  // The original projectile/collision height remains an explicit gameplay value.
  if(!fitting){const height=new T.Box3().setFromObject(g).max.y-g.position.y;fittings.set(id,{height:oldHeight,scale:oldHeight/height});}
@@ -196,4 +206,5 @@ export function animateRegionalAppearance(d,t,stride,phase,wind,release,impact){
   const crystal=id==='snowtotem';rig.position.set(0,.035+Math.sin(t*(crystal?1.4:2.2))*.022+gather*.075-drive*.035,-impact*.075);rig.rotation.set(-impact*.08,0,Math.sin(t*1.3)*.020);d.satellites.position.y=0;d.satellites.rotation.y=crystal?t*.35:Math.sin(t*1.7)*.18;d.satellites.scale.setScalar(1+gather*(crystal?.18:-.16)+drive*.16);
   d.cores[0].position.set(0,crystal?.82:.71,0);d.cores[0].rotation.set(crystal?Math.sin(t*1.1)*.05:Math.sin(t*2.4)*.07,crystal?t*.12:Math.sin(t*.8)*.12,crystal?-.06:Math.sin(t*1.7)*.06);d.cores[0].scale.set(1-gather*.04,1+(crystal?0:Math.sin(t*2.9)*.035)+gather*.06,1-gather*.04);
  }
+ animateEnemyExpression(d,t,stride,gather,drive,impact);
 }

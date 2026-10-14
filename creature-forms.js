@@ -1,5 +1,6 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
+import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=192';
 
 // Finite templates and three shared finishes (one translucent jelly membrane). No per-enemy geometry/material,
 // bone textures, extra lights or disposable particle resources.
@@ -18,6 +19,7 @@ function bendShader(shader){
  transformed.y+=max(0.,creatureWave)*creatureFlex.x*creatureBend.z;`);
 }
 for(const material of[skin,light,membrane]){material.onBeforeCompile=bendShader;material.customProgramCacheKey=()=> 'organic-creature-bend';}
+for(const material of[skin,membrane])installCreatureSurface(material);
 const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking});depth.onBeforeCompile=bendShader;depth.customProgramCacheKey=()=> 'organic-creature-depth';
 export function tint(g,color,flexible){
  const c=new T.Color(color),p=g.attributes.position,colors=[],f=[],b=[];
@@ -53,7 +55,7 @@ export function form(parent,key,build,{glow=false,translucent=false}={}){
   const parts=build(),flat=parts.map(p=>p.index?p.toNonIndexed():p),g=mergeGeometries(flat,false);
   for(const p of new Set([...parts,...flat]))p.dispose();g.name='SM_'+key;g.computeBoundingBox();g.computeBoundingSphere();g.boundingSphere.radius+=.14;cache.set(key,g);
  }
- const m=new T.Mesh(cache.get(key),translucent?membrane:glow?light:skin);m.name='SM_'+key;m.castShadow=!glow&&!translucent;m.receiveShadow=true;m.customDepthMaterial=depth;parent.add(m);return m;
+ const m=new T.Mesh(prepareCreatureSurface(cache.get(key),key,key),translucent?membrane:glow?light:skin);m.name='SM_'+key;m.castShadow=!glow&&!translucent;m.receiveShadow=true;m.customDepthMaterial=depth;parent.add(m);return m;
 }
 export const joint=(parent,x=0,y=0,z=0)=>{const p=new T.Group();p.position.set(x,y,z);parent.add(p);return p;};
 export function face(color,y,z,spread=.12){return[-1,1].flatMap(s=>[oval(0x26312f,s*spread,y,z,.059,.049,.025),oval(color,s*spread,y+.008,z+.019,.027,.027,.012),oval(0xf2edcf,s*spread-.008,y+.018,z+.031,.008,.009,.004,6,4)]);}

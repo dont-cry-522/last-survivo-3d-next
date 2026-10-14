@@ -1,5 +1,5 @@
-import{AIR_ENEMIES}from'./airborne-enemies.js?v=191';
-import{REGIONAL_ENEMIES}from'./map-enemies.js?v=191';
+import{AIR_ENEMIES}from'./airborne-enemies.js?v=192';
+import{REGIONAL_ENEMIES}from'./map-enemies.js?v=192';
 export const ENEMY_GUIDE={
  mushroom:{image:"assets/bestiary/mushroom.png",traits:"红褐菌盖、细长菌柄、根须脚；蹬地弹跳，菌盖和侧生菌褶随落地晃动。",name:'蹦跳蘑菇',attack:'蓄力后向锁定位置弹跳扑击',tip:'看到脚下的橙色爪痕就侧移，别沿直线后退。'},
  wolf:{image:"assets/bestiary/wolf.png",traits:"蓝灰色四足、尖耳长尾；交错快步绕侧，压低身体后扑咬。",name:'林地狼',attack:'绕侧接近，再向锁定方向猛扑',tip:'等它压低身体后闪到侧面。'},

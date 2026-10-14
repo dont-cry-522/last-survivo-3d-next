@@ -41,7 +41,7 @@ test('ten organic creatures keep legacy combat heights and reuse bounded shared 
 });
 
 test('shared bends use one game clock with geometry amplitudes, unaffected by actor order or disposal',()=>{
- const worm=make('sandworm'),jelly=make('jellyseer'),star=make('tidestar'),normal={uniforms:{},vertexShader:'#include <begin_vertex>'},depth={uniforms:{},vertexShader:'#include <begin_vertex>'};
+ const worm=make('sandworm'),jelly=make('jellyseer'),star=make('tidestar'),normal={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader},depth={uniforms:{},vertexShader:T.ShaderLib.depth.vertexShader,fragmentShader:T.ShaderLib.depth.fragmentShader};
  worm.userData.body.material.onBeforeCompile(normal);jelly.userData.tentacles.customDepthMaterial.onBeforeCompile(depth);assert.equal(normal.uniforms.creatureTime,depth.uniforms.creatureTime);
  setCreatureTime(8.25);for(const [i,m]of[worm,jelly,star].entries())animate(m,150+i,3,0,1/60);assert.equal(normal.uniforms.creatureTime.value,8.25,'actor ID leaked into common clock');
  assert(normal.vertexShader.includes('attribute vec3 creatureBend'));assert(!normal.vertexShader.includes('uniform vec4 creatureBend'));
@@ -103,4 +103,28 @@ test('only the jelly outer umbrella uses a single transparent draw and its inner
   if(kind==='jellyseer'){assert.equal(transparent[0],m.userData.body);assert.equal(transparent[0].material.depthWrite,false);assert(m.userData.inner&&!m.userData.inner.material.transparent);assert(!m.userData.head,'jelly still has an anthropomorphic face rig');}
   if(kind==='foamling'){assert(m.userData.crest);assert(!m.userData.head,'rolling surf still has a face rig');}
  }
+});
+
+test('small coastal eye motions stay attached, bounded and independent between creatures',()=>{
+ for(const kind of ['tidecrab','reefturtle'])for(const fps of [30,60,120]){
+  const a=make(kind),b=make(kind),rest=pose(b),d=a.userData;let motion=0,minimumLid=1;
+  assert.equal(d.eyes.length,2);const origin=d.eyes.map(e=>e.position.clone());
+  for(let i=0;i<fps*6;i++){
+   const t=i/fps,attack=t%1.5<.6?.6-t%1.5:0;animate(a,t,0,attack,1/fps);
+   d.eyes.forEach((eye,n)=>{assert.equal(eye.parent,kind==='tidecrab'?d.rig:d.head);assert(eye.position.distanceTo(origin[n])<1e-9,'eye separated from its anchor');assert(Math.abs(eye.rotation.x)<.3&&Math.abs(eye.rotation.y)<.3);assert(eye.scale.y>=.02&&eye.scale.y<=1);motion=Math.max(motion,Math.abs(eye.rotation.y));minimumLid=Math.min(minimumLid,eye.scale.y);});
+   const frozen=pose(a);animate(a,t,0,attack,0);assert.deepEqual(pose(a),frozen,'small expressions advanced while paused');
+  }
+  if(kind==='tidecrab')assert(motion>.08,'stalks never scan or brace');else assert(minimumLid<.15,'turtle never closes its eyelids');
+  assert.deepEqual(pose(b),rest,'one creature animated another instance');
+ }
+});
+
+test('jelly bell contracts briefly, refills slowly and keeps opaque canals within its membrane',()=>{
+ const m=make('jellyseer'),d=m.userData;let minimum=1,atMinimum=0;
+ for(let i=0;i<=Math.floor(60/.36);i++){
+  const t=i/60;animate(m,t,0,0,1/60);if(d.body.scale.x<minimum){minimum=d.body.scale.x;atMinimum=t;}
+  assert(d.body.scale.x>.95&&d.body.scale.x<1.04);assert(d.inner.scale.x>.97&&d.inner.scale.x<1.02);assert(Math.abs(d.body.position.y)<.03&&Math.abs(d.inner.position.y)<.03);assert(Math.abs(d.tentacles.position.y)<.015);
+ }
+ assert(atMinimum>.5&&atMinimum<.75,'contraction should precede the long refill');assert(minimum<.96);assert(d.body.scale.x>1.01,'bell did not refill');
+ const second=make('jellyseer');assert.equal(d.body.material,second.userData.body.material);assert.equal(meshes(m).filter(o=>o.material.transparent).length,1,'internal canals added another transparent pass');
 });

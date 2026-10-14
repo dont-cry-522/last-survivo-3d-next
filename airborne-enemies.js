@@ -1,7 +1,8 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=191';
-import {segmentHitsBody} from './adventure-combat.js?v=191';
+import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=192';
+import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=192';
+import {segmentHitsBody} from './adventure-combat.js?v=192';
 
 export const AIR_ROSTERS={forest:'duskbat',snow:'frostwing',ash:'cinderwing',sand:'sunscarab',coast:'skyray'};
 export const AIR_ENEMIES={
@@ -195,7 +196,8 @@ const AIR_BLEND_KEYS=['wind','strike','recover'];
 export function makeAirborne(kind){
  const cfg=AIR_ENEMIES[kind],p=template(kind),root=new T.Group(),rig=new T.Group();root.add(rig);root.name='SM_Enemy_'+kind;rig.name='Rig_'+kind;
  if(!materials.has(kind))materials.set(kind,[new T.MeshStandardMaterial({name:'M_'+kind+'_Anatomy',color:0xffffff,vertexColors:true,roughness:kind==='sunscarab'?.67:.88}),new T.MeshStandardMaterial({name:'M_'+kind+'_Wing',color:0xffffff,vertexColors:true,roughness:kind==='frostwing'?.88:.76,side:T.DoubleSide}),new T.MeshStandardMaterial({name:'M_'+kind+'_Elytra',color:0xffffff,vertexColors:true,roughness:.43,metalness:.08,side:T.DoubleSide})]);
- const [skin,membrane,shellMat]=materials.get(kind),part=(parent,name,g,mat)=>{const m=new T.Mesh(g,mat);m.name=name;m.castShadow=m.receiveShadow=true;parent.add(m);return m;};
+ const [skin,membrane,shellMat]=materials.get(kind);for(const m of[skin,membrane,shellMat])installCreatureSurface(m);
+ const part=(parent,name,g,mat)=>{const m=new T.Mesh(prepareCreatureSurface(g,kind,name),mat);m.name=name;m.castShadow=m.receiveShadow=true;parent.add(m);return m;};
  const body=part(rig,'SM_Enemy_'+kind+'_ContinuousBody',p.body,skin),wings=[],wingTips=[],shells=[];
  if(kind!=='skyray')for(const side of[-1,1]){
   const wing=new T.Group();wing.name='Joint_Wing_'+side;wing.position.set(side*.12,.345,0);wing.scale.set(side*cfg.span,1,cfg.span);rig.add(wing);wings.push(wing);part(wing,'SM_Enemy_Wing_Inner',p.inner,membrane);

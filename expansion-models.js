@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,tint,joint as organicJoint,leg,stepLeg} from './creature-forms.js?v=191';
+import {form,surface,tube,oval,tint,joint as organicJoint,leg,stepLeg} from './creature-forms.js?v=192';
 const materials=new Map(),geometries=new Map();
 function part(parent,color,x,y,z,sx,sy,sz,shape='sphere',lit=false){
  const key=color+':'+lit;if(!materials.has(key))materials.set(key,new T.MeshStandardMaterial({color,roughness:.78,metalness:.12,emissive:lit?color:0,emissiveIntensity:lit?.8:0}));
@@ -61,9 +61,9 @@ export function makeSandEnemy(kind){
  if(kind==='sandworm'){
   const rings=[];for(let i=0;i<=36;i++){const z=-1.20+i*1.49/36,t=i/36,radius=.032+.205*Math.sin(t*Math.PI*.71),rib=1+.085*Math.cos(i*Math.PI);rings.push([z,radius*rib,radius*.78*rib,0,.215]);}
   d.body=form(r,'Sandworm_ArmoredBackAndBelly',()=>[surface(0x8e714d,rings,{axis:'z',sides:20,caps:false,flexible:(x,y,z)=>[Math.max(0,(.29-z)/1.49),z*7,.065,.004,.018],shade:(c,x,y,z)=>c.lerp(new T.Color(y<.16?0xd1b985:0x514c37),y<.16?.6:.18+.17*Math.sin((z+1.20)*Math.PI*36/1.49)**2)}),oval(0x8e714d,0,.215,-1.201,.035,.028,.008,12,6),tube(0x9d8151,[[0,.29,-1.08],[.015,.35,-.78],[-.012,.412,-.42],[0,.428,-.08],[0,.413,.21]],[.014,.028,.032,.036,.024],{steps:22,sides:6,flexible:(x,y,z)=>[Math.max(0,(.29-z)/1.49),z*7,.065,.004,.018]})]);
-  d.head=organicJoint(r,0,.25,.265);form(d.head,'Sandworm_OpenRadialMaw',()=>[tint(new T.TorusGeometry(.216,.042,8,24).scale(1,.83,1).translate(0,0,.055),0x6c5038),surface(0x30271f,[[-.11,.022,.020],[.00,.12,.09],[.052,.196,.157]],{axis:'z',sides:24,caps:false,inside:true}),oval(0x171c17,0,0,-.115,.031,.026,.008,10,6),...Array.from({length:7},(_,i)=>{const a=i*Math.PI*2/7;return tube(0xbaac7c,[[Math.sin(a)*.202,Math.cos(a)*.166,.071],[Math.sin(a)*.16,Math.cos(a)*.124,.055],[Math.sin(a)*.12,Math.cos(a)*.08,.018]],[.023,.022,.002],{sides:5,steps:7});})]);
+  d.head=organicJoint(r,0,.25,.265);form(d.head,'Sandworm_OpenRadialMaw',()=>[tint(new T.TorusGeometry(.216,.042,8,24).scale(1,.83,1).translate(0,0,.055),0x79563f),surface(0x51362b,[[-.11,.022,.020],[-.08,.042,.035],[-.052,.053,.044],[-.031,.086,.067],[-.009,.102,.079],[.01,.139,.105],[.027,.157,.122],[.052,.196,.157]],{axis:'z',sides:24,caps:false,inside:true,flute:.075,shade:(c,x,y,z)=>c.lerp(new T.Color(0x977454),T.MathUtils.smoothstep(z,-.06,.052)*(.20+.24*Math.sin(Math.atan2(y,x)*8)**2))}),oval(0x171c17,0,0,-.115,.031,.026,.008,10,6),...Array.from({length:7},(_,i)=>{const a=i*Math.PI*2/7,geo=tube(0xbaac7c,[[Math.sin(a)*.202,Math.cos(a)*.166,.071],[Math.sin(a)*.16,Math.cos(a)*.124,.055],[Math.sin(a)*.12,Math.cos(a)*.08,.018]],[.027,.022,.002],{sides:5,steps:7}),p=geo.attributes.position,c=geo.attributes.color,bone=new T.Color(0xc2b17b),root=new T.Color(0x76543c),shade=new T.Color();for(let j=0;j<p.count;j++){shade.copy(bone).lerp(root,T.MathUtils.smoothstep(p.getZ(j),.045,.082));c.setXYZ(j,shade.r,shade.g,shade.b);}return geo;})]);
  }else if(kind==='clawbeetle'){
-  d.body=form(r,'Clawbeetle_DividedElytra',()=>[surface(0x685735,[[-.77,.025,.021,0,.27],[-.60,.28,.15,0,.30],[-.36,.43,.23,0,.33],[-.02,.44,.25,0,.34],[.22,.36,.23,0,.33],[.38,.24,.16,0,.32]],{axis:'z',sides:28,deform:(x,y,z)=>[x,y-(y>.34?.027*Math.exp(-((x/.025)**2)):0),z],shade:(c,x,y,z)=>c.lerp(new T.Color(Math.abs(x)<.027?0x282b20:y<.25?0x333927:0xaa8545),Math.abs(x)<.027?.75:y<.25?.5:.12+.30*Math.sin(x*11+z*2)**2)}),surface(0x444632,[[.22,.22,.15,0,.31],[.39,.255,.175,0,.31],[.51,.185,.13,0,.29],[.59,.115,.075,0,.265]],{axis:'z',sides:20}),...[-1,1].flatMap(side=>[oval(0x212921,side*.176,.378,.473,.042,.018,.033,10,6),tube(0x6e603a,[[side*.13,.34,.52],[side*.22,.415,.62],[side*.255,.51,.75]],[.015,.013,.006],{sides:5,steps:10})])]);
+  d.body=form(r,'Clawbeetle_DividedElytra',()=>[surface(0x685735,[[-.77,.025,.021,0,.27],[-.60,.28,.15,0,.30],[-.36,.43,.23,0,.33],[-.02,.44,.25,0,.34],[.22,.36,.23,0,.33],[.38,.24,.16,0,.32]],{axis:'z',sides:28,deform:(x,y,z,a)=>[x,y-(y>.34?.027*Math.exp(-((x/.025)**2))+.010*Math.max(0,Math.cos(a*12))**8:0),z],shade:(c,x,y,z)=>{const seam=Math.abs(x)<.027,groove=Math.max(0,Math.cos(Math.atan2(y-.33,x)*12))**8;c.lerp(new T.Color(seam?0x282b20:y<.25?0x333927:0xb49352),seam?.75:y<.25?.5:.18+.19*(1-groove));if(y>.35)c.multiplyScalar(1-groove*.26);}}),surface(0x444632,[[.22,.22,.15,0,.31],[.39,.255,.175,0,.31],[.51,.185,.13,0,.29],[.59,.115,.075,0,.265]],{axis:'z',sides:20}),...[-1,1].flatMap(side=>[oval(0x212921,side*.176,.378,.473,.042,.018,.033,10,6),tube(0x6e603a,[[side*.13,.34,.52],[side*.22,.415,.62],[side*.255,.51,.75]],[.015,.013,.006],{sides:5,steps:10}),tube(0x8e7949,[[side*.075,.24,.57],[side*.085,.20,.64],[side*.042,.19,.69]],[.022,.016,.008],{sides:5,steps:6})])]);
   for(const side of[-1,1])for(let i=0;i<3;i++)d.legs.push(leg(r,'Beetle_HookedTarsus_'+side,{x:side*.30,y:.31,z:.28-i*.29,side,reach:.43,a:.30,b:.28,width:.061,color:0x70603b,foot:0x30372a,sole:'point',phase:i%2*Math.PI+(side>0?Math.PI:0)}));
   d.jaws=[];for(const side of[-1,1]){const jaw=organicJoint(r,side*.135,.235,.53);form(jaw,'Beetle_CuttingMandible_'+side,()=>[tube(0x3f3926,[[0,0,0],[side*.11,-.015,.15],[side*.095,-.017,.32],[-side*.055,.016,.40]],[.067,.092,.065,.003],{steps:13,sides:8}),tube(0xa48b53,[[side*.12,.025,.21],[side*.05,.028,.26],[side*.02,.018,.32]],[.018,.023,.002],{steps:6,sides:5})]);d.jaws.push(jaw);}
  }else{
@@ -77,12 +77,13 @@ export function makeSandEnemy(kind){
   form(d.head,kind+'_WindwornHeadwrap',()=>[
    surface(guard||oracle?c:0x8e8d73,hood,{sides:24,flute:.028,deform:(x,y,z)=>[x,y,z+(oracle?-.025*Math.max(0,y):0)]}),
    surface(guard?0x796b50:oracle?0xb1ac91:0x8c7758,[[-.125,.075,.027,0,.16],[-.07,.12,.038,0,.17],[.06,.125,.035,0,.17],[.13,.10,.026,0,.16]],{sides:16,flute:.025}),
-   ...[-1,1].map(side=>oval(0x2e392c,side*.058,.048,.204,.029,.009,.006,10,4)),
+   ...[-1,1].flatMap(side=>[oval(0x2e392c,side*.058,.048,.204,.029,.009,.006,10,4),oval(oracle?0xbab393:0xb9ac83,side*.054,.049,.209,.007,.006,.0025,6,4),tube(guard?0x5a513d:oracle?0x726d59:0x665e45,[[side*.020,.066,.202],[side*.053,.075,.206],[side*.091,.073,.198]],[.008,.012,.006],{sides:4,steps:5})]),
    ...(guard||oracle?[tube(c,[[-.17,-.05,.08],[-.135,.13,.16],[-.07,.20,.165],[.075,.19,.16],[.15,.115,.15],[.18,-.055,.085]],[.038,.04,.043,.040,.036,.025],{steps:18,sides:7})]:[
     tube(0xa19e82,[[-.21,.12,.11],[-.11,.135,.19],[.08,.19,.195],[.235,.205,.10]],[.032,.034,.037,.022],{steps:14,sides:7}),
     surface(0x92957c,[[-.065,.12,.026,-.025,.17],[-.18,.075,.025,-.09,.185],[-.35,.065,.022,-.145,.225],[-.51,.067,.020,-.165,.24],[-.665,.056,.012,-.18,.237]],{sides:14,flute:.085,deform:(x,y,z,a,j)=>[x,y+(j===4?.013*Math.sin(a*3):0),z]})
    ]),
-   tube(guard||oracle?trim:0x9a9a7f,[[-.16,-.055,.12],[-.04,-.092,.199],[.085,-.081,.18],[.18,-.048,.12]],[.024,.035,.031,.019],{steps:12,sides:7})
+   tube(guard||oracle?trim:0x9a9a7f,[[-.16,-.055,.12],[-.04,-.092,.199],[.085,-.081,.18],[.18,-.048,.12]],[.024,.035,.031,.019],{steps:12,sides:7}),
+   tube(oracle?0x3f3c46:guard?0x493f2c:0x686a52,oracle?[[-.157,.10,.143],[-.12,.24,.128],[-.054,.354,.08]]:guard?[[-.185,.08,.114],[-.152,.225,.107],[-.081,.299,.087]]:[[-.19,.158,.168],[-.08,.19,.205],[.07,.226,.181],[.17,.244,.128]],[.006,.009,.006],{sides:4,steps:8})
   ]);
   for(const side of[-1,1]){
    d.legs.push(leg(r,guard?'Sandguard_BoundBoot':'Sandcaster_WornBoot',{x:side*.14,y:.64,z:0,a:.305,b:.31,width:guard?.106:.093,color:0x514e3c,foot:0x3c3d31,phase:side<0?0:Math.PI}));
@@ -107,9 +108,9 @@ export function animateSandEnemy(g,t,speed,attack,dt){
  if(d.previousAttack>0&&attack<=0)d.release=.3;d.previousAttack=attack;d.release=Math.max(0,(d.release||0)-dt);const rawStrike=Math.sin(Math.PI*d.release/.3);d.strike=(d.strike||0)+(rawStrike-(d.strike||0))*(1-Math.exp(-dt*9));const strike=d.strike;
  const beetle=d.kind==='clawbeetle',worm=d.kind==='sandworm';
  r.rotation.set(wind*(worm?.045:.045)-strike*.065,d.kind==='duneoracle'?Math.sin(t*1.1)*.025:0,Math.sin(p)*.018*stride);r.position.y=-wind*.025+Math.abs(Math.sin(p))*.012*stride;r.position.z=-wind*.025+strike*.035;
- if(worm){d.head.rotation.x=wind*.14-strike*.17;d.head.position.z=.265-wind*.035+strike*.055;d.head.scale.set(1+wind*.10+strike*.06,1+wind*.10+strike*.06,1);r.rotation.z=0;r.position.y=0;}
+ if(worm){const breathe=Math.sin(t*2.2)*.012*(1-stride)*(1-wind);d.head.rotation.x=wind*.14-strike*.17;d.head.position.z=.265-wind*.035+strike*.055;d.head.scale.set(1+wind*.10+strike*.06+breathe,1+wind*.10+strike*.06+breathe,1);r.rotation.z=0;r.position.y=0;}
  for(const l of d.legs)stepLeg(l,r,p,stride*(1-wind*.7),{travel:beetle?.11:.125,lift:beetle?.065:.085});
- if(d.jaws)d.jaws.forEach((j,i)=>j.rotation.y=(i?1:-1)*(wind*.24-strike*.18));
+ if(d.jaws)d.jaws.forEach((j,i)=>j.rotation.y=(i?1:-1)*(wind*.24-strike*.18+Math.max(0,Math.sin(t*2.7+i*.6))*.026*(1-stride)*(1-wind)));
  d.arms.forEach((a,i)=>{a.rotation.set(Math.sin(p+i*Math.PI)*.12*stride-wind*(i?.75:.38)+strike*(i?.28:.10),wind*(i?.12:-.08),Math.sin(p-.5)*.025*stride);d.forearms[i].rotation.x=-.24-wind*(i?.42:.18)+strike*.16;});
  if(d.hem)d.hem.rotation.set(Math.sin(p-.5)*.045*stride+wind*.03,0,Math.sin(p-.7)*.035*stride);
  if(d.head&&!worm)d.head.rotation.set(wind*.055-strike*.07,Math.sin(t*.8)*.025*(1-stride),Math.sin(p-.4)*.015*stride);

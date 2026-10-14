@@ -1,7 +1,7 @@
-import{BOSS_ROUTES,BOSS_BREAK}from'./boss-expedition.js?v=191';
-import{MAP_ROSTERS}from'./map-enemies.js?v=191';
-import{ENEMY_GUIDE}from'./battle-guide.js?v=191';
-import{EXPEDITION_BOSS_TIME}from'./encounters.js?v=191';
+import{BOSS_ROUTES,BOSS_BREAK}from'./boss-expedition.js?v=192';
+import{MAP_ROSTERS}from'./map-enemies.js?v=192';
+import{ENEMY_GUIDE}from'./battle-guide.js?v=192';
+import{EXPEDITION_BOSS_TIME}from'./encounters.js?v=192';
 
 // Use the same roster, attack descriptions and timing as the playable encounter.
 export function mapBrief(mapId){

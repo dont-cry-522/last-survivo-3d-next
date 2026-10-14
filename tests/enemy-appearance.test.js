@@ -26,7 +26,7 @@ test('forest models preserve their encounter footprint, share finite assets and 
   });
   const nodes=[...g.userData.rig.children];polishEnemyAppearance(g);assert.deepEqual(g.userData.rig.children,nodes,'polish is idempotent');
  }
- assert.ok(newCalls<=oldCalls,`forest set ${newCalls} mesh batches exceeds old ${oldCalls}`);
+ assert.ok(newCalls<=51,`forest set ${newCalls} exceeds 47 body batches plus four face batches`);
 });
 
 test('new moving parts belong to the live rig and remain finite through attack and water poses',()=>{
@@ -87,13 +87,13 @@ test('near-view anatomy has a continuous wolf waist, exposed short teeth and sep
 });
 
 test('thin mushroom gills and stone mottling remain real shared geometry within the forest budget',()=>{
- const budgets={mushroom:2600,wolf:4800,golem:2300,spitter:3650,shaman:3700},materials=new Set();let triangles=0,calls=0;
+ const budgets={mushroom:2900,wolf:4800,golem:2300,spitter:3810,shaman:3700},materials=new Set();let triangles=0,calls=0;
  for(const kind of kinds){
   const g=actor(kind),parts=surfaces(g);let count=0;
   for(const part of parts){count+=(part.geometry.index?.count||part.geometry.attributes.position.count)/3;materials.add(part.material);assert.ok(Array.from(part.geometry.attributes.normal.array).every(Number.isFinite));}
   assert.ok(count<=budgets[kind],`${kind}: ${count} triangles`);triangles+=count;calls+=parts.length;
  }
- assert.ok(triangles<=16500,`forest set uses ${triangles} triangles`);assert.equal(calls,47);assert.equal(materials.size,2,'surface detail must not add per-creature materials');
+ assert.ok(triangles<=16500,`forest set uses ${triangles} triangles`);assert.equal(calls,51);assert.equal(materials.size,2,'surface detail must not add per-creature materials');
  const cap=actor('mushroom').getObjectByName('mushroom-cap').geometry,p=cap.attributes.position,n=cap.attributes.normal;let blades=0;
  for(let i=0;i<p.count;i++)if(p.getY(i)<-.14&&Math.hypot(p.getX(i),p.getZ(i))>.15&&Math.abs(n.getY(i))<.35){assert.ok(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))>.99);blades++;}
  assert.ok(blades>=100,'gills must hang below the cap and retain outward normals on both sides');
@@ -104,7 +104,7 @@ test('thin mushroom gills and stone mottling remain real shared geometry within 
  assert.equal(skin.map,null);assert.equal(skin.emissive.getHex(),0);
  const shader={vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader,uniforms:{}};
  skin.onBeforeCompile(shader);
- assert.match(shader.vertexShader,/creaturePoint=position/);assert.match(shader.fragmentShader,/dFdx\(creaturePoint\)/);assert.match(shader.fragmentShader,/roughnessFactor=clamp/);
+ assert.match(shader.vertexShader,/vCreaturePoint=position/);assert.match(shader.fragmentShader,/dFdx\(cp\)/);assert.match(shader.fragmentShader,/roughnessFactor=mix/);
  assert.equal(Object.keys(shader.uniforms).length,0,'no per-creature texture or animation uniform');
 });
 
@@ -117,7 +117,7 @@ test('continuous wolf anatomy and irregular stone contours retain their actor bu
  };
  const wolf=actor('wolf'),golem=actor('golem'),body=wolf.getObjectByName('creature-body').geometry;
  assert.deepEqual(shells(body),{count:1,closed:true},'wolf chest and neck returned to overlapping shells');
- for(const [m,height,budget,calls]of[[wolf,1.350000011920929,4588,15],[golem,2.1435913920402525,2100,6]]){
+ for(const [m,height,budget,calls]of[[wolf,1.350000011920929,4588,17],[golem,2.1435913920402525,2100,6]]){
   const parts=surfaces(m);assert.equal(new T.Box3().setFromObject(m).max.y,height,'spawn-derived projectile hit height changed');assert.equal(parts.length,calls);assert(parts.reduce((n,p)=>n+(p.geometry.index?.count??p.geometry.attributes.position.count)/3,0)<=budget);
  }
  const stone=golem.getObjectByName('creature-body').geometry,p=stone.attributes.position,n=stone.attributes.normal,c=stone.attributes.color,at=new Map();let creases=0,moss=0;
@@ -131,8 +131,8 @@ test('continuous wolf anatomy and irregular stone contours retain their actor bu
 });
 
 test('forest identities share the finish and keep combat height while caster silhouettes differ',()=>{
- for(const kind of kinds){const g=actor(kind),surface=kind==='wolf'?1:kind==='golem'?2:0;
-  for(const part of surfaces(g)){assert.equal(part.geometry.attributes.creatureSurface.count,part.geometry.attributes.position.count);assert(part.geometry.attributes.creatureSurface.array.every(v=>v===surface));assert(Array.from(part.geometry.attributes.normal.array).every(Number.isFinite));}
+ for(const kind of kinds){const g=actor(kind);
+  for(const part of surfaces(g)){const finish=part.geometry.attributes.creatureFinish;assert.equal(finish.count,part.geometry.attributes.position.count);assert.equal(finish.itemSize,2);assert(finish.array.every(Number.isFinite));assert(Array.from(part.geometry.attributes.normal.array).every(Number.isFinite));}
   assert(g.userData.combatHeight>1.3&&g.userData.combatHeight<2.2);
  }
  const beast=actor('spitter').getObjectByName('caster-head').geometry,priest=actor('shaman').getObjectByName('caster-head').geometry;

@@ -1,9 +1,9 @@
-import{BIOME_THEMES,instrumentSample,scoreBiome,biomeThreat}from'./biome-music.js?v=191';
-import{companionSample}from'./companion-audio.js?v=191';
-import{weaponSample,weaponTakeCount}from'./weapon-audio.js?v=191';
-import{creatureSample,creatureSpatial,ENEMY_VOICES}from'./enemy-audio.js?v=191';
-import{RecordedMusic}from'./recorded-music.js?v=191';
-import{RecordedEffects}from'./recorded-effects.js?v=191';
+import{BIOME_THEMES,instrumentSample,scoreBiome,biomeThreat}from'./biome-music.js?v=192';
+import{companionSample}from'./companion-audio.js?v=192';
+import{weaponSample,weaponTakeCount}from'./weapon-audio.js?v=192';
+import{creatureSample,creatureFoleySample,creatureSpatial,ENEMY_VOICES,CREATURE_FOLEY}from'./enemy-audio.js?v=192';
+import{RecordedMusic}from'./recorded-music.js?v=192';
+import{RecordedEffects}from'./recorded-effects.js?v=192';
 // Local licensed recordings, with the original procedural score as a loading/offline fallback.
 const midi=n=>440*2**((n-69)/12);
 // Sound preferences only: attack timing, damage and music keep their existing behavior.
@@ -99,14 +99,17 @@ export class GameAudio{
     if((this.cooldowns.get(key)||0)>t||(this.cooldowns.get('creature-'+group)||0)>t)return false;
     const materialKey='material:'+ENEMY_VOICES[kind].texture+':impact',take=this.weaponTakes.get(key)||0;
     const material=['impact','hurt'].includes(event)?this.materialCue(materialKey,take):null;
-    const cacheKey=kind+':'+event;let buffer=material?.buffer||this.creatureBuffers.get(cacheKey);
-    if(!buffer){const samples=creatureSample(kind,event,this.ctx.sampleRate);if(!samples)return false;buffer=this.ctx.createBuffer(1,samples.length,this.ctx.sampleRate);buffer.copyToChannel(samples,0);this.creatureBuffers.set(cacheKey,buffer);}
+    const foley=this.effectProfile.material&&Object.hasOwn(CREATURE_FOLEY,kind),recorded=foley&&!!material?.buffer?.getChannelData;
+    const cacheKey=foley?'foley:'+kind+':'+event+':'+(take%2)+':'+(recorded?'recorded':'generated'):kind+':'+event;
+    if(recorded)for(let i=0;i<2;i++)this.creatureBuffers.delete('foley:'+kind+':'+event+':'+i+':generated');
+    let buffer=(!foley&&material?.buffer)||this.creatureBuffers.get(cacheKey);
+    if(!buffer){const samples=foley?creatureFoleySample(kind,event,this.ctx.sampleRate,take,recorded?material:null):creatureSample(kind,event,this.ctx.sampleRate);if(!samples)return false;buffer=this.ctx.createBuffer(1,samples.length,this.ctx.sampleRate);buffer.copyToChannel(samples,0);this.creatureBuffers.set(cacheKey,buffer);}
     this.cooldowns.set(key,t+(quiet?.3:.14));this.cooldowns.set('creature-'+group,t+interval);
-    if(material)this.weaponTakes.set(key,(take+1)%this.materialEffects?.count(materialKey));
+    if(foley)this.weaponTakes.set(key,(take+1)%2);else if(material)this.weaponTakes.set(key,(take+1)%this.materialEffects?.count(materialKey));
     const source=this.ctx.createBufferSource(),volume=this.ctx.createGain(),panner=this.ctx.createStereoPanner();
-    source.buffer=buffer;source.playbackRate.value=material?1:.97+Math.random()*.06;volume.gain.value=gain*(event==='step'?.65:event==='hurt'?.38*this.effectProfile.hurt:1)*(material?.gain??1);panner.pan.value=pan;
+    source.buffer=buffer;source.playbackRate.value=foley||material?1:.97+Math.random()*.06;volume.gain.value=gain*(event==='step'?.65:event==='hurt'?.38*this.effectProfile.hurt:1)*(!foley&&material?material.gain:1);panner.pan.value=pan;
     source.connect(volume);volume.connect(panner);panner.connect(this.sfx);this.creatureSources.add(source);this.nodes++;
-    source.onended=()=>{source.disconnect();volume.disconnect();panner.disconnect();this.creatureSources.delete(source);this.nodes--;};if(material)source.start(0,material.offset,material.duration);else source.start();return true;
+    source.onended=()=>{source.disconnect();volume.disconnect();panner.disconnect();this.creatureSources.delete(source);this.nodes--;};if(material&&!foley)source.start(0,material.offset,material.duration);else source.start();return true;
   }
   tone(f,d=.12,v=.06,type='sine',end=null){this.voice(f,d,v,type,end);}
   weapon(id,event,variant=0,volume=1,pan=0,maxDuration=null){

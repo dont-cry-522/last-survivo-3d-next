@@ -1,34 +1,13 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
+import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=192';
 
 // Five finite, shared sets of geometry. Articulation moves groups, never vertices.
 const templates=new Map();
 const combatHeights={mushroom:1.3615263199806213,wolf:1.350000011920929,golem:2.1435913920402525,spitter:1.8900000041723253,shaman:1.8900000041723253};
 const skin=new T.MeshStandardMaterial({vertexColors:true,roughness:.91,metalness:0});
 const light=new T.MeshStandardMaterial({vertexColors:true,roughness:.6,emissive:0xffffff,emissiveIntensity:.35});
-// One texture-free finish for the five shared templates. Detail fades before it
-// becomes distant shimmer; positions stay local so markings follow each joint.
-skin.onBeforeCompile=shader=>{
- shader.vertexShader='attribute float creatureSurface; varying float creatureKind; varying vec3 creaturePoint;\n'+shader.vertexShader;
- shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ncreaturePoint=position;creatureKind=creatureSurface;');
- shader.fragmentShader='varying float creatureKind; varying vec3 creaturePoint;\n'+shader.fragmentShader;
- shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
-  float creaturePatch=.5+.25*sin(dot(creaturePoint,vec3(11.,7.,13.)))+.25*sin(dot(creaturePoint,vec3(-17.,19.,9.)));
-  float creatureDetail=1.-smoothstep(.015,.055,max(length(dFdx(creaturePoint)),length(dFdy(creaturePoint))));
-  diffuseColor.rgb*=1.-(.5-creaturePatch)*.16*creatureDetail;
-  // Follow each moving part. Broad coat/lichen colors are baked into the mesh;
-  // only fine fur strands or shallow mineral seams fade with screen footprint.
-  if(creatureKind>.5&&creatureKind<1.5){
-   float furFlow=sin(creaturePoint.x*113.+sin(creaturePoint.y*16.+creaturePoint.z*11.)*2.4);
-   float furClump=.5+.5*sin(creaturePoint.x*31.+creaturePoint.y*5.+creaturePoint.z*7.);
-   diffuseColor.rgb*=1.+(furFlow*.055+(furClump-.5)*.12)*creatureDetail;
-  }else if(creatureKind>1.5){
-   float stoneSeam=abs(sin(dot(creaturePoint,vec3(9.3,5.7,7.8)))*sin(dot(creaturePoint,vec3(-5.2,11.9,6.1))));
-   diffuseColor.rgb*=1.-(1.-smoothstep(.01,.05,stoneSeam))*.10*creatureDetail;
-  }`);
- shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+(creaturePatch-.5)*.10,.82,1.);');
-};
-skin.customProgramCacheKey=()=> 'forest-creature-fur-stone';
+installCreatureSurface(skin);
 function colored(g,color){
  const c=new T.Color(color),p=g.attributes.position,a=[];
  for(let i=0;i<p.count;i++)a.push(c.r,c.g,c.b);
@@ -108,24 +87,27 @@ function joined(parts){
  const flat=parts.map(p=>p.index?p.toNonIndexed():p),g=mergeGeometries(flat,false);
  for(const p of new Set([...parts,...flat]))p.dispose();g.computeBoundingBox();g.computeBoundingSphere();return g;
 }
+// Two lids are one cached batch; the upper edge stays fixed as the lid closes.
+function lids(c,x,w,h){return joined([-1,1].map(side=>oval(c,side*x,-h,0,w,h,.013,10,6)));}
 function template(kind){
  if(templates.has(kind))return templates.get(kind);const p={};
  if(kind==='mushroom'){
   p.body=joined([
    profile([[0,.14],[.18,.155],[.265,.23],[.28,.35],[.225,.56],[.184,.79],[.19,.90],[0,.94]],0xc4b491,{depth:.87,bend:-.025,flute:.022,segments:20}),
    ...[-1,1].flatMap(s=>[branch(0x736343,[[s*.17,.47,.17],[s*.12,.65,.20],[s*.075,.80,.18]],.016,6),oval(0x342f28,s*.083,.70,.180,.036,.024,.018),oval(0xc1c57b,s*.083,.70,.194,.020,.009,.006)]),
+   ...[-1,0,1].map(s=>rootlet(0x9c8964,[[s*.15,.19,.15],[s*.13,.32,.216],[s*.09,.47,.208]],[.011,.015,.004])),
    ...[-1,1].map(s=>rootlet(0xb5a67a,[[s*.20,.44,.025],[s*.25,.29,.08],[s*.30,.24,.13]],[.067,.048,.006]))
   ]);
   const cap=[profile([[0,-.10],[.29,-.12],[.56,-.055],[.625,-.003],[.64,.03],[.625,.076],[.60,.14],[.44,.27],[.19,.34],[0,.35]],0x985239,{depth:.95,segments:28,lip:.018}),
    profile([[0,-.116],[.27,-.12],[.53,-.059],[.622,.008]],0xc6ad86,{depth:.95,segments:28,lip:.018}),capGills()];
   for(let i=0;i<11;i++){const a=i*2.399,r=.16+(i%4)*.089;cap.push(capPatch(Math.cos(a)*r,Math.sin(a)*r,.037+i%2*.022,.028+i%3*.009,i%2?0xe1cc9e:0xc3a478));}
-  p.cap=joined(cap);p.foot=joined([profile([[0,.10],[.07,.08],[.095,-.025],[0,-.06]],0xa88e65,{depth:1.2,segments:10}),...[-1,0,1].map(s=>rootlet(0x93815d,[[s*.025,0,0],[s*.045,-.032,.09],[s*.077,-.042,.17]],[.044,.028,.002]))]);
+  p.cap=joined(cap);const capColors=p.cap.attributes.color,capPos=p.cap.attributes.position;for(let i=0;i<capColors.count;i++){const r=Math.hypot(capPos.getX(i),capPos.getZ(i)/.95),y=capPos.getY(i);if(y>.025){const band=1-.09*Math.exp(-(((r-.49)/.065)**2)),edge=.96+.04*Math.sin(Math.atan2(capPos.getZ(i),capPos.getX(i))*6+.4);capColors.setXYZ(i,capColors.getX(i)*band*edge,capColors.getY(i)*band*edge,capColors.getZ(i)*band*edge);}}p.foot=joined([profile([[0,.10],[.07,.08],[.095,-.025],[0,-.06]],0xa88e65,{depth:1.2,segments:10}),...[-1,0,1].map(s=>rootlet(0x93815d,[[s*.025,0,0],[s*.045,-.032,.09],[s*.077,-.042,.17]],[.044,.028,.002]))]);
  }else if(kind==='wolf'){
   p.body=joined([wolfCoat([[-.58,0,0,.69],[-.49,.19,.205,.675],[-.34,.245,.255,.695],[-.13,.215,.228,.728],[.055,.264,.30,.755],[.23,.277,.325,.775],[.36,.221,.27,.81],[.465,.168,.215,.86],[.57,.13,.155,.89],[.61,0,0,.90]])]);
   p.head=joined([
    wolfCoat([[-.25,0,0,.045],[-.20,.135,.175,.042],[-.075,.245,.216,.04],[.075,.205,.194,.018],[.19,.18,.16,-.008],[.29,.132,.108,-.055],[.397,.091,.069,-.055],[.437,0,0,-.044]],true),
-   oval(0x283632,0,-.031,.426,.098,.060,.055),oval(0x354039,0,-.150,.32,.105,.025,.14),
-   ...[-1,1].flatMap(s=>[oval(0x34463e,s*.155,.08,.180,.056,.045,.046),oval(0xdcc181,s*.163,.083,.215,.027,.021,.011),oval(0x334035,s*.166,.085,.225,.007,.020,.006,6,4),rock(0x667970,s*.18,.135,.17,.085,.038,.070,0,0,-s*.20),
+   oval(0x354039,0,-.150,.32,.105,.025,.14),
+   ...[-1,1].flatMap(s=>[oval(0x34463e,s*.155,.08,.180,.056,.031,.046),oval(0xdcc181,s*.163,.083,.215,.025,.013,.011),oval(0x334035,s*.166,.085,.225,.006,.013,.006,6,4),oval(0xe8ddbe,s*.156,.088,.232,.0035,.003,.002,6,4),rock(0x667970,s*.18,.135,.17,.085,.038,.070,0,0,-s*.20),
     branch(0x45554c,[[s*.096,-.128,.23],[s*.117,-.133,.33],[s*.076,-.115,.429]],.007,6),piece(new T.ConeGeometry(.017,.057,6),0xd4ceb1,s*.09,-.173,.325,1,1,1,Math.PI)])
   ]);
   p.ear=joined([profile([[0,0],[.105,.02],[.075,.14],[.019,.29],[0,.30]],0x7d8e82,{depth:.48,bend:-.018}),oval(0x48584c,0,.12,.040,.048,.10,.008)]);
@@ -202,11 +184,14 @@ function template(kind){
    p.hatTip=joined([frond(0x587f58,-.06,.20,0,.12,.24,-.10),frond(0x9aab70,.045,.11,.035,.085,.20,.09)]);
   }
  }
- for(const geometry of Object.values(p))geometry.setAttribute('creatureSurface',new T.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count).fill(kind==='wolf'?1:kind==='golem'?2:0),1));
+ if(kind==='wolf'){p.lids=lids(0x66796b,.162,.059,.030);p.nose=joined([oval(0x26332e,0,0,0,.096,.056,.052),...[-1,1].map(side=>oval(0x101b18,side*.052,-.015,.041,.026,.013,.011,8,5)),oval(0x61706a,-.022,.019,.046,.032,.012,.005,8,4)]);}
+ else if(kind==='mushroom')p.lids=lids(0xbeac88,.083,.039,.024);
+ else if(kind==='spitter')p.lids=lids(0x778162,.213,.084,.038);
+ for(const [part,geometry] of Object.entries(p))prepareCreatureSurface(geometry,kind,part);
  templates.set(kind,p);return p;
 }
 function group(parent,x=0,y=0,z=0){const g=new T.Group();g.position.set(x,y,z);parent.add(g);return g;}
-function add(parent,geometry,name,glow=false){const m=new T.Mesh(geometry,glow?light:skin);m.name=name;m.castShadow=!glow;m.receiveShadow=!glow;parent.add(m);return m;}
+function add(parent,geometry,name,glow=false){prepareCreatureSurface(geometry,name,name);const m=new T.Mesh(geometry,glow?light:skin);m.name=name;m.castShadow=!glow;m.receiveShadow=!glow;parent.add(m);return m;}
 export function polishEnemyAppearance(g){
  const d=g.userData,kind=d.kind;if(d.appearance||!['mushroom','wolf','golem','spitter','shaman'].includes(kind)||d.species)return g;
  const p=template(kind),rig=d.rig;rig.clear();d.appearance=true;d.combatHeight=combatHeights[kind];d.legs=[];d.arms=[];add(rig,p.body,'creature-body');
@@ -228,6 +213,9 @@ export function polishEnemyAppearance(g){
   d.castingArm={upper,forearm,upperLength:.23,lowerLength:.25};updateEnemyGrip(d);
   d.feet=[-1,1].map(s=>{const foot=group(rig,s*.15,.08,.07);add(foot,p.foot,'caster-foot');return foot;});
  }
+ if(p.lids){const parent=kind==='mushroom'?rig:d.head,anchor=kind==='mushroom'?[0,.724,.211]:kind==='wolf'?[0,.113,.242]:[0,.129,.203];d.expressionLids=group(parent,...anchor);add(d.expressionLids,p.lids,kind+'-eyelids');d.expressionLids.scale.y=.08;}
+ if(p.nose){d.expressionNose=group(d.head,0,-.031,.426);const nose=add(d.expressionNose,p.nose,kind+'-nose');nose.userData.creatureFinish='nose';d.expressionNose.userData.rest=[0,-.031,.426];}
+ d.expressionSeed=(g.id*.61803398875)%1;
  return g;
 }
 
@@ -245,4 +233,29 @@ export function updateEnemyGrip(d){
  bend.normalize();elbow.copy(arm.upper.position).addScaledVector(direction,along).addScaledVector(bend,lift);
  arm.upper.quaternion.setFromUnitVectors(down,segment.copy(elbow).sub(arm.upper.position).normalize());
  arm.forearm.position.copy(elbow);arm.forearm.quaternion.setFromUnitVectors(down,segment.copy(grip).sub(elbow).normalize());
+}
+
+
+// A short event every few seconds, derived solely from game time. No timers or
+// per-frame random calls; pausing/replaying the same time cannot advance a face.
+const expressionPulse=(t,start,duration)=>{const q=(t-start)/duration;return q>0&&q<1?Math.sin(q*Math.PI)**2:0;};
+export function animateEnemyExpression(d,t,stride,gather,drive,impact=0){
+ const id=d.species||d.kind,seed=d.expressionSeed||0,hit=d.hitReaction,busy=d.previousAttack>0||(d.release||0)>0||gather>.0001||drive>.0001||!!hit;
+ const dt=d.expressionTime===undefined?1/60:Math.max(0,Math.min(.1,t-d.expressionTime));d.expressionTime=t;
+ const idle=busy?0:1-T.MathUtils.smoothstep(stride,.08,.35),period=4.8+seed*1.7,u=T.MathUtils.euclideanModulo(t+seed*3.7,period);
+ const blink=idle*Math.max(expressionPulse(u,.8,.19),id==='snowhare'?expressionPulse(u,1.11,.16)*.78:0);
+ // Real hits use the shared reaction clock; the old impact pose is intentionally
+ // suppressed by animateActor to avoid applying recoil twice.
+ // Recoil advances after this pose; sample its end-of-frame age so rendering
+ // the same game time again cannot change the expression.
+ const hurt=hit?Math.min(1,hit.strength/.14)*(1-T.MathUtils.smoothstep(hit.age+dt,.03,.18)):impact;
+ if(d.expressionLids)d.expressionLids.scale.y=Math.min(1,.08+blink*.92+gather*(id==='mushroom'?.60:.34)+hurt*.70);
+ const sniffTime=T.MathUtils.euclideanModulo(t+seed*5.1,6.7+seed),sniff=idle*(expressionPulse(sniffTime,2.0,.13)-expressionPulse(sniffTime,2.17,.12)+expressionPulse(sniffTime,2.35,.11)*.55);
+ if(d.expressionNose){const n=d.expressionNose,r=n.userData.rest;n.position.set(r[0]+(id==='snowhare'?.003:0)*sniff,r[1]+sniff*(id==='snowhare'?.004:.002),r[2]+sniff*.002);n.scale.set(1+Math.abs(sniff)*.035,1,1);}
+ // The locomotion driver has just written absolute ear/head poses. This small,
+ // isolated alert twitch does not replace its gait or keep accumulating offsets.
+ const earTime=T.MathUtils.euclideanModulo(t+seed*7,8.1+seed),alert=idle*expressionPulse(earTime,3.5,.42);
+ if(d.ears&&(id==='snowhare'||id==='wolf'||id==='frostwolf'))d.ears.forEach((ear,i)=>{ear.rotation.x+=alert*(i?.035:-.10);ear.rotation.z+=alert*(i?-.04:.07);});
+ if(d.head&&(id==='wolf'||id==='frostwolf'))d.head.rotation.x+=sniff*.018;
+ d.expressionBlink=blink;d.expressionSniff=sniff;d.expressionAlert=alert;
 }

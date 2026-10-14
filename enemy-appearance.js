@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=193';
+import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=194';
 
 // Five finite, shared sets of geometry. Articulation moves groups, never vertices.
 const templates=new Map();

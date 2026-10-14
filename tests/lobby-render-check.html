@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8"><title>大厅亮部异常检查</title>
+<style>body{background:#20332e;color:#eee;font:14px system-ui}button,select{padding:8px}iframe{display:block;border:0;width:1180px;height:720px}pre{white-space:pre-wrap}</style>
+<select id="hero" aria-label="角色"><option>scout</option><option>silver</option><option>wraith</option><option>tide</option><option>lingya</option><option>wuling</option><option>mirage</option></select>
+<button id="inspect" disabled>检查当前角色</button><button id="direct" disabled>切换直接渲染</button><button id="all" disabled>检查七角色全身与近景</button><pre id="report">加载中</pre><div id="view"></div>
+<script type="module">
+const html=await(await fetch('../play.html')).text(),frame=document.createElement('iframe'),query=new URLSearchParams(location.search),mobile=query.has('mobile'),portrait=query.has('portrait');frame.title='真实大厅';frame.style.width=(mobile?portrait?390:844:1180)+'px';frame.style.height=(mobile?portrait?844:390:720)+'px';document.querySelector('#view').append(frame);
+const boot=`<base href="../"><script>window.qaErrors=[];addEventListener('error',e=>qaErrors.push(e.message));window.requestAnimationFrame=cb=>{window.qaFrame=cb;return 0};const data=new Map();Object.defineProperty(window,'localStorage',{value:{getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,String(v)),removeItem:k=>data.delete(k)}});const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);<\/script>`;
+frame.srcdoc=html.replace('<head>','<head>'+boot);const win=frame.contentWindow;let now=0;
+for(let i=0;i<600&&!win.game3d;i++)await new Promise(r=>setTimeout(r,50));const g=win.game3d,T=await import('../vendor/three.module.js');
+if(!g)throw Error('大厅加载失败');if(mobile){const s=win.document.createElement('style');s.textContent=(await(await fetch('../style.css')).text()).replaceAll(/\(pointer:\s*coarse\)/g,'(min-width:0px)');win.document.head.append(s);}let camera;const render=g.renderer.render.bind(g.renderer);g.renderer.render=(s,c)=>{if(s===g.hero.parent)camera=c;return render(s,c);};
+now=win.performance.now();const step=()=>win.qaFrame(now+=1000/60);step();
+function inspect(){step();const reports=[];
+ for(const [name,target]of Object.entries({scene:g.cinema.sceneTarget,glowA:g.cinema.glowA,glowB:g.cinema.glowB})){
+  const pixels=new Uint16Array(target.width*target.height*4);g.renderer.readRenderTargetPixels(target,0,0,target.width,target.height,pixels);let invalid=0,maximum=0;const points=[];
+  for(let i=0;i<pixels.length;i+=4){let bad=false;for(let c=0;c<3;c++){const value=T.DataUtils.fromHalfFloat(pixels[i+c]);if(!Number.isFinite(value))bad=true;else maximum=Math.max(maximum,value);}if(bad){invalid++;if(points.length<4)points.push({x:i/4%target.width,y:Math.floor(i/4/target.width)});}}
+  if(name==='scene')for(const p of points){const ray=new T.Raycaster();ray.setFromCamera(new T.Vector2((p.x+.5)/target.width*2-1,(p.y+.5)/target.height*2-1),camera);p.hits=ray.intersectObject(g.hero,true).slice(0,3).map(h=>({name:h.object.name,material:h.object.material.name,face:h.faceIndex,normal:h.normal?.toArray()}));}
+  reports.push({name,invalid,maximum,points});
+ }
+ const invalidGeometry=[];g.hero.traverse(o=>{if(!o.isMesh)return;for(const [name,a]of Object.entries(o.geometry.attributes)){const count=[...a.array].filter(v=>!Number.isFinite(v)).length;if(count||name==='normal'&&a.count!==o.geometry.attributes.position.count)invalidGeometry.push({mesh:o.name,attribute:name,invalid:count,count:a.count,vertices:o.geometry.attributes.position.count});}});
+ const result={hero:g.player.heroId,postprocess:g.cinema.enabled,reports,invalidGeometry,errors:win.qaErrors};document.querySelector('#report').textContent=JSON.stringify(result,null,2);return result;
+}
+document.querySelector('#hero').onchange=e=>{g.select(e.target.value,'forest',0);step();inspect();};document.querySelector('#inspect').onclick=inspect;document.querySelector('#direct').onclick=()=>{g.cinema.enabled=!g.cinema.enabled;step();document.querySelector('#report').textContent='后期处理 '+g.cinema.enabled;};
+document.querySelector('#all').onclick=async()=>{const results=[];g.cinema.enabled=true;for(const option of document.querySelector('#hero').options){g.select(option.value,'forest',0);for(const near of [false,true]){win.document.querySelector(near?'#preview-detail':'#preview-full').click();const r=inspect();results.push({hero:r.hero,near,pass:!r.invalidGeometry.length&&!r.errors.length&&r.reports.every(x=>x.invalid===0),invalidPixels:r.reports.map(x=>x.invalid),invalidGeometry:r.invalidGeometry});await new Promise(resolve=>setTimeout(resolve,0));}}document.querySelector('#report').textContent=JSON.stringify({layout:mobile?portrait?'手机竖屏模拟':'手机横屏模拟':'桌面',results,errors:win.qaErrors},null,2);};
+for(const b of document.querySelectorAll('button'))b.disabled=false;g.select('scout','forest',0);inspect();
+</script>

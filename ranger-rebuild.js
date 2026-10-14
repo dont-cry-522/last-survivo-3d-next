@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {smoothSeams} from './hero-finish.js?v=193';
+import {smoothSeams} from './hero-finish.js?v=194';
 
 // These garments replace the old Ranger torso, keeping its authored skin binding.
 // All coordinates are in the existing shared T-pose, not attached rigid props.
@@ -63,7 +63,10 @@ function grid(columns,rows,point){
 function closeEnds(g,columns,rows){
  const p=Array.from(g.attributes.position.array),uv=Array.from(g.attributes.uv.array),ix=Array.from(g.index.array);
  for(const row of [0,rows]){const center=new T.Vector3();for(let i=0;i<columns;i++)center.add(new T.Vector3().fromArray(p,(row*(columns+1)+i)*3));center.multiplyScalar(1/columns);const n=p.length/3;p.push(...center.toArray());uv.push(.5,row/rows);for(let i=0;i<columns;i++){const a=row*(columns+1)+i;ix.push(...(row?[n,a,a+1]:[n,a+1,a]));}}
- g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(ix);return finishGeometry(g);
+ g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(ix);
+ // The two cap centers need normals too; computeVertexNormals reuses an
+ // existing attribute without resizing it, producing invalid rim lighting.
+ g.deleteAttribute('normal');return finishGeometry(g);
 }
 function coatGeometry(kind){
  const silver=kind==='silver',profile=silver?[[1.017,.169,.113,.125],[1.066,.155,.102,.111],[1.135,.138,.098,.108],[1.23,.146,.109,.114],[1.34,.165,.147,.123],[1.43,.176,.130,.123],[1.475,.150,.107,.101],[1.51,.074,.073,.067],[1.548,.071,.070,.068]]:[[.885,.216,.144,.154],[.99,.205,.136,.147],[1.14,.175,.115,.132],[1.24,.178,.126,.134],[1.37,.201,.145,.148],[1.48,.208,.141,.145],[1.53,.178,.109,.110],[1.565,.085,.079,.081],[1.60,.080,.076,.078]];

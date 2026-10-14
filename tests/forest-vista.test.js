@@ -1,7 +1,7 @@
 import test from'node:test';
 import * as T from'../vendor/three.module.js';
-import{surfaceUniforms}from'../surface-textures.js?v=193';
-import{wornStoneBlock}from'../environment-props.js?v=193';
+import{surfaceUniforms}from'../surface-textures.js?v=194';
+import{wornStoneBlock}from'../environment-props.js?v=194';
 import assert from'node:assert/strict';
 import{buildWorld,clearAt}from'../world.js';
 import{installForestVista}from'../forest-vista.js';

@@ -1,4 +1,4 @@
-import{POISON as C}from'./poison-config.js?v=193';
+import{POISON as C}from'./poison-config.js?v=194';
 const EPS=1e-8,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function nearestPoint(p,a,b){const dx=b.x-a.x,dz=b.z-a.z,l=dx*dx+dz*dz,t=l?clamp(((p.x-a.x)*dx+(p.z-a.z)*dz)/l,0,1):0;return{x:a.x+dx*t,z:a.z+dz*t};}
 function local(q,p){const c=Math.cos(q.angle||0),s=Math.sin(q.angle||0),x=p.x-q.x,z=p.z-q.z;return{x:x*c-z*s,z:x*s+z*c};}

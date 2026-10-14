@@ -1,4 +1,4 @@
-import{MIRAGE as C}from'./mirage-config.js?v=193';
+import{MIRAGE as C}from'./mirage-config.js?v=194';
 const EPS=1e-8,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
 // Owns only the new hero's decoy, concealment and poison. All damage/rewards still use the game callback.

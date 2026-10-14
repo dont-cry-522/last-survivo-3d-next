@@ -13,7 +13,7 @@ export const REGIONAL_ENEMIES={
  sandguard:{map:'sand',role:'golem',hp:145,speed:1.6,damage:23,xp:25,size:.85,name:'遗城盾卫',traits:'短裾裹头、窄视缝、旧铜盾和弯刃；负重迈步、举盾后向前刺击。',attack:'正面蓄力刺击；正面承受的伤害减少 35%',tip:'绕侧攻击，蓄力时退开。'},
  sandspitter:{map:'sand',role:'spitter',hp:52,speed:2.1,damage:13,xp:13,size:.6,zone:'sand',name:'砂咒术士',traits:'灰绿横缠头巾、长围巾和砂罐杖；侧移并举杖。',attack:'在锁定位置引爆砂刺',tip:'离开黄沙预告，砂刺只爆发一次。'},
  duneoracle:{map:'sand',role:'shaman',hp:75,speed:1.9,damage:11,xp:19,size:.65,name:'遗城祈者',traits:'紫灰深兜袍、浅色面罩和叉形沉芯杖；顿步抬杖。',attack:'治疗受伤同伴；否则施放减速咒',tip:'优先清除，防止盾卫反复恢复。'},
- dunescorpion:{map:'sand',role:'boss',name:'蚀金巨蝎',traits:'宽阔甲壳、六足、双钳和分节高蝎尾；步足交替、尾节回摆。',attack:'近身夹击、锁定尾刺、钻地后破沙而出',tip:'夹击退后，尾刺横移；钻地时离开落点，出土后反击。'},
+ dunescorpion:{map:'sand',role:'boss',name:'蚀金巨蝎',traits:'宽阔分节甲壳、八足、弯钳和高举蝎尾；交错支撑，夹击收钳、尾刺前卷尾。',attack:'近身夹击、锁定尾刺、钻地后破沙而出',tip:'夹击退后，尾刺横移；钻地时离开落点，出土后反击。'},
 
  snowhare:{map:'snow',role:'mushroom',hp:26,speed:3,damage:9,xp:6,size:.5,name:'雪原跳兔',traits:'白毛长耳、伏低前身和厚实后躯；耳中段与耳尖柔弯，折叠后踝和长掌蹬地跳扑，前爪接地后耳朵回弹。',attack:'低身蓄力后短距离跳扑',tip:'看到它蹲下就侧移，让它扑空后反击。'},
  frostwolf:{map:'snow',role:'wolf',hp:30,speed:4.2,damage:11,xp:9,size:.6,hitSlow:.65,name:'霜牙狼',traits:'白蓝厚胸、收紧腹线、长吻和弯折飞节；交错步绕侧追猎，伏低后扑咬。',attack:'锁定方向突扑，命中附带 0.65 秒寒霜减速',tip:'横向闪开扑击，不要被减速后继续沿直线逃跑。'},
@@ -26,6 +26,6 @@ export const REGIONAL_ENEMIES={
  lavabrute:{map:'ash',role:'golem',hp:145,speed:1.5,damage:19,xp:25,size:1,name:'裂炉重甲',traits:'楔形炉腹、层叠厚肩与熔裂纹；沉重拖步，转腰抬起单臂向前锤出地火。',attack:'重锤前方，沿锁定方向依次爆出三段地火',tip:'离开正前方攻击线，绕侧输出。'},
  cinderwisp:{map:'ash',role:'spitter',hp:44,speed:2.5,damage:12,xp:12,size:.55,zone:'ember',name:'飞烬火灵',traits:'单枚熔芯延伸出火舌，黑色碎甲环抱；起伏飘行，收紧碎甲后喷出火核。',attack:'锁定位置后延迟爆燃，地面余火持续 1.5 秒',tip:'预告亮起先离开，再绕过余火接近。'},
  ashseer:{map:'ash',role:'shaman',hp:70,speed:2,damage:10,xp:19,size:.65,name:'燃烬祭司',traits:'焦褐连续长袍、细面缝与橙红杖头；顿杖踏步，举杖再落杖鼓舞同伴加速。',attack:'附近有同伴时使其加速 3 秒；独处时制造地火',tip:'优先击倒祭司，留意同伴脚边的橙色火星。'},
- cinderlord:{map:'ash',role:'boss',name:'熔炉暴君',traits:'悬浮熔核、环绕碎甲、黑岩角冠；缓慢侧绕，蓄力时装甲张开。',attack:'双列炉火封路、交错落烬；半血后增加第三处落点',tip:'双列火路中间有空隙，交错落点需提前移步；收招时反击。'}
+ cinderlord:{map:'ash',role:'boss',name:'熔炉暴君',traits:'暗红岩甲、肋间熔核与角冠；负重迈步，举臂蓄火后向两侧推出炉焰。',attack:'双列炉火封路、交错落烬；半血后增加第三处落点',tip:'双列火路中间有空隙，交错落点需提前移步；收招时反击。'}
 };
 export function regionalEnemy(map,role){return MAP_ROSTERS[map]?.[role]||role;}

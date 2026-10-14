@@ -9,16 +9,16 @@
 <section id="filmstrip"><h2>连续走动对照</h2><p>每组先连续行走 1 秒，再按 0.1 秒间隔截取 8 帧；抽帧之间仍以 1/60 秒推进正式动作。相机跟随，地面刻线保持世界坐标，便于观察脚是否滑地。此页只检查模型动作，不模拟寻路或伤害。</p><pre id="filmstrip-report">尚未生成</pre><div id="filmstrip-images"></div></section>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=194';
-import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=194';
-import {setCreatureTime} from '../creature-forms.js?v=194';
-import {MAP_ROSTERS,REGIONAL_ENEMIES} from '../map-enemies.js?v=194';
+import {actor,animateActor} from '../world.js?v=195';
+import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=195';
+import {setCreatureTime} from '../creature-forms.js?v=195';
+import {MAP_ROSTERS,REGIONAL_ENEMIES} from '../map-enemies.js?v=195';
 import {ENEMIES} from '../rules.js';
-import {BOSS_STYLES} from '../boss-combat.js?v=194';
-import {recordEnemyHit} from '../enemy-feedback.js?v=194';
-import {enemyCastFlight} from '../enemy-cast-vfx.js?v=194';
-import {SkillVFX} from '../skill-vfx.js?v=194';
-import {ENEMY_MOTION,gaitPace,advanceEnemyLocomotion} from '../enemy-motion.js?v=194';
+import {BOSS_STYLES,bossAttackPlan} from '../boss-combat.js?v=195';
+import {recordEnemyHit} from '../enemy-feedback.js?v=195';
+import {enemyCastFlight} from '../enemy-cast-vfx.js?v=195';
+import {SkillVFX} from '../skill-vfx.js?v=195';
+import {ENEMY_MOTION,gaitPace,advanceEnemyLocomotion} from '../enemy-motion.js?v=195';
 let kinds=[];const scene=new T.Scene(),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
 renderer.setSize(1120,460);renderer.setClearColor(0x25382f);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
 document.querySelector('#stage').append(renderer.domElement);scene.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));
@@ -33,8 +33,8 @@ function frameModels(){
  const focus=document.querySelector('#focus').value;
  models.forEach((m,i)=>m.visible=focus==='all'||String(i)===focus);
  if(focus==='all'){
-  camera.left=-8.25;camera.right=8.25;camera.top=2.80;camera.bottom=-2.80;
-  const z=models.reduce((n,m)=>n+m.position.z,0)/models.length;camera.position.set(0,4.6,z+16);camera.lookAt(0,.9,z);
+  const bosses=document.querySelector('#biome').value==='boss',half=bosses?4.2:2.8;camera.left=-half*1120/460;camera.right=half*1120/460;camera.top=half;camera.bottom=-half;
+  const z=models.reduce((n,m)=>n+m.position.z,0)/models.length;camera.position.set(0,bosses?5.5:4.6,z+18);camera.lookAt(0,bosses?2.5:.9,z);
  }else{
   const m=models[Number(focus)],center=m.position.clone().add(m.userData.fixture.offset),half=m.userData.fixture.half,size=renderer.getSize(new T.Vector2());
   camera.top=half;camera.bottom=-half;camera.left=-half*size.x/size.y;camera.right=half*size.x/size.y;
@@ -47,10 +47,18 @@ document.querySelector('#focus').onchange=draw;document.querySelector('#view').o
 function poseModels(dt){
  const mode=document.querySelector('#mode').value,translate=document.querySelector('#translate').checked;setCreatureTime(clock);
  for(const [i,m]of models.entries()){
-  const kind=kinds[i],cfg=ENEMY_MOTION[kind]||{wind:1,cadence:4},phase=clock%2.8,wind=mode==='attack'&&phase<cfg.wind?cfg.wind-phase:0,d=m.userData,fixture=d.fixture;
+  const kind=kinds[i],cfg=ENEMY_MOTION[kind]||{wind:1,cadence:4},phase=clock%2.8,d=m.userData,fixture=d.fixture;let wind=mode==='attack'&&phase<cfg.wind?cfg.wind-phase:0;
   if(AIR_ENEMIES[kind])animateAirborne({kind,mesh:m,id:i,flight:{stage:mode==='attack'?(wind>0?'wind':phase<1.6?'strike':'recover'):'orbit'}},clock);
   else{
-   if(d.bossModel){d.bossStage=mode==='attack'?(wind>0?'wind':phase<cfg.wind+.65?'strike':'recover'):'move';d.windProgress=wind>0?1-wind/cfg.wind:0;d.strikeProgress=Math.max(0,Math.min(1,(phase-cfg.wind)/.65));d.recoverProgress=Math.max(0,Math.min(1,(phase-cfg.wind-.65)/.7));}
+   if(d.bossModel){
+    const style=BOSS_STYLES[kind],moves=style.moves.map(move=>({move,duration:bossAttackPlan(kind,move,{x:0,z:0,phase:1},{x:0,z:4}).duration}));
+    const cycle=moves.reduce((sum,move)=>sum+style.wind+move.duration+style.recovery,0);let elapsed=clock%cycle,chosen=moves[0];
+    for(const move of moves){chosen=move;const span=style.wind+move.duration+style.recovery;if(elapsed<span)break;elapsed-=span;}
+    d.bossMove=chosen.move;d.bossStage=mode!=='attack'?'walk':elapsed<style.wind?'wind':elapsed<style.wind+chosen.duration?'strike':'recover';
+    d.windProgress=d.bossStage==='wind'?elapsed/style.wind:0;d.strikeProgress=d.bossStage==='strike'?(elapsed-style.wind)/chosen.duration:0;d.recoverProgress=d.bossStage==='recover'?(elapsed-style.wind-chosen.duration)/style.recovery:0;
+    const leap=chosen.move==='leap',burrow=chosen.move==='burrow';d.lift=d.bossStage==='strike'&&(leap||burrow)?Math.sin(Math.min(1,(elapsed-style.wind)/(leap?.65:.85))*Math.PI)*(leap?3.8:-2.5):0;
+    wind=d.bossStage==='wind'?style.wind-elapsed:0;
+   }
    if(mode==='walk')fixture.gait+=dt*cfg.cadence;
    const intended=mode==='walk'?(REGIONAL_ENEMIES[kind]?.speed??ENEMIES[kind]?.speed??BOSS_STYLES[kind].speed)*gaitPace(kind,fixture.gait):0,start=m.position.z;
    if(translate)m.position.z+=intended*dt;
@@ -62,9 +70,9 @@ function poseModels(dt){
  }
 }
 function advanceTime(amount){for(let remaining=amount;remaining>1e-9;){const dt=Math.min(1/60,remaining);clock+=dt;poseModels(dt);vfx.update(dt);remaining-=dt;}}
-function draw(){setCreatureTime(clock);frameModels();renderer.render(scene,camera);document.querySelector('#report').textContent=JSON.stringify({status:'READY',mode:document.querySelector('#mode').value,time:+clock.toFixed(2),biome:document.querySelector('#biome').value,view:document.querySelector('#view').value,translation:document.querySelector('#translate').checked,roots:models.map((m,i)=>({kind:kinds[i],z:+m.position.z.toFixed(4),distance:+m.userData.fixture.distance.toFixed(4)})),polished:!document.querySelector('#old').checked,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles});}
+function draw(){setCreatureTime(clock);frameModels();renderer.render(scene,camera);document.querySelector('#report').textContent=JSON.stringify({status:'READY',mode:document.querySelector('#mode').value,time:+clock.toFixed(2),biome:document.querySelector('#biome').value,view:document.querySelector('#view').value,translation:document.querySelector('#translate').checked,roots:models.map((m,i)=>({kind:kinds[i],z:+m.position.z.toFixed(4),distance:+m.userData.fixture.distance.toFixed(4),move:m.userData.bossMove,stage:m.userData.bossStage})),polished:!document.querySelector('#old').checked,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles});}
 document.querySelector('#biome').onchange=reset;document.querySelector('#mode').onchange=reset;document.querySelector('#hit').onclick=()=>{for(const m of models)recordEnemyHit(m,{damage:20,kind:'rifle',angle:.5});advanceTime(1/60);draw();};document.querySelector('#still').onclick=()=>{paused=true;document.querySelector('#pause').textContent='继续';document.querySelector('#mode').value='idle';reset();advanceTime(.5);draw();};document.querySelector('#old').onchange=reset;document.querySelector('#pause').onclick=()=>{paused=!paused;document.querySelector('#pause').textContent=paused?'继续':'暂停';};document.querySelector('#step').onclick=()=>{paused=true;document.querySelector('#pause').textContent='继续';advanceTime(.1);draw();};
-document.querySelector('#portraits-button').onclick=()=>{const root=document.querySelector('#portraits');root.replaceChildren();const r=new T.WebGLRenderer({alpha:true,antialias:true,preserveDrawingBuffer:true});r.setSize(256,256);r.setClearColor(0,0);r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.25;const s=new T.Scene();s.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));s.add(sun.clone(),rim.clone());for(const kind of [...Object.values(MAP_ROSTERS).flatMap(roster=>Object.values(roster).slice(0,5)),...Object.values(AIR_ROSTERS)]){const m=AIR_ENEMIES[kind]?makeAirborne(kind):actor(kind);s.add(m);m.userData.expressionSeed=0;if(!AIR_ENEMIES[kind])animateActor(m,.5,0,0,0);const bounds=new T.Box3().setFromObject(m),center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3()),half=Math.max(size.x,size.y,size.z)*.67,c=new T.OrthographicCamera(-half,half,half,-half,.1,60);c.position.copy(center).add(new T.Vector3(4,2.2,6).normalize().multiplyScalar(20));c.lookAt(center);r.render(s,c);const img=document.createElement('img');img.id='portrait-'+kind;img.alt=kind;img.src=r.domElement.toDataURL('image/png');root.append(img);s.remove(m);}r.dispose();};
+document.querySelector('#portraits-button').onclick=()=>{const root=document.querySelector('#portraits');root.replaceChildren();const r=new T.WebGLRenderer({alpha:true,antialias:true,preserveDrawingBuffer:true});r.setSize(256,256);r.setClearColor(0,0);r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.25;const s=new T.Scene();s.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));s.add(sun.clone(),rim.clone());for(const kind of [...Object.values(MAP_ROSTERS).flatMap(roster=>Object.values(roster)),...Object.values(AIR_ROSTERS)]){const m=AIR_ENEMIES[kind]?makeAirborne(kind):actor(kind);s.add(m);m.userData.expressionSeed=0;if(!AIR_ENEMIES[kind])animateActor(m,.5,0,0,0);const bounds=new T.Box3().setFromObject(m),center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3()),half=Math.max(size.x,size.y,size.z)*.67,c=new T.OrthographicCamera(-half,half,half,-half,.1,60);c.position.copy(center).add(new T.Vector3(4,2.2,6).normalize().multiplyScalar(20));c.lookAt(center);r.render(s,c);const img=document.createElement('img');img.id='portrait-'+kind;img.alt=kind;img.src=r.domElement.toDataURL('image/png');root.append(img);s.remove(m);}r.dispose();};
 document.querySelector('#checks').onclick=()=>{
  const results=[];let error=null;document.querySelector('#focus').value='all';
  try{for(const biome of [...Object.keys(MAP_ROSTERS),'air','boss']){document.querySelector('#biome').value=biome;reset();for(const mode of ['idle','walk','attack']){document.querySelector('#mode').value=mode;reset();for(let i=0;i<210;i++){clock=i/60;poseModels(1/60);vfx.update(1/60);draw();}for(const m of models){m.updateMatrixWorld(true);m.traverse(o=>{if(!o.matrixWorld.elements.every(Number.isFinite))throw Error(biome+' '+mode+' invalid pose');});}if(renderer.getContext().getError()!==0||renderer.info.programs.some(p=>p.diagnostics?.runnable===false))throw Error(biome+' shader/GL');results.push({biome,mode,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles});}}

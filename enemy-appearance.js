@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=194';
+import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=195';
 
 // Five finite, shared sets of geometry. Articulation moves groups, never vertices.
 const templates=new Map();
@@ -87,6 +87,25 @@ function joined(parts){
  const flat=parts.map(p=>p.index?p.toNonIndexed():p),g=mergeGeometries(flat,false);
  for(const p of new Set([...parts,...flat]))p.dispose();g.computeBoundingBox();g.computeBoundingSphere();return g;
 }
+// One cached bend target keeps each stone arm continuous across the elbow.
+// Only a scalar changes during animation; no per-frame geometry uploads.
+function stoneElbow(g){
+ const bent=g.clone(),p=bent.attributes.position;
+ for(let i=0;i<p.count;i++){
+  const y=p.getY(i),z=p.getZ(i),a=.72*T.MathUtils.smoothstep(-y,.29,.58),dy=y+.39;
+  p.setXYZ(i,p.getX(i),-.39+dy*Math.cos(a)-z*Math.sin(a),dy*Math.sin(a)+z*Math.cos(a));
+ }
+ bent.computeVertexNormals();g.morphAttributes.position=[bent.attributes.position];g.morphAttributes.normal=[bent.attributes.normal];
+ g.computeBoundingBox();g.computeBoundingSphere();return g;
+}
+function softCap(g){
+ const bent=g.clone(),p=bent.attributes.position;
+ for(let i=0;i<p.count;i++){
+  const x=p.getX(i),y=p.getY(i),z=p.getZ(i),edge=T.MathUtils.smoothstep(Math.hypot(x,z/.95),.25,.63);
+  p.setXYZ(i,x,y-edge*.065*(.75+.25*Math.sin(Math.atan2(z,x)*3+.4)),z);
+ }
+ bent.computeVertexNormals();g.morphAttributes.position=[bent.attributes.position];g.morphAttributes.normal=[bent.attributes.normal];g.computeBoundingBox();g.computeBoundingSphere();return g;
+}
 // Two lids are one cached batch; the upper edge stays fixed as the lid closes.
 function lids(c,x,w,h){return joined([-1,1].map(side=>oval(c,side*x,-h,0,w,h,.013,10,6)));}
 function template(kind){
@@ -103,7 +122,7 @@ function template(kind){
   for(let i=0;i<11;i++){const a=i*2.399,r=.16+(i%4)*.089;cap.push(capPatch(Math.cos(a)*r,Math.sin(a)*r,.037+i%2*.022,.028+i%3*.009,i%2?0xe1cc9e:0xc3a478));}
   p.cap=joined(cap);const capColors=p.cap.attributes.color,capPos=p.cap.attributes.position;for(let i=0;i<capColors.count;i++){const r=Math.hypot(capPos.getX(i),capPos.getZ(i)/.95),y=capPos.getY(i);if(y>.025){const band=1-.09*Math.exp(-(((r-.49)/.065)**2)),edge=.96+.04*Math.sin(Math.atan2(capPos.getZ(i),capPos.getX(i))*6+.4);capColors.setXYZ(i,capColors.getX(i)*band*edge,capColors.getY(i)*band*edge,capColors.getZ(i)*band*edge);}}p.foot=joined([profile([[0,.10],[.07,.08],[.095,-.025],[0,-.06]],0xa88e65,{depth:1.2,segments:10}),...[-1,0,1].map(s=>rootlet(0x93815d,[[s*.025,0,0],[s*.045,-.032,.09],[s*.077,-.042,.17]],[.044,.028,.002]))]);
  }else if(kind==='wolf'){
-  p.body=joined([wolfCoat([[-.58,0,0,.69],[-.49,.19,.205,.675],[-.34,.245,.255,.695],[-.13,.215,.228,.728],[.055,.264,.30,.755],[.23,.277,.325,.775],[.36,.221,.27,.81],[.465,.168,.215,.86],[.57,.13,.155,.89],[.61,0,0,.90]])]);
+  p.body=joined([wolfCoat([[-.68,0,0,.72],[-.59,.18,.185,.715],[-.40,.228,.22,.735],[-.13,.202,.19,.758],[.055,.245,.265,.775],[.23,.264,.29,.795],[.36,.221,.27,.81],[.465,.168,.215,.86],[.57,.13,.155,.89],[.61,0,0,.90]])]);
   p.head=joined([
    wolfCoat([[-.25,0,0,.045],[-.20,.135,.175,.042],[-.075,.245,.216,.04],[.075,.205,.194,.018],[.19,.18,.16,-.008],[.29,.132,.108,-.055],[.397,.091,.069,-.055],[.437,0,0,-.044]],true),
    oval(0x354039,0,-.150,.32,.105,.025,.14),
@@ -111,19 +130,19 @@ function template(kind){
     branch(0x45554c,[[s*.096,-.128,.23],[s*.117,-.133,.33],[s*.076,-.115,.429]],.007,6),piece(new T.ConeGeometry(.017,.057,6),0xd4ceb1,s*.09,-.173,.325,1,1,1,Math.PI)])
   ]);
   p.ear=joined([profile([[0,0],[.105,.02],[.075,.14],[.019,.29],[0,.30]],0x7d8e82,{depth:.48,bend:-.018}),oval(0x48584c,0,.12,.040,.048,.10,.008)]);
-  p.jaw=joined([oval(0x7b8d80,0,0,.29,.12,.056,.18),oval(0x575447,0,.041,.34,.085,.008,.115),...[-1,1].map(s=>piece(new T.ConeGeometry(.012,.038,5),0xd4ceb1,s*.081,.053,.37))]);
-  p.tail=joined([branch(0x677b70,[[0,0,0],[0,-.015,-.10],[0,-.055,-.21],[0,-.09,-.29]],.09)]);
-  p.tailTip=joined([oval(0xa8b4af,0,-.025,-.065,.08,.075,.14)]);
+  p.jaw=joined([oval(0x7b8d80,0,.044,.29,.12,.046,.18),oval(0x575447,0,.079,.34,.085,.008,.115),...[-1,1].map(s=>piece(new T.ConeGeometry(.012,.030,5),0xd4ceb1,s*.081,.089,.37))]);
+  p.tail=joined([rootlet(0x677b70,[[0,0,0],[0,-.015,-.10],[0,-.055,-.21],[0,-.09,-.29]],[.11,.094,.075,.051])]);
+  p.tailTip=joined([rootlet(0xa8b4af,[[0,0,0],[0,-.028,-.075],[0,-.034,-.17]],[.067,.059,.002])]);
   // Muscular shoulder / thigh taper into wrist / hock, with a real separate
   // paw. The ankle node must move the visible foot, not an empty marker.
-  p.frontUpper=joined([profile([[0,.12],[.09,.10],[.112,.035],[.094,-.08],[.062,-.22],[.058,-.31],[0,-.34]].reverse(),0x78847b,{depth:1.24,segments:12}),
+  p.frontUpper=joined([profile([[0,.17],[.078,.13],[.101,.035],[.080,-.08],[.055,-.22],[.052,-.31],[0,-.34]].reverse(),0x78847b,{depth:1.07,segments:12}),
    ...[-1,1].map(side=>rootlet(0x859083,[[side*.062,.072,-.015],[side*.086,.015,-.072],[side*.069,-.07,-.10]],[.036,.041,.002]))]);
   p.frontLower=joined([profile([[0,.04],[.054,.02],[.055,-.07],[.036,-.21],[.041,-.29],[0,-.33]].reverse(),0x778477,{depth:1.08,segments:10})]);
-  p.haunch=joined([profile([[0,.13],[.10,.105],[.14,.005],[.135,-.10],[.093,-.23],[.065,-.32],[0,-.36]].reverse(),0x788079,{depth:1.4,segments:12}),
+  p.haunch=joined([profile([[0,.21],[.087,.16],[.116,.035],[.109,-.10],[.077,-.23],[.055,-.32],[0,-.36]].reverse(),0x788079,{depth:1.10,segments:12}),
    ...[-1,1].map(side=>rootlet(0x7b887a,[[side*.071,-.016,-.13],[side*.072,-.10,-.171],[side*.043,-.18,-.176]],[.035,.042,.002]))]);
   p.shin=joined([profile([[0,.04],[.070,.015],[.073,-.07],[.053,-.17],[.038,-.275],[0,-.30]].reverse(),0x68776c,{depth:1.15,segments:10})]);
   p.hock=joined([profile([[0,.035],[.043,.013],[.037,-.07],[.034,-.13],[0,-.171]].reverse(),0x7b887a,{depth:1.05,segments:10})]);
-  p.frontUpper.scale(1,.35/.31,1);p.frontLower.scale(1,.35/.32,1);p.haunch.scale(1,.36/.33,1);p.shin.scale(1,.32/.28,1);
+  p.frontUpper.scale(1,.32/.31,1);p.frontLower.scale(1,.35/.32,1);p.haunch.scale(1,.36/.33,1);p.shin.scale(.88,.32/.28,.9);
   p.paw=joined([oval(0x98a08d,0,.051,.031,.072,.051,.096),...[-1,0,1].flatMap(side=>[oval(0xa6ab95,side*.043,.042,.102,.029,.04,.055,6,4),piece(new T.ConeGeometry(.010,.041,5),0x485047,side*.043,.035,.161,1,1,1,Math.PI/2)])]);
   // Broad roots lie along the coat, narrow tips break only cheeks and tail.
   // Merge into existing moving batches: no alpha cards or per-hair draw calls.
@@ -200,6 +219,8 @@ function template(kind){
  if(kind==='wolf'){p.lids=lids(0x66796b,.162,.059,.030);p.nose=joined([oval(0x26332e,0,0,0,.096,.056,.052),...[-1,1].map(side=>oval(0x101b18,side*.052,-.015,.041,.026,.013,.011,8,5)),oval(0x61706a,-.022,.019,.046,.032,.012,.005,8,4)]);}
  else if(kind==='mushroom')p.lids=lids(0xbeac88,.083,.039,.024);
  else if(kind==='spitter')p.lids=lids(0x778162,.213,.084,.038);
+ if(kind==='golem')stoneElbow(p.arm);
+ if(kind==='mushroom')softCap(p.cap);
  for(const [part,geometry] of Object.entries(p))prepareCreatureSurface(geometry,kind,part);
  templates.set(kind,p);return p;
 }
@@ -211,13 +232,13 @@ export function polishEnemyAppearance(g){
  if(kind==='mushroom'){
   d.cap=group(rig,0,1.01,0);add(d.cap,p.cap,'mushroom-cap');d.feet=[-1,1].map(s=>{const f=group(rig,s*.18,.12,.10);add(f,p.foot,'mushroom-foot');return f;});
  }else if(kind==='wolf'){
-  d.head=group(rig,0,.80,.47);add(d.head,p.head,'wolf-head');d.jaw=group(d.head,0,-.21,0);add(d.jaw,p.jaw,'wolf-jaw');
-  d.ears=[-1,1].map(s=>{const ear=group(d.head,s*.17,.25,-.06);add(ear,p.ear,'wolf-ear');return ear;});
-  d.tail=group(rig,0,.75,-.46);add(d.tail,p.tail,'wolf-tail');d.tailTip=group(d.tail,0,-.09,-.26);add(d.tailTip,p.tailTip,'wolf-tail-tip');
-  for(const x of[-.215,.215])for(const z of[-.32,.28]){
-   const back=z<0,y=back?.65:.665,joint=group(rig,x,y,z),upper=group(joint),knee=group(joint),paw=group(joint),ankle=back?group(joint):null;
+  d.head=group(rig,0,.92,.47);add(d.head,p.head,'wolf-head');d.jaw=group(d.head,0,-.21,0);add(d.jaw,p.jaw,'wolf-jaw');
+  d.ears=[-1,1].map(s=>{const ear=group(d.head,s*.17,.13,-.06);add(ear,p.ear,'wolf-ear');return ear;});
+  d.tail=group(rig,0,.78,-.56);add(d.tail,p.tail,'wolf-tail');d.tailTip=group(d.tail,0,-.09,-.26);add(d.tailTip,p.tailTip,'wolf-tail-tip');
+  for(const x of[-.185,.185])for(const z of[-.40,.28]){
+   const back=z<0,y=.70,joint=group(rig,x,y,z),upper=group(joint),knee=group(joint),paw=group(joint),ankle=back?group(joint):null;
    add(upper,back?p.haunch:p.frontUpper,back?'wolf-haunch':'wolf-shoulder');add(knee,back?p.shin:p.frontLower,'wolf-lower-leg');add(paw,p.paw,'wolf-paw');if(ankle)add(ankle,p.hock,'wolf-hock');
-   d.legs.push({joint,upper,knee,paw,ankle,phase:x*z>0?0:Math.PI,upperLength:back?.36:.35,lowerLength:back?.32:.35,restX:x,restY:y,restZ:z,back,drop:back?.14:0,reach:0});
+   d.legs.push({joint,upper,knee,paw,ankle,phase:x*z>0?0:Math.PI,upperLength:back?.36:.32,lowerLength:back?.32:.35,restX:x,restY:y,restZ:z,back,drop:back?.14:0,reach:0});
   }
   prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,0,0);
  }else if(kind==='golem'){

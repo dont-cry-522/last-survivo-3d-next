@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
-import {buildHarborPlace} from '../harbor-place.js?v=194';
+import {buildHarborPlace} from '../harbor-place.js?v=195';
 import {createOverheadQuery} from '../adventure-overheads.js';
 
 function build(variant=0){

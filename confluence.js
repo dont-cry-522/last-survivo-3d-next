@@ -1,17 +1,17 @@
-import{forestStreamLayout}from'./forest-stream-layout.js?v=194';
+import{forestStreamLayout}from'./forest-stream-layout.js?v=195';
 import * as T from './vendor/three.module.js';
-import{addTree}from'./tree-scenery.js?v=194';
-import{MAPS,seeded,segmentDistance}from'./rules.js?v=194';
-import{buildPonds,waterDepth}from'./water.js?v=194';
-import{installCoast}from'./coast.js?v=194';
-import{coastProp}from'./coast-models.js?v=194';
-import{buildDistricts}from'./map-districts.js?v=194';
-import{installScenery}from'./biome-scenery.js?v=194';
-import{installDiscoveries}from'./map-discoveries.js?v=194';
-import{installTactics}from'./map-tactics.js?v=194';
-import{installRoaming}from'./roaming-events.js?v=194';
-import{biomeEvent}from'./map-events.js?v=194';
-import{groundCue}from'./ground-cues.js?v=194';
+import{addTree}from'./tree-scenery.js?v=195';
+import{MAPS,seeded,segmentDistance}from'./rules.js?v=195';
+import{buildPonds,waterDepth}from'./water.js?v=195';
+import{installCoast}from'./coast.js?v=195';
+import{coastProp}from'./coast-models.js?v=195';
+import{buildDistricts}from'./map-districts.js?v=195';
+import{installScenery}from'./biome-scenery.js?v=195';
+import{installDiscoveries}from'./map-discoveries.js?v=195';
+import{installTactics}from'./map-tactics.js?v=195';
+import{installRoaming}from'./roaming-events.js?v=195';
+import{biomeEvent}from'./map-events.js?v=195';
+import{groundCue}from'./ground-cues.js?v=195';
 export const CONFLUENCE_HALF=140;
 export const REGIONS=[
  {id:'forest',x:-72,z:20,label:'古木河谷',transition:'林缘渐冷，针叶林沿山麓向雪线延伸'},

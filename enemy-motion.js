@@ -1,5 +1,6 @@
-import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=194';
-import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=194';
+import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=195';
+import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=195';
+import{Vector3,Matrix4,Quaternion}from'./vendor/three.module.js';
 // Attack timings are shared with the pose driver so the strike matches its hit.
 export const ENEMY_MOTION={
  foamling:{wind:.55,recover:.25,cadence:9,range:2.1},tidecrab:{wind:.7,recover:.35,cadence:10,range:3.1},reefturtle:{wind:1.1,recover:.6,cadence:4,range:4},jellyseer:{wind:.85,recover:.4,cadence:4,range:12},tidestar:{wind:.9,recover:.45,cadence:4,range:11},wreckwarden:{wind:1.25,recover:1.7,cadence:4},
@@ -25,7 +26,7 @@ export function advanceEnemyLocomotion(d,dt,distance,walking){
  d.motionTurn=(d.motionTurn||0)+(turn-(d.motionTurn||0))*blend;
  d.motionLook=(d.motionLook||0)+(look-(d.motionLook||0))*blend;
  d.motionSpeed=walking?Math.max(0,distance)/dt:0;
- const kind=d.species||d.kind,travel={wolf:.38,frostwolf:.38,ashstalker:.28,emberling:.27,yeti:.25,lavabrute:.30}[kind];
+ const kind=d.species||d.kind,travel={wolf:.38,frostwolf:.38,ashstalker:.28,emberling:.27,yeti:.25,lavabrute:.30,spitter:.18,shaman:.145}[kind];
  const grounded=walking&&distance>1e-6&&!(d.pounce>0);
  // Only the presentation clock follows distance; AI timing and hop speed stay
  // on e.gait. A planted foot retreats by exactly the distance the root travels.
@@ -37,6 +38,17 @@ export function advanceEnemyLocomotion(d,dt,distance,walking){
  return Math.floor((phase-Math.PI)/(Math.PI*2))>Math.floor((previous-Math.PI)/(Math.PI*2))?3:0;
 }
 const stoneSoles=new WeakMap();
+const casterInverse=new Matrix4(),casterPoint=new Vector3(),casterFlat=new Quaternion();
+function plantCasterFeet(d,phase,stride,gather){
+ d.rig.updateMatrix();casterInverse.copy(d.rig.matrix).invert();casterFlat.copy(d.rig.quaternion).invert();
+ const travel=d.kind==='spitter'?.18:.145;
+ d.feet.forEach((foot,i)=>{
+  const u=((phase+i*Math.PI)/(2*Math.PI)%1+1)%1,support=u<.64,q=support?0:(u-.64)/.36;
+  const step=(support?1-2*u/.64:-1+2*smooth(q))*stride;
+  casterPoint.set((i?1:-1)*.15,.08+Math.sin(q*Math.PI)*.055*stride,.07+step*travel-gather*.02).applyMatrix4(casterInverse);
+  foot.position.copy(casterPoint);foot.quaternion.copy(casterFlat);foot.rotateX(-Math.sin(q*Math.PI)*.10*stride);
+ });
+}
 function plantStoneFoot(leg,rig,phase,stride){
  const joint=leg.joint,geometry=joint.children[0].geometry;
  if(!stoneSoles.has(geometry)){
@@ -65,6 +77,7 @@ function animateForestEnemy(d,t,stride,phase,gather,drive,impact){
   rig.position.y=hop*.15-gather*.07+airborne*.34-landing*.06-brake*.018;
   rig.scale.set(1-squash*.45,1+squash-landing*.035,1-squash*.45);rig.rotation.set(gather*.08-drive*.12+brake*.035,0,Math.sin(phase*.5)*.055*stride-turn*.035*stride);
   d.cap.rotation.set(lag*.085*stride+gather*.19-drive*.26-settle*.035-brake*.02,-turn*.08+look*.045,Math.sin(phase-.8)*.085*stride-turn*.035);
+  d.cap.children[0].morphTargetInfluences[0]=Math.min(1,Math.max(0,Math.sin(phase-.45))*.30*stride+landing*.60+gather*.22);
   d.feet?.forEach((foot,i)=>{const step=Math.sin(phase+i*Math.PI);foot.position.y=.12+Math.max(0,-step)*.045*stride+airborne*.035+landing*.065;foot.position.z=.1+step*.08*stride+airborne*.035;foot.rotation.x=step*.18*stride+gather*.12-drive*.14+airborne*.13;});
  }else if(d.kind==='wolf'){
   rig.position.set(sway*.012*stride+look*adjust*.018,(Math.abs(sway)*.015-.015)*stride-gather*.09+airborne*.26-landing*.07-brake*.02,-impact*.13-gather*.035+drive*.04-brake*.025);
@@ -80,12 +93,17 @@ function animateForestEnemy(d,t,stride,phase,gather,drive,impact){
   rig.position.set(weight*.045,Math.abs(sway)*.014*stride-gather*.09-drive*.08-settle*.025,-impact*.13-gather*.045+drive*.04);
   rig.rotation.set(.035*stride-gather*.09+drive*.18-impact*.12,Math.sin(phase-.4)*.025*stride,weight*.04);
   d.legs.forEach(leg=>plantStoneFoot(leg,rig,phase+leg.phase,stride));
-  d.arms.forEach((arm,i)=>{arm.position.y=1.34-gather*.04-drive*.13;arm.rotation.set(Math.sin(phase+i*Math.PI-.55)*.14*stride-gather*(i?1.34:1.24)-drive*.20,0,(i?1:-1)*(.035*stride+.10*gather));});
+  d.arms.forEach((arm,i)=>{
+   arm.position.y=1.34-gather*.04-drive*.13;arm.rotation.set(Math.sin(phase+i*Math.PI-.55)*.14*stride-gather*(i?1.34:1.24)-drive*.20,0,(i?1:-1)*(.035*stride+.10*gather));
+   // The elbow folds as the shoulder gathers, then extends into the existing
+   // strike. A small delayed bend absorbs the recovery, without retiming damage.
+   const mesh=arm.children[0];if(mesh.morphTargetInfluences)mesh.morphTargetInfluences[0]=Math.min(1,gather*.78+Math.max(0,Math.sin(phase+i*Math.PI-.7))*.12*stride+settle*.16);
+  });
   if(d.head)d.head.rotation.set(-gather*.065+drive*.045-settle*.025,-rig.rotation.y*.65,-weight*.025);
  }else if(d.staff){
   const spitter=d.kind==='spitter',walk=Math.sin(phase)*stride;
   rig.position.set(walk*(spitter?.025:.012),Math.abs(sway)*.035*stride+breath*.008-gather*.055+drive*.025,-impact*.13-gather*.025+drive*.045);
-  rig.rotation.set((spitter?.10:.025)*stride+gather*(spitter?.20:-.10)-drive*(spitter?.21:-.07),Math.sin(phase-.3)*.025*stride,walk*(spitter?.11:.055));
+  rig.rotation.set((spitter?.08:.025)*stride+gather*(spitter?.20:-.10)-drive*(spitter?.21:-.07),Math.sin(phase-.3)*.025*stride,walk*(spitter?.065:.035));
   d.staff.rotation.set(Math.sin(phase-.7)*.055*stride-gather*(spitter?.7:.43)+drive*(spitter?.70:.34),0,(spitter?-.13:.06)+lag*.055*stride);
   d.staff.position.y=.76+Math.max(0,Math.sin(phase-.5))*.025*stride+gather*(spitter?.20:.30)-drive*(spitter?.03:.13);
   d.focus.scale.setScalar(1+gather*.28+drive*.07);
@@ -93,7 +111,7 @@ function animateForestEnemy(d,t,stride,phase,gather,drive,impact){
   if(d.hatTip)d.hatTip.rotation.set(Math.sin(phase-.9)*.045*stride-gather*.07+drive*.1,0,Math.sin(phase-.8)*.09*stride+breath*.018);
   if(d.hem)d.hem.rotation.set(Math.sin(phase-.6)*.025*stride,0,-Math.sin(phase-.7)*.035*stride);
   d.arms.forEach(arm=>arm.rotation.set(-lag*.18*stride-gather*.27+drive*.18,0,-.055-gather*.07));
-  d.feet?.forEach((foot,i)=>{const step=Math.sin(phase+i*Math.PI);foot.position.set((i?1:-1)*.15,.08+Math.max(0,-step)*.05*stride,.07+step*.085*stride);foot.rotation.x=step*.15*stride;});
+  if(d.feet)plantCasterFeet(d,phase,stride,gather);
  }
 }
 function followEnemyHit(d,t,impact){

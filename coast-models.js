@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=194';
-import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=194';
+import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=195';
+import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=195';
 const geometries=new Map(),materials=new Map();
 function part(p,color,pos,size,type='sphere',glow=false){
  if(!geometries.has(type))geometries.set(type,type==='rock'?new T.DodecahedronGeometry(1,1):type==='box'?new T.BoxGeometry(2,2,2):type==='cone'?new T.ConeGeometry(1,2,12):type==='barrel'?new T.CylinderGeometry(.88,1,2,10):type==='hoop'?new T.TorusGeometry(1,.055,5,12):new T.SphereGeometry(1,16,12));
@@ -10,7 +10,7 @@ function part(p,color,pos,size,type='sphere',glow=false){
 const joint=(p,x,y,z)=>{const g=new T.Group();g.position.set(x,y,z);p.add(g);return g;};
 function eye(p,x,y,z){part(p,0x122e38,[x,y,z],[.07,.08,.05]);part(p,0xd4ffff,[x-.018,y+.025,z+.037],[.018,.019,.01], 'sphere',true);}
 function makeCoastCreature(kind){
- const g=new T.Group(),r=organicJoint(g),d=g.userData={kind,rig:r,coastModel:true,organicModel:true,legs:[],claws:[],tips:[],arms:[],eyes:[],phase:0,combatHeight:{foamling:1.16,tidecrab:.97,reefturtle:1.2,jellyseer:1.42,tidestar:.70}[kind]};
+ const g=new T.Group(),r=organicJoint(g),d=g.userData={kind,rig:r,coastModel:true,organicModel:true,legs:[],claws:[],elbows:[],tips:[],arms:[],eyes:[],phase:0,combatHeight:{foamling:1.16,tidecrab:.97,reefturtle:1.2,jellyseer:1.42,tidestar:.70}[kind]};
  if(kind==='foamling'){
   // A crawling swell rolls forward over its low, broad sole; no human face.
   d.body=form(r,'Foamling_RollingSwell',()=>[surface(0x427e7c,[[-.72,.05,.025,0,.065],[-.57,.31,.085,0,.14],[-.30,.47,.20,0,.23],[.03,.49,.29,0,.32],[.34,.35,.22,0,.29],[.57,.20,.095,0,.15],[.66,.025,.026,0,.074]],{axis:'z',sides:24,flute:.035,shade:(c,x,y)=>c.lerp(new T.Color(0xa4c4b6),T.MathUtils.smoothstep(y,.35,.61))})]);
@@ -20,8 +20,9 @@ function makeCoastCreature(kind){
   for(const side of[-1,1]){
    const eye=organicJoint(r,side*.21,.51,.40);form(eye,'Tidecrab_WatchfulEyestalk_'+side,()=>[tube(0x685340,[[0,0,0],[side*.03,.13,.03],[side*.045,.21,.035]],[.032,.029,.031],{steps:7}),oval(0x202925,side*.049,.238,.051,.049,.032,.036,10,6),oval(0x9b9c70,side*.049,.237,.082,.020,.020,.006,8,5),oval(0xd3cc9f,side*.041,.247,.087,.006,.006,.003,6,4)]);d.eyes.push(eye);
    for(let i=0;i<3;i++)d.legs.push(leg(r,'Tidecrab_SideLeg_'+side,{x:side*.45,y:.31,z:.27-i*.28,side,reach:.45,a:.30,b:.31,width:.082,color:0x9c7050,foot:0x423c32,sole:'point',phase:(i%2+(side>0?1:0))*Math.PI}));
-   const claw=organicJoint(r,side*.40,.35,.32);form(claw,'Tidecrab_LongCheliped_'+side,()=>[tube(0x9c6a4b,[[0,0,0],[side*.13,-.025,.20],[side*.21,.035,.43],[side*.17,.075,.62]],[.095,.112,.155,.105],{steps:16,sides:10}),tube(0xb38358,[[side*.19,.075,.54],[side*.31,.06,.76],[side*.30,.025,1.00],[side*.18,.0,1.12]],[.12,.092,.060,.003],{steps:14,sides:8}),tube(0x604837,[[side*.27,.064,.77],[side*.20,.060,.805],[side*.26,.05,.855]],[.026,.02,.016],{steps:6,sides:5})]);
-   const finger=organicJoint(claw,side*.10,.05,.61);form(finger,'Tidecrab_LockingFinger_'+side,()=>[tube(0x715239,[[0,0,0],[-side*.08,-.025,.19],[-side*.016,-.037,.35],[side*.075,-.05,.50]],[.086,.071,.045,.002],{steps:12}),...Array.from({length:3},(_,i)=>tube(0xc5ad7c,[[-side*(.006-i*.011),-.02,.12+i*.082],[side*(.044+i*.004),-.018,.143+i*.082],[side*(.040+i*.003),-.018,.158+i*.082]],[.022,.010,.001],{sides:5,steps:4}))]);d.claws.push(claw);d.tips.push(finger);
+   const claw=organicJoint(r,side*.40,.35,.32);form(claw,'Tidecrab_ProximalCheliped_'+side,()=>[tube(0x9c6a4b,[[-side*.025,0,-.025],[side*.13,-.025,.20],[side*.21,.035,.43]],[.12,.112,.125],{steps:10,sides:8})]);
+   const elbow=organicJoint(claw,side*.21,.035,.43);form(elbow,'Tidecrab_PincerPalm_'+side,()=>[tube(0x9c6a4b,[[0,0,-.018],[-side*.02,.025,.10],[-side*.04,.04,.19]],[.126,.15,.105],{steps:7,sides:10}),tube(0xb38358,[[-side*.02,.04,.11],[side*.10,.025,.33],[side*.09,-.01,.57],[-side*.03,-.035,.69]],[.12,.092,.060,.003],{steps:14,sides:8}),tube(0x604837,[[side*.06,.029,.34],[-side*.01,.025,.375],[side*.05,.015,.425]],[.026,.02,.016],{steps:6,sides:5})]);
+   const finger=organicJoint(elbow,-side*.11,.015,.18);form(finger,'Tidecrab_LockingFinger_'+side,()=>[tube(0x715239,[[0,0,0],[-side*.08,-.025,.19],[-side*.016,-.037,.35],[side*.075,-.05,.50]],[.086,.071,.045,.002],{steps:12}),...Array.from({length:3},(_,i)=>tube(0xc5ad7c,[[-side*(.006-i*.011),-.02,.12+i*.082],[side*(.044+i*.004),-.018,.143+i*.082],[side*(.040+i*.003),-.018,.158+i*.082]],[.022,.010,.001],{sides:5,steps:4}))]);d.claws.push(claw);d.elbows.push(elbow);d.tips.push(finger);
   }
  }else if(kind==='reefturtle'){
   form(r,'Reefturtle_BroadPlastron',()=>[surface(0x626f54,[[-.75,.045,.025,0,.31],[-.56,.52,.12,0,.33],[-.19,.64,.17,0,.34],[.30,.62,.16,0,.33],[.61,.33,.08,0,.34]],{axis:'z',sides:22}),tube(0x5c6850,[[0,.30,-.63],[0,.22,-.84],[0,.14,-.96]],[.083,.054,.003],{steps:9})]);
@@ -94,9 +95,14 @@ export function animateCoastEnemy(g,t,speed,attack,dt){
   }else if(d.kind==='tidestar'){
    r.position.y=0;r.rotation.set(0,Math.sin(t*.55)*.022*s,0);d.body.scale.set(1-wind*.045,1+wind*.08-strike*.05,1-wind*.045);
   }else{
+   const turtle=d.kind==='reefturtle',weight=Math.sin(p)*s;
+   // The turtle carries its shell over three supporting feet; the crab
+   // braces low between its two alternating tripods before closing a claw.
+   r.position.set(weight*(turtle?.016:.007),Math.abs(Math.sin(p*(turtle?1:2)))*(turtle?.007:.004)*s-wind*(turtle?.012:.025),-wind*(turtle?.022:.018)+strike*(turtle?.018:.028));
+   r.rotation.set(wind*(turtle?-.025:.04)-strike*(turtle?.025:.035),Math.sin(p-.5)*(turtle?.012:.007)*s,weight*(turtle?.020:.010));
    for(const l of d.legs)stepLeg(l,r,p,s,{travel,lift:d.kind==='reefturtle'?.043:.057});
-   d.claws.forEach((o,i)=>{const side=i?1:-1;o.rotation.set(-wind*.12+strike*.09,side*(wind*.25-strike*.30),0);});d.tips.forEach((o,i)=>o.rotation.y=(i?1:-1)*(-wind*.22+strike*.13));
-   if(d.head){d.head.position.z=.50-wind*.12+strike*.14;d.head.rotation.x=-wind*.12+strike*.08;d.head.rotation.y=Math.sin(t*.8)*.025*(1-s);}
+   d.claws.forEach((o,i)=>{const side=i?1:-1,carry=Math.sin(p+i*Math.PI-.45)*.025*s;o.rotation.set(carry-wind*.16+strike*.12,side*(wind*.20-strike*.20),-side*wind*.04);d.elbows[i].rotation.set(-wind*.12+strike*.10,-side*(wind*.30-strike*.20),0);});d.tips.forEach((o,i)=>o.rotation.y=(i?1:-1)*(-wind*.28+strike*.22));
+   if(d.head){d.head.position.z=.50-wind*.12+strike*.14;d.head.rotation.x=-wind*.12+strike*.08-Math.sin(p-.6)*.015*s;d.head.rotation.y=Math.sin(t*.8)*.025*(1-s)-weight*.015;}
    d.eyes.forEach((eye,i)=>{const side=i?1:-1;if(d.kind==='tidecrab'){eye.rotation.set(-wind*.20+strike*.10,Math.sin(t*.85+i*.9)*.12*(1-wind)+side*wind*.10,side*(-wind*.08+Math.sin(t*.63+i)*.028));}else{const phase=T.MathUtils.euclideanModulo(t+i*.065,5.3),blink=phase<.20?Math.sin(phase/.20*Math.PI)**2:0;eye.scale.y=Math.max(.06,1-.92*blink-wind*.16);}});
   }
   return;

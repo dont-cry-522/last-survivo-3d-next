@@ -2,7 +2,7 @@
 
 一款可切换第一人称与第三人称、自由转动视角的 3D 生存冒险网页游戏。在森林、雪地、灰烬、沙漠与海港中探索，选择武器与成长路线，迎战各地守卫。
 
-[开始游戏](https://dont-cry-522.github.io/last-survivo-3d-next/play.html?v=194) · [角色与技能资料](docs/设计参考/README.md) · [完整更新记录](docs/更新记录.md)
+[开始游戏](https://dont-cry-522.github.io/last-survivo-3d-next/play.html?v=195) · [角色与技能资料](docs/设计参考/README.md) · [完整更新记录](docs/更新记录.md)
 
 原名「林地远征 3D NEXT · 林心回响」，现以《异境回响》继续开发，仓库、游玩网址与已有存档保持不变。
 

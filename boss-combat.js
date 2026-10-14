@@ -1,4 +1,4 @@
-import{observePlayer}from'./target-awareness.js?v=189';
+import{observePlayer}from'./target-awareness.js?v=190';
 // A locked target and a readable anticipation precede every damaging attack.
 export const BOSS_STYLES={
  wreckwarden:{name:'沉舟寄居王',speed:1.8,wind:1.25,recovery:1.7,color:0x82d7da,moves:['claws','surge','anchors']},

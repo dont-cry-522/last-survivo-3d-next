@@ -11,8 +11,8 @@
 <section><h2>武器材质</h2><p>新版使用木、金属、冰裂、电弧、液体与纸张等素材重新设计。可切换旧版作对照，连续点击试听不同取样。</p><label>声音版本 <select id="sound-version"><option value="material">新版材质音效</option><option value="legacy">旧版合成音效（对照）</option></select></label> <label>动作 <select id="variant"><option value="0">普通</option><option value="1">强击 / 第二段</option><option value="2">第三段</option></select></label><canvas id="wave" width="1000" height="110"></canvas><p class="status" id="weapon-status">尚未播放武器声音。</p><div id="weapons"></div></section>
 <section><h2>元素与闪避</h2><div class="row" id="elements"></div><p><a href="material-audio-check.html">打开材质音效专项检查</a></p></section><section><h2>声音检查</h2><p>真实解码五首本地配乐，检查暂停续播、地图切换、音量与静音、战斗迟滞和后备音乐。需要约 20 秒。</p><button id="check">运行声音检查</button><pre id="results" aria-live="polite">等待开始。</pre><pre id="diagnostics" aria-live="polite">尚未开启音频。</pre></section>
 <script type="module">
-import{GameAudio}from'../audio.js?v=189';
-import{weaponSample}from'../weapon-audio.js?v=189';
+import{GameAudio}from'../audio.js?v=190';
+import{weaponSample}from'../weapon-audio.js?v=190';
 const $=s=>document.querySelector(s),audio=new GameAudio();
 audio.setSfxStyle('standard',{persist:false});
 let map='forest',mode='paused',boss=false,pressure=0,last=performance.now(),checking=false,testClock=0,testDriver=null;

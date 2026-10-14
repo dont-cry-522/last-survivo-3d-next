@@ -2,7 +2,7 @@ import test from'node:test';
 import assert from'node:assert/strict';
 import{createHash}from'node:crypto';
 import * as T from'../vendor/three.module.js';
-import{buildRuinPlace}from'../ruin-places.js?v=189';
+import{buildRuinPlace}from'../ruin-places.js?v=190';
 
 function collect(id,variant){
  const pieces=[],solids=[],info=buildRuinPlace(id,{piece(category,geometry,color,transform={}){pieces.push({category,geometry,color,transform});},solid(...data){solids.push(['sphere',...data]);},solidBox(...data){solids.push(['box',...data]);}},variant);

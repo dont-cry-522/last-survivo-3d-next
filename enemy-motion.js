@@ -1,4 +1,5 @@
-import{updateEnemyGrip}from'./enemy-appearance.js?v=189';
+import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=190';
+import{updateEnemyGrip}from'./enemy-appearance.js?v=190';
 // Attack timings are shared with the pose driver so the strike matches its hit.
 export const ENEMY_MOTION={
  foamling:{wind:.55,recover:.25,cadence:9,range:2.1},tidecrab:{wind:.7,recover:.35,cadence:10,range:3.1},reefturtle:{wind:1.1,recover:.6,cadence:4,range:4},jellyseer:{wind:.85,recover:.4,cadence:4,range:12},tidestar:{wind:.9,recover:.45,cadence:4,range:11},wreckwarden:{wind:1.25,recover:1.7,cadence:4},
@@ -144,6 +145,7 @@ function followEnemyHit(d,t,impact){
  else{d.head.rotation.x-=x;d.head.rotation.z-=z;d.tail.rotation.x-=x*.4;d.tail.rotation.z-=z*.4;}
 }
 export function animateEnemyIdentity(d,t,stride,phase,wind,release,impact){
+ if(d.regionalAppearance){animateRegionalAppearance(d,t,stride,phase,wind,release,impact);return;}
  const id=d.species||d.kind,rig=d.rig,pounce=d.pounce||0,active=d.previousAttack>0;
  const drive=active?smooth((wind-.66)/.34):release,gather=active?smooth(wind/.6)*(1-.85*drive):release*.15;
  if(d.appearance){animateForestEnemy(d,t,stride,phase,gather,drive,impact);followEnemyHit(d,t,impact);updateEnemyGrip(d);return;}

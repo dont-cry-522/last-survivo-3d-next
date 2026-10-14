@@ -1,4 +1,5 @@
 import * as T from './vendor/three.module.js';
+import {form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg} from './creature-forms.js?v=190';
 const materials=new Map(),geometries=new Map();
 function part(parent,color,x,y,z,sx,sy,sz,shape='sphere',lit=false){
  const key=color+':'+lit;if(!materials.has(key))materials.set(key,new T.MeshStandardMaterial({color,roughness:.78,metalness:.12,emissive:lit?color:0,emissiveIntensity:lit?.8:0}));
@@ -56,26 +57,43 @@ export function animateBoss(g,t,speed,dt){
  }
 }
 export function makeSandEnemy(kind){
- const g=model(kind),d=g.userData,r=d.rig;d.sandModel=true;
+ const g=model(kind),d=g.userData,r=d.rig;d.sandModel=true;d.organicModel=true;d.combatHeight={sandworm:.53,clawbeetle:.86,sandguard:1.85,sandspitter:2,duneoracle:2}[kind];
  if(kind==='sandworm'){
-  d.segments=[];for(let i=0;i<5;i++){const s=part(r,0xb99a69,0,.25,-i*.23,.30-i*.03,.28-i*.025,.30);d.segments.push(s);}eyes(r,0x372e30,.34,.25,.11);part(r,0x685440,0,.18,.28,.18,.13,.07);
+  const rings=[];for(let i=0;i<=22;i++){const z=-1.16+i*1.48/22,t=i/22,radius=.06+.23*Math.sin(t*Math.PI*.78),rib=1+(i%2?-.045:.045);rings.push([z,radius*rib,radius*.88*rib,0,.25]);}
+  d.body=form(r,'Sandworm_AnnulatedBody',()=>[surface(0xb59a70,rings,{axis:'z',sides:16,flexible:(x,y,z)=>[Math.max(0,(.32-z)/1.48),z*6,.08,.008,.020],shade:(c,x,y)=>c.lerp(new T.Color(y<.23?0x75634a:0xc8b082),Math.abs(y-.25)*1.8)})]);
+  d.head=organicJoint(r,0,.25,.25);form(d.head,'Sandworm_Mouth',()=>[surface(0x6f5840,[[-.06,.20,.16,0,0],[.04,.19,.15,0,0],[.08,.14,.10,0,0]],{axis:'z',sides:16}),oval(0x372f28,0,-.015,.082,.125,.084,.012),...face(0xdcc791,.085,.103,.104),...[-1,0,1].map(s=>tube(0xd6c7a2,[[s*.074,-.068,.081],[s*.063,-.030,.095],[s*.044,-.008,.094]],[.025,.020,.002],{steps:5,sides:5}))]);
  }else if(kind==='clawbeetle'){
-  part(r,0x85744b,0,.48,0,.5,.35,.72);part(r,0xc2a56c,0,.65,-.12,.46,.21,.5);eyes(r,0xeed183,.46,.6,.17);
-  for(const s of [-1,1])for(let i=0;i<3;i++){const leg=joint(r,s*.35,.35,.4-i*.36);const m=part(leg,0x554833,s*.3,-.08,0,.39,.075,.08);m.rotation.z=-s*.3;d.legs.push(leg);}for(const s of [-1,1]){const p=part(r,0x514938,s*.22,.25,.8,.11,.1,.3,'cone');p.rotation.x=1.1;p.rotation.z=s*.4;}
+  d.body=form(r,'Clawbeetle_JoinedCarapace',()=>[surface(0x9b8350,[[-.70,.03,.03,0,.42],[-.56,.33,.26,0,.48],[-.27,.49,.36,0,.48],[.12,.47,.32,0,.47],[.38,.31,.23,0,.43],[.51,.22,.18,0,.40],[.64,.10,.10,0,.37]],{axis:'z',sides:20,shade:(c,x,y,z)=>c.lerp(new T.Color(Math.abs(x)<.025?0x51442f:0xc0a369),y>.59?.35:0)}),...face(0xe1c675,.47,.582,.155),tube(0x665333,[[0,.805,-.50],[0,.837,-.24],[0,.77,.12]],[.009,.011,.007],{steps:10,sides:5})]);
+  for(const s of[-1,1])for(let i=0;i<3;i++)d.legs.push(leg(r,'BeetleFoot',{x:s*.32,y:.39,z:.33-i*.31,side:s,reach:.47,a:.33,b:.34,width:.067,color:0x8e734b,foot:0x4d4737,phase:i%2*Math.PI+(s>0?Math.PI:0)}));
+  d.jaws=[];for(const s of[-1,1]){const jaw=organicJoint(r,s*.19,.28,.54);form(jaw,'BeetleMandible_'+s,()=>[tube(0x524a36,[[0,0,0],[s*.07,-.015,.18],[s*.02,.015,.35],[-s*.07,.04,.39]],[.07,.068,.037,.002],{steps:11})]);d.jaws.push(jaw);}
  }else{
-  const guard=kind==='sandguard',c=guard?0x817255:kind==='duneoracle'?0x826c8b:0x738e89;
-  part(r,c,0,.82,0,guard?.47:.3,.64,.29);part(r,0xb8a077,0,1.48,0,.25,.28,.25);part(r,c,0,1.66,-.03,.3,.19,.27);eyes(r,0xf2d38b,1.47,.24,.10);
-  for(const s of [-1,1]){d.legs.push(limb(r,0x544b40,s*.2,.5,0,.47,.12));const a=limb(r,c,s*.35,1.2,0,.54,.14);d.arms.push(a);}
-  if(guard){part(d.arms[0],0x917a4e,0,-.2,.18,.38,.54,.12);part(d.arms[0],0xd5bd7f,0,-.2,.3,.065,.42,.03);part(d.arms[1],0xbbb6a0,0,-.3,.4,.075,.065,.6);}else{part(d.arms[1],0x685943,0,-.2,.12,.045,.8,.045);d.focus=part(d.arms[1],kind==='duneoracle'?0xe0b8ff:0xa6cfb8,0,.61,.12,.17,.19,.17,'stone',true);}
+  const guard=kind==='sandguard',oracle=kind==='duneoracle',c=guard?0x817255:oracle?0x826c8b:0x738e89,trim=guard?0xc6ac74:oracle?0xb9a2b6:0xb7baa0;
+  form(r,kind+'_TailoredBody',()=>[surface(c,[[.30,.23,.20],[.42,.31,.23],[.66,.28,.23],[.86,.25,.22],[1.07,guard?.36:.28,.25],[1.18,guard?.33:.25,.22],[1.24,.16,.15]],{sides:20,flute:.045}),tube(trim,[[-.22,1.08,.15],[-.16,.94,.23],[.03,.78,.24],[.22,.65,.18]],[.031,.039,.034,.024],{steps:13}),oval(0x61523c,-.25,.62,.03,.10,.15,.09)]);
+  d.hem=organicJoint(r,0,.46,0);form(d.hem,kind+'_SplitCloth',()=>[surface(c,[[0,.28,.23],[-.08,.32,.24],[-.20,.35,.26]],{sides:20,flute:.065})]);
+  d.head=organicJoint(r,0,1.44,0);form(d.head,kind+'_WrappedFace',()=>[surface(c,[[-.18,.15,.14],[-.09,.23,.19],[.10,.25,.21],[.24,.24,.20],[.36,.13,.13],[.39,.015,.015]],{flute:.035,sides:20}),oval(0xa68d6b,0,-.025,.166,.153,.137,.071),...[-1,1].flatMap(side=>[oval(0x3f3a30,side*.077,.023,.223,.047,.021,.017),oval(oracle?0xc1a5c7:0xc8b477,side*.079,.021,.237,.017,.012,.006,10,6)]),oval(0x79654d,0,-.037,.228,.027,.049,.025),tube(c,[[-.18,-.09,.11],[-.153,.055,.183],[-.082,.145,.199],[.085,.144,.198],[.16,.055,.180],[.18,-.09,.11]],[.037,.040,.043,.042,.039,.030],{steps:17}),tube(c,[[-.16,-.09,.155],[0,-.118,.207],[.16,-.09,.155]],[.03,.044,.03],{steps:10})]);
+  d.forearms=[];
+  for(const s of[-1,1]){d.legs.push(leg(r,'SandBoot',{x:s*.15,y:.48,z:0,a:.22,b:.25,width:.10,color:0x69604d,foot:0x4b453b,phase:s<0?0:Math.PI}));const arm=organicJoint(r,s*(guard?.33:.27),1.12,0),forearm=organicJoint(arm,0,-.245,.01);form(arm,kind+'_Sleeve',()=>[tube(c,[[0,.025,0],[s*.014,-.12,.015],[0,-.25,.01]],[.12,.11,.082],{steps:8})]);form(forearm,kind+'_Forearm',()=>[tube(c,[[0,.018,0],[0,-.13,.025],[0,-.245,.048]],[.084,.077,.058],{steps:8}),oval(0xbda981,0,-.275,.05,.064,.069,.074)]);forearm.rotation.x=-.24;d.arms.push(arm);d.forearms.push(forearm);}
+  if(guard){
+   form(d.forearms[0],'Sandguard_BoundShield',()=>[surface(0x9b8355,[[-.58,.045,.045,0,.11],[-.40,.28,.09,0,.11],[-.08,.32,.12,0,.11],[.20,.24,.10,0,.11],[.26,.05,.03,0,.11]],{sides:16}),tube(0xd4bc84,[[0,-.49,.22],[0,-.14,.245],[0,.19,.21]],[.027,.039,.026],{steps:8})]);
+   form(d.forearms[1],'Sandguard_CurvedBlade',()=>[tube(0xb9b9a7,[[0,-.28,.05],[0,-.27,.30],[.04,-.23,.58],[.10,-.19,.77]],[.043,.042,.029,.001],{steps:12,sides:6}),oval(0x796141,0,-.28,.06,.052,.052,.15)]);
+  }else{
+   d.staff=organicJoint(d.forearms[1],0,-.26,.07);form(d.staff,kind+'_CrookedStaff',()=>[tube(0x6e5b42,[[0,-.65,0],[-.025,-.1,.01],[.02,.45,0],[.0,.84,.015],[-.07,.95,.02]],[.027,.032,.030,.031,.023],{steps:16}),tube(trim,[[-.07,.72,.015],[.11,.83,.02],[.06,.96,.025]],[.025,.026,.015],{steps:8})]);
+   d.attackSocket=organicJoint(d.staff,0,.86,.02);d.focus=form(d.attackSocket,kind+'_Focus',()=>[oval(oracle?0xd8b5df:0xb1cab2,0,0,0,.10,.13,.09)],{glow:true});
+  }
  }
+ animateSandEnemy(g,0,0,0,0);
  return g;
 }
 export function animateSandEnemy(g,t,speed,attack,dt){
  const d=g.userData,r=d.rig,stride=Math.min(1,speed/3);d.phase+=speed*dt*3.2;const p=d.phase;
  const desiredWind=attack>0?1-Math.min(1,attack/(d.kind==='sandguard'?1.05:.7)):0;d.gather=(d.gather||0)+(desiredWind-(d.gather||0))*(1-Math.exp(-dt*8));const wind=d.gather;if(d.kind==='duneoracle')r.rotation.y=Math.sin(t*1.7)*.055;else r.rotation.y=0;
  if(d.previousAttack>0&&attack<=0)d.release=.3;d.previousAttack=attack;d.release=Math.max(0,(d.release||0)-dt);const rawStrike=Math.sin(Math.PI*d.release/.3);d.strike=(d.strike||0)+(rawStrike-(d.strike||0))*(1-Math.exp(-dt*9));const strike=d.strike;
- r.rotation.set(wind*.1-strike*.16,d.kind==='duneoracle'?Math.sin(t*1.7)*.055:0,Math.sin(p)*(d.kind==='sandspitter'?.085:.04)*stride);r.position.y=-wind*.12+Math.abs(Math.sin(p))*.04*stride;
- if(d.segments)d.segments.forEach((s,i)=>{s.position.x=Math.sin(p-i*.8)*.13*stride;s.position.y=.25+Math.sin(p-i*.8)*.07*stride+strike*.28;});
- d.legs.forEach((l,i)=>{l.rotation.x=Math.sin(p+i*Math.PI)*.4*stride;if(d.kind==='clawbeetle')l.rotation.y=Math.sin(p+i*2.1)*.3*stride;});
- d.arms.forEach((a,i)=>a.rotation.x=Math.sin(p+i*Math.PI)*(d.kind==='sandguard'?.14:.25)*stride-wind*(d.kind==='duneoracle'?1.1:1.4)+strike*.65);
+ const beetle=d.kind==='clawbeetle',worm=d.kind==='sandworm';
+ r.rotation.set(wind*(worm?.045:.045)-strike*.065,d.kind==='duneoracle'?Math.sin(t*1.1)*.025:0,Math.sin(p)*.018*stride);r.position.y=-wind*.025+Math.abs(Math.sin(p))*.012*stride;r.position.z=-wind*.025+strike*.035;
+ if(worm){d.head.rotation.x=wind*.12-strike*.22;d.head.position.z=.25-wind*.02+strike*.045;r.rotation.z=0;}
+ for(const l of d.legs)stepLeg(l,r,p,stride*(1-wind*.7),{travel:beetle?.10:.12,lift:beetle?.075:.09});
+ if(d.jaws)d.jaws.forEach((j,i)=>j.rotation.y=(i?1:-1)*(wind*.24-strike*.18));
+ d.arms.forEach((a,i)=>{a.rotation.set(Math.sin(p+i*Math.PI)*.12*stride-wind*(i?.75:.38)+strike*(i?.28:.10),wind*(i?.12:-.08),Math.sin(p-.5)*.025*stride);d.forearms[i].rotation.x=-.24-wind*(i?.42:.18)+strike*.16;});
+ if(d.hem)d.hem.rotation.set(Math.sin(p-.5)*.045*stride+wind*.03,0,Math.sin(p-.7)*.035*stride);
+ if(d.head&&!worm)d.head.rotation.set(wind*.055-strike*.07,Math.sin(t*.8)*.025*(1-stride),Math.sin(p-.4)*.015*stride);
 }

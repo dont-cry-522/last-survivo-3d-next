@@ -1,14 +1,14 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
-import{batchedSurfaceMaterial,prepareBatchedSurface}from'./environment-props.js?v=189';
-import{waterDepth}from'./water.js?v=189';
-import{bridgeContains}from'./coast.js?v=189';
-import{segmentDistance}from'./rules.js?v=189';
-import{buildWoodlandPlace}from'./woodland-places.js?v=189';
-import{buildRuinPlace}from'./ruin-places.js?v=189';
-import{buildHarborPlace}from'./harbor-place.js?v=189';
-import{coastPlaceCandidates,harborPierPlan}from'./harbor-bank-layout.js?v=189';
-import{installHarborBank}from'./harbor-bank.js?v=189';
+import{batchedSurfaceMaterial,prepareBatchedSurface}from'./environment-props.js?v=190';
+import{waterDepth}from'./water.js?v=190';
+import{bridgeContains}from'./coast.js?v=190';
+import{segmentDistance}from'./rules.js?v=190';
+import{buildWoodlandPlace}from'./woodland-places.js?v=190';
+import{buildRuinPlace}from'./ruin-places.js?v=190';
+import{buildHarborPlace}from'./harbor-place.js?v=190';
+import{coastPlaceCandidates,harborPierPlan}from'./harbor-bank-layout.js?v=190';
+import{installHarborBank}from'./harbor-bank.js?v=190';
 
 const templates=new Map(),materials=new Map(),HALF_X=9.4,HALF_Z=8.4;
 function finish(category){

@@ -1,7 +1,7 @@
-import{badgerAttack,badgerCadence,badgerIdle,smooth}from'./badger-motion.js?v=189';
-import{swimLimb as placeLimb}from'./swim-motion.js?v=189';
+import{badgerAttack,badgerCadence,badgerIdle,smooth}from'./badger-motion.js?v=190';
+import{swimLimb as placeLimb}from'./swim-motion.js?v=190';
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=189';
+import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=190';
 const geo=new Map(),mats=new Map();
 function material(c){if(!mats.has(c))mats.set(c,new T.MeshStandardMaterial({color:c,roughness:.84}));return mats.get(c);}
 function sphere(g,c,x,y,z,sx,sy,sz){if(!geo.has('sphere'))geo.set('sphere',new T.SphereGeometry(1,24,16));const m=new T.Mesh(geo.get('sphere'),material(c));m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=m.receiveShadow=true;g.add(m);return m;}

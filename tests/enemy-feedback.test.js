@@ -1,6 +1,18 @@
 import test from 'node:test';import assert from 'node:assert/strict';import * as T from '../vendor/three.module.js';
 import {recordEnemyHit,restoreEnemyHit,animateEnemyHit,EnemyDeaths} from '../enemy-feedback.js';
 const target=()=>{const mesh=new T.Group(),rig=new T.Group();mesh.add(rig);mesh.userData.rig=rig;return mesh;};
+test('contact tint is isolated, cached, pause-safe and restored on recovery/death',()=>{
+ const base=new T.MeshStandardMaterial({color:0x476754}),color=base.color.clone(),a=target(),b=target();
+ for(const m of[a,b])m.userData.rig.add(new T.Mesh(new T.SphereGeometry(.2,6,4),base));
+ const am=a.userData.rig.children[0],bm=b.userData.rig.children[0];
+ recordEnemyHit(a,{damage:10});const tint=am.material;
+ assert.notEqual(tint,base);assert.equal(bm.material,base);assert(base.color.equals(color));
+ animateEnemyHit(a,0);assert.equal(am.material,tint);
+ recordEnemyHit(b,{damage:10});assert.equal(bm.material,tint,'one shared variant, no per-enemy allocation');
+ restoreEnemyHit(a);animateEnemyHit(a,.11);assert.equal(am.material,base);
+ assert.equal(bm.material,tint);const deaths=new EnemyDeaths(new T.Scene());deaths.add({mesh:b,role:'wolf'});assert.equal(bm.material,base);
+ recordEnemyHit(a,{damage:0});assert.equal(am.material,base);
+});
 test('directional recoil separates light/heavy hits without moving collision roots or accumulating',()=>{
  for(const fps of [15,30,60,120])for(const angle of [0,Math.PI/2,Math.PI,-Math.PI/2]){
   const mesh=target(),rig=mesh.userData.rig;recordEnemyHit(mesh,{kind:'hammer',angle,damage:40,maxHp:100});let peak=0;

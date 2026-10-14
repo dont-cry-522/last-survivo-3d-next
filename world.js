@@ -1,31 +1,32 @@
-import{forestStreamLayout}from'./forest-stream-layout.js?v=189';
-import{bodyTravel}from'./actor-collision.js?v=189';
-import{followNaturalGround}from'./adventure-mobility.js?v=189';
-import{canMoveBelowOverhead}from'./adventure-overheads.js?v=189';
-import{buildConfluence,biomeWeights}from'./confluence.js?v=189';
-import{addTree,updateTreeDetail,animateTreeCanopy}from'./tree-scenery.js?v=189';
-import{installTactics}from'./map-tactics.js?v=189';
-import{installRoaming}from'./roaming-events.js?v=189';
-import{installDiscoveries}from'./map-discoveries.js?v=189';
-import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=189';
-import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=189';
-import{districtLayout,buildDistricts}from'./map-districts.js?v=189';
-import{makeCoastEnemy,animateCoastEnemy,coastProp}from'./coast-models.js?v=189';
-import{installCoast}from'./coast.js?v=189';
-import{coastLayout as buildCoastLayout}from'./coast-layout.js?v=189';
-import{makeBoss,animateBoss,makeSandEnemy,animateSandEnemy}from'./expansion-models.js?v=189';
-import{siteSchedule}from'./site-discovery.js?v=189';
-import{MAP_EVENTS,biomeEvent,eventNodes}from'./map-events.js?v=189';
-import{MAP_HALF,MAP_SCALE}from'./map-layout.js?v=189';
-import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=189';
-import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=189';
-import{polishEnemyAppearance}from'./enemy-appearance.js?v=189';
-import{REGIONAL_ENEMIES}from'./map-enemies.js?v=189';
-import{groundCue}from'./ground-cues.js?v=189';
-import{heroesReady,createSkinnedHero,animateSkinnedHero}from'./skinned-hero.js?v=189';
+import{polishRegionalEnemy}from'./regional-enemy-appearance.js?v=190';
+import{forestStreamLayout}from'./forest-stream-layout.js?v=190';
+import{bodyTravel}from'./actor-collision.js?v=190';
+import{followNaturalGround}from'./adventure-mobility.js?v=190';
+import{canMoveBelowOverhead}from'./adventure-overheads.js?v=190';
+import{buildConfluence,biomeWeights}from'./confluence.js?v=190';
+import{addTree,updateTreeDetail,animateTreeCanopy}from'./tree-scenery.js?v=190';
+import{installTactics}from'./map-tactics.js?v=190';
+import{installRoaming}from'./roaming-events.js?v=190';
+import{installDiscoveries}from'./map-discoveries.js?v=190';
+import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=190';
+import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=190';
+import{districtLayout,buildDistricts}from'./map-districts.js?v=190';
+import{makeCoastEnemy,animateCoastEnemy,coastProp}from'./coast-models.js?v=190';
+import{installCoast}from'./coast.js?v=190';
+import{coastLayout as buildCoastLayout}from'./coast-layout.js?v=190';
+import{makeBoss,animateBoss,makeSandEnemy,animateSandEnemy}from'./expansion-models.js?v=190';
+import{siteSchedule}from'./site-discovery.js?v=190';
+import{MAP_EVENTS,biomeEvent,eventNodes}from'./map-events.js?v=190';
+import{MAP_HALF,MAP_SCALE}from'./map-layout.js?v=190';
+import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=190';
+import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=190';
+import{polishEnemyAppearance}from'./enemy-appearance.js?v=190';
+import{REGIONAL_ENEMIES}from'./map-enemies.js?v=190';
+import{groundCue}from'./ground-cues.js?v=190';
+import{heroesReady,createSkinnedHero,animateSkinnedHero}from'./skinned-hero.js?v=190';
 import * as T from './vendor/three.module.js';
-import{makeHero,animateHero}from'./hero-model.js?v=189';
-import{MAPS,seeded}from'./rules.js?v=189';
+import{makeHero,animateHero}from'./hero-model.js?v=190';
+import{MAPS,seeded}from'./rules.js?v=190';
 const geo=new Map(),materials=new Map(),terrainMaterials=new Map(),detailMaterials=new Map(),weatherMaterials=new Map();
 const hiddenWeatherMatrix=new T.Matrix4().makeScale(0,0,0);
 let fireflyTexture;
@@ -101,7 +102,7 @@ function regionalActor(id){
   if(snow)for(const side of [-1,1]){const ice=mesh('OctahedronGeometry',[.13],0xb3dceb,side*.42,1.02,-.13,rig);ice.scale.y=2.3;}
   else {const stole=box(rig,0x973e32,0,.77,.4,.21,.78,.06);stole.rotation.x=-.1;}
  }
- return g;
+ return polishRegionalEnemy(g,id);
 }
 export function animateActor(g,t,speed=0,attack=0,hurt=0){
  const d=g.userData,dt=d.feedbackTime===undefined?1/60:Math.max(0,Math.min(.1,t-d.feedbackTime));d.feedbackTime=t;restoreEnemyHit(g);animateBaseActor(g,t,speed,attack,d.hitReaction?0:hurt);animateEnemyHit(g,dt);

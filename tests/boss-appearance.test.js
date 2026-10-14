@@ -20,7 +20,7 @@ test('five rebuilt bosses preserve legacy projectile bounds and reuse sealed fin
    assert.equal(part.material.side,T.FrontSide);assert(geo.boundingSphere.radius>0);calls++;triangles+=(geo.index?.count||p.count)/3;
   }
  }
- assert(calls<=125,'boss batches unbounded');assert(triangles<65000,'boss geometry budget exceeded');
+ assert(calls<=140,'boss batches unbounded');assert(triangles<70000,'boss geometry budget exceeded');
  assert.equal(actor('dunescorpion').userData.legs.length,8);assert.equal(actor('wreckwarden').userData.legs.length,6);
 });
 test('each boss move has its own pose and continuous wind / strike / recovery transitions',()=>{

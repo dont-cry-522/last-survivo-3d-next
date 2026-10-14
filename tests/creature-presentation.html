@@ -1,24 +1,26 @@
 <!doctype html><meta charset="utf-8"><title>五境怪物表现检查</title>
 <style>body{background:#192821;color:#f0e9d8;font:15px system-ui;margin:16px}button,select{padding:8px}canvas{display:block;max-width:100%;height:auto;margin-top:12px}#portraits img{width:160px;background:#25352f;border-radius:12px;margin:6px}pre{white-space:pre-wrap}.filmstrip-row{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:8px;max-width:1120px}.filmstrip-row figure{margin:0;background:#25352f}.filmstrip-row img{width:100%;display:block}.filmstrip-row figcaption{font-size:12px;padding:6px}@media(max-width:700px){.filmstrip-row{grid-template-columns:repeat(2,minmax(120px,1fr))}}</style>
 <h1>五境怪物 · 实际模型与连续动作</h1>
-<p>每张地图五种普通怪物，使用正式模型、动作与共享材质；本页不写玩家存档。</p>
-<select id="biome"><option value="forest">森林</option><option value="snow">雪地</option><option value="ash">灰烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="air">五境飞行怪</option><option value="boss">五境首领</option></select><select id="mode"><option value="walk">行走</option><option value="attack">蓄力 → 攻击 → 收招</option><option value="idle">待机</option></select>
+<p>五张地图各五种普通怪物、三位首领，使用正式模型、动作与共享材质；本页不写玩家存档。</p>
+<select id="biome"><option value="forest">森林</option><option value="snow">雪地</option><option value="ash">灰烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="air">五境飞行怪</option><option value="boss">原五境守卫</option><option value="boss-forest">森林三首领</option><option value="boss-snow">雪地三首领</option><option value="boss-ash">灰烬三首领</option><option value="boss-sand">沙漠三首领</option><option value="boss-coast">海港三首领</option></select><select id="mode"><option value="walk">行走</option><option value="attack">蓄力 → 攻击 → 收招</option><option value="idle">待机</option></select>
 <select id="focus" aria-label="观察距离"><option value="all">全组对照</option><option value="0">近看第一种</option><option value="1">近看第二种</option><option value="2">近看第三种</option><option value="3">近看第四种</option><option value="4">近看第五种</option></select><label><input type="checkbox" id="old">旧造型对照</label><button id="pause">暂停</button><button id="step">前进 0.1 秒</button><button id="portraits-button">生成正式图鉴图片</button>
 <select id="view" aria-label="观察角度"><option value="front">正面</option><option value="side">侧面</option><option value="three-quarter" selected>斜侧</option><option value="back">背面</option></select><label><input type="checkbox" id="translate" checked>真实根移动 · 1 米地面刻线</label><button id="filmstrip-button">狼 / 霜狼 / 雪兔 · 连续 8 帧</button>
 <button id="checks">检查全部怪物</button><button id="hit">受击预览</button><button id="still">固定展示姿势</button><pre id="checks-report"></pre><pre id="report">LOADING</pre><div id="stage"></div><div id="portraits"></div>
 <section id="filmstrip"><h2>连续走动对照</h2><p>每组先连续行走 1 秒，再按 0.1 秒间隔截取 8 帧；抽帧之间仍以 1/60 秒推进正式动作。相机跟随，地面刻线保持世界坐标，便于观察脚是否滑地。此页只检查模型动作，不模拟寻路或伤害。</p><pre id="filmstrip-report">尚未生成</pre><div id="filmstrip-images"></div></section>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=195';
-import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=195';
-import {setCreatureTime} from '../creature-forms.js?v=195';
-import {MAP_ROSTERS,REGIONAL_ENEMIES} from '../map-enemies.js?v=195';
+import {actor,animateActor} from '../world.js?v=196';
+import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=196';
+import {setCreatureTime} from '../creature-forms.js?v=196';
+import {MAP_ROSTERS,REGIONAL_ENEMIES} from '../map-enemies.js?v=196';
 import {ENEMIES} from '../rules.js';
-import {BOSS_STYLES,bossAttackPlan} from '../boss-combat.js?v=195';
-import {recordEnemyHit} from '../enemy-feedback.js?v=195';
-import {enemyCastFlight} from '../enemy-cast-vfx.js?v=195';
-import {SkillVFX} from '../skill-vfx.js?v=195';
-import {ENEMY_MOTION,gaitPace,advanceEnemyLocomotion} from '../enemy-motion.js?v=195';
+import {BOSS_ROUTES,ADDITIONAL_BOSSES} from '../boss-roster.js?v=196';
+import {BOSS_TRAVEL} from '../boss-patterns.js?v=196';
+import {BOSS_STYLES,bossAttackPlan} from '../boss-combat.js?v=196';
+import {recordEnemyHit} from '../enemy-feedback.js?v=196';
+import {enemyCastFlight} from '../enemy-cast-vfx.js?v=196';
+import {SkillVFX} from '../skill-vfx.js?v=196';
+import {ENEMY_MOTION,gaitPace,advanceEnemyLocomotion} from '../enemy-motion.js?v=196';
 let kinds=[];const scene=new T.Scene(),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
 renderer.setSize(1120,460);renderer.setClearColor(0x25382f);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
 document.querySelector('#stage').append(renderer.domElement);scene.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));
@@ -28,12 +30,12 @@ const lines=[];for(let z=-80;z<=80;z++)lines.push(-15,-.012,z,15,-.012,z);const 
 const camera=new T.OrthographicCamera(-8.25,8.25,2.80,-2.80,.1,60);camera.position.set(0,4.6,16);camera.lookAt(0,.9,0);
 const vfx=new SkillVFX(scene,{groundHeight:()=>0});const lastEffects=new Map();
 let models=[],clock=0,last=0,paused=false,filmstripBusy=false;
-function reset(){lastEffects.clear();kinds=document.querySelector('#biome').value==='boss'?Object.values(MAP_ROSTERS).map(r=>r.boss):document.querySelector('#biome').value==='air'?Object.values(AIR_ROSTERS):Object.values(MAP_ROSTERS[document.querySelector('#biome').value]).slice(0,5);vfx.clear();for(const m of models)scene.remove(m);models=kinds.map((kind,i)=>{const m=AIR_ENEMIES[kind]?makeAirborne(kind):actor(kind,undefined,!document.querySelector('#old').checked);m.position.x=(i-2)*3.1;m.rotation.y=0;const bounds=new T.Box3().setFromObject(m),center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3());m.userData.fixture={gait:0,distance:0,offset:center.sub(m.position),half:Math.max(size.y,size.x*.55,size.z*.55)*.74+.08};scene.add(m);return m;});clock=0;poseModels(0);draw();}
+function reset(){lastEffects.clear();const selected=document.querySelector('#biome').value;kinds=selected.startsWith('boss-')?BOSS_ROUTES[selected.slice(5)]:selected==='boss'?Object.values(MAP_ROSTERS).map(r=>r.boss):document.querySelector('#biome').value==='air'?Object.values(AIR_ROSTERS):Object.values(MAP_ROSTERS[document.querySelector('#biome').value]).slice(0,5);if(Number(document.querySelector('#focus').value)>=kinds.length)document.querySelector('#focus').value='all';vfx.clear();for(const m of models)scene.remove(m);models=kinds.map((kind,i)=>{const m=AIR_ENEMIES[kind]?makeAirborne(kind):actor(kind,undefined,!document.querySelector('#old').checked);m.position.x=(i-(kinds.length-1)/2)*(selected.startsWith('boss-')?5.3:3.1);m.rotation.y=0;const bounds=new T.Box3().setFromObject(m),center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3());m.userData.fixture={gait:0,distance:0,offset:center.sub(m.position),half:Math.max(size.y,size.x*.55,size.z*.55)*.74+.08};scene.add(m);return m;});clock=0;poseModels(0);draw();}
 function frameModels(){
  const focus=document.querySelector('#focus').value;
  models.forEach((m,i)=>m.visible=focus==='all'||String(i)===focus);
  if(focus==='all'){
-  const bosses=document.querySelector('#biome').value==='boss',half=bosses?4.2:2.8;camera.left=-half*1120/460;camera.right=half*1120/460;camera.top=half;camera.bottom=-half;
+  const bosses=document.querySelector('#biome').value.startsWith('boss'),half=bosses?4.2:2.8;camera.left=-half*1120/460;camera.right=half*1120/460;camera.top=half;camera.bottom=-half;
   const z=models.reduce((n,m)=>n+m.position.z,0)/models.length;camera.position.set(0,bosses?5.5:4.6,z+18);camera.lookAt(0,bosses?2.5:.9,z);
  }else{
   const m=models[Number(focus)],center=m.position.clone().add(m.userData.fixture.offset),half=m.userData.fixture.half,size=renderer.getSize(new T.Vector2());
@@ -56,7 +58,7 @@ function poseModels(dt){
     for(const move of moves){chosen=move;const span=style.wind+move.duration+style.recovery;if(elapsed<span)break;elapsed-=span;}
     d.bossMove=chosen.move;d.bossStage=mode!=='attack'?'walk':elapsed<style.wind?'wind':elapsed<style.wind+chosen.duration?'strike':'recover';
     d.windProgress=d.bossStage==='wind'?elapsed/style.wind:0;d.strikeProgress=d.bossStage==='strike'?(elapsed-style.wind)/chosen.duration:0;d.recoverProgress=d.bossStage==='recover'?(elapsed-style.wind-chosen.duration)/style.recovery:0;
-    const leap=chosen.move==='leap',burrow=chosen.move==='burrow';d.lift=d.bossStage==='strike'&&(leap||burrow)?Math.sin(Math.min(1,(elapsed-style.wind)/(leap?.65:.85))*Math.PI)*(leap?3.8:-2.5):0;
+    const travel=BOSS_TRAVEL[chosen.move]||(chosen.move==='leap'?[.65,3.8]:chosen.move==='burrow'?[.85,-2.5]:null);d.lift=d.bossStage==='strike'&&travel?Math.sin(Math.min(1,(elapsed-style.wind)/travel[0])*Math.PI)*travel[1]:0;
     wind=d.bossStage==='wind'?style.wind-elapsed:0;
    }
    if(mode==='walk')fixture.gait+=dt*cfg.cadence;
@@ -72,10 +74,10 @@ function poseModels(dt){
 function advanceTime(amount){for(let remaining=amount;remaining>1e-9;){const dt=Math.min(1/60,remaining);clock+=dt;poseModels(dt);vfx.update(dt);remaining-=dt;}}
 function draw(){setCreatureTime(clock);frameModels();renderer.render(scene,camera);document.querySelector('#report').textContent=JSON.stringify({status:'READY',mode:document.querySelector('#mode').value,time:+clock.toFixed(2),biome:document.querySelector('#biome').value,view:document.querySelector('#view').value,translation:document.querySelector('#translate').checked,roots:models.map((m,i)=>({kind:kinds[i],z:+m.position.z.toFixed(4),distance:+m.userData.fixture.distance.toFixed(4),move:m.userData.bossMove,stage:m.userData.bossStage})),polished:!document.querySelector('#old').checked,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles});}
 document.querySelector('#biome').onchange=reset;document.querySelector('#mode').onchange=reset;document.querySelector('#hit').onclick=()=>{for(const m of models)recordEnemyHit(m,{damage:20,kind:'rifle',angle:.5});advanceTime(1/60);draw();};document.querySelector('#still').onclick=()=>{paused=true;document.querySelector('#pause').textContent='继续';document.querySelector('#mode').value='idle';reset();advanceTime(.5);draw();};document.querySelector('#old').onchange=reset;document.querySelector('#pause').onclick=()=>{paused=!paused;document.querySelector('#pause').textContent=paused?'继续':'暂停';};document.querySelector('#step').onclick=()=>{paused=true;document.querySelector('#pause').textContent='继续';advanceTime(.1);draw();};
-document.querySelector('#portraits-button').onclick=()=>{const root=document.querySelector('#portraits');root.replaceChildren();const r=new T.WebGLRenderer({alpha:true,antialias:true,preserveDrawingBuffer:true});r.setSize(256,256);r.setClearColor(0,0);r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.25;const s=new T.Scene();s.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));s.add(sun.clone(),rim.clone());for(const kind of [...Object.values(MAP_ROSTERS).flatMap(roster=>Object.values(roster)),...Object.values(AIR_ROSTERS)]){const m=AIR_ENEMIES[kind]?makeAirborne(kind):actor(kind);s.add(m);m.userData.expressionSeed=0;if(!AIR_ENEMIES[kind])animateActor(m,.5,0,0,0);const bounds=new T.Box3().setFromObject(m),center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3()),half=Math.max(size.x,size.y,size.z)*.67,c=new T.OrthographicCamera(-half,half,half,-half,.1,60);c.position.copy(center).add(new T.Vector3(4,2.2,6).normalize().multiplyScalar(20));c.lookAt(center);r.render(s,c);const img=document.createElement('img');img.id='portrait-'+kind;img.alt=kind;img.src=r.domElement.toDataURL('image/png');root.append(img);s.remove(m);}r.dispose();};
+document.querySelector('#portraits-button').onclick=()=>{const root=document.querySelector('#portraits');root.replaceChildren();const r=new T.WebGLRenderer({alpha:true,antialias:true,preserveDrawingBuffer:true});r.setSize(256,256);r.setClearColor(0,0);r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.25;const s=new T.Scene();s.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));s.add(sun.clone(),rim.clone());for(const kind of [...Object.values(MAP_ROSTERS).flatMap(roster=>Object.values(roster)),...Object.values(AIR_ROSTERS),...Object.keys(ADDITIONAL_BOSSES)]){const m=AIR_ENEMIES[kind]?makeAirborne(kind):actor(kind);s.add(m);m.userData.expressionSeed=0;if(!AIR_ENEMIES[kind])animateActor(m,.5,0,0,0);const bounds=new T.Box3().setFromObject(m),center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3()),half=Math.max(size.x,size.y,size.z)*.67,c=new T.OrthographicCamera(-half,half,half,-half,.1,60);c.position.copy(center).add(new T.Vector3(4,2.2,6).normalize().multiplyScalar(20));c.lookAt(center);r.render(s,c);const img=document.createElement('img');img.id='portrait-'+kind;img.alt=kind;img.src=r.domElement.toDataURL('image/png');root.append(img);s.remove(m);}r.dispose();};
 document.querySelector('#checks').onclick=()=>{
  const results=[];let error=null;document.querySelector('#focus').value='all';
- try{for(const biome of [...Object.keys(MAP_ROSTERS),'air','boss']){document.querySelector('#biome').value=biome;reset();for(const mode of ['idle','walk','attack']){document.querySelector('#mode').value=mode;reset();for(let i=0;i<210;i++){clock=i/60;poseModels(1/60);vfx.update(1/60);draw();}for(const m of models){m.updateMatrixWorld(true);m.traverse(o=>{if(!o.matrixWorld.elements.every(Number.isFinite))throw Error(biome+' '+mode+' invalid pose');});}if(renderer.getContext().getError()!==0||renderer.info.programs.some(p=>p.diagnostics?.runnable===false))throw Error(biome+' shader/GL');results.push({biome,mode,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles});}}
+ try{for(const biome of [...Object.keys(MAP_ROSTERS),'air',...Object.keys(BOSS_ROUTES).map(id=>'boss-'+id)]){document.querySelector('#biome').value=biome;reset();for(const mode of ['idle','walk','attack']){document.querySelector('#mode').value=mode;reset();for(let i=0;i<210;i++){clock=i/60;poseModels(1/60);vfx.update(1/60);draw();}for(const m of models){m.updateMatrixWorld(true);m.traverse(o=>{if(!o.matrixWorld.elements.every(Number.isFinite))throw Error(biome+' '+mode+' invalid pose');});}if(renderer.getContext().getError()!==0||renderer.info.programs.some(p=>p.diagnostics?.runnable===false))throw Error(biome+' shader/GL');results.push({biome,mode,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles});}}
  }catch(e){error=String(e);}finally{paused=true;document.querySelector('#pause').textContent='继续';document.querySelector('#checks-report').textContent=JSON.stringify({results,error});}
 };
 document.querySelector('#filmstrip-button').onclick=()=>{

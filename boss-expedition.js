@@ -1,6 +1,5 @@
-import{EXPEDITION_BOSS_TIME}from'./encounters.js?v=195';
-// Existing bosses visit each local arena; the five-region expedition keeps its own progression.
-export const BOSS_ROUTES={forest:['forest','sand','snow'],snow:['snow','forest','ash'],ash:['ash','sand','coast'],sand:['sand','ash','forest'],coast:['coast','snow','sand']};
+import{EXPEDITION_BOSS_TIME}from'./encounters.js?v=196';
+export {BOSS_ROUTES} from './boss-roster.js?v=196';
 export const BOSS_ROUNDS=[{health:2600,pressure:1},{health:3900,pressure:1.12},{health:5600,pressure:1.24}];
 export const BOSS_BREAK=75;
 export function createBossRun(){return{defeated:0,nextAt:EXPEDITION_BOSS_TIME};}

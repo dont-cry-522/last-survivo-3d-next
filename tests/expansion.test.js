@@ -7,7 +7,7 @@ import {recordVictory,readJournal,writeJournal} from '../expedition.js';
 import {weaponStats,takeUpgrade,chooseUpgrades,HERO_LOADOUTS} from '../rules.js';
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
 const transforms=m=>{const a=[];m.traverse(o=>a.push(...o.position.toArray(),o.rotation.x,o.rotation.y,o.rotation.z,...o.scale.toArray()));return a;};
-test('five bosses finish every distinct move, lock targets, and expose a recovery window at all frame rates',()=>{
+test('fifteen bosses finish every distinct move, lock targets, and expose a recovery window at all frame rates',()=>{
  for(const fps of [30,60,120])for(const[kind,style]of Object.entries(BOSS_STYLES)){
   const b={kind,mesh:actor(kind),x:0,z:0,hp:2000,maxHp:2000,phase:1,turn:0},p={x:1,z:8},zones=[],stages=new Set(),moves=new Set();
   const io={move:(b,x,z)=>{b.x+=x;b.z+=z;},visible:()=>true,landing:p=>({...p}),zone:z=>zones.push({...z}),sound(){},notice(){}};
@@ -25,7 +25,7 @@ test('five bosses finish every distinct move, lock targets, and expose a recover
 test('boss threat patterns have guaranteed escape space and different silhouettes',()=>{
  const b={x:0,z:0,phase:1},p={x:0,z:8};
  const furnace=bossAttackPlan('cinderlord','furnace',b,p);assert(furnace.zones.every(z=>Math.abs(z.x)>z.r+.4));
- const shapes=new Set();for(const kind of Object.keys(BOSS_STYLES))shapes.add(transforms(actor(kind)).join(','));assert.equal(shapes.size,5);
+ const shapes=new Set();for(const kind of Object.keys(BOSS_STYLES))shapes.add(transforms(actor(kind)).join(','));assert.equal(shapes.size,15);
  for(const[kind,cfg]of Object.entries(BOSS_STYLES))for(const move of cfg.moves){const plan=bossAttackPlan(kind,move,b,p);assert(plan.duration>0);assert(plan.zones.length<=9);}
 });
 test('remaining public loadouts and weapon routes are playable without guardian entries',()=>{

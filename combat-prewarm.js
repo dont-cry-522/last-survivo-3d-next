@@ -1,15 +1,15 @@
 import * as T from './vendor/three.module.js';
-import {actor} from './world.js?v=195';
-import {MAP_ROSTERS} from './map-enemies.js?v=195';
-import {BOSS_ROUTES} from './boss-expedition.js?v=195';
-import {AIR_ROSTERS, AIR_ENEMIES, makeAirborne} from './airborne-enemies.js?v=195';
+import {actor} from './world.js?v=196';
+import {MAP_ROSTERS} from './map-enemies.js?v=196';
+import {BOSS_ROUTES} from './boss-expedition.js?v=196';
+import {AIR_ROSTERS, AIR_ENEMIES, makeAirborne} from './airborne-enemies.js?v=196';
 
 // Models only: no enemy instances, encounters, random rolls, audio or game clocks.
 export function combatSampleKinds(mapId){
  const maps=mapId==='confluence'?Object.keys(MAP_ROSTERS):[Object.hasOwn(MAP_ROSTERS,mapId)?mapId:'forest'];
  return [...new Set(maps.flatMap(map=>[
   ...Object.values(MAP_ROSTERS[map]),
-  ...(BOSS_ROUTES[map]||[map]).map(region=>MAP_ROSTERS[region].boss),
+  ...(mapId==='confluence'?[]:BOSS_ROUTES[map]),
   AIR_ROSTERS[map]
  ]))];
 }

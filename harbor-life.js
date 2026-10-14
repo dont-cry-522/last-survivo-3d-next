@@ -1,8 +1,8 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {batchedSurfaceMaterial,prepareBatchedSurface} from './environment-props.js?v=195';
-import {waterDepth} from './water.js?v=195';
-import {bridgeContains} from './coast.js?v=195';
+import {batchedSurfaceMaterial,prepareBatchedSurface} from './environment-props.js?v=196';
+import {waterDepth} from './water.js?v=196';
+import {bridgeContains} from './coast.js?v=196';
 
 // Small working craft belong to actual piers, not arbitrary dry-ground scatters.
 // Keep the deck, its end approach and the other side open for travel/swimming.

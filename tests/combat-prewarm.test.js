@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as T from '../vendor/three.module.js';
 import {combatSampleKinds,prepareCombatSamples} from '../combat-prewarm.js';
-import {MAP_ROSTERS} from '../map-enemies.js?v=195';
-import {BOSS_ROUTES} from '../boss-expedition.js?v=195';
-import {AIR_ROSTERS,makeAirborne} from '../airborne-enemies.js?v=195';
-import {actor} from '../world.js?v=195';
-import {SkillVFX} from '../skill-vfx.js?v=195';
+import {MAP_ROSTERS} from '../map-enemies.js?v=196';
+import {BOSS_ROUTES} from '../boss-expedition.js?v=196';
+import {AIR_ROSTERS,makeAirborne} from '../airborne-enemies.js?v=196';
+import {actor} from '../world.js?v=196';
+import {SkillVFX} from '../skill-vfx.js?v=196';
 
 const player=Object.freeze({x:9,y:2,z:-7,angle:.4});
 function fixture(){const scene=new T.Scene(),existing=new T.Group(),vfx=new SkillVFX(scene);scene.add(existing);return{scene,existing,vfx,player,yieldWork:async()=>{}};}
@@ -17,11 +17,11 @@ test('prewarm covers each local roster, all three expedition bosses and local ai
  for(const map of Object.keys(MAP_ROSTERS)){
   const list=combatSampleKinds(map);assert.equal(list.length,9);assert.equal(new Set(list).size,9);
   for(const kind of Object.values(MAP_ROSTERS[map]))assert(list.includes(kind),map+' '+kind);
-  for(const region of BOSS_ROUTES[map])assert(list.includes(MAP_ROSTERS[region].boss));
+  for(const region of BOSS_ROUTES[map])assert(list.includes(region));
   assert(list.includes(AIR_ROSTERS[map]));
  }
  const all=combatSampleKinds('confluence');assert.equal(all.length,35);
- for(const map of Object.keys(MAP_ROSTERS))for(const kind of combatSampleKinds(map))assert(all.includes(kind));
+ for(const map of Object.keys(MAP_ROSTERS))for(const kind of [...Object.values(MAP_ROSTERS[map]),AIR_ROSTERS[map]])assert(all.includes(kind));
  assert.deepEqual(combatSampleKinds('unknown'),combatSampleKinds('forest'));
 });
 

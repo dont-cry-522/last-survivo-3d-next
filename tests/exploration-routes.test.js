@@ -5,7 +5,7 @@ import {buildWorld} from '../world.js';
 import {installForestVista} from '../forest-vista.js';
 import {installForestHabitats} from '../forest-habitats.js';
 import {installExplorationRoutes} from '../exploration-routes.js';
-import {installBiomePlaces} from '../biome-places.js?v=195';
+import {installBiomePlaces} from '../biome-places.js?v=196';
 import {segmentDistance} from '../rules.js';
 import {waterDepth} from '../water.js';
 import {bridgeContains} from '../coast.js';

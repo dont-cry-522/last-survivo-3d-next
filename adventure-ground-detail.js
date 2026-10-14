@@ -1,13 +1,13 @@
-import {applyFernSurface} from './fern-surfaces.js?v=195';
-import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=195';
-import{sceneryRhythmAt}from'./exploration-composition.js?v=195';
+import {applyFernSurface} from './fern-surfaces.js?v=196';
+import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=196';
+import{sceneryRhythmAt}from'./exploration-composition.js?v=196';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {seeded,segmentDistance} from './rules.js?v=195';
-import {forestHabitatAt} from './forest-habitats.js?v=195';
-import {bridgeContains} from './coast.js?v=195';
-import {naturalRockGeometry} from './biome-scenery.js?v=195';
-import {surfaceUniforms} from './surface-textures.js?v=195';
+import {seeded,segmentDistance} from './rules.js?v=196';
+import {forestHabitatAt} from './forest-habitats.js?v=196';
+import {bridgeContains} from './coast.js?v=196';
+import {naturalRockGeometry} from './biome-scenery.js?v=196';
+import {surfaceUniforms} from './surface-textures.js?v=196';
 
 const profiles={
  forest:{count:1200,grass:.83,height:1,tuft:[0x6e8650,0x87985a],litter:[0x827561,0x66685c]},

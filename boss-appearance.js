@@ -1,17 +1,19 @@
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,joint,smooth} from './creature-forms.js?v=195';
+import {form,surface,tube,oval,tint,joint,smooth} from './creature-forms.js?v=196';
 
 // These are the original spawn bounds used by projectile targeting. Appearance
 // and anticipation may change; the collision body and attack clock do not.
 export const BOSS_COMBAT_HEIGHTS=Object.freeze({boss:4.908318008255805,frostking:4,cinderlord:4.33,dunescorpion:2.9392194505028533,wreckwarden:5.203});
 const fittedHeights=new Map(),sides=[-1,1];
-const bark=0x645039,wood=0x8c7750,fur=0xcbd8cf,ice=0x8fbccd,rock=0x493c3e,gold=0xa68b52;
+const bark=0x4e493a,wood=0x817154,fur=0xb9cbc8,ice=0x779fae,rock=0x3e373b,gold=0x8c7549;
 const fissured=(base,low,amount=.23)=>(c,x,y,z)=>c.lerp(new T.Color(low),amount*(.5+.5*Math.sin(x*8+y*3+z*5)));
 function crystal(color,x,y,z,length,width,lean=0){return surface(color,[[0,width*.70,width*.60],[length*.62,width,width*.73],[length,width*.035,width*.025]],{sides:5,deform:(a,b,c)=>[a+lean*b,b,c]}).translate(x,y,z);}
 function eye(parent,key,x,y,z,width,color){
- return form(parent,key+'_Eye',()=>[oval(0x1e2524,x,y,z,width,width*.40,.045,12,6),oval(color,x,y+.004,z+.032,width*.53,width*.20,.022,10,5),oval(0xeee7c7,x-width*.13,y+width*.10,z+.051,width*.10,width*.09,.008,6,4)],{glow:true});
+ const angle=Math.sign(x)*.29,slit=(c,w,h,depth,offset)=>oval(c,0,0,0,w,h,depth,12,6).rotateZ(angle).translate(x,y,z+offset);
+ return form(parent,key+'_Eye',()=>[slit(0x101b1d,width*1.14,width*.34,.028,0),slit(color,width*.71,width*.11,.012,.023),slit(0x141d1a,width*.09,width*.15,.006,.034)],{glow:true});
 }
-function bossLeg(parent,key,{x,y,z,side=1,reach=0,a=.65,b=.65,width=.23,color=bark,foot=wood,phase=0,style='toes'}){
+const tooth=(c,x,y,z,length,radius,lean=0)=>tint(new T.ConeGeometry(radius,length,5).rotateX(Math.PI).rotateZ(lean).translate(x,y,z),c);
+export function bossLeg(parent,key,{x,y,z,side=1,reach=0,a=.65,b=.65,width=.23,color=bark,foot=wood,phase=0,style='toes'}){
  const carrier=joint(parent,x,y,z),upper=joint(carrier),knee=joint(carrier),paw=joint(carrier),shell=style==='shell';
  form(upper,key+'_Upper',()=>[tube(color,[[0,.04,0],[side*width*.18,-a*.40,.06],[0,-a,0]],[width,width*.92,width*.63],{sides:10,steps:10})]);
  form(knee,key+'_Shin',()=>[tube(color,[[0,.035,0],[-side*width*.18,-b*.48,-.03],[0,-b,0]],[width*.67,width*.51,width*.15],{sides:9,steps:9})]);
@@ -19,6 +21,9 @@ function bossLeg(parent,key,{x,y,z,side=1,reach=0,a=.65,b=.65,width=.23,color=ba
   oval(color,0,.047,.08,width*.97,.095,width*1.30,14,8),
   ...[-1.5,-.5,.5,1.5].map(i=>oval(foot,i*width*.43,.02,width*1.15,width*.25,.065,width*.57,10,6)),
   oval(foot,-side*width*.90,.035,width*.42,width*.35,.075,width*.49,10,6)
+ ]:style==='hoof'||style==='rhino'?[
+  oval(color,0,.06,.03,width*.74,.13,width*.79,12,7),
+  ...(style==='hoof'?[-.44,.44]:[-.62,0,.62]).map(i=>surface(foot,[[-.035,width*.27,width*.53,0,.02],[.015,width*.30,width*.59,0,.04],[.14,width*.22,width*.43,0,-.01]],{sides:10}).translate(i*width,0,width*.35))
  ]:[
   oval(color,0,.035,.06,width*.86,.075,width*1.25,12,7),
   ...[-1,0,1].map(i=>tube(foot,[[i*width*.50,.045,.04],[i*width*.70,.025,width*1.2],[i*width*.87,-.029,width*(style==='root'?2.5:1.75)]],[width*.29,width*.20,.015],{sides:7,steps:8}))
@@ -37,18 +42,20 @@ function poseLeg(l,rig,phase,stride,travel,lift,air=0){
  bend.set(l.reach?l.side:0,.12,l.reach?-.18:1).addScaledVector(direction,-bend.dot(direction)).normalize();elbow.copy(direction).multiplyScalar(along).addScaledVector(bend,height);
  l.upper.quaternion.setFromUnitVectors(down,segment.copy(elbow).normalize());l.knee.position.copy(elbow);l.knee.quaternion.setFromUnitVectors(down,segment.copy(target).sub(elbow).normalize());l.paw.position.copy(target);l.paw.rotation.set(-rig.rotation.x,0,-rig.rotation.z);
 }
+export function poseBossLeg(l,rig,phase,stride,travel,lift,air=0){rig.updateMatrix();inverse.copy(rig.matrix).invert();poseLeg(l,rig,phase,stride,travel,lift,air);}
 function buildTree(d){
  const r=d.rig;
  d.body=form(r,'Boss_AncientBarkTrunk',()=>[
-  surface(bark,[[.69,.61,.46],[1.05,.80,.62],[1.48,.93,.66],[2.12,1.05,.71],[2.72,1.02,.66],[3.18,.82,.57],[3.55,.57,.44],[3.81,.31,.29]],{sides:32,flute:.075,deform:(x,y,z,a)=>[x+.05*Math.sin(y*2),y,z+.045*Math.sin(a*3+y)],shade:fissured(bark,0x303d29,.32)}),
+  surface(bark,[[.20,1.06,.80],[.55,1.02,.74],[1.05,.80,.62],[1.48,.93,.66],[2.12,1.05,.71],[2.72,1.02,.66],[3.18,.82,.57],[3.55,.57,.44],[3.81,.31,.29]],{sides:32,flute:.075,deform:(x,y,z,a)=>[x+.05*Math.sin(y*2),y,z+.045*Math.sin(a*3+y)],shade:fissured(bark,0x303d29,.32)}),
   ...Array.from({length:9},(_,i)=>{const a=i*Math.PI*2/9;return tube(i%2?wood:bark,[[Math.cos(a)*.55,.68,Math.sin(a)*.40],[Math.cos(a)*.83,1.20,Math.sin(a)*.59],[Math.cos(a)*1.03,2.1,Math.sin(a)*.70],[Math.cos(a)*.91,2.92,Math.sin(a)*.57],[Math.cos(a)*.43,3.70,Math.sin(a)*.30]],[.13,.12,.09,.075,.025],{sides:7,steps:18});}),
-  tube(0x37432c,[[-.40,2.78,.61],[-.19,2.70,.73],[0,2.73,.76],[.19,2.70,.73],[.40,2.78,.61]],[.04,.055,.07,.055,.04],{steps:16,sides:7}),
-  ...sides.flatMap(side=>[tube(wood,[[side*.17,3.11,.62],[side*.38,3.19,.64],[side*.62,3.12,.56]],[.09,.11,.06],{steps:10}),tube(bark,[[side*.53,2.86,.55],[side*.46,2.59,.60],[side*.25,2.42,.66]],[.13,.10,.04],{steps:11})])
+  // A broken cleft below the brow, not a smiling U-shaped mouth.
+  surface(0x202b24,[[2.48,.18,.025,0,.70],[2.60,.30,.032,0,.735],[2.75,.34,.03,0,.735],[2.83,.12,.02,0,.722]],{sides:12,flute:.18}),
+  ...sides.flatMap(side=>[tube(wood,[[side*.10,3.03,.69],[side*.33,3.17,.69],[side*.63,3.24,.54]],[.09,.15,.045],{steps:10}),tube(bark,[[side*.53,2.96,.55],[side*.39,2.69,.68],[side*.25,2.40,.65]],[.15,.115,.025],{steps:11}),tube(wood,[[side*.29,2.80,.74],[side*.26,2.67,.776],[side*.21,2.62,.76]],[.065,.042,.006],{steps:7,sides:6}),tube(0x334032,[[side*.21,3.33,.55],[side*.09,3.13,.67],[side*.065,2.89,.74]],[.025,.032,.012],{steps:9,sides:6})])
  ]);
  form(r,'Boss_HeartInBark',()=>[surface(0xa6c87a,[[1.45,.04,.025,0,.668],[1.63,.12,.045,-.025,.704],[1.90,.19,.05,.015,.737],[2.13,.10,.04,.035,.738],[2.28,.025,.02,0,.712]],{sides:14}),tube(0x829b58,[[-.02,1.67,.75],[.04,1.88,.798],[-.02,2.12,.78]],[.035,.052,.021],{steps:10})],{glow:true});
  for(const side of sides){
   eye(r,'Boss_Bark'+side,side*.35,3.015,.66,.15,0xc5d59a);
-  d.legs.push(bossLeg(r,'Boss_RootLeg'+side,{x:side*.53,y:1.05,z:0,side,a:.59,b:.59,width:.32,color:bark,foot:wood,phase:side<0?0:Math.PI,style:'root'}));
+  for(let i=0;i<3;i++)d.legs.push(bossLeg(r,'Boss_RootLeg'+side+i,{x:side*.66,y:.49,z:.65-i*.64,side,reach:.66,a:.55,b:.54,width:.22,color:bark,foot:wood,phase:(i%2)*Math.PI+(side<0?0:Math.PI),style:'root'}));
   const arm=joint(r,side*.94,2.85,0),forearm=joint(arm,side*.12,-.86,.04);
   form(arm,'Boss_ShoulderBranch'+side,()=>[tube(bark,[[0,.12,0],[side*.23,-.25,.01],[side*.19,-.61,.03],[side*.12,-.90,.04]],[.38,.35,.25,.22],{sides:12,steps:13}),tube(wood,[[side*.12,.07,.24],[side*.34,-.30,.20],[side*.22,-.78,.20]],[.09,.07,.04],{steps:10}),tube(bark,[[side*.13,-.16,-.13],[side*.50,.10,-.17],[side*.64,.42,-.16]],[.15,.10,.012],{steps:11})]);
   form(forearm,'Boss_ForkedRootHand'+side,()=>[tube(bark,[[0,.08,0],[side*.07,-.43,.04],[side*.04,-.83,.12]],[.24,.26,.22],{sides:12,steps:12}),...[-1,0,1].map(i=>tube(wood,[[i*.16,-.73,.08],[i*.25,-1.04,.16],[i*.30,-1.34,.31],[i*.27,-1.46,.45]],[.13,.11,.065,.012],{sides:8,steps:12})),tube(wood,[[-side*.17,-.56,.02],[-side*.36,-.77,.23],[-side*.30,-.96,.40]],[.12,.09,.015],{steps:10})]);
@@ -65,19 +72,21 @@ function buildTree(d){
 function buildApe(d){
  const r=d.rig;
  d.body=form(r,'Frostking_YetiTorso',()=>[
-  surface(fur,[[.91,.52,.43,0,-.11],[1.32,.73,.61,0,-.15],[1.83,1.03,.74,0,-.17],[2.27,1.22,.79,0,-.16],[2.65,1.12,.70,0,-.12],[2.95,.82,.53,0,-.05],[3.10,.43,.35,0,.02]],{sides:32,flute:.026,shade:(c,x,y,z)=>c.lerp(new T.Color(z>.15?0xe0e4d7:0x87a6b0),z>.15?.30:.26)}),
-  surface(0xdce1d5,[[1.37,.35,.09,0,.48],[1.66,.53,.14,0,.54],[2.18,.77,.16,0,.61],[2.58,.70,.11,0,.60]],{sides:24,flute:.04}),
+  surface(fur,[[.91,.47,.40,0,-.11],[1.32,.64,.52,0,-.15],[1.83,.94,.69,0,-.19],[2.27,1.23,.80,0,-.20],[2.65,1.16,.75,0,-.17],[2.95,.87,.58,0,-.10],[3.10,.45,.36,0,-.05]],{sides:32,flute:.026,shade:(c,x,y,z)=>c.lerp(new T.Color(z>.15?0xd0d8cd:0x6e8a94),z>.15?.24:.35)}),
+  surface(0xb3c6c1,[[1.37,.28,.07,0,.41],[1.66,.46,.13,0,.49],[2.18,.74,.14,0,.61],[2.58,.70,.10,0,.61]],{sides:24,flute:.065}),
   ...sides.flatMap(side=>Array.from({length:5},(_,i)=>tube(i%2?0xb1c7c7:fur,[[side*(.70+i*.065),2.67-i*.19,-.18],[side*(1.05+i*.025),2.51-i*.19,-.24],[side*(1.02+i*.04),2.25-i*.19,-.30]],[.17,.16,.018],{steps:9,sides:7})))
  ]);
  d.head=joint(r,0,2.84,.39);
  form(d.head,'Frostking_YetiHead',()=>[
   surface(0xe0e5d9,[[-.34,.34,.29,0,.01],[-.08,.58,.40,0,.03],[.23,.57,.40,0,0],[.48,.43,.34,0,-.05],[.59,.16,.19,0,-.08]],{sides:28,flute:.025}),
-  oval(0x526b72,0,.0,.365,.40,.34,.14,20,12),oval(0x7e9495,0,-.17,.48,.33,.19,.14,18,10),oval(0x354b53,0,-.03,.518,.17,.105,.075,14,8),
-  ...sides.flatMap(side=>[oval(0x1e363c,side*.095,-.025,.581,.038,.024,.015,9,5),tube(0xb2c7c5,[[side*.045,.19,.405],[side*.19,.235,.44],[side*.36,.17,.391]],[.07,.115,.07],{steps:11,sides:9}),tube(0xccd9d0,[[side*.40,.16,.21],[side*.49,-.08,.22],[side*.33,-.36,.31]],[.16,.17,.04],{steps:11,sides:8})]),
-  tube(0x344951,[[-.24,-.23,.56],[0,-.27,.607],[.24,-.23,.56]],[.018,.025,.018],{steps:10,sides:6}),
-  ...sides.map(side=>tube(0xe9e7ce,[[side*.23,-.175,.55],[side*.225,-.28,.59],[side*.19,-.32,.59]],[.052,.035,.005],{steps:8,sides:7})),
+  oval(0x425a63,0,.0,.365,.40,.34,.14,20,12),oval(0x546e76,0,-.12,.47,.30,.115,.14,18,10),oval(0x283e47,0,-.03,.518,.16,.09,.075,14,8),
+  ...sides.flatMap(side=>[oval(0x14282f,side*.085,-.025,.581,.034,.021,.015,9,5),tube(0x91acab,[[side*.045,.12,.438],[side*.19,.23,.46],[side*.38,.27,.391]],[.075,.12,.045],{steps:11,sides:9}),tube(0xb7cbc5,[[side*.40,.16,.21],[side*.43,-.08,.27],[side*.30,-.33,.37]],[.14,.13,.025],{steps:11,sides:8})]),
+  oval(0x172d35,0,-.225,.566,.26,.10,.035,16,8),
+  ...sides.map(side=>tooth(0xc7cbb5,side*.21,-.245,.603,.18,.043,side*.12)),
   ...sides.flatMap(side=>[crystal(ice,side*.34,.46,-.08,.44,.14,side*.40),crystal(0xaaceda,side*.14,.56,-.05,.57,.13,side*.13),crystal(0x789eae,side*.48,.31,-.17,.32,.11,side*.65)])
  ]);
+ d.jaw=joint(d.head,0,-.22,.40);
+ form(d.jaw,'Frostking_YetiJaw',()=>[surface(0x637e85,[[-.15,.12,.055,0,.09],[-.09,.26,.11,0,.10],[.015,.26,.12,0,.10],[.06,.16,.075,0,.08]],{sides:18}),...sides.map(side=>tooth(0xbcc7b5,side*.11,.065,.20,.055,.026,Math.PI))]);
  for(const side of sides){
   d.eyes.push(eye(d.head,'Frostking'+side,side*.21,.13,.471,.083,0xc8f1ed));
   d.legs.push(bossLeg(r,'Frostking_YetiHind'+side,{x:side*.52,y:1.15,z:-.32,side,a:.65,b:.60,width:.31,color:0xb3caca,foot:0x6e8992,phase:side<0?0:Math.PI,style:'ape'}));
@@ -102,7 +111,9 @@ function buildFurnace(d){
   ...sides.map(side=>tube(0xe3a04c,[[side*.15,1.44,.58],[side*.23,1.78,.67],[side*.13,2.12,.67],[side*.15,2.42,.59]],[.021,.04,.026,.012],{steps:13,sides:6}))
  ],{glow:true});
  d.head=joint(r,0,3.06,.08);
- form(d.head,'Cinderlord_StoneCrownedHead',()=>[surface(0x4b3c3d,[[-.20,.25,.22],[-.07,.38,.33],[.17,.43,.34],[.35,.30,.27],[.46,.11,.15]],{sides:16,flute:.10}),...sides.map(side=>tube(0x6c5147,[[side*.24,.27,-.03],[side*.47,.50,-.11],[side*.54,.85,-.19],[side*.43,1.03,-.17]],[.17,.15,.10,.015],{steps:13,sides:7})),...sides.map(side=>tube(0x8e6750,[[side*.04,.18,.31],[side*.19,.22,.37],[side*.34,.14,.29]],[.055,.085,.05],{steps:9,sides:6})),tube(0x211d25,[[-.20,-.06,.30],[0,-.15,.35],[.20,-.06,.30]],[.022,.04,.022],{steps:9,sides:6})]);
+ form(d.head,'Cinderlord_StoneCrownedHead',()=>[surface(0x3b3438,[[-.20,.18,.21],[-.07,.31,.32],[.17,.40,.34],[.35,.30,.27],[.46,.11,.15]],{sides:16,flute:.10}),...sides.map(side=>tube(0x5c4943,[[side*.24,.27,-.03],[side*.47,.50,-.11],[side*.54,.85,-.19],[side*.43,1.03,-.17]],[.17,.15,.10,.015],{steps:13,sides:7})),...sides.flatMap(side=>[tube(0x7e5c47,[[side*.035,.105,.35],[side*.19,.24,.38],[side*.35,.29,.26]],[.055,.10,.025],{steps:9,sides:6}),tube(0x56453e,[[side*.34,.10,.23],[side*.24,-.11,.31],[side*.15,-.21,.25]],[.09,.10,.015],{steps:8,sides:6})]),surface(0x13171b,[[-.18,.12,.018,0,.32],[-.08,.20,.023,0,.345],[.005,.15,.015,0,.35]],{sides:10}),...sides.map(side=>tooth(0x9c8161,side*.13,-.095,.377,.10,.031,side*.1))]);
+ d.jaw=joint(d.head,0,-.11,.24);
+ form(d.jaw,'Cinderlord_StoneJaw',()=>[surface(0x58463d,[[-.17,.065,.04,0,.035],[-.10,.17,.08,0,.065],[.005,.19,.10,0,.07],[.035,.11,.06,0,.07]],{sides:12,flute:.05})]);
  for(const side of sides){
   eye(d.head,'Cinderlord'+side,side*.19,.125,.35,.09,0xf5c77d);
   d.legs.push(bossLeg(r,'Cinderlord_StoneLeg'+side,{x:side*.43,y:1.07,z:0,side,a:.62,b:.60,width:.27,color:rock,foot:0x55443e,phase:side<0?0:Math.PI}));
@@ -125,7 +136,7 @@ function buildScorpion(d){
   for(let i=0;i<4;i++)d.legs.push(bossLeg(r,'Dunescorpion_BeetleLeg'+side,{x:side*.80,y:.83,z:.69-i*.53,side,reach:.75,a:.66,b:.63,width:.16,color:gold,foot:0x615136,phase:(i%2)*Math.PI+(side>0?Math.PI:0),style:'shell'}));
   const arm=joint(r,side*.63,.91,.87),forearm=joint(arm,side*.42,0,.77),tip=joint(forearm,-side*.16,0,.40);
   form(arm,'Dunescorpion_BeetlePedipalp'+side,()=>[tube(0x8a7548,[[0,0,-.02],[side*.41,-.05,.35],[side*.42,0,.80]],[.21,.24,.17],{steps:14,sides:11})]);
-  form(forearm,'Dunescorpion_BeetlePincer'+side,()=>[surface(0xb79a59,[[-.10,.13,.14],[.10,.32,.27],[.43,.37,.27],[.74,.29,.22],[1.02,.17,.14],[1.16,.025,.025]],{axis:'z',sides:22,deform:(x,y,z)=>[x+side*.14*Math.sin(Math.max(0,z)*2.3),y,z]}),tube(0x725935,[[side*.25,.01,.67],[side*.26,.02,.99],[side*.11,.01,1.30],[-side*.04,0,1.37]],[.16,.13,.075,.008],{steps:12,sides:8})]);
+  form(forearm,'Dunescorpion_BeetlePincer'+side,()=>[surface(0x9c824d,[[-.10,.13,.14],[.10,.32,.27],[.43,.37,.27],[.74,.29,.22],[1.02,.17,.14],[1.16,.025,.025]],{axis:'z',sides:22,deform:(x,y,z)=>[x+side*.14*Math.sin(Math.max(0,z)*2.3),y,z],shade:(c,x,y,z)=>c.multiplyScalar(y<0?.67:.94+.12*Math.sin(z*5))}),tube(0x50452f,[[side*.25,.01,.67],[side*.26,.02,.99],[side*.11,.01,1.30],[-side*.04,0,1.37]],[.16,.13,.075,.008],{steps:12,sides:8}),...[0,1,2].map(i=>tooth(0x50452f,side*(.12-i*.018),.012,.82+i*.15,.14-i*.018,.045,-side*Math.PI/2)),tube(0x6e613e,[[side*.08,.23,.25],[side*.12,.28,.44],[side*.17,.17,.76]],[.014,.021,.007],{steps:7,sides:5})]);
   form(tip,'Dunescorpion_BeetleMovablePincer'+side,()=>[tube(0x8d7042,[[0,0,0],[-side*.23,.02,.35],[-side*.19,.015,.70],[side*.10,0,.91]],[.20,.17,.11,.008],{steps:15,sides:10})]);
   d.arms.push(arm);d.forearms.push(forearm);d.claws.push(tip);
  }
@@ -159,7 +170,7 @@ function buildWreck(d){
   for(let i=0;i<3;i++)d.legs.push(bossLeg(r,'Wreckwarden_CrabLeg'+side,{x:side*.95,y:.93,z:.64-i*.66,side,reach:.92,a:.80,b:.72,width:.20,color:0x6a8b7e,foot:0x3e5c59,phase:i%2*Math.PI+(side>0?Math.PI:0),style:'shell'}));
   const arm=joint(r,side*.82,1.00,.81),forearm=joint(arm,side*.48,-.06,.84),tip=joint(forearm,-side*.19,0,.45),size=side<0?1.16:.93;
   form(arm,'Wreckwarden_CrabShoulder'+side,()=>[tube(0x779787,[[0,0,0],[side*.45,-.13,.38],[side*.48,-.06,.88]],[.27,.30,.22],{steps:14,sides:12})]);
-  form(forearm,'Wreckwarden_CrabCrushingClaw'+side,()=>[surface(0x95aa92,[[-.14,.16,.16],[.13,.36,.31],[.47,.43,.34],[.78,.35,.30],[1.00,.17,.16],[1.10,.035,.035]],{axis:'z',sides:24,deform:(x,y,z)=>[(x+side*.12*Math.sin(z*2.5))*size,y*size,z*size]}),tube(0x58766d,[[side*.28,.02,.72],[side*.30,.03,1.05],[side*.13,.025,1.36],[-side*.06,0,1.40]],[.20,.17,.075,.01],{steps:13,sides:10}).scale(size,size,size)]);
+  form(forearm,'Wreckwarden_CrabCrushingClaw'+side,()=>[surface(0x7e9580,[[-.14,.16,.16],[.13,.36,.31],[.47,.43,.34],[.78,.35,.30],[1.00,.17,.16],[1.10,.035,.035]],{axis:'z',sides:24,deform:(x,y,z)=>[(x+side*.12*Math.sin(z*2.5))*size,y*size,z*size],shade:(c,x,y,z)=>c.multiplyScalar(y<0?.62:.92+.1*Math.sin(z*8))}),tube(0x385752,[[side*.28,.02,.72],[side*.30,.03,1.05],[side*.13,.025,1.36],[-side*.06,0,1.40]],[.20,.17,.075,.01],{steps:13,sides:10}).scale(size,size,size),...[0,1,2].map(i=>tooth(0x415c53,side*(.10-i*.02),.025,.84+i*.16,.18-i*.02,.06,-side*Math.PI/2).scale(size,size,size)),tube(0xb2b59c,[[-side*.18,.25,.20],[side*.02,.355,.47],[side*.18,.20,.78]],[.012,.018,.005],{steps:9,sides:5}).scale(size,size,size)]);
   form(tip,'Wreckwarden_CrabThumb'+side,()=>[tube(0x6a8c7c,[[0,0,0],[-side*.25,.02,.37],[-side*.24,.03,.77],[side*.08,0,.97]],[.23,.21,.13,.01],{steps:15,sides:10}).scale(size,size,size)]);
   d.arms.push(arm);d.forearms.push(forearm);d.claws.push(tip);
  }
@@ -169,8 +180,8 @@ export function makeBossAppearance(kind){
  const g=new T.Group(),rig=joint(g),d=g.userData={kind,rig,bossModel:true,bossAppearance:true,organicModel:true,combatHeight:BOSS_COMBAT_HEIGHTS[kind],phase:0,legs:[],arms:[],forearms:[],appendages:[],claws:[],eyes:[],tailSegments:[]};
  ({boss:buildTree,frostking:buildApe,cinderlord:buildFurnace,dunescorpion:buildScorpion,wreckwarden:buildWreck})[kind](d);
  animateBossAppearance(g,0,0,0);
- if(!fittedHeights.has(kind))fittedHeights.set(kind,d.combatHeight/new T.Box3().setFromObject(g).max.y);
- d.heightScale=fittedHeights.get(kind);rig.scale.y=d.heightScale;for(const l of d.legs)l.rest.y=.008-l.soleY*d.heightScale;animateBossAppearance(g,0,0,0);return g;
+ if(!fittedHeights.has(kind)){const first=new T.Box3().setFromObject(g).max.y;rig.scale.y=2;const second=new T.Box3().setFromObject(g).max.y;fittedHeights.set(kind,1+(d.combatHeight-first)/(second-first));}
+ d.heightScale=fittedHeights.get(kind);rig.scale.y=d.heightScale;for(const l of d.legs)l.rest.y=.008-l.soleY*d.heightScale;animateBossAppearance(g,0,0,0);g.scale.y=d.combatHeight/new T.Box3().setFromObject(g).max.y;return g;
 }
 
 // Read boss-combat's already-authoritative phase. A single release curve blends
@@ -186,15 +197,17 @@ export function animateBossAppearance(g,t,speed,dt){
  const travel=kind==='boss'?.45:kind==='frostking'?.56:kind==='cinderlord'?.44:.48;
  if(desired>.001)d.phase+=Math.max(0,speed)*dt*Math.PI*.64/(travel*Math.max(.01,desired));const p=d.phase;
  r.position.set(0,(d.lift||0)+Math.abs(Math.sin(p))*.035*stride,0);r.rotation.set(0,0,Math.sin(p)*.025*stride);r.scale.set(1,d.heightScale||1,1);
+ const breathe=Math.sin(t*(kind==='frostking'?1.65:1.2))*.006*(1-Math.max(wind,strike));d.body.scale.set(1+breathe*.4,1+breathe,1+breathe*.6);
+ if(d.jaw)d.jaw.rotation.x=wind*(kind==='frostking'?.30:.18)+strike*(kind==='frostking'?.18:.10);
  for(let i=0;i<d.arms.length;i++){const side=i?1:-1;d.arms[i].rotation.set(Math.sin(p+i*Math.PI)*.17*stride-wind*.7+strike*.45,0,side*.04);d.forearms[i].rotation.set(-.12-wind*.25+strike*.13,0,0);}
  if(kind==='boss'){
   const roots=move==='roots';r.rotation.x=-wind*.09+strike*.10;r.rotation.y=(roots?-.08:-.21)*wind+(roots?.06:.17)*strike;r.position.y-=wind*.08+strike*.06;
-  for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(-wind*(roots?.60:1.32)+strike*(roots?.30:.60),side*(-wind*(roots?.12:.40)+strike*.30),side*(wind*(roots?.04:.27)-strike*.12));d.forearms[i].rotation.x=-.15-wind*.42+strike*.36;d.appendages[i].rotation.set(Math.sin(t*.85+i)*.012+strike*.025,0,side*Math.sin(t*.7+i)*.018+Math.sin(p-.6)*.012*stride);}
+  for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(-.18-wind*(roots?.60:1.32)+strike*(roots?.30:.60),side*(-.16-wind*(roots?.12:.40)+strike*.30),side*(.36+wind*(roots?.04:.27)-strike*.12));d.forearms[i].rotation.x=-.42-wind*.42+strike*.36;d.appendages[i].rotation.set(Math.sin(t*.85+i)*.012+strike*.025,0,side*Math.sin(t*.7+i)*.018+Math.sin(p-.6)*.012*stride);}
  }else if(kind==='frostking'){
-  const leap=move==='leap';r.position.y-=wind*(leap?.31:.13)+landing*.21;r.rotation.x=.07*stride+wind*(leap?.13:-.08)+strike*.15;d.head.rotation.set(-wind*.12+landing*.12,Math.sin(t*.43)*.016*(1-stride),0);
-  for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(Math.sin(p+i*Math.PI)*.27*stride-wind*(leap?.51:1.43)-strike*(leap?1.45:-.65)+landing*1.15,side*wind*(leap?.10:.20),side*(wind*.15+strike*.06));d.forearms[i].rotation.x=-.16-wind*(leap?.72:.30)-strike*.28+landing*.28;}
+  const leap=move==='leap';r.position.y-=.08+wind*(leap?.31:.13)+landing*.21;r.rotation.x=.27+.045*stride+wind*(leap?.13:-.08)+strike*.15;d.head.rotation.set(-.16-wind*.22+landing*.12,Math.sin(t*.43)*.009*(1-stride),0);
+  for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(-.22+Math.sin(p+i*Math.PI)*.22*stride-wind*(leap?.51:1.43)-strike*(leap?1.45:-.65)+landing*1.15,side*(.05+wind*(leap?.10:.20)),side*(.13+wind*.15+strike*.06));d.forearms[i].rotation.x=.06-wind*(leap?.72:.30)-strike*.28+landing*.28;}
  }else if(kind==='cinderlord'){
-  const embers=move==='embers';r.rotation.x=-wind*.10+strike*.13;r.rotation.y=wind*(embers?.13:-.12)-strike*.08;r.position.y+=Math.sin(t*1.2)*.012-wind*.06;d.head.rotation.set(-wind*.08+strike*.05,Math.sin(t*.43)*.018,0);
+  const embers=move==='embers';r.rotation.x=-wind*.10+strike*.13;r.rotation.y=wind*(embers?.13:-.12)-strike*.08;r.position.y+=Math.sin(t*1.2)*.012-wind*.06;d.head.rotation.set(.07-wind*.08+strike*.05,Math.sin(t*.43)*.010,0);
   for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(-wind*(embers?1.75:1.08)+strike*(embers?-.25:.58),side*(-wind*.24+strike*(embers?.09:.27)),side*(wind*(embers?.28:.57)+strike*(embers?.08:-.18)));d.forearms[i].rotation.x=-.15-wind*.50+strike*.38;}
   d.core.scale.set(1+wind*.025,1+wind*.018,1+wind*.025);
  }else{

@@ -1,5 +1,22 @@
 import * as T from './vendor/three.module.js';
 
+// StandardMaterial does not tint emissive light with vertex colors. Our
+// merged eyes/cores carry their palette there, including the dark sockets.
+export function installCreatureEmission(material){
+ if(material.userData.creatureEmission)return material;
+ material.userData.creatureEmission=true;
+ const before=material.onBeforeCompile,key=material.customProgramCacheKey();
+ material.onBeforeCompile=function(shader,renderer){
+  before.call(this,shader,renderer);
+  shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+ #if defined(USE_COLOR) || defined(USE_COLOR_ALPHA)
+ totalEmissiveRadiance *= vColor.rgb;
+ #endif`);
+ };
+ material.customProgramCacheKey=()=>key+'|creature-pigmented-emission';
+ return material;
+}
+
 // Surface marks follow the existing palette and articulated pieces. They do not
 // add geometry, texture downloads, lights or a second render pass.
 const strength=[0,.42,.36,.34,.28,.34,.26,.18,.36,.16,.20];
@@ -9,6 +26,12 @@ export function creatureFinish(species='',part=''){
  if(/eyelid|eye|pupil|iris|teeth|tooth|fang/.test(part.toLowerCase()))return 0;
  if(/nose/.test(part.toLowerCase()))return 9;
  if(/staff|bark|root|branch/.test(part.toLowerCase()))return 8;
+ if(/boss_thornstag/.test(key))return /antler/.test(key)?8:1;
+ if(/boss_webmatriarch/.test(key))return /abdomen/.test(key)?6:3;
+ if(/boss_moltenrhino|boss_obeliskwarden/.test(key))return 2;
+ if(/boss_cinderdrake/.test(key))return /wing/.test(key)?7:6;
+ if(/boss_dunedevourer/.test(key))return 6;
+ if(/boss_sailreaper|boss_abyssmedusa/.test(key))return 7;
  if(/snowtotem|crystal|icecore/.test(key))return 10;
  if(/golem|lavabrute|stone|rock/.test(key))return 2;
  if(/sandguard|sandspitter|sandcaster|duneoracle|icewitch|ashseer/.test(key))return 4;

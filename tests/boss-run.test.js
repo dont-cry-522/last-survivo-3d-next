@@ -4,7 +4,7 @@ import{chooseBossMove}from'../boss-combat.js';
 import{bodyTravel,bodiesClear}from'../actor-collision.js';
 import{moveActor}from'../world.js';
 test('local expeditions require three different bosses and start subsequent timers at death',()=>{
- for(const [map,route]of Object.entries(BOSS_ROUTES)){assert.equal(route[0],map);assert.equal(new Set(route).size,3);}
+ for(const [map,route]of Object.entries(BOSS_ROUTES)){assert.equal(route.length,3);assert.equal(new Set(route).size,3);}
  const r=createBossRun();assert.equal(r.nextAt,120);assert(!advanceBossRun(r,180));assert.equal(r.nextAt,180+BOSS_BREAK);assert(!advanceBossRun(r,300));assert(advanceBossRun(r,450));assert.equal(r.nextAt,Infinity);assert(!advanceBossRun(r,500));assert.equal(r.defeated,3);assert.equal(createBossRun().defeated,0);
  for(let i=1;i<3;i++){assert(BOSS_ROUNDS[i].health>BOSS_ROUNDS[i-1].health);assert(BOSS_ROUNDS[i].pressure>BOSS_ROUNDS[i-1].pressure);}
 });

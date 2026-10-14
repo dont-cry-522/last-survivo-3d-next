@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=195';
+import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=196';
 
 // Finite templates and three shared finishes (one translucent jelly membrane). No per-enemy geometry/material,
 // bone textures, extra lights or disposable particle resources.
@@ -19,6 +19,7 @@ function bendShader(shader){
  transformed.y+=max(0.,creatureWave)*creatureFlex.x*creatureBend.z;`);
 }
 for(const material of[skin,light,membrane]){material.onBeforeCompile=bendShader;material.customProgramCacheKey=()=> 'organic-creature-bend';}
+installCreatureEmission(light);
 for(const material of[skin,membrane])installCreatureSurface(material);
 const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking});depth.onBeforeCompile=bendShader;depth.customProgramCacheKey=()=> 'organic-creature-depth';
 export function tint(g,color,flexible){

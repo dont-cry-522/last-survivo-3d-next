@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=195';
+import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=196';
 
 // Five finite, shared sets of geometry. Articulation moves groups, never vertices.
 const templates=new Map();
@@ -8,6 +8,7 @@ const combatHeights={mushroom:1.3615263199806213,wolf:1.350000011920929,golem:2.
 const skin=new T.MeshStandardMaterial({vertexColors:true,roughness:.91,metalness:0});
 const light=new T.MeshStandardMaterial({vertexColors:true,roughness:.6,emissive:0xffffff,emissiveIntensity:.35});
 installCreatureSurface(skin);
+installCreatureEmission(light);
 function colored(g,color){
  const c=new T.Color(color),p=g.attributes.position,a=[];
  for(let i=0;i<p.count;i++)a.push(c.r,c.g,c.b);

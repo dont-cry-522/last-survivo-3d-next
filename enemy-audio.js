@@ -1,6 +1,17 @@
 // Original creature foley: textured samples, cached per species/event by GameAudio.
 // Texture, articulation and timing distinguish creatures, not just oscillator pitch.
 export const ENEMY_VOICES = {
+ thornstag:{texture:'wood',pitch:58,grain:26,length:1.4,color:10792570,shape:'smoke'},
+ webmatriarch:{texture:'hiss',pitch:76,grain:56,length:1.3,color:12035519,shape:'smoke'},
+ rimefang:{texture:'growl',pitch:64,grain:18,length:1.7,color:12113374,shape:'smoke'},
+ icephoenix:{texture:'ice',pitch:330,grain:17,length:1.5,color:11984104,shape:'smoke'},
+ moltenrhino:{texture:'stone',pitch:28,grain:12,length:1.8,color:12618337,shape:'smoke'},
+ cinderdrake:{texture:'hiss',pitch:52,grain:27,length:1.8,color:13667941,shape:'smoke'},
+ dunedevourer:{texture:'wet',pitch:37,grain:35,length:1.7,color:12625015,shape:'smoke'},
+ obeliskwarden:{texture:'stone',pitch:45,grain:9,length:1.6,color:13218945,shape:'smoke'},
+ sailreaper:{texture:'wet',pitch:93,grain:22,length:1.3,color:9353150,shape:'smoke'},
+ abyssmedusa:{texture:'wet',pitch:57,grain:8,length:1.9,color:10997459,shape:'smoke'},
+
  foamling:{texture:'wet',pitch:230,grain:29,length:.8,color:0x91d6d1,shape:'smoke'},tidecrab:{texture:'wood',pitch:165,grain:41,length:.85,color:0xcfa88a,shape:'crystal'},reefturtle:{texture:'stone',pitch:64,grain:20,length:1.25,color:0x8ba9a4,shape:'smoke'},jellyseer:{texture:'wet',pitch:430,grain:12,length:1.1,color:0x92dce9,shape:'ember'},tidestar:{texture:'wet',pitch:120,grain:17,length:1.3,color:0xd8bd96,shape:'smoke'},wreckwarden:{texture:'wood',pitch:31,grain:33,length:1.8,color:0xabc7bc,shape:'smoke'},
  sandworm:{texture:'wet',pitch:110,grain:34,length:.9,color:0xcbb98b,shape:'smoke'},
  clawbeetle:{texture:'wood',pitch:195,grain:54,length:.8,color:0xd2bd8b,shape:'crystal'},
@@ -90,6 +101,17 @@ export function creatureSpatial(event,dx,dz){
 // callers. Five physical articulations replace its common pitched sweep.
 // Values are cavity size, articulation spacing and breath/abrasion balance.
 export const CREATURE_FOLEY={
+ thornstag:['beast',1.25,0.086,0.71],
+ webmatriarch:['shell',1.05,0.036,0.85],
+ rimefang:['beast',1.55,0.091,0.88],
+ icephoenix:['shell',0.85,0.041,0.92],
+ moltenrhino:['stone',1.9,0.145,0.64],
+ cinderdrake:['beast',1.7,0.057,0.96],
+ dunedevourer:['spore',1.85,0.124,0.66],
+ obeliskwarden:['stone',1.4,0.097,0.91],
+ sailreaper:['water',1.15,0.066,0.84],
+ abyssmedusa:['water',1.75,0.157,0.28],
+
   wolf:['beast',1,.071,.78],frostwolf:['beast',.86,.052,.94],
   yeti:['beast',1.45,.101,.52],frostking:['beast',1.8,.130,.42],
   tidecrab:['shell',1,.055,.65],clawbeetle:['shell',.76,.033,.9],dunescorpion:['shell',1.6,.085,.72],

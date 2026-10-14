@@ -1,3 +1,4 @@
+import{ADDITIONAL_BOSSES}from'./boss-roster.js?v=196';
 // Reuse locomotion roles while giving each biome its own species and attacks.
 export const MAP_ROSTERS={coast:{mushroom:'foamling',wolf:'tidecrab',golem:'reefturtle',spitter:'jellyseer',shaman:'tidestar',boss:'wreckwarden'},sand:{mushroom:'sandworm',wolf:'clawbeetle',golem:'sandguard',spitter:'sandspitter',shaman:'duneoracle',boss:'dunescorpion'},forest:{mushroom:'mushroom',wolf:'wolf',golem:'golem',spitter:'spitter',shaman:'shaman',boss:'boss'},snow:{mushroom:'snowhare',wolf:'frostwolf',golem:'yeti',spitter:'icewitch',shaman:'snowtotem',boss:'frostking'},ash:{mushroom:'emberling',wolf:'ashstalker',golem:'lavabrute',spitter:'cinderwisp',shaman:'ashseer',boss:'cinderlord'}};
 export const REGIONAL_ENEMIES={
@@ -28,4 +29,5 @@ export const REGIONAL_ENEMIES={
  ashseer:{map:'ash',role:'shaman',hp:70,speed:2,damage:10,xp:19,size:.65,name:'燃烬祭司',traits:'焦褐连续长袍、细面缝与橙红杖头；顿杖踏步，举杖再落杖鼓舞同伴加速。',attack:'附近有同伴时使其加速 3 秒；独处时制造地火',tip:'优先击倒祭司，留意同伴脚边的橙色火星。'},
  cinderlord:{map:'ash',role:'boss',name:'熔炉暴君',traits:'暗红岩甲、肋间熔核与角冠；负重迈步，举臂蓄火后向两侧推出炉焰。',attack:'双列炉火封路、交错落烬；半血后增加第三处落点',tip:'双列火路中间有空隙，交错落点需提前移步；收招时反击。'}
 };
+for(const [id,boss]of Object.entries(ADDITIONAL_BOSSES))REGIONAL_ENEMIES[id]={...boss,role:'boss'};
 export function regionalEnemy(map,role){return MAP_ROSTERS[map]?.[role]||role;}

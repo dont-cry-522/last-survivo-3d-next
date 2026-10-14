@@ -1,9 +1,9 @@
-import{BIOME_THEMES,instrumentSample,scoreBiome,biomeThreat}from'./biome-music.js?v=195';
-import{companionSample}from'./companion-audio.js?v=195';
-import{weaponSample,weaponTakeCount}from'./weapon-audio.js?v=195';
-import{creatureSample,creatureFoleySample,creatureSpatial,ENEMY_VOICES,CREATURE_FOLEY}from'./enemy-audio.js?v=195';
-import{RecordedMusic}from'./recorded-music.js?v=195';
-import{RecordedEffects}from'./recorded-effects.js?v=195';
+import{BIOME_THEMES,instrumentSample,scoreBiome,biomeThreat}from'./biome-music.js?v=196';
+import{companionSample}from'./companion-audio.js?v=196';
+import{weaponSample,weaponTakeCount}from'./weapon-audio.js?v=196';
+import{creatureSample,creatureFoleySample,creatureSpatial,ENEMY_VOICES,CREATURE_FOLEY}from'./enemy-audio.js?v=196';
+import{RecordedMusic}from'./recorded-music.js?v=196';
+import{RecordedEffects}from'./recorded-effects.js?v=196';
 // Local licensed recordings, with the original procedural score as a loading/offline fallback.
 const midi=n=>440*2**((n-69)/12);
 // Sound preferences only: attack timing, damage and music keep their existing behavior.

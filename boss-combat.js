@@ -1,6 +1,9 @@
-import{observePlayer}from'./target-awareness.js?v=195';
+import{observePlayer}from'./target-awareness.js?v=196';
+import{ADDITIONAL_BOSSES}from'./boss-roster.js?v=196';
+import{additionalBossPlan,BOSS_TRAVEL}from'./boss-patterns.js?v=196';
 // A locked target and a readable anticipation precede every damaging attack.
 export const BOSS_STYLES={
+ ...ADDITIONAL_BOSSES,
  wreckwarden:{name:'沉舟寄居王',speed:1.8,wind:1.25,recovery:1.7,color:0x82d7da,moves:['claws','surge','anchors']},
  boss:{name:'林心古树',speed:1.5,wind:1.2,recovery:1.6,color:0xb6d38b,moves:['branches','roots']},
  frostking:{name:'霜冠巨猿',speed:2.3,wind:1.15,recovery:1.7,color:0xa8e9ff,moves:['leap','icefan']},
@@ -9,6 +12,7 @@ export const BOSS_STYLES={
 };
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export function bossAttackPlan(kind,move,b,target){
+ const additional=additionalBossPlan(kind,move,b,target);if(additional)return additional;
  const a=Math.atan2(target.x-b.x,target.z-b.z),r=b.phase===2?1.2:1,at=(d,s=0)=>({x:b.x+Math.sin(a)*d+Math.cos(a)*s,z:b.z+Math.cos(a)*d-Math.sin(a)*s}),zones=[];
  const add=(p,radius,delay,damage,type)=>zones.push({...p,r:radius,delay,damage,kind:type});
  const wind=BOSS_STYLES[kind].wind;
@@ -29,7 +33,7 @@ export function bossAttackPlan(kind,move,b,target){
 // Don't spend the entire attack cycle swinging at empty ground outside reach.
 export function chooseBossMove(b,distance){
  const moves=BOSS_STYLES[b.kind].moves,ranges={claws:5.4,surge:9,anchors:12,branches:5.5,roots:b.phase===2?14:10.4,leap:12,icefan:9,furnace:10,embers:12,pincers:5.3,tail:5.2,burrow:12};
- for(let i=0;i<moves.length;i++){const turn=(b.turn||0)+i,move=moves[turn%moves.length];if(distance<=ranges[move])return{move,next:turn+1};}return null;
+ for(let i=0;i<moves.length;i++){const turn=(b.turn||0)+i,index=turn%moves.length,move=moves[index],range=ADDITIONAL_BOSSES[b.kind]?.ranges[index]??ranges[move];if(distance<=range)return{move,next:turn+1};}return null;
 }
 export function tickBoss(b,p,dt,io){
  const style=BOSS_STYLES[b.kind],d=b.mesh.userData,focus=observePlayer(b,p,dt,io.decoy);
@@ -40,14 +44,18 @@ export function tickBoss(b,p,dt,io){
  const oldX=b.x,oldZ=b.z;
  if(b.stage==='walk'){
   b.cool-=dt;const a=Math.atan2(focus.x-b.x,focus.z-b.z),distance=Math.hypot(focus.x-b.x,focus.z-b.z);
-  const orbit=!b.targetLost&&b.kind==='cinderlord'?(distance<8?1.15:.4):0;
+  const orbit=b.targetLost?0:b.kind==='cinderlord'?(distance<8?1.15:.4):style.stance==='orbit'?(distance<8?1.35:.35):style.stance==='stalk'?.38:0;
   if(distance>(b.kind==='cinderlord'?5:3))io.move(b,Math.sin(a+orbit)*style.speed*1.25*(b.pressure||1)*dt*(b.slow>0?.6:1),Math.cos(a+orbit)*style.speed*1.25*(b.pressure||1)*dt*(b.slow>0?.6:1));
   b.angle=b.targetLost&&distance<=3?b.searchHeading+Math.sin(b.searchTime*2)*.4:a;
   const selected=chooseBossMove(b,distance);
   if(!b.targetLost&&b.cool<=0&&selected&&io.visible(b)){
    b.move=selected.move;b.turn=selected.next;
-   const distance=Math.hypot(focus.x-b.x,focus.z-b.z),limit=b.move==='tail'?4.2:12,k=Math.min(1,limit/Math.max(distance,.01));
-   b.target=io.landing({x:b.x+(focus.x-b.x)*k,z:b.z+(focus.z-b.z)*k},b);
+   const distance=Math.hypot(focus.x-b.x,focus.z-b.z),limit=b.move==='tail'?4.2:BOSS_TRAVEL[b.move]?9:12,k=Math.min(1,limit/Math.max(distance,.01));
+   const aimed={x:b.x+(focus.x-b.x)*k,z:b.z+(focus.z-b.z)*k};
+   // A ground warning can cover an occupied point. Relocating it to an empty
+   // body landing spot would make new charges deliberately miss their target.
+   // Travel itself remains swept by io.move, including walls and actor bodies.
+   b.target=ADDITIONAL_BOSSES[b.kind]?aimed:io.landing(aimed,b);
    const plan=bossAttackPlan(b.kind,b.move,b,b.target);b.angle=plan.angle;b.actionDuration=plan.duration;
    for(const z of plan.zones)io.zone(z,b.kind);
    b.stage='wind';b.elapsed=0;b.wind=style.wind;io.sound(b,'wind');
@@ -58,10 +66,10 @@ export function tickBoss(b,p,dt,io){
    b.wind=Math.max(0,style.wind-b.elapsed);
    if(b.elapsed>=style.wind){b.stage='strike';b.elapsed=0;b.from={x:b.x,z:b.z};io.sound(b,'attack');}
   }else if(b.stage==='strike'){
-   if(b.move==='leap'||b.move==='burrow'){
-    const duration=b.move==='leap'?.65:.85,u=clamp(b.elapsed/duration,0,1),f=u*u*(3-2*u);
+   if(b.move==='leap'||b.move==='burrow'||BOSS_TRAVEL[b.move]){
+    const [duration,lift]=BOSS_TRAVEL[b.move]||(b.move==='leap'?[.65,3.8]:[.85,-2.5]),u=clamp(b.elapsed/duration,0,1),f=u*u*(3-2*u);
     const x=b.from.x+(b.target.x-b.from.x)*f,z=b.from.z+(b.target.z-b.from.z)*f;io.move(b,x-b.x,z-b.z);
-    d.lift=b.move==='leap'?Math.sin(u*Math.PI)*3.8:-Math.sin(u*Math.PI)*2.5;
+    d.lift=Math.sin(u*Math.PI)*lift;
    }
    if(b.elapsed>=b.actionDuration){b.stage='recover';b.elapsed=0;b.recover=style.recovery;d.lift=0;io.sound(b,'impact');}
   }else{

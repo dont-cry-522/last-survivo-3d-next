@@ -1,12 +1,12 @@
-import{AIR_ENEMIES}from'./airborne-enemies.js?v=195';
-import{REGIONAL_ENEMIES}from'./map-enemies.js?v=195';
+import{AIR_ENEMIES}from'./airborne-enemies.js?v=196';
+import{REGIONAL_ENEMIES}from'./map-enemies.js?v=196';
 export const ENEMY_GUIDE={
  mushroom:{image:"assets/bestiary/mushroom.png",traits:"红褐菌盖、细长菌柄、根须脚；蹬地弹跳，菌盖和侧生菌褶随落地晃动。",name:'蹦跳蘑菇',attack:'蓄力后向锁定位置弹跳扑击',tip:'看到脚下的橙色爪痕就侧移，别沿直线后退。'},
  wolf:{image:"assets/bestiary/wolf.png",traits:"蓝灰色四足、尖耳长尾；交错快步绕侧，压低身体后扑咬。",name:'林地狼',attack:'绕侧接近，再向锁定方向猛扑',tip:'等它压低身体后闪到侧面。'},
  golem:{image:"assets/bestiary/golem.png",traits:"灰绿色嵌合岩甲、苔肩、绿色胸核；踏步转移重心，双臂蓄力拍地后收招较慢。",name:'岩甲石怪',attack:'缓慢举臂后震地，近身范围较大',tip:'观察震地前的橙色标记，离开范围再回身攻击。'},
  spitter:{image:"assets/bestiary/spitter.png",traits:"宽扁巫兽头、侧生毒腺、紫色垂瓣与毒囊杖；抬杖抛毒，靠近时后退。",name:'吐毒巫兽',attack:'抬杖吐出毒雾，在紫色毒雾内持续伤人',tip:'毒雾落地后会停留一阵，不要站回去。'},
  shaman:{image:"assets/bestiary/shaman.png",traits:"长树皮面具、分叉嫩枝、层叠叶披肩与叶杖；立杖缓步，抬杖治疗或施咒。",name:'林地祭司',attack:'治疗受伤怪物；无人受伤时施放减速咒',tip:'优先处理祭司，并离开青绿色咒印。'},
- boss:{image:"assets/bestiary/boss.png",traits:"粗壮古树、苔叶树冠、枝指根足；重心随踏步摆动，枝梢轻摇。",name:'林心古树',attack:'横向挥枝与逐段扎根交替，半血后根刺更远',tip:'挥枝时退后，根刺横向躲开，收招时反击。'}
+ boss:{image:"assets/bestiary/boss.png",traits:"粗壮古树、苔叶枝冠、外张枝臂和六束盘根；树根交替拖行，树冠随重心缓摆。",name:'林心古树',attack:'横向挥枝与逐段扎根交替，半血后根刺更远',tip:'挥枝时退后，根刺横向躲开，收招时反击。'}
 };
 for(const [id,cfg]of Object.entries(REGIONAL_ENEMIES))ENEMY_GUIDE[id]={...cfg,image:'assets/bestiary/'+id+'.png'};
 export const CIRCLE_GUIDE=[

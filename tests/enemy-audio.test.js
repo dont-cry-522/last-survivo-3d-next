@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ENEMY_VOICES,creatureSample,creatureSpatial} from '../enemy-audio.js';
+import {ADDITIONAL_BOSSES} from '../boss-roster.js';
 import {MAP_ROSTERS} from '../map-enemies.js';
 
 test('every biome creature has audible, finite, bounded and distinct foley for all six events',()=>{
-  const kinds=Object.values(MAP_ROSTERS).flatMap(Object.values);
+  const kinds=[...Object.values(MAP_ROSTERS).flatMap(Object.values),...Object.keys(ADDITIONAL_BOSSES)];
   assert.deepEqual(Object.keys(ENEMY_VOICES).sort(),kinds.sort());
   for(const event of ['step','wind','attack','impact','hurt','death']){
     const signatures=new Set();

@@ -1,10 +1,11 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 双视角实测</title><style>body{margin:12px;background:#17272b;color:#e2ecea;font:14px system-ui}button{padding:10px;margin:4px;background:#254943;border:1px solid #709582;color:inherit;border-radius:5px}iframe{display:block;border:0;margin-top:8px}pre{white-space:pre-wrap}#view{overflow:auto}</style><button id="run" disabled>运行双视角回归</button><select id="preview-map" aria-label="预览地图"><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="confluence">五境</option></select><select id="preview-place" aria-label="预览位置"><option value="spawn">出生地</option><option value="water">水岸</option><option value="waterbed">浅水石底</option><option value="watercenter">水中近看</option><option value="trees">树丛</option><option value="ruins">遗迹近景</option><option value="ruin-arch">残拱与通道</option><option value="elder">古树空地</option><option value="thicket">幽暗密林</option><option value="floor">地表细节近景</option></select><button id="third" disabled>第三人称预览</button><button id="first" disabled>第一人称预览</button><button id="capture" disabled>保存画面</button><p id="status">正在加载真实游戏（隔离存档，固定帧测试）</p><div id="view"></div><pre id="report"></pre><script type="module">
 import * as T from '../vendor/three.module.js';
-import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=195';
-import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=195';
-import {terrainAt,waterDepth} from '../water.js?v=195';
-import {updateTide} from '../coast.js?v=195';
-import {biomeWeights} from '../confluence.js?v=195';
+import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=196';
+import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=196';
+import {terrainAt,waterDepth} from '../water.js?v=196';
+import {updateTide} from '../coast.js?v=196';
+import {BOSS_STYLES} from '../boss-combat.js?v=196';
+import {biomeWeights} from '../confluence.js?v=196';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
 const previewHero=document.createElement('select'),previewWeapon=document.createElement('select'),sourceDocument=new DOMParser().parseFromString(html,'text/html');
@@ -30,7 +31,7 @@ async function load(mobile=false,width=1180,height=720){
  const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
  // LOD generation must run in this renderer's realm: geometry merges compare
  // typed-array constructors, and WebGL uploads use instanceof checks.
- window.qaWorldReady=import('./world.js?v=195').then(module=>{window.qaAnimateWorld=module.animateWorld;});
+ window.qaWorldReady=import('./world.js?v=196').then(module=>{window.qaAnimateWorld=module.animateWorld;});
  <\/script>`;
  frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
  for(let i=0;i<600&&!win.game3d;i++)await sleep(50);assert(win.game3d,'加载超时 '+(win.qaErrors||[]).join(' / '));g=win.game3d;assert(await g.surfaceReady,'本地土石材质未全部加载');g.audio.init=async()=>true;const render=g.renderer.render.bind(g.renderer);g.renderer.render=(scene,camera)=>{if(scene!==g.hero.parent)return render(scene,camera);win.qaCamera=camera;if(g.state==='menu'&&win.document.querySelector('#preview-detail').getAttribute('aria-pressed')!=='true'){
@@ -485,8 +486,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=195');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=195');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=196');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=196');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -523,21 +524,27 @@ $('#boss-preview').onclick=async()=>{await load();select('silver',0,'forest');g.
 $('#boss-run').onclick=async()=>{
  const buttons=[...document.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);results.length=0;errors.length=0;
  try{
-  for(const mobile of[false,true]){
-   await load(mobile,mobile?844:1180,mobile?390:720);
-   for(const map of['forest','snow','ash','sand','coast'])await check((mobile?'手机':'电脑')+' '+map+' 三首领流程',()=>{
+  for(const layout of['电脑','手机横屏','手机竖屏']){
+   const mobile=layout!=='电脑',portrait=layout==='手机竖屏';await load(mobile,mobile?(portrait?390:844):1180,mobile?(portrait?844:390):720);
+   for(const map of['forest','snow','ash','sand','coast'])await check(layout+' '+map+' 三首领流程',()=>{
     g.select('silver',map,0);g.start();g.player.inv=9999;g.player.attack=9999;g.world.sites=[];g.world.discoveries=[];g.world.roaming=[];
     const advance=seconds=>{g.player.pending=0;g.step(seconds);};
     advance(120.1);assert(g.boss?.alive,'首领未定时出现');const kinds=[],health=[];
     for(let round=0;round<3;round++){
-     const b=g.boss;kinds.push(b.kind);health.push(b.maxHp);b.stage='walk';b.cool=0;b.x=g.player.x;b.z=g.player.z+4;g.step(.02);assert(g.zones.some(z=>z.source===b.kind),'无攻击预警');
+     const b=g.boss;kinds.push(b.kind);health.push(b.maxHp);b.stage='walk';b.cool=0;b.x=g.player.x;b.z=g.player.z+4;g.setView('third');aimAt({...b,height:1.6});g.step(.02);assert(g.zones.some(z=>z.source===b.kind),'无攻击预警 '+b.kind+' '+b.stage+' '+g.state);
+     const style=BOSS_STYLES[b.kind];for(let moveIndex=0;moveIndex<style.moves.length;moveIndex++){
+      b.stage='walk';b.cool=0;b.turn=moveIndex;b.x=g.player.x;b.z=g.player.z+4;b.mesh.position.set(b.x,b.y||0,b.z);b.mesh.userData.lift=0;g.player.pending=0;g.setView('third');aimAt({...b,height:1.6});
+      for(let i=0;i<250;i++){g.player.inv=9999;g.player.attack=9999;g.step(1/30);if(i%30===0){g.setView(i%60?'first':'third');step(1);}if(b.stage==='recover')break;}
+      assert(b.move===style.moves[moveIndex],'招式不符 '+b.kind);assert(b.stage==='recover','没有结束攻击 '+b.kind);reportFrame();
+     }
+     const pausedAt=g.time;g.pause();g.step(1);assert(g.time===pausedAt,'首领招式暂停仍推进');g.resume();
      g.hurtEnemy(b,1e8);assert(!g.zones.some(z=>z.source===b.kind),'战后残留攻击');const defeated=g.bossRun.defeated;g.hurtEnemy(b,1e8);assert(g.bossRun.defeated===defeated,'重复击杀奖励');
      if(round<2){assert(g.state==='playing','过早结算');const t=g.time;g.pause();g.step(10);assert(g.time===t,'暂停推进计时');g.resume();advance(74.8);assert(!g.boss.alive,'下一位过早出现');advance(.3);assert(g.boss.alive,'下一位未出现');}else assert(g.state==='won','第三位未结算');
     }
     assert(new Set(kinds).size===3,'首领重复');assert(health[0]<health[1]&&health[1]<health[2],'强度未递增');g.start();assert(g.bossRun.defeated===0&&g.bossRun.nextAt===120&&!g.boss,'重开未清理');return{kinds,health};
    });
-   await check((mobile?'手机':'电脑')+' 五境仍需五守卫',()=>{g.select('silver','confluence',0);g.start();g.player.inv=9999;for(const r of g.world.regions){g.spawnBoss(r.id);assert(g.boss.alive,'区域守卫生成失败');g.hurtEnemy(g.boss,1e8);}assert(g.state==='won','五境不能完成');return true;});
-   for(const hero of['scout','wuling','lingya','silver','wraith'])await check((mobile?'手机':'电脑')+' '+hero+' 闪避实体',()=>{
+   await check(layout+' 五境仍需五守卫',()=>{g.select('silver','confluence',0);g.start();g.player.inv=9999;for(const r of g.world.regions){g.spawnBoss(r.id);assert(g.boss.alive,'区域守卫生成失败');g.hurtEnemy(g.boss,1e8);}assert(g.state==='won','五境不能完成');return true;});
+   for(const hero of['scout','wuling','lingya','silver','wraith'])await check(layout+' '+hero+' 闪避实体',()=>{
     g.select(hero,'forest',0);g.start();g.world.obstacles=[];g.world.patches=[];g.world.ponds=[];g.world.sites=[];g.world.discoveries=[];g.world.roaming=[];Object.assign(g.player,{x:0,z:0,inv:999,attack:999});g.adventureCamera.yaw=0;
     const e=g.spawn('golem',0,3);e.speed=0;e.cool=999;win.dispatchEvent(new win.KeyboardEvent('keydown',{key:'w'}));g.dash();win.dispatchEvent(new win.KeyboardEvent('keyup',{key:'w'}));for(let i=0;i<40;i++)g.step(.02);
     if(['silver','wraith'].includes(hero))assert(g.player.z>4,'瞬移未越过实体');else assert(g.player.z<3-e.size*.6-.44,'翻滚或燕步穿过实体');
@@ -1293,7 +1300,7 @@ creaturesButton.onclick=async()=>{
  }catch(e){errors.push(String(e));publish();$('#status').textContent='怪物实战检查中断 '+e.message;}finally{controls.forEach(c=>c.disabled=false);}
 };
 const autoCheck=new URLSearchParams(location.search).get('check');
-const autoButtons={creatures:'creatures-run',water:'water-run',identity:'identity-run',lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',slingshot:'slingshot-run',polish:'polish-run',heroes:'run'};
+const autoButtons={bosses:'boss-run',creatures:'creatures-run',water:'water-run',identity:'identity-run',lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',slingshot:'slingshot-run',polish:'polish-run',heroes:'run'};
 if(g&&autoButtons[autoCheck]){$('#status').textContent='正在运行 '+autoCheck+' 检查…';$('#'+autoButtons[autoCheck]).click();}
 </script>
 </html>

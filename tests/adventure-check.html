@@ -1,10 +1,10 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 双视角实测</title><style>body{margin:12px;background:#17272b;color:#e2ecea;font:14px system-ui}button{padding:10px;margin:4px;background:#254943;border:1px solid #709582;color:inherit;border-radius:5px}iframe{display:block;border:0;margin-top:8px}pre{white-space:pre-wrap}#view{overflow:auto}</style><button id="run" disabled>运行双视角回归</button><select id="preview-map" aria-label="预览地图"><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="confluence">五境</option></select><select id="preview-place" aria-label="预览位置"><option value="spawn">出生地</option><option value="water">水岸</option><option value="waterbed">浅水石底</option><option value="watercenter">水中近看</option><option value="trees">树丛</option><option value="ruins">遗迹近景</option><option value="ruin-arch">残拱与通道</option><option value="elder">古树空地</option><option value="thicket">幽暗密林</option><option value="floor">地表细节近景</option></select><button id="third" disabled>第三人称预览</button><button id="first" disabled>第一人称预览</button><button id="capture" disabled>保存画面</button><p id="status">正在加载真实游戏（隔离存档，固定帧测试）</p><div id="view"></div><pre id="report"></pre><script type="module">
 import * as T from '../vendor/three.module.js';
-import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=188';
-import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=188';
-import {terrainAt,waterDepth} from '../water.js?v=188';
-import {updateTide} from '../coast.js?v=188';
-import {biomeWeights} from '../confluence.js?v=188';
+import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=189';
+import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=189';
+import {terrainAt,waterDepth} from '../water.js?v=189';
+import {updateTide} from '../coast.js?v=189';
+import {biomeWeights} from '../confluence.js?v=189';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
 const previewHero=document.createElement('select'),previewWeapon=document.createElement('select'),sourceDocument=new DOMParser().parseFromString(html,'text/html');
@@ -30,7 +30,7 @@ async function load(mobile=false,width=1180,height=720){
  const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
  // LOD generation must run in this renderer's realm: geometry merges compare
  // typed-array constructors, and WebGL uploads use instanceof checks.
- window.qaWorldReady=import('./world.js?v=188').then(module=>{window.qaAnimateWorld=module.animateWorld;});
+ window.qaWorldReady=import('./world.js?v=189').then(module=>{window.qaAnimateWorld=module.animateWorld;});
  <\/script>`;
  frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
  for(let i=0;i<600&&!win.game3d;i++)await sleep(50);assert(win.game3d,'加载超时 '+(win.qaErrors||[]).join(' / '));g=win.game3d;assert(await g.surfaceReady,'本地土石材质未全部加载');g.audio.init=async()=>true;const render=g.renderer.render.bind(g.renderer);g.renderer.render=(scene,camera)=>{if(scene!==g.hero.parent)return render(scene,camera);win.qaCamera=camera;if(g.state==='menu'&&win.document.querySelector('#preview-detail').getAttribute('aria-pressed')!=='true'){
@@ -319,6 +319,7 @@ function positionClusterEdge(mode){
  throw Error('真实景物簇附近没有安全的近景站位');
 }
 function positionPreview(mode,place){
+ if(place==='watershore'){const p=g.world.ponds[0];if(p){g.player.x=p.x+Math.cos(p.angle)*p.rx*1.18;g.player.z=p.z-Math.sin(p.angle)*p.rx*1.18;g.adventureCamera.yaw=p.angle-Math.PI/2;g.adventureCamera.pitch=mode==='first'?-.78:-.55;}return;}
  if(place==='identity'){positionIdentity(mode,$('#preview-map').value);return;}
  if(place==='terrain-approach'||place==='terrain-bank'){positionTerrainApproach(mode,place==='terrain-bank');return;}
  if(place==='terrain-relief'){positionTerrainRelief(mode,terrainReliefView());return;}
@@ -484,8 +485,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=188');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=188');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=189');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=189');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -550,19 +551,29 @@ $('#boss-run').onclick=async()=>{
 // Render the same surface at both bank and swimming height, with the production clock.
 $('#water-step').onclick=()=>{step(60);$('#status').textContent='水面推进 1 秒 · '+JSON.stringify(reportFrame());};
 $('#water-run').onclick=async()=>{
- const buttons=[...document.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);results.length=0;errors.length=0;
+ const buttons=[...document.querySelectorAll('button,select')];buttons.forEach(b=>b.disabled=true);results.length=0;errors.length=0;
+ const options=new URLSearchParams(location.search),mobile=options.get('mobile')==='1',portrait=options.get('portrait')==='1',width=mobile?(portrait?390:844):1180,height=mobile?(portrait?844:390):720;
+ const sheet=document.createElement('canvas'),cw=590,ch=388;sheet.id='water-contact';sheet.width=cw*2;sheet.height=ch*6;sheet.style.cssText='display:block;max-width:100%;height:auto';$('#water-contact')?.remove();$('#report').before(sheet);const paint=sheet.getContext('2d');let row=0;
  try{
-  for(const[mobile,width,height]of[[false,1180,720],[true,844,390],[true,390,844]]){
-   await load(mobile,width,height);for(const map of ['forest','snow','coast']){select('silver',0,map);const p=g.world.ponds[0],shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};p.mesh.material.onBeforeCompile(shader);
-   for(const mode of['first','third'])for(const offset of[0,437])for(const distance of[1.18,0])await check(map+' '+(mobile?width+'×'+height:'电脑')+' '+mode+' '+(offset?'月夜':'晨光')+' '+(distance?'岸边':'水中'),()=>{
-    g.player.x=p.x+Math.cos(p.angle)*p.rx*distance;g.player.z=p.z-Math.sin(p.angle)*p.rx*distance;g.setView(mode);g.adventureCamera.yaw=p.angle-Math.PI/2;g.adventureCamera.pitch=-.40;g.environmentLighting.timeOffset=offset;step(10);
+   await load(mobile,width,height);for(const map of ['forest','snow','coast','confluence']){select('silver',0,map);
+   for(const biome of map==='confluence'?['forest','snow','coast']:[map]){const ponds=g.world.ponds.filter(p=>p.biome===biome),p=ponds[biome==='forest'?Math.min(2,ponds.length-1):0];assert(p,'缺少实际水体 '+map+'/'+biome);
+   const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};p.mesh.material.onBeforeCompile(shader);
+   const layout=JSON.stringify(ponds.map(p=>[p.x,p.z,p.rx,p.rz,p.angle,p.mesh.geometry.uuid])),depths=ponds.map(p=>waterDepth(p,p.x,p.z));
+   for(const[column,mode]of['first','third'].entries())for(const offset of[0,437])for(const distance of[1.18,.9,0])await check(map+'/'+biome+' '+(mobile?width+'×'+height:'电脑')+' '+mode+' '+(offset?'月夜':'晨光')+' '+(distance===0?'水中':distance<1?'浅底':'岸边'),()=>{
+    if(g.state==='paused')g.resume();
+    g.player.x=p.x+Math.cos(p.angle)*p.rx*distance;g.player.z=p.z-Math.sin(p.angle)*p.rx*distance;g.setView(mode);g.adventureCamera.yaw=p.angle-Math.PI/2;g.adventureCamera.pitch=-.40;g.environmentLighting.timeOffset=offset-g.time;step(10);g.renderer.shadowMap.needsUpdate=true;step(1,0);
     const before=reportFrame(),clock=shader.uniforms.waterTime.value,bed=shader.uniforms.waterBed.value;assert(bed.image.width===256&&bed.generateMipmaps,'池底纹理预算不符');assert(before.calls<2000,'水岸绘制超预算');
-    g.pause();step(12);assert(shader.uniforms.waterTime.value===clock,'暂停仍推进水纹');g.resume();step(6);assert(shader.uniforms.waterTime.value>clock,'恢复后水纹未继续');assert(shader.uniforms.waterBed.value===bed,'推进时重建了池底纹理');return reportFrame();
+    if(!offset&&distance===1.18){paint.fillStyle='#17272b';paint.fillRect(column*cw,row*ch,cw,ch);paint.drawImage(g.renderer.domElement,column*cw,row*ch,cw,ch-28);paint.fillStyle='#e2ecea';paint.font='16px sans-serif';paint.fillText(map+'/'+biome+' · '+mode,column*cw+10,(row+1)*ch-7);}
+    if(g.state==='playing')g.pause();assert(g.state==='paused','未进入暂停');step(12);assert(shader.uniforms.waterTime.value===clock,'暂停仍推进水纹');g.resume();step(6);assert(shader.uniforms.waterTime.value>clock,'恢复后水纹未继续');assert(shader.uniforms.waterBed.value===bed,'推进时重建了池底纹理');
+    // Moving the camera / switching daylight may upload an existing LOD for the
+    // first time. Verify settled-frame allocation separately from that warmup.
+    const after=reportFrame();step(2,0);assert(g.renderer.info.memory.textures===after.textures&&g.renderer.info.memory.geometries===after.geometries,'固定水岸画面持续分配资源');assert(JSON.stringify(ponds.map(p=>[p.x,p.z,p.rx,p.rz,p.angle,p.mesh.geometry.uuid]))===layout,'水流改变布局或几何');assert(ponds.every((p,i)=>waterDepth(p,p.x,p.z)===depths[i]),'水流改变实际水深');
+    return{...after,mobileSimulated:mobile,body:biome,flow:shader.uniforms.waterCurrent.value.toArray()};
    });
+   row++;}
   }
-  }
-  errors.push(...win.qaErrors);publish();$('#status').textContent='水岸材质检查完成';
- }finally{buttons.forEach(b=>b.disabled=false);}
+  errors.push(...win.qaErrors);publish();$('#status').textContent='水岸材质：'+results.filter(r=>r.pass).length+'/'+results.length+(mobile?'；手机尺寸模拟':'；电脑实景');
+ }catch(e){errors.push(e.message);publish();$('#status').textContent='水岸检查中断：'+e.message;}finally{buttons.forEach(b=>b.disabled=false);}
 };
 
 $('#environment-closeups').onclick=async()=>{
@@ -1208,6 +1219,7 @@ ambientButton.onclick=async()=>{
 // Inspect the production map; only the test camera/player is repositioned.
 const identityButton=document.createElement('button');identityButton.id='identity-run';identityButton.textContent='五境地貌与水岸检查';$('#capture').before(identityButton);
 $('#preview-place').add(new Option('本图地貌特色','identity'));
+$('#preview-place').add(new Option('站岸边俯看浅滩','watershore'));
 function identityTarget(map){
  const w=g.world;
  if(map==='forest'||map==='confluence'){const p=w.ponds.filter(p=>p.biome==='forest')[2]||w.ponds[0];assert(p,'没有相连溪流');return{x:p.x,z:p.z,y:.2};}
@@ -1249,7 +1261,7 @@ identityButton.onclick=async()=>{
 // A fresh page can run one named inspection after loading; this avoids overlapping
 // iframe rebuilds when browser input acknowledgements time out during heavy QA.
 const autoCheck=new URLSearchParams(location.search).get('check');
-const autoButtons={identity:'identity-run',lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',slingshot:'slingshot-run',polish:'polish-run',heroes:'run'};
+const autoButtons={water:'water-run',identity:'identity-run',lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',slingshot:'slingshot-run',polish:'polish-run',heroes:'run'};
 if(g&&autoButtons[autoCheck]){$('#status').textContent='正在运行 '+autoCheck+' 检查…';$('#'+autoButtons[autoCheck]).click();}
 </script>
 </html>

@@ -1,11 +1,11 @@
-import{onIce,onFord}from'./map-tactics.js?v=188';
-import{onBridge}from'./coast.js?v=188';
-import{MAP_SCALE}from'./map-layout.js?v=188';
-import{coastLayout}from'./coast-layout.js?v=188';
-import{swimStroke,swimLimb,HERO_SWIM,heroSwimPose,swimTravel}from'./swim-motion.js?v=188';
-import{newHeroAttack}from'./new-hero-motion.js?v=188';
-import{naturalRockGeometry,environmentDetailTexture}from'./biome-scenery.js?v=188';
-import{CLIMATE_LIGHT}from'./environment-lighting.js?v=188';
+import{onIce,onFord}from'./map-tactics.js?v=189';
+import{onBridge}from'./coast.js?v=189';
+import{MAP_SCALE}from'./map-layout.js?v=189';
+import{coastLayout}from'./coast-layout.js?v=189';
+import{swimStroke,swimLimb,HERO_SWIM,heroSwimPose,swimTravel}from'./swim-motion.js?v=189';
+import{newHeroAttack}from'./new-hero-motion.js?v=189';
+import{naturalRockGeometry,environmentDetailTexture}from'./biome-scenery.js?v=189';
+import{CLIMATE_LIGHT}from'./environment-lighting.js?v=189';
 import * as T from './vendor/three.module.js';
 const clamp=T.MathUtils.clamp;
 const shore=a=>1+.07*Math.sin(a*3)+.045*Math.cos(a*5);
@@ -83,6 +83,9 @@ function waterSurface(id){
  if(!surfaces.has(id)){
   const clock={value:0},detail={value:environmentDetailTexture()},climate=CLIMATE_LIGHT[id]||CLIMATE_LIGHT.forest,reflection={waterSky:{value:new T.Color(climate.sky)},waterHorizon:{value:new T.Color(climate.fog)}},coast=['coast','forest'].includes(id)?{coastPonds:{value:Array.from({length:8},()=>new T.Vector4())},coastTurns:{value:Array.from({length:8},()=>new T.Vector2())},coastCount:{value:0}}:null,material=new T.MeshStandardMaterial({color:id==='snow'?0x71bdcf:0x398f91,vertexColors:true,roughness:.38,metalness:0,side:T.DoubleSide,transparent:true,depthWrite:false});
   material.forceSinglePass=true;
+  // One direction per connected body, rebound alongside its existing shore
+  // uniforms. No moving geometry or extra texture/render pass is needed.
+  const current={value:new T.Vector2(-.644,.765)},flow=id==='forest'?{speed:'.34',medium:'2.05',fine:'8.4',swell:'.023',ripple:'.008',drift:'.70'}:id==='coast'?{speed:'.24',medium:'.95',fine:'5.2',swell:'.040',ripple:'.006',drift:'.55'}:id==='snow'?{speed:'.065',medium:'1.35',fine:'6.4',swell:'.010',ripple:'.0025',drift:'.18'}:{speed:'.10',medium:'1.5',fine:'6.4',swell:'.018',ripple:'.004',drift:'.30'};
   // One stationary bed continues through each wet shoreline. Each climate tints
   // the same small texture; sand exposes less gravel than the colder rocky banks.
   const bed={value:pondBedTexture()},bedStyle={
@@ -91,34 +94,39 @@ function waterSurface(id){
    sand:{sediment:'.20,.153,.083',dry:'.32,.254,.16',tint:'1.70,1.45,.92',mix:'.12+.25',scale:'.31'},
    coast:{sediment:'.085,.113,.114',dry:'.14,.18,.173',tint:'.88,1.12,1.20',mix:'.24+.44',scale:'.30'}
   }[id]||{sediment:'.043,.052,.038',dry:'.057,.055,.040',tint:'.72,.91,.88',mix:'.28+.56',scale:'.36'};
-  material.onBeforeCompile=shader=>{shader.uniforms.waterTime=clock;shader.uniforms.waterDetail=detail;Object.assign(shader.uniforms,reflection);if(coast)Object.assign(shader.uniforms,coast);shader.vertexShader='varying vec3 waterWorld; varying vec2 waterLocal;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nwaterWorld=(modelMatrix*vec4(position,1.0)).xyz;waterLocal=position.xz;');shader.fragmentShader=(coast?coastUnionShader:'')+'\nuniform float waterTime; uniform sampler2D waterDetail; uniform vec3 waterSky; uniform vec3 waterHorizon; varying vec3 waterWorld; varying vec2 waterLocal;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+  material.onBeforeCompile=shader=>{shader.uniforms.waterTime=clock;shader.uniforms.waterDetail=detail;shader.uniforms.waterCurrent=current;Object.assign(shader.uniforms,reflection);if(coast)Object.assign(shader.uniforms,coast);shader.vertexShader='varying vec3 waterWorld; varying vec2 waterLocal;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nwaterWorld=(modelMatrix*vec4(position,1.0)).xyz;waterLocal=position.xz;');shader.fragmentShader=(coast?coastUnionShader:'')+'\nuniform float waterTime; uniform vec2 waterCurrent; uniform sampler2D waterDetail; uniform vec3 waterSky; uniform vec3 waterHorizon; varying vec3 waterWorld; varying vec2 waterLocal;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
     float angle=atan(waterLocal.y,waterLocal.x);
     float radial=length(waterLocal)/(1.0+.07*sin(angle*3.0)+.045*cos(angle*5.0));
     ${coast?'float ownRadial=radial;radial=coastRadial(waterWorld.xz,1.0,radial);':''}
     float depth=clamp((1.0-radial)/.48,0.0,1.0),edge=1.0-smoothstep(.0,1.0,depth);
-    // A slowly advecting field bends and breaks crests across intersecting reaches.
-    vec2 waterFlow=texture2D(waterDetail,waterWorld.xz*.035+${id==='forest'?'vec2(waterTime*.0010,-waterTime*.0012)':'vec2(waterTime*.0012,-waterTime*.0008)'}).rg;
+    // The whole creek shares a continuous world-space phase at reach joins.
+    vec2 flowUV=vec2(dot(waterWorld.xz,waterCurrent),dot(waterWorld.xz,vec2(-waterCurrent.y,waterCurrent.x)));
+    vec3 waterFlow=texture2D(waterDetail,(waterWorld.xz-waterCurrent*waterTime*${flow.speed})*.035).rgb;
     vec3 shoreGrain=texture2D(waterDetail,waterWorld.xz*.065).rgb;
-    float shoreBreak=smoothstep(.23,.76,shoreGrain.y);
+    float shoreBreak=smoothstep(.36,.72,shoreGrain.y+shoreGrain.x*.12);
     float waterPixel=max(length(dFdx(waterWorld.xz)),length(dFdy(waterWorld.xz)));
     float rippleDetail=1.0-smoothstep(.09,.36,waterPixel);
     float forestBreeze=.65+.35*(.5+.5*sin(waterTime*.42+waterWorld.x*.08+waterWorld.z*.06));
-    float swellA=${id==='forest'?'waterWorld.x*-.74+waterWorld.z*.88-waterTime*.28':'waterWorld.x*.65+waterWorld.z*.95-waterTime*.55'}+waterFlow.x*2.6;
-    float swellB=waterWorld.x*-1.25+waterWorld.z*.48-waterTime*${id==='forest'?'.15':'.41'}+waterFlow.x*1.7-waterFlow.y*.7;
-    float rippleA=sin(waterWorld.x*2.8+waterWorld.z*3.9+sin(swellA)*1.5+sin(swellB)*.8-waterTime*.83);
-    float rippleB=sin(waterWorld.x*-3.5+waterWorld.z*2.1+sin(swellB)*1.1+waterFlow.y*2.2-waterTime*.62);
-    float light=pow(max(0.0,rippleA),10.0)*smoothstep(.48,.87,rippleB)*(.3+waterFlow.y*.7)*${id==='forest'?'.014*forestBreeze':'.038'}*rippleDetail;
+    float swellA=flowUV.x*${flow.medium}+flowUV.y*.24-waterTime*${flow.drift}+waterFlow.x*10.0+waterFlow.y*3.0;
+    float swellB=flowUV.x*.81-flowUV.y*.63-waterTime*${flow.drift}*.61+waterFlow.x*7.0-waterFlow.y*4.0;
+    float rippleA=sin(flowUV.x*${flow.fine}+flowUV.y*1.8+sin(swellA)*1.25+waterFlow.z*5.0-waterTime*${flow.fine}*${flow.speed});
+    float rippleB=sin(flowUV.x*${flow.fine}*.73-flowUV.y*2.3+sin(swellB)*1.1+waterFlow.y*8.0-waterTime*${flow.fine}*${flow.speed}*.83);
+    float light=pow(max(0.0,rippleA),8.0)*smoothstep(.48,.87,rippleB)*(.3+waterFlow.y*.7)*${id==='snow'?'.010':id==='forest'?'.023*forestBreeze':'.032'}*rippleDetail;
     // Wind crosses the bank in short fragments, never in radial foam rings.
     float lapPhase=swellA*1.35+waterFlow.y*2.0;
     float shoreLap=pow(max(0.0,sin(lapPhase)),5.0)*smoothstep(.72,.88,radial)*(1.0-smoothstep(.95,1.0,radial))*(.3+waterFlow.y*.7)*shoreBreak;
-    float waveHeight=(sin(swellA)*${id==='coast'?'.045':id==='forest'?'.016':'.033'}+sin(swellB)*${id==='coast'?'.026':id==='forest'?'.005':'.020'}+(rippleA+rippleB)*${id==='forest'?'.006':'.0025'}*rippleDetail)*${id==='forest'?'forestBreeze*smoothstep(.015,.24,depth)':'(1.0-edge*.72)'}+shoreLap*.003;
+    // Filtered noise directly carries a continuous normal slope. Differentiating
+    // its 8-bit bilinear height made texture-cell edges visible in sun highlights.
+    // Local wavelets are gated, so no crest spans the creek as a straight stripe.
+    float wavePatch=smoothstep(.24,.75,waterFlow.y)*(.35+.65*shoreBreak);
+    vec2 waveSlope=((waterFlow.xy-.5)*${flow.swell}*4.0+vec2(sin(swellA),sin(swellB))*.24*${flow.swell}*wavePatch+vec2(rippleA,rippleB)*${flow.ripple}*.30*rippleDetail)*${id==='forest'?'forestBreeze*smoothstep(.015,.24,depth)':'(1.0-edge*.72)'};
     vec3 deepWater=vec3(${id==='coast'?'.021,.098,.129':id==='snow'?'.029,.086,.126':id==='sand'?'.035,.076,.086':'.012,.050,.048'});
-    vec3 shallowWater=vec3(${id==='coast'?'.070,.139,.153':id==='snow'?'.090,.170,.200':id==='forest'?'.021,.064,.055':'.126,.143,.106'});
+    vec3 shallowWater=vec3(${id==='coast'?'.070,.139,.153':id==='snow'?'.090,.170,.200':id==='forest'?'.027,.077,.062':'.126,.143,.106'});
     vec3 sediment=vec3(${bedStyle.sediment});
     float bedDetail=mix(.5,shoreGrain.b,rippleDetail);
     // Stationary sediment shelves break the radial color bands without changing water depth.
     float bedDepth=clamp(depth+(shoreGrain.x-.5)*.28+(shoreGrain.y-.5)*.12,0.0,1.0);
-    float bedVisibility=exp(-bedDepth*${id==='forest'?'4.8':id==='coast'?'5.2':id==='snow'?'4.2':'4.6'})*(.82+shoreGrain.y*.18);
+    float bedVisibility=exp(-bedDepth*${id==='forest'?'2.35':id==='coast'?'4.1':id==='snow'?'3.2':'4.6'})*(.82+shoreGrain.y*.18);
     vec3 riverbed=sediment*(.76+shoreGrain.x*.22+bedDetail*.25);
     // The bed stays in world space; only a centimetre-scale refraction sways it.
     vec2 bedUV=(waterWorld.xz+vec2(rippleA,rippleB)*.018*rippleDetail)*${bedStyle.scale};
@@ -130,15 +138,13 @@ function waterSurface(id){
     diffuseColor.rgb+=vec3(.56,.73,.70)*light*(1.0-edge*.35)+vec3(.017,.023,.018)*shoreLap;
     // Lapping shifts only the inner fade: the visible shore never exceeds the gameplay boundary.
     // Partly transparent shallows reveal the same continuous damp bed below.
-    diffuseColor.a*=(${id==='forest'?'.94+depth*.04':'.84+depth*.12'})*(1.0-smoothstep(${id==='forest'?'.91+shoreGrain.y*.035':'.90+shoreGrain.y*.045'}+shoreLap*.012,1.0,radial));
+    diffuseColor.a*=(${id==='forest'?'.94+depth*.04':'.84+depth*.12'})*(1.0-smoothstep(${id==='forest'?'.75+shoreGrain.y*.055':id==='snow'?'.83+shoreGrain.y*.035':id==='coast'?'.84+shoreGrain.y*.04':'.85+shoreGrain.y*.04'}+shoreLap*.012,1.0,radial));
 `);
    if(bed){shader.uniforms.waterBed=bed;shader.fragmentShader='uniform sampler2D waterBed;\n'+shader.fragmentShader;}
-   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor=${id==='forest'?'.13+edge*.065':id==='snow'?'.17+edge*.095':id==='sand'?'.19+edge*.13':'.17+edge*.14'}+(.5-waterFlow.y)*.065;`);
+   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor=${id==='forest'?'.18+edge*.08':id==='snow'?'.17+edge*.095':id==='sand'?'.19+edge*.13':'.17+edge*.14'}+(.5-waterFlow.y)*.065;`);
    shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
-    vec3 waveDx=dFdx(-vViewPosition),waveDy=dFdy(-vViewPosition);
-    vec3 waveRx=cross(waveDy,normal),waveRy=cross(normal,waveDx);
-    float waveDet=dot(waveDx,waveRx);
-    normal=normalize(abs(waveDet)*normal-sign(waveDet)*(dFdx(waveHeight)*waveRx+dFdy(waveHeight)*waveRy));
+    vec2 worldSlope=waterCurrent*waveSlope.x+vec2(-waterCurrent.y,waterCurrent.x)*waveSlope.y;
+    normal=normalize(normal+mat3(viewMatrix)*vec3(-worldSlope.x,0.0,-worldSlope.y)*faceDirection);
    `);
    shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
     // A view-dependent sky tint gives the low camera a readable water plane.
@@ -149,9 +155,9 @@ function waterSurface(id){
     float waterFresnel=pow(1.0-clamp(dot(normal,normalize(vViewPosition)),0.0,1.0),4.0);
     vec3 reflectedSky=mix(waterHorizon,waterSky,smoothstep(.02,.72,waterReflection.y));
     reflectedSky*=.88+waterFlow.y*.12+shoreGrain.x*.05;
-    float reflectionBreak=.78+waterFlow.x*.22;
+    float reflectionBreak=.58+waterFlow.x*.27+shoreGrain.x*.15;
     ${id==='forest'?'outgoingLight-=totalSpecular*edge*.24;':''}
-    outgoingLight=mix(outgoingLight,reflectedSky,${id==='forest'?'(.028+waterFresnel*.70)':id==='snow'?'(.032+waterFresnel*.61)':id==='sand'?'(.026+waterFresnel*.56)':'(.035+waterFresnel*.58)'}*reflectionBreak);
+    outgoingLight=mix(outgoingLight,reflectedSky,${id==='forest'?'(.022+waterFresnel*.53)':id==='snow'?'(.032+waterFresnel*.61)':id==='sand'?'(.026+waterFresnel*.56)':'(.035+waterFresnel*.58)'}*reflectionBreak);
     #include <opaque_fragment>
    `);
    // Keep derivative helpers alive through the normal calculation at overlap boundaries.
@@ -201,7 +207,7 @@ function waterSurface(id){
    };
    reeds.customProgramCacheKey=()=> 'forest-bank-reed-wind';
   }
-  surfaces.set(id,{material,bank,reeds,stones,clock,coast,reflection});
+  surfaces.set(id,{material,bank,reeds,stones,clock,coast,reflection,current});
  }
  return surfaces.get(id);
 }
@@ -215,11 +221,13 @@ export function buildPonds(group,id,rnd,spawn,sites,locations=null){
   if(!locations&&id!=='coast'&&(Math.hypot(x-spawn.x,z-spawn.z)<r+6||Math.hypot(x,z)<r+9||sites.some(s=>Math.hypot(x-s.x,z-s.z)<r+8)||ponds.some(p=>Math.hypot(x-p.x,z-p.z)<r+p.r+4)))continue;
   const p={kind:'water',x,z,rx,rz,r,biome:id,angle:locations?.[i]?.angle??(id==='coast'?0:rnd()*Math.PI*2)},bank=new T.Mesh(surfaceGeometry,surface.bank);bank.position.set(x,.045,z);bank.rotation.y=p.angle;bank.scale.set(rx*1.12,1,rz*1.12);bank.receiveShadow=true;group.add(bank);const m=new T.Mesh(surfaceGeometry,surface.material);m.position.set(x,.075,z);m.rotation.y=p.angle;m.scale.set(rx,1,rz);m.receiveShadow=true;group.add(m);p.mesh=m;p.bank=bank;ponds.push(p);
  }
- if(surface.coast){
+ if(ponds.length){
   // Bind on render: menu and combat share materials, but retain their own
   // continuous shorelines. No internal bank or reed stripes across a join.
-  const bind=()=>{surface.coast.coastCount.value=Math.min(8,ponds.length);for(let i=0;i<Math.min(8,ponds.length);i++){const p=ponds[i];surface.coast.coastPonds.value[i].set(p.x,p.z,p.rx,p.rz);surface.coast.coastTurns.value[i].set(Math.cos(p.angle),Math.sin(p.angle));}};
-  for(const p of ponds){p.mesh.onBeforeRender=p.bank.onBeforeRender=bind;p.bank.renderOrder=-2;p.mesh.renderOrder=-1;}
+  const first=ponds[0],last=ponds.at(-1),axis=first.rx>first.rz?new T.Vector2(Math.cos(first.angle),-Math.sin(first.angle)):new T.Vector2(Math.sin(first.angle),Math.cos(first.angle)),direction=id==='forest'&&ponds.length>1?new T.Vector2(last.x-first.x,last.z-first.z):axis.clone();
+  if(direction.lengthSq()<1e-8)direction.copy(axis);direction.normalize();
+  const bind=()=>{surface.current.value.copy(direction);if(surface.coast){surface.coast.coastCount.value=Math.min(8,ponds.length);for(let i=0;i<Math.min(8,ponds.length);i++){const p=ponds[i];surface.coast.coastPonds.value[i].set(p.x,p.z,p.rx,p.rz);surface.coast.coastTurns.value[i].set(Math.cos(p.angle),Math.sin(p.angle));}}};
+  for(const p of ponds){p.mesh.onBeforeRender=p.bank.onBeforeRender=bind;if(surface.coast){p.bank.renderOrder=-2;p.mesh.renderOrder=-1;}}
  }
  const reeds=new T.InstancedMesh(reedGeometry,surface.reeds,ponds.length*24),stones=new T.InstancedMesh(stoneGeometry,surface.stones,ponds.length*6),dummy=new T.Object3D();let ri=0,si=0;
  reeds.name='pond-reeds';stones.name='pond-shore-stones';

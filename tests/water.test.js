@@ -58,7 +58,7 @@ test('flow and wet banks share filtered detail and a simulation clock without mo
   assert.strictEqual(surface.uniforms.waterTime,bank.uniforms.waterTime);assert.strictEqual(detail,bank.uniforms.waterDetail.value);if(texture)assert.strictEqual(detail,texture);texture=detail;assert(detail.generateMipmaps);assert.equal(detail.minFilter,T.LinearMipmapLinearFilter);
   const before=[p.rx,p.rz,p.mesh.position.toArray(),p.mesh.scale.toArray(),waterDepth(p,6,6)],draws=group.children.length;
   for(const time of[8,8,12,0]){animateWater(id,time);assert.equal(surface.uniforms.waterTime.value,time);assert.equal(bank.uniforms.waterTime.value,time);assert.deepEqual([p.rx,p.rz,p.mesh.position.toArray(),p.mesh.scale.toArray(),waterDepth(p,6,6)],before);assert.equal(group.children.length,draws);}
-  if(id==='coast')assert(surface.fragmentShader.indexOf('dFdx(waveHeight)')<surface.fragmentShader.indexOf('if(ownRadial>radial+.0001)discard'),'overlap clipping invalidates normal derivatives');
+  if(id==='coast')assert(surface.fragmentShader.indexOf('vec2 worldSlope=')<surface.fragmentShader.indexOf('if(ownRadial>radial+.0001)discard'),'overlap clipping must follow normal and texture sampling');
   group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
  }
 });
@@ -75,7 +75,7 @@ test('low-angle water uses biome sky colors within the existing surface pass and
   palettes.push(shader.uniforms.waterSky.value.getHex());
   assert.equal((source.match(/texture2D\(waterDetail,/g)||[]).length,2,'the moving flow and stationary shore share two detail samples');
   assert.equal((source.match(/texture2D\(waterBed,/g)||[]).length,1,'each climate uses the same single gravel-bed sample');
-  assert(source.indexOf('dFdx(waveHeight)')<source.indexOf('vec3 waterReflection='),'reflection must see the final animated normal');
+  assert(source.indexOf('vec2 worldSlope=')<source.indexOf('vec3 waterReflection='),'reflection must see the final animated normal');
   assert(source.indexOf('outgoingLight=mix(outgoingLight,reflectedSky')<source.indexOf('#include <opaque_fragment>'),'reflection must precede alpha output');
   assert(source.includes('#include <tonemapping_fragment>')&&source.includes('#include <fog_fragment>'),'water reflection must retain scene tone mapping and distance fog');
   assert(source.includes('bedDetail=mix(.5,shoreGrain.b,rippleDetail)'),'close-up riverbed grain must fade before becoming subpixel');
@@ -204,8 +204,55 @@ test('connected forest reaches bind their own union on render and use strongest 
  b[0].mesh.onBeforeRender();assert.equal(shader.uniforms.coastCount.value,1);assert.equal(shader.uniforms.coastPonds.value[0].x,35);
  a[1].bank.onBeforeRender();assert.equal(shader.uniforms.coastCount.value,2);assert.equal(shader.uniforms.coastPonds.value[0].x,0);
  assert(shader.fragmentShader.includes('coastRadial(waterWorld.xz,1.0,radial)'));
- assert(shader.fragmentShader.indexOf('dFdx(waveHeight)')<shader.fragmentShader.indexOf('if(ownRadial>radial+.0001)discard'));
+ assert(shader.fragmentShader.indexOf('vec2 worldSlope=')<shader.fragmentShader.indexOf('if(ownRadial>radial+.0001)discard'));
  for(let z=0;z<=9;z+=.5){const x=z/9,depth=Math.max(...a.map(p=>waterDepth(p,x,z)));assert(depth>0);assert.equal(terrainAt({patches:a},x,z).depth,depth);}
  const matrix=new T.Matrix4();for(const name of ['pond-reeds','pond-shore-stones']){const mesh=aGroup.getObjectByName(name);for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,matrix);const x=matrix.elements[12],z=matrix.elements[14];assert(!a.every(p=>waterDepth(p,x,z)>.3),'internal river join contains shore dressing');}}
  for(const group of[aGroup,bGroup])group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
+});
+
+test('directional current stays continuous across reaches and rebinds shared materials between worlds',()=>{
+ const aGroup=new T.Group(),bGroup=new T.Group(),a=buildPonds(aGroup,'forest',seeded(4),{x:-40,z:-40},[],[{x:0,z:0,rx:3,rz:12,angle:0},{x:12,z:16,rx:4,rz:12,angle:.5}]),b=buildPonds(bGroup,'forest',seeded(5),{x:-40,z:-40},[],[{x:35,z:12,rx:4,rz:8,angle:-Math.PI/2}]);
+ const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};a[0].mesh.material.onBeforeCompile(shader);
+ const direction=shader.uniforms.waterCurrent.value,before=a.map(p=>[p.x,p.z,p.rx,p.rz,p.angle,p.mesh.scale.toArray()]);
+ for(const pond of a){pond.mesh.onBeforeRender();assert(Math.abs(direction.x-.6)<1e-9&&Math.abs(direction.y-.8)<1e-9,'a join uses its own inconsistent phase direction');}
+ b[0].mesh.onBeforeRender();assert(Math.abs(direction.x+1)<1e-9&&Math.abs(direction.y)<1e-9,'another world inherited the previous current');
+ a[1].bank.onBeforeRender();assert.strictEqual(shader.uniforms.waterCurrent.value,direction);assert(Math.abs(direction.x-.6)<1e-9&&Math.abs(direction.y-.8)<1e-9);
+ for(const time of [0,5,5,0]){animateWater('forest',time);assert.equal(shader.uniforms.waterTime.value,time);assert(Math.abs(direction.length()-1)<1e-9);assert.deepEqual(a.map(p=>[p.x,p.z,p.rx,p.rz,p.angle,p.mesh.scale.toArray()]),before);}
+ assert(shader.fragmentShader.includes('dot(waterWorld.xz,waterCurrent)')&&!shader.vertexShader.includes('waterCurrent'),'current affects shading, never physical shore vertices');
+ for(const group of[aGroup,bGroup])group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
+});
+
+test('single cold and tidal ponds use normalized axes without new passes or changed draw order',()=>{
+ for(const id of ['snow','coast','sand'])for(const rx of [4,9]){
+  const group=new T.Group(),[pond]=buildPonds(group,id,seeded(9),{x:-40,z:-40},[],[{x:0,z:0,rx,rz:7,angle:.7}]),shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};
+  pond.mesh.material.onBeforeCompile(shader);pond.mesh.onBeforeRender();const direction=shader.uniforms.waterCurrent.value;
+  const expected=rx>7?new T.Vector2(Math.cos(.7),-Math.sin(.7)):new T.Vector2(Math.sin(.7),Math.cos(.7));assert(direction.distanceTo(expected)<1e-9,'current follows the short rather than long axis');
+  assert.equal(pond.mesh.renderOrder,id==='coast'?-1:0);assert.equal(pond.bank.renderOrder,id==='coast'?-2:0);
+  assert.equal(group.children.length,4);assert.equal((shader.fragmentShader.match(/texture2D\(waterDetail,/g)||[]).length,2);assert.equal((shader.fragmentShader.match(/texture2D\(waterBed,/g)||[]).length,1);
+  group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
+ }
+});
+
+test('sun highlights use continuous sampled slopes and shallow alpha exposes the existing wet bed',()=>{
+ const widths={};
+ for(const id of ['forest','snow','coast','sand']){
+  const group=new T.Group(),[pond]=buildPonds(group,id,seeded(7),{x:-40,z:-40},[],[{x:0,z:0,rx:4,rz:7,angle:.7}]),shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};
+  pond.mesh.material.onBeforeCompile(shader);const source=shader.fragmentShader;
+  assert(!/dFd[xy]\(waveHeight\)/.test(source),'quantized height derivatives reintroduce texture-cell highlight seams');
+  assert(source.includes('normal=normalize(normal+mat3(viewMatrix)*vec3(-worldSlope.x,0.0,-worldSlope.y)*faceDirection)'),'flow slope must be applied in view space and retain double-sided normals');
+  assert.equal((source.match(/texture2D\(waterDetail,/g)||[]).length,2);assert.equal((source.match(/texture2D\(waterBed,/g)||[]).length,1);
+  const normals=pond.mesh.geometry.attributes.normal;
+  for(let i=0;i<normals.count;i++)assert(Math.abs(normals.getX(i))+Math.abs(normals.getY(i)-1)+Math.abs(normals.getZ(i))<1e-7,'flat surface acquired faceted base normals');
+  const fade=source.match(/diffuseColor.a\*=\([^\n]*\)\*\(1.0-smoothstep\((\.[0-9]+)\+shoreGrain.y\*(\.[0-9]+)\+shoreLap\*\.012,1.0,radial\)\)/);
+  assert(fade,'shore alpha must remain continuous and terminate at the physical boundary');
+  const low=Number(fade[1]),range=Number(fade[2]);widths[id]=1-low-range/2;
+  for(const grain of [0,.5,1]){
+   const start=low+grain*range;
+   assert.equal(T.MathUtils.smoothstep(.70,start,1),0,'deep water alpha changed');
+   assert(T.MathUtils.smoothstep(.94,start,1)>.15,'near-bank water still hides the continuous wet bed');
+   assert.equal(T.MathUtils.smoothstep(1,start,1),1,'water alpha extends outside physical shore');
+  }
+  assert.equal(group.children.length,4,'shallow finish added a layer');group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
+ }
+ assert(widths.forest>widths.coast&&widths.forest>widths.snow,'calm/tidal transitions must remain narrower than the forest shallows');
 });

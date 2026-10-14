@@ -1,5 +1,5 @@
-import{weaponStats,takeUpgrade,HERO_LOADOUTS}from'../rules.js?v=188';
-import{MIRAGE}from'../mirage-config.js?v=188';
+import{weaponStats,takeUpgrade,HERO_LOADOUTS}from'../rules.js?v=189';
+import{MIRAGE}from'../mirage-config.js?v=189';
 const output=document.querySelector('#report'),view=document.querySelector('#view');
 const check=(ok,msg)=>{if(!ok)throw Error(msg);},log=s=>output.textContent+='\n'+s;
 function fireOnce(){g.controls.held=true;g.player.attack=0;advance(.05);g.controls.held=false;g.player.attack=999;}

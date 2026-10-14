@@ -7,6 +7,7 @@ const {surface,tube,setCreatureTime,gait}=await import(new URL('../'+clockImport
 for(const name of ['coast-models.js','expansion-models.js'])assert(readFileSync(new URL('../'+name,import.meta.url),'utf8').includes("'"+clockImport+"'"),'creature clock must use the same module URL as main');
 import {makeSandEnemy,animateSandEnemy} from '../expansion-models.js';
 import {makeCoastEnemy,animateCoastEnemy} from '../coast-models.js';
+import {actor,animateActor} from '../world.js';
 const heights={sandworm:.53,clawbeetle:.86,sandguard:1.85,sandspitter:2,duneoracle:2,foamling:1.16,tidecrab:.97,reefturtle:1.2,jellyseer:1.42,tidestar:.7};
 const coastal=new Set(['foamling','tidecrab','reefturtle','jellyseer','tidestar']);
 const make=k=>coastal.has(k)?makeCoastEnemy(k):makeSandEnemy(k);
@@ -36,7 +37,7 @@ test('ten organic creatures keep legacy combat heights and reuse bounded shared 
   const a=make(kind),b=make(kind),am=meshes(a),bm=meshes(b);assert.equal(a.userData.combatHeight,height,kind);assert.equal(am.length,bm.length);
   am.forEach((m,i)=>{assert.equal(m.geometry,bm[i].geometry);assert.equal(m.material,bm[i].material);assert.equal(m.material.side,T.FrontSide);assert(!Object.hasOwn(m,'onBeforeRender'));assert(!Object.hasOwn(m,'onBeforeShadow'));assert(m.geometry.attributes.position.array.every(Number.isFinite));assert.equal(m.geometry.attributes.creatureBend.count,m.geometry.attributes.position.count);finishes.add(m.material);calls++;triangles+=m.geometry.attributes.position.count/3;});
  }
- assert(calls<=137,`${calls} draws exceeds old 137`);assert(triangles<=40172,`${triangles} triangles exceeds old 40172`);assert.equal(finishes.size,2);
+ assert(calls<=137,`${calls} draws exceeds old 137`);assert(triangles<=40172,`${triangles} triangles exceeds old 40172`);assert.equal(finishes.size,3);assert.equal([...finishes].filter(m=>m.transparent).length,1);
 });
 
 test('shared bends use one game clock with geometry amplitudes, unaffected by actor order or disposal',()=>{
@@ -69,4 +70,37 @@ test('planted feet stay above ground, swing feet lift and pauses preserve comple
   assert(lift>.035,kind+' lacks swing recovery');assert(pose(m).every(Number.isFinite));
  }
  assert(gait(0,1).support);assert(!gait(Math.PI*1.7,1).support);
+});
+
+test('actual coastal water poses keep both fixed leg links joined through entry, paddling, pause and exit',()=>{
+ const end=new T.Vector3(),anchor=new T.Vector3();
+ for(const kind of ['tidecrab','reefturtle'])for(const fps of [30,60,120]){
+  const m=actor(kind),d=m.userData;let deepest=0;m.position.set(3,.2,-2);m.rotation.y=.7;
+  for(const l of d.legs){assert.equal(l.upper.parent,l.joint);assert.equal(l.knee.parent,l.joint);assert.equal(l.paw.parent,l.joint);}
+  for(let i=0;i<fps*6;i++){
+   const time=i/fps,speed=time<4?2.5:0,attack=time%1.5<.6?.6-time%1.5:0;
+   d.waterDepth=time>=.5&&time<3?.9:0;animateActor(m,time,speed,attack);m.updateMatrixWorld(true);deepest=Math.max(deepest,d.waterBlend||0);
+   for(const l of d.legs){
+    end.set(0,-l.upperLength,0).applyMatrix4(l.upper.matrixWorld);l.knee.getWorldPosition(anchor);assert(end.distanceTo(anchor)<1e-6,`${kind}/${fps}: upper link disconnected at ${time}`);
+    end.set(0,-l.lowerLength,0).applyMatrix4(l.knee.matrixWorld);l.paw.getWorldPosition(anchor);assert(end.distanceTo(anchor)<1e-6,`${kind}/${fps}: lower link disconnected at ${time}`);
+   }
+   if(i%15===0){const before=pose(m);animateActor(m,time,speed,attack);assert.deepEqual(pose(m),before,`${kind}/${fps}: paused water pose drifted`);}
+  }
+  assert(deepest>.89,'never reached deep-water pose');assert.equal(d.waterBlend,0,'water pose did not clear after leaving');assert.deepEqual(m.position.toArray(),[3,.2,-2]);assert(pose(m).every(Number.isFinite));
+ }
+});
+
+test('sandworm mouth has real depth and the crab and beetle retain different shell proportions',()=>{
+ const worm=make('sandworm');worm.updateMatrixWorld(true);const hits=new T.Raycaster(new T.Vector3(0,.25,1),new T.Vector3(0,0,-1)).intersectObject(worm,true);
+ assert(hits.length);assert(hits[0].point.z<.23,'a flat front cap plugs the open throat');assert(hits[0].point.z>.10,'throat has an unsealed hole through the body');
+ const crab=new T.Box3().setFromObject(make('tidecrab').userData.body).getSize(new T.Vector3()),beetle=new T.Box3().setFromObject(make('clawbeetle').userData.body).getSize(new T.Vector3());
+ assert(crab.x/crab.z>1.1,'crab should have a broad lateral carapace');assert(beetle.x/beetle.z<.85,'beetle should have a long divided wing case');assert(crab.y/crab.x<.4&&beetle.y/beetle.z<.4,'shells became round upright bodies');
+});
+
+test('only the jelly outer umbrella uses a single transparent draw and its inner anatomy is opaque',()=>{
+ for(const kind of Object.keys(heights)){
+  const m=make(kind),transparent=meshes(m).filter(o=>o.material.transparent);assert.equal(transparent.length,kind==='jellyseer'?1:0,kind);
+  if(kind==='jellyseer'){assert.equal(transparent[0],m.userData.body);assert.equal(transparent[0].material.depthWrite,false);assert(m.userData.inner&&!m.userData.inner.material.transparent);assert(!m.userData.head,'jelly still has an anthropomorphic face rig');}
+  if(kind==='foamling'){assert(m.userData.crest);assert(!m.userData.head,'rolling surf still has a face rig');}
+ }
 });

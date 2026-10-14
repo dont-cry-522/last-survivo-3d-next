@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
-import {weaponInlay,nameWeapon} from './weapon-identity.js?v=190';
+import {weaponInlay,nameWeapon} from './weapon-identity.js?v=191';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {SHADOW_PALETTE as SHADOW} from './shadow-appearance.js?v=190';
+import {SHADOW_PALETTE as SHADOW} from './shadow-appearance.js?v=191';
 
 const geometry=new Map(),materials=new Map(),pageInk=new Map();
 function part(parent,key,create,color,position=[0,0,0],scale=[1,1,1],glow=false){

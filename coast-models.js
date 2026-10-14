@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=190';
-import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=190';
+import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=191';
+import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=191';
 const geometries=new Map(),materials=new Map();
 function part(p,color,pos,size,type='sphere',glow=false){
  if(!geometries.has(type))geometries.set(type,type==='rock'?new T.DodecahedronGeometry(1,1):type==='box'?new T.BoxGeometry(2,2,2):type==='cone'?new T.ConeGeometry(1,2,12):type==='barrel'?new T.CylinderGeometry(.88,1,2,10):type==='hoop'?new T.TorusGeometry(1,.055,5,12):new T.SphereGeometry(1,16,12));
@@ -12,39 +12,41 @@ function eye(p,x,y,z){part(p,0x122e38,[x,y,z],[.07,.08,.05]);part(p,0xd4ffff,[x-
 function makeCoastCreature(kind){
  const g=new T.Group(),r=organicJoint(g),d=g.userData={kind,rig:r,coastModel:true,organicModel:true,legs:[],claws:[],tips:[],arms:[],phase:0,combatHeight:{foamling:1.16,tidecrab:.97,reefturtle:1.2,jellyseer:1.42,tidestar:.70}[kind]};
  if(kind==='foamling'){
-  d.body=form(r,'Foamling_ContinuousDroplet',()=>[surface(0x85bfb9,[[.018,.20,.19],[.08,.36,.30],[.22,.43,.37],[.43,.40,.37],[.63,.35,.31],[.81,.23,.22,.03,-.015],[.98,.10,.10,.10,-.02],[1.10,.045,.038,.12,-.05],[1.16,.001,.001,.09,-.06]],{sides:22,flute:.028,shade:(c,x,y)=>c.lerp(new T.Color(0xd3e5d2),1-T.MathUtils.smoothstep(y,.1,.39))})]);
-  d.head=organicJoint(r,0,.52,.34);form(d.head,'Foamling_Face',()=>[...face(0xc7eece,0,.005,.13),oval(0x447b79,0,-.10,.025,.060,.021,.014)]);
+  // A crawling swell rolls forward over its low, broad sole; no human face.
+  d.body=form(r,'Foamling_RollingSwell',()=>[surface(0x427e7c,[[-.72,.05,.025,0,.065],[-.57,.31,.085,0,.14],[-.30,.47,.20,0,.23],[.03,.49,.29,0,.32],[.34,.35,.22,0,.29],[.57,.20,.095,0,.15],[.66,.025,.026,0,.074]],{axis:'z',sides:24,flute:.035,shade:(c,x,y)=>c.lerp(new T.Color(0xa4c4b6),T.MathUtils.smoothstep(y,.35,.61))})]);
+  d.crest=organicJoint(r);form(d.crest,'Foamling_CurlingFoamLip',()=>[tube(0x94bcb0,[[0,.30,-.43],[0,.57,-.30],[0,.86,-.02],[0,.94,.22],[0,.79,.34],[0,.69,.23]],[.13,.15,.13,.105,.087,.045],{sides:12,steps:26,flexible:(x,y,z)=>[T.MathUtils.smoothstep(y,.32,.9),z*5,.015,.035,.025]}).scale(3.05,1,1),tube(0xc2d5bf,[[-.34,.84,.03],[-.19,.955,.17],[.02,.986,.23],[.25,.93,.18],[.34,.80,.08]],[.027,.036,.028,.024,.012],{sides:6,steps:18})]);
  }else if(kind==='tidecrab'){
-  form(r,'Tidecrab_CarvedShell',()=>[surface(0xae7059,[[-.65,.04,.05,0,.40],[-.52,.37,.23,0,.47],[-.28,.57,.33,0,.48],[.06,.59,.32,0,.48],[.34,.44,.23,0,.45],[.51,.28,.16,0,.41],[.63,.09,.055,0,.38]],{axis:'z',sides:20,shade:(c,x,y,z)=>c.lerp(new T.Color(y<.36?0x624f45:0xc88d68),y<.36?.55:.28+.1*Math.sin(z*17))}),...[-1,1].flatMap(s=>[tube(0x9a8e6d,[[s*.21,.62,.37],[s*.225,.75,.40],[s*.24,.87,.42]],[.046,.037,.038],{steps:8})]),...face(0xe6e1b2,.875,.439,.24),tube(0x523f36,[[-.11,.365,.585],[0,.342,.63],[.11,.365,.585]],[.016,.020,.016],{steps:8})]);
+  d.body=form(r,'Tidecrab_LowArmoredCarapace',()=>[surface(0x8c5946,[[-.61,.06,.035,0,.33],[-.48,.46,.11,0,.40],[-.26,.64,.17,0,.43],[.04,.67,.20,0,.44],[.28,.54,.15,0,.43],[.46,.33,.12,0,.405],[.54,.17,.065,0,.385]],{axis:'z',sides:28,deform:(x,y,z,a)=>[x*(1+.045*Math.cos(a*8)),y,z],shade:(c,x,y,z)=>c.lerp(new T.Color(y<.36?0x473d32:0xb9835b),y<.36?.55:.18+.22*Math.sin(z*9)**2)}),...[-1,1].flatMap(side=>[tube(0x685340,[[side*.21,.51,.40],[side*.24,.64,.43],[side*.255,.72,.435]],[.032,.029,.031],{steps:7}),oval(0x202925,side*.259,.748,.451,.049,.032,.036,10,6),tube(0x4c3e32,[[side*.12,.55,.51],[side*.34,.55,.39],[side*.48,.57,.19],[side*.43,.56,-.13]],[.014,.017,.016,.008],{steps:12}),tube(0x685242,[[side*.49,.43,-.30],[side*.68,.42,-.32],[side*.75,.39,-.38]],[.06,.042,.003],{steps:7})]),tube(0x322f29,[[-.14,.335,.536],[0,.30,.572],[.14,.335,.536]],[.018,.026,.018],{steps:8})]);
   for(const side of[-1,1]){
-   for(let i=0;i<3;i++)d.legs.push(leg(r,'TidecrabLeg',{x:side*.41,y:.36,z:.33-i*.30,side,reach:.48,a:.33,b:.32,width:.066,color:0xb9815d,foot:0x40565a,phase:(i%2+(side>0?1:0))*Math.PI}));
-   const claw=organicJoint(r,side*.41,.44,.39);form(claw,'Tidecrab_ClawArm_'+side,()=>[tube(0xc38a66,[[0,0,0],[side*.11,-.025,.18],[side*.19,.015,.40],[side*.21,.04,.62]],[.115,.12,.18,.13],{steps:13,sides:10}),tube(0xd5a573,[[side*.22,.04,.54],[side*.35,.055,.77],[side*.31,.08,.99],[side*.18,.09,1.09]],[.12,.105,.062,.002],{steps:13,sides:8})]);
-   const finger=organicJoint(claw,side*.10,.035,.55);form(finger,'Tidecrab_MovablePincer_'+side,()=>[tube(0x7d6654,[[0,0,0],[-side*.035,.02,.20],[side*.035,.044,.37],[side*.09,.055,.48]],[.085,.071,.048,.002],{steps:10})]);d.claws.push(claw);d.tips.push(finger);
+   for(let i=0;i<3;i++)d.legs.push(leg(r,'Tidecrab_SideLeg_'+side,{x:side*.45,y:.31,z:.27-i*.28,side,reach:.45,a:.30,b:.31,width:.082,color:0x9c7050,foot:0x423c32,sole:'point',phase:(i%2+(side>0?1:0))*Math.PI}));
+   const claw=organicJoint(r,side*.40,.35,.32);form(claw,'Tidecrab_LongCheliped_'+side,()=>[tube(0x9c6a4b,[[0,0,0],[side*.13,-.025,.20],[side*.21,.035,.43],[side*.17,.075,.62]],[.095,.112,.155,.105],{steps:16,sides:10}),tube(0xb38358,[[side*.19,.075,.54],[side*.31,.06,.76],[side*.30,.025,1.00],[side*.18,.0,1.12]],[.12,.092,.060,.003],{steps:14,sides:8}),tube(0x604837,[[side*.27,.064,.77],[side*.20,.060,.805],[side*.26,.05,.855]],[.026,.02,.016],{steps:6,sides:5})]);
+   const finger=organicJoint(claw,side*.10,.05,.61);form(finger,'Tidecrab_LockingFinger_'+side,()=>[tube(0x715239,[[0,0,0],[-side*.08,-.025,.19],[-side*.016,-.037,.35],[side*.075,-.05,.50]],[.086,.071,.045,.002],{steps:12})]);d.claws.push(claw);d.tips.push(finger);
   }
  }else if(kind==='reefturtle'){
-  form(r,'Reefturtle_Plastron',()=>[surface(0x8ba18b,[[-.77,.06,.06,0,.35],[-.59,.46,.21,0,.40],[-.18,.63,.24,0,.41],[.28,.58,.23,0,.39],[.61,.26,.15,0,.40]],{axis:'z',sides:20}),tube(0x798d77,[[0,.33,-.61],[0,.21,-.82],[0,.18,-.90]],[.075,.05,.002],{steps:7})]);
-  d.shell=form(r,'Reefturtle_ContinuousScutes',()=>[surface(0x456f68,[[.49,.64,.79],[.57,.68,.79],[.72,.65,.74],[.85,.54,.63],[.94,.36,.47],[.985,.16,.26],[.995,.015,.10]],{sides:24,flute:.025,shade:(c,x,y,z)=>{const seam=Math.min(Math.abs(Math.sin(z*10+x*4)),Math.abs(Math.sin(x*10)));return c.lerp(new T.Color(seam<.12?0x304e4a:0x94ac8d),seam<.12?.38:(y-.49)*.56);}}),tube(0x809584,[[0,1.01,-.36],[.02,1.105,-.19],[-.015,1.115,.015],[.018,1.025,.27]],[.09,.075,.065,.035],{sides:8,steps:11}),tube(0x718b7c,[[-.28,.88,-.25],[-.30,.98,-.02],[-.27,.93,.18]],[.07,.07,.018],{sides:7,steps:8}),tube(0x8e9e86,[[.30,.86,-.12],[.29,.98,.10],[.26,.88,.28]],[.065,.065,.018],{sides:7,steps:8})]);
-  d.head=organicJoint(r,0,.42,.57);form(d.head,'Reefturtle_NeckAndHead',()=>[surface(0xa8b68c,[[-.10,.14,.14],[.09,.18,.17],[.27,.26,.21],[.43,.225,.17],[.54,.12,.10]],{axis:'z',sides:16}),...face(0xe2d9a0,.08,.433,.177),tube(0x536b55,[[-.13,-.074,.42],[0,-.089,.505],[.13,-.074,.42]],[.008,.010,.008],{steps:8})]);
-  for(const side of[-1,1])for(const z of[-.43,.39])d.legs.push(leg(r,'Reefturtle_Flipper',{x:side*.43,y:.29,z,side,reach:.21,a:.22,b:.25,width:.105,color:0x7e9985,foot:0x718772,phase:side*z>0?0:Math.PI}));
+  form(r,'Reefturtle_BroadPlastron',()=>[surface(0x626f54,[[-.75,.045,.025,0,.31],[-.56,.52,.12,0,.33],[-.19,.64,.17,0,.34],[.30,.62,.16,0,.33],[.61,.33,.08,0,.34]],{axis:'z',sides:22}),tube(0x5c6850,[[0,.30,-.63],[0,.22,-.84],[0,.14,-.96]],[.083,.054,.003],{steps:9})]);
+  const shellY=(x,z)=>.47+.39*Math.sqrt(Math.max(0,1-(x/.70)**2-(z/.82)**2));
+  d.shell=form(r,'Reefturtle_LowPlateShell',()=>{
+   const parts=[surface(0x45594d,[[.43,.62,.77],[.48,.71,.84],[.56,.69,.81],[.66,.62,.74],[.75,.51,.64],[.815,.35,.49],[.85,.15,.26],[.858,.006,.03]],{sides:40,shade:(c,x,y,z)=>c.lerp(new T.Color(0x83927b),.12+.2*Math.sin(z*5+x*3)**2)})];
+   for(const side of[-1,1])parts.push(tube(0x263b32,[-.64,-.43,-.18,.08,.33,.57].map((z,i)=>{const x=side*(i===0||i===5?.14:i%2?.26:.20);return[x,shellY(x,z)+.003,z];}),[.012,.016,.015,.014,.016,.009],{steps:20,sides:5}));
+   for(const z of[-.39,.02,.39])parts.push(tube(0x263b32,[-.53,-.31,-.20,0,.20,.31,.53].map((x,i)=>[x,shellY(x,z)+.003,z+(i%2?.035:0)]),[.009,.014,.014,.015,.014,.014,.009],{steps:20,sides:5}));
+   parts.push(tube(0x75826a,[[0,.81,-.31],[.02,.995,-.22],[-.015,1.02,-.08],[.02,.91,.10]],[.10,.10,.08,.035],{sides:8,steps:12}),tube(0x5c7360,[[-.33,.74,-.23],[-.30,.86,-.12],[-.26,.795,.04]],[.083,.072,.025],{sides:7,steps:8}));return parts;
+  });
+  d.head=organicJoint(r,0,.37,.50);form(d.head,'Reefturtle_ExtendedNeckBeak',()=>[surface(0x879577,[[-.19,.13,.115],[.06,.13,.125,0,-.015],[.24,.17,.14,0,.005],[.42,.20,.135,0,.005],[.58,.145,.09,0,-.018],[.66,.085,.05,0,-.022]],{axis:'z',sides:20,shade:(c,x,y,z)=>c.lerp(new T.Color(y<0?0xb1b493:0x536e58),y<0?.22:.18)}),surface(0x605d46,[[.54,.135,.067,0,-.021],[.66,.091,.055,0,-.047],[.71,.031,.034,0,-.075]],{axis:'z',sides:12}),...[-1,1].map(side=>oval(0x202d23,side*.158,.057,.43,.035,.014,.027,10,6)),tube(0x36483a,[[-.12,-.055,.57],[0,-.062,.665],[.12,-.055,.57]],[.008,.010,.008],{steps:10})]);
+  for(const side of[-1,1])for(const z of[-.39,.38])d.legs.push(leg(r,'Reefturtle_HeavyToes',{x:side*.44,y:.29,z,side,reach:.14,a:.22,b:.20,width:.148,color:0x63795d,foot:0x393d2c,sole:'toes',phase:side*z>0?0:Math.PI}));
  }else if(kind==='jellyseer'){
-  d.body=form(r,'Jellyseer_ContinuousBell',()=>[surface(0x84bac5,[[.81,.32,.32],[.83,.48,.48],[.89,.52,.52],[1.03,.47,.47],[1.22,.36,.36],[1.37,.19,.19],[1.42,.015,.015]],{sides:24,flute:.032,shade:(c,x,y)=>c.lerp(new T.Color(0xd1e6db),1-T.MathUtils.smoothstep(y,.84,1.05))}),...face(0xc6f4e5,1.06,.444,.17)]);
-  d.tentacles=form(r,'Jellyseer_ContinuousTentacles',()=>Array.from({length:6},(_,i)=>{const a=i*Math.PI/3,x=Math.sin(a)*.31,z=Math.cos(a)*.31;return tube(i%2?0x85b9c2:0xb0d1cb,[[x,.86,z],[x*1.15,.62,z*1.15],[x*.86,.39,z*.86],[x*1.09,.16,z*1.09],[x*.9,.055,z*.9]],[.046,.039,.030,.018,.003],{steps:17,sides:6,flexible:(px,y,pz)=>[Math.max(0,(.84-y)/.80),a-y*4,.065,.045,.025]});}));
-  d.attackSocket=organicJoint(r,0,.88,.33);
+  d.body=form(r,'Jellyseer_TranslucentUmbrella',()=>[surface(0x8baaaa,[[.91,.48,.43],[.955,.61,.56],[1.00,.59,.55],[1.12,.50,.47],[1.24,.34,.34],[1.31,.16,.17],[1.34,.006,.008]],{sides:32,deform:(x,y,z,a,j)=>[x,y+(j<2?.026*Math.cos(a*10):0),z],shade:(c,x,y)=>c.lerp(new T.Color(0xc5d3be),T.MathUtils.smoothstep(y,1.12,1.34))})],{translucent:true});
+  d.inner=form(r,'Jellyseer_RadialCanals',()=>[surface(0x527f83,[[.91,.28,.27],[.97,.34,.33],[1.075,.29,.28],[1.16,.17,.18],[1.20,.008,.008]],{sides:20}),...Array.from({length:8},(_,i)=>{const a=i*Math.PI/4;return tube(0xa8c0b2,[[Math.sin(a)*.09,1.28,Math.cos(a)*.09],[Math.sin(a)*.37,1.19,Math.cos(a)*.35],[Math.sin(a)*.53,1.02,Math.cos(a)*.48],[Math.sin(a)*.56,.954,Math.cos(a)*.51]],[.009,.012,.015,.008],{sides:5,steps:12});})]);
+  d.tentacles=form(r,'Jellyseer_OralArmsAndThreads',()=>[...Array.from({length:10},(_,i)=>{const a=i*Math.PI/5,x=Math.sin(a)*.43,z=Math.cos(a)*.40,end=.06+(i%3)*.055;return tube(0x769a98,[[x,.955,z],[x*1.01,.72,z*1.03],[x*.83,.42,z*.82],[x*.89,end+.1,z*1.07],[x*.63,end,z*.92]],[.014,.016,.013,.008,.002],{steps:19,sides:5,flexible:(px,y,pz)=>[Math.max(0,(.94-y)/.90),a-y*4,.055,.045,.02]});}),...Array.from({length:4},(_,i)=>{const a=i*Math.PI/2+.4,x=Math.sin(a)*.13,z=Math.cos(a)*.13;return tube(0xa0b8ac,[[x,.96,z],[x*1.5,.70,z*.5],[x*.4,.47,z*1.6],[x*1.4,.30,z*.5],[x*.6,.18+i*.02,z]],[.059,.057,.036,.024,.004],{steps:18,sides:7,flexible:(px,y,pz)=>[Math.max(0,(.94-y)/.90),a-y*3,.042,.038,.019]});})]);
+  d.attackSocket=organicJoint(r,0,.88,.12);
  }else{
-  // A single continuous radial skin connects all five arms to the central disc.
-  d.body=form(r,'Tidestar_ContinuousFiveArms',()=>{
-   const positions=[],indices=[],sides=60,rows=[.28,.60,1],colors=[],f=[],bend=[],color=new T.Color(),base=new T.Color(0xb78573),ridge=new T.Color(0xe0ba93);
-   const vertex=(layer,u,a)=>{const arm=(.5+.5*Math.cos(a*5))**3,r=(.30+.61*arm)*u,y=layer?.16+(.37-.19*u)*Math.sin((1-u)*Math.PI/2)+.035*arm*u:.12;positions.push(Math.sin(a)*r,y,Math.cos(a)*r);color.copy(base).lerp(ridge,layer?(.3+arm*.42*u):.05);colors.push(color.r,color.g,color.b);f.push(u*u*.65,a*2);bend.push(.016,.010,.04);};
+  d.body=form(r,'Tidestar_ThickFiveArms',()=>{
+   const positions=[],indices=[],sides=80,rows=[.18,.38,.64,.83,1],colors=[],f=[],bend=[],color=new T.Color(),base=new T.Color(0x8e6553),ridge=new T.Color(0xc0956e);
+   const vertex=(layer,u,a)=>{const arm=(.5+.5*Math.cos(a*5))**2,r=(.27+.64*arm)*u,channel=Math.max(0,Math.cos(a*5))**20,y=layer?.125+.28*(1-u*u)+.065*arm*u-.020*channel*u:.055+.014*u;positions.push(Math.sin(a)*r,y,Math.cos(a)*r);color.copy(base).lerp(ridge,layer?(.12+arm*.22+.12*Math.sin(u*29+a*5)**2):.03);if(layer&&channel>.7&&u>.25)color.multiplyScalar(.68);colors.push(color.r,color.g,color.b);f.push(u*u*.60,a*2);bend.push(.012,.009,.033);};
    for(const layer of[0,1]){vertex(layer,0,0);for(const u of rows)for(let i=0;i<sides;i++)vertex(layer,u,i/sides*Math.PI*2);}
-   const stride=1+rows.length*sides;
-   for(const layer of[0,1]){
-    const offset=layer*stride;
-    for(let i=0;i<sides;i++){const a=offset+1+i,b=offset+1+(i+1)%sides;indices.push(...(layer?[offset,a,b]:[offset,b,a]));}
-    for(let row=0;row<rows.length-1;row++)for(let i=0;i<sides;i++){const a=offset+1+row*sides+i,b=offset+1+row*sides+(i+1)%sides;indices.push(...(layer?[a,a+sides,b,b,a+sides,b+sides]:[a,b,a+sides,b,b+sides,a+sides]));}
-   }
+   const stride=1+rows.length*sides;for(const layer of[0,1]){const offset=layer*stride;for(let i=0;i<sides;i++){const a=offset+1+i,b=offset+1+(i+1)%sides;indices.push(...(layer?[offset,a,b]:[offset,b,a]));}for(let row=0;row<rows.length-1;row++)for(let i=0;i<sides;i++){const a=offset+1+row*sides+i,b=offset+1+row*sides+(i+1)%sides;indices.push(...(layer?[a,a+sides,b,b,a+sides,b+sides]:[a,b,a+sides,b,b+sides,a+sides]));}}
    for(let i=0;i<sides;i++){const a=1+(rows.length-1)*sides+i,b=1+(rows.length-1)*sides+(i+1)%sides;indices.push(a,b,a+stride,b,b+stride,a+stride);}
-   const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(positions,3));geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));geo.setAttribute('creatureFlex',new T.Float32BufferAttribute(f,2));geo.setAttribute('creatureBend',new T.Float32BufferAttribute(bend,3));geo.setIndex(indices);geo.computeVertexNormals();return[geo,...face(0xcde8c7,.38,.305,.115),oval(0x90c4b5,0,.57,0,.14,.13,.14)];
-  });d.attackSocket=organicJoint(r,0,.48,.24);
+   const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(positions,3));geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));geo.setAttribute('creatureFlex',new T.Float32BufferAttribute(f,2));geo.setAttribute('creatureBend',new T.Float32BufferAttribute(bend,3));geo.setIndex(indices);geo.computeVertexNormals();return[geo,surface(0x3b5952,[[.395,.115,.115],[.47,.073,.069],[.55,.027,.025],[.57,.003,.003]],{sides:10,flute:.07}),oval(0x172e2a,0,.406,.02,.064,.011,.061,12,6)];
+  });d.attackSocket=organicJoint(r,0,.48,.02);
  }
  d.arms=[...d.claws,...d.tips];d.cap=d.body;animateCoastEnemy(g,0,0,0,0);return g;
 }
@@ -71,17 +73,17 @@ export function animateCoastEnemy(g,t,speed,attack,dt){
   d.strike=(d.strike||0)+(hit-(d.strike||0))*(1-Math.exp(-dt*12));strike=d.strike;
   r.position.set(0,Math.abs(Math.sin(p))*.010*s-wind*.018,-wind*.016+strike*.025);r.rotation.set(wind*.025-strike*.04,0,Math.sin(p)*.014*s);
   if(d.kind==='foamling'){
-   const hop=Math.max(0,Math.sin(p))*.12*s,squash=Math.sin(p)*.045*s-wind*.10+strike*.07;
-   r.position.y=hop;d.body.scale.set(1-squash*.45,1+squash,1-squash*.35);d.head.position.set(0,.52*(1+squash),.34*(1-squash*.35));d.head.rotation.x=wind*.06-strike*.09;r.rotation.z=Math.sin(p-.4)*.035*s;
+   const pulse=Math.sin(p),squash=pulse*.045*s-wind*.10+strike*.07;
+   r.position.y=0;d.body.scale.set(1-squash*.35,1+squash,1-squash*.20);d.crest.position.set(0,-wind*.035+strike*.045,-wind*.075+strike*.10+Math.sin(p-.7)*.022*s);d.crest.rotation.x=-wind*.12+strike*.10+Math.sin(p-.4)*.035*s;r.rotation.z=Math.sin(p-.4)*.012*s;
   }else if(d.kind==='jellyseer'){
    const pulse=Math.sin(t*2.3),breath=.025*pulse+wind*.07-strike*.045;r.position.y=.08+Math.sin(t*1.7)*.08;
-   d.body.scale.set(1+breath,1-breath*.65,1+breath);d.body.position.y=.83*breath*.65;d.attackSocket.position.z=.33+strike*.045;
+   d.body.scale.set(1+breath,1-breath*.65,1+breath);d.body.position.y=.94*breath*.65;d.inner.scale.set(1+breath*.5,1-breath*.45,1+breath*.5);d.attackSocket.position.z=.12+strike*.035;
   }else if(d.kind==='tidestar'){
    r.position.y=0;r.rotation.set(0,Math.sin(t*.55)*.022*s,0);d.body.scale.set(1-wind*.045,1+wind*.08-strike*.05,1-wind*.045);
   }else{
-   for(const l of d.legs)stepLeg(l,r,p,s*(1-wind*.78),{travel:d.kind==='reefturtle'?.075:.11,lift:d.kind==='reefturtle'?.055:.08});
+   for(const l of d.legs)stepLeg(l,r,p,s*(1-wind*.78),{travel:d.kind==='reefturtle'?.060:.08,lift:d.kind==='reefturtle'?.043:.057,sideways:d.kind==='tidecrab'?.060:0});
    d.claws.forEach((o,i)=>{const side=i?1:-1;o.rotation.set(-wind*.12+strike*.09,side*(wind*.25-strike*.30),0);});d.tips.forEach((o,i)=>o.rotation.y=(i?1:-1)*(-wind*.22+strike*.13));
-   if(d.head){d.head.position.z=.57-wind*.095+strike*.10;d.head.rotation.x=-wind*.12+strike*.08;d.head.rotation.y=Math.sin(t*.8)*.025*(1-s);}
+   if(d.head){d.head.position.z=.50-wind*.12+strike*.14;d.head.rotation.x=-wind*.12+strike*.08;d.head.rotation.y=Math.sin(t*.8)*.025*(1-s);}
   }
   return;
  }

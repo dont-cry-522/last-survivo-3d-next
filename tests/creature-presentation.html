@@ -7,14 +7,14 @@
 <button id="checks">检查全部怪物</button><button id="hit">受击预览</button><button id="still">固定展示姿势</button><pre id="checks-report"></pre><pre id="report">LOADING</pre><div id="stage"></div><div id="portraits"></div>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=190';
-import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=190';
-import {setCreatureTime} from '../creature-forms.js?v=190';
-import {MAP_ROSTERS} from '../map-enemies.js?v=190';
-import {recordEnemyHit} from '../enemy-feedback.js?v=190';
-import {enemyCastFlight} from '../enemy-cast-vfx.js?v=190';
-import {SkillVFX} from '../skill-vfx.js?v=190';
-import {ENEMY_MOTION} from '../enemy-motion.js?v=190';
+import {actor,animateActor} from '../world.js?v=191';
+import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=191';
+import {setCreatureTime} from '../creature-forms.js?v=191';
+import {MAP_ROSTERS} from '../map-enemies.js?v=191';
+import {recordEnemyHit} from '../enemy-feedback.js?v=191';
+import {enemyCastFlight} from '../enemy-cast-vfx.js?v=191';
+import {SkillVFX} from '../skill-vfx.js?v=191';
+import {ENEMY_MOTION} from '../enemy-motion.js?v=191';
 let kinds=[];const scene=new T.Scene(),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
 renderer.setSize(1120,460);renderer.setClearColor(0x25382f);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
 document.querySelector('#stage').append(renderer.domElement);scene.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));

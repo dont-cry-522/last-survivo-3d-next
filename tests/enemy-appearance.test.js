@@ -130,7 +130,13 @@ test('continuous wolf anatomy and irregular stone contours retain their actor bu
  }
 });
 
-test('fur and stone use the existing shared material while other forest models keep their vertices, normals and colors',()=>{
- const hashes={mushroom:'8e509a5a33fef8726dd131deea09ad123bec8b8a5d137a7addfc21391e5ef991',spitter:'ea115bf60a83454cd9151386047bbca65b20eea23f7bfffb7461592d86f55aa7',shaman:'35246dc1db2cc779a313dbe5660e56116bc9757657751bbddbe545a913a85fca'};
- for(const kind of kinds){const parts=surfaces(actor(kind)),surface=kind==='wolf'?1:kind==='golem'?2:0,hash=createHash('sha256');for(const part of parts){assert.equal(part.geometry.attributes.creatureSurface.count,part.geometry.attributes.position.count);assert(part.geometry.attributes.creatureSurface.array.every(v=>v===surface));for(const name of['position','normal','color'])hash.update(Buffer.from(part.geometry.attributes[name].array.buffer));}if(hashes[kind])assert.equal(hash.digest('hex'),hashes[kind],kind+' appearance changed during the wolf/stone pass');}
+test('forest identities share the finish and keep combat height while caster silhouettes differ',()=>{
+ for(const kind of kinds){const g=actor(kind),surface=kind==='wolf'?1:kind==='golem'?2:0;
+  for(const part of surfaces(g)){assert.equal(part.geometry.attributes.creatureSurface.count,part.geometry.attributes.position.count);assert(part.geometry.attributes.creatureSurface.array.every(v=>v===surface));assert(Array.from(part.geometry.attributes.normal.array).every(Number.isFinite));}
+  assert(g.userData.combatHeight>1.3&&g.userData.combatHeight<2.2);
+ }
+ const beast=actor('spitter').getObjectByName('caster-head').geometry,priest=actor('shaman').getObjectByName('caster-head').geometry;
+ const a=beast.boundingBox.getSize(new T.Vector3()),b=priest.boundingBox.getSize(new T.Vector3());
+ assert(a.x>a.y*1.4,'poison beast must have a wide amphibian muzzle');assert(b.y>b.x*1.3,'priest must retain its long bark mask and forked shoots');
+ for(const kind of ['spitter','shaman'])assert.equal(actor(kind).userData.combatHeight,1.8900000041723253,'appearance must not alter projectile hit height');
 });

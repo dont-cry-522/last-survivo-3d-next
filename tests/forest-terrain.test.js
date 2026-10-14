@@ -12,8 +12,8 @@ import {installForestTerrain} from '../forest-terrain.js';
 import {installEnvironmentGrounding} from '../environment-grounding.js';
 import {installForestFloorRelief} from '../forest-floor-relief.js';
 import {installForestVista} from '../forest-vista.js';
-import {installBiomePlaces} from '../biome-places.js?v=190';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=190';
+import {installBiomePlaces} from '../biome-places.js?v=191';
+import {installEnvironmentClusters} from '../environment-clusters.js?v=191';
 import {installExplorationLandmarks} from '../exploration-landmarks.js';
 import {installExplorationComposition} from '../exploration-composition.js';
 

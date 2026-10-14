@@ -18,7 +18,9 @@ test('ten regional templates preserve spawn hit heights and gameplay data while 
   polishRegionalEnemy(g,id);assert.deepEqual(g.userData.rig.children,before,'polish duplicated the rig');
   parts.forEach((part,i)=>{assert.equal(part.geometry,copies[i].geometry);assert.equal(part.material,copies[i].material);assert(part.name.startsWith('SM_Enemy_'+id+'_'));assert(!part.userData.ownedGeometry);assert.equal(part.material.side,T.FrontSide);assert.equal(part.geometry.attributes.color.count,part.geometry.attributes.position.count);for(const key of ['position','normal','color'])assert(part.geometry.attributes[key].array.every(Number.isFinite),id+' invalid geometry');triangles+=(part.geometry.index?.count||part.geometry.attributes.position.count)/3;materials.add(part.material);});calls+=parts.length;
  }
- assert(calls<=100,'small details increased draw batches');assert(triangles<39000,'regional templates exceeded the bounded mesh budget');assert.equal(materials.size,2);assert.equal(JSON.stringify(ENEMIES),rules);assert.equal(JSON.stringify(ENEMY_MOTION),motion);
+ // Separate planted paws and hind hocks add moving batches; reduced cross-section
+ // tessellation more than offsets them in triangle cost (v190: 37,648 triangles).
+ assert(calls<=120,'articulated body batches exceeded budget');assert(triangles<31000,'regional templates exceeded the reduced mesh budget');assert.equal(materials.size,2);assert.equal(JSON.stringify(ENEMIES),rules);assert.equal(JSON.stringify(ENEMY_MOTION),motion);
 });
 
 test('warm regional construction reuses species fitting without repeating bounds traversal',()=>{
@@ -31,11 +33,11 @@ test('warm regional construction reuses species fitting without repeating bounds
 });
 
 test('regional anatomy has outward continuous sides, rounded shoulders and correctly oriented limb caps',()=>{
- const probes=[['frostwolf','Body',[1,.72,.05],[-1,0,0]],['ashstalker','Body',[1,.42,.0],[-1,0,0]],['yeti','Body',[1,1.05,0],[-1,0,0]],['yeti','UpperArm',[1,-.1,0],[-1,0,0]],['lavabrute','UpperArm',[1,-.1,0],[-1,0,0]],['icewitch','CastingUpper',[1,-.1,0],[-1,0,0]]];
+ const probes=[['frostwolf','Body',[1,.72,.05],[-1,0,0]],['ashstalker','Body',[1,.42,.0],[-1,0,0]],['yeti','Body',[1,1.05,0],[-1,0,0]],['yeti','upper',[1,-.1,0],[-1,0,0]],['lavabrute','UpperArm',[1,-.1,0],[-1,0,0]],['icewitch','CastingUpper',[1,-.1,0],[-1,0,0]]];
  for(const [id,part,origin,direction]of probes){const source=make(id).getObjectByName('SM_Enemy_'+id+'_'+part),mesh=new T.Mesh(source.geometry,source.material);mesh.updateMatrixWorld(true);const hit=new T.Raycaster(new T.Vector3(...origin),new T.Vector3(...direction)).intersectObject(mesh)[0];assert(hit&&hit.point.x>0,id+' '+part+' has an inward or missing near surface');assert(hit.face.normal.x>.15,id+' inward normal');}
  for(const id of ['yeti','lavabrute']){
-  const source=make(id).getObjectByName('SM_Enemy_'+id+'_UpperArm'),mesh=new T.Mesh(source.geometry,source.material);mesh.updateMatrixWorld(true);
-  const upper=new T.Raycaster(new T.Vector3(.002,1,0),new T.Vector3(0,-1,0)).intersectObject(mesh)[0],lower=new T.Raycaster(new T.Vector3(.002,-1,0),new T.Vector3(0,1,0)).intersectObject(mesh)[0];assert(upper?.point.y>.18);assert(lower?.point.y<-.49);assert(upper.face.normal.y>0&&lower.face.normal.y<0);
+  const source=make(id).getObjectByName('SM_Enemy_'+id+'_'+(id==='yeti'?'upper':'UpperArm')),mesh=new T.Mesh(source.geometry,source.material);mesh.updateMatrixWorld(true);
+  const upper=new T.Raycaster(new T.Vector3(.002,1,0),new T.Vector3(0,-1,0)).intersectObject(mesh)[0],lower=new T.Raycaster(new T.Vector3(.002,-1,0),new T.Vector3(0,1,0)).intersectObject(mesh)[0];assert(upper?.point.y>.14);assert(lower?.point.y<-.49);assert(upper.face.normal.y>0&&lower.face.normal.y<0);
  }
 });
 
@@ -55,7 +57,7 @@ test('four articulated species keep real supporting soles above the floor throug
   const g=make(id),d=g.userData;d.previousAttack=0;
   for(let i=0;i<96;i++){
    const phase=i/96*Math.PI*2;animateRegionalAppearance(d,i/60,1,phase,0,0,0);g.updateMatrixWorld(true);
-   for(const leg of d.legs){const mesh=leg.knee.children[0],positions=mesh.geometry.attributes.position;let min=Infinity;for(let p=0;p<positions.count;p++)min=Math.min(min,v.fromBufferAttribute(positions,p).applyMatrix4(mesh.matrixWorld).y);assert(min>-.003,id+' sole sunk '+min);const u=((phase+leg.phase)/(Math.PI*2)%1+1)%1;if(u<.62)assert(min<.017,id+' support foot floats '+min);}
+   for(const leg of d.legs){const mesh=leg.paw.children[0],positions=mesh.geometry.attributes.position;let min=Infinity;for(let p=0;p<positions.count;p++)min=Math.min(min,v.fromBufferAttribute(positions,p).applyMatrix4(mesh.matrixWorld).y);assert(min>-.003,id+' sole sunk '+min);const u=((phase+leg.phase)/(Math.PI*2)%1+1)%1;if(u<.64)assert(min<.017,id+' support foot floats '+min);}
   }
  }
 });
@@ -68,5 +70,42 @@ test('regional casters keep wrists on real staff grips and spell sockets follow 
    if(d.castingArm){const a=d.castingArm,elbow=new T.Vector3(0,-a.upperLength,0).applyQuaternion(a.upper.quaternion).add(a.upper.position),wrist=new T.Vector3(0,-a.lowerLength,0).applyQuaternion(a.forearm.quaternion).add(a.forearm.position),grip=new T.Vector3(-.015,.20,.02).applyMatrix4(d.staff.matrix);assert(elbow.distanceTo(a.forearm.position)<1e-7);assert(wrist.distanceTo(grip)<1e-7);}
   }
   assert(travel>.10,id+' spell socket stayed at a fixed actor center');
+ }
+});
+
+test('regional rebuilds have different anatomy instead of sharing upright stacked silhouettes',()=>{
+ const hare=make('snowhare').userData,wolf=make('frostwolf').userData,ape=make('yeti').userData,lizard=make('ashstalker').userData,lava=make('lavabrute').userData;
+ assert.equal(hare.legs.length,4,'hare needs both planted forepaws and folded hind legs');
+ assert.equal(hare.arms.length,0,'hare must not retain dangling humanoid arms');
+ const hareBody=hare.regionalRoot.getObjectByName('SM_Enemy_snowhare_Body').geometry.boundingBox;
+ assert(hareBody.max.z-hareBody.min.z>(hareBody.max.y-hareBody.min.y)*1.4,'hare back stopped being horizontal');
+ assert(hare.cap.position.z>.40,'hare head should sit in front of the chest');
+ assert.equal(wolf.legs.filter(l=>l.ankle).length,2,'wolf hind legs lost their articulated hocks');
+ animateRegionalAppearance(wolf,0,0,0,0,0,0);
+ for(const leg of wolf.legs.filter(l=>l.ankle))assert(leg.knee.position.z-leg.ankle.position.z>.15,'wolf thigh/shin straightened into a pole');
+ assert.equal(ape.knuckles.length,2);assert(ape.head.position.z>.30,'ape head returned to an upright human neck');
+ assert(ape.knuckles.every(l=>l.upperLength+l.lowerLength>1.35),'ape forelimbs lost their supporting reach');
+ assert.equal(lava.knuckles.length,0,'furnace reused the ape support rig');
+ assert(lizard.legs.every(l=>l.reach>.25),'lizard limbs stopped spreading beside the belly');
+ assert.equal(lizard.ears.length,0,'lizard retained the old dog ears');
+ for(const id of ['snowtotem','cinderwisp'])assert.equal(make(id).userData.cores.length,1,id+' returned to three stacked cores');
+});
+
+test('new limb carriers keep fixed links connected during swimming and unreachable long steps',()=>{
+ const end=new T.Vector3(),target=new T.Vector3();
+ for(const id of ['snowhare','emberling','frostwolf','ashstalker','yeti','lavabrute']){
+  const g=make(id),d=g.userData;
+  for(let i=0;i<240;i++){
+   d.waterDepth=i>70&&i<150?.72:0;d.pounce=i>35&&i<57?(57-i)/22:0;
+   animateActor(g,i/60,2.5,i%90<55?1-i%90/55:0,i%61<5?.1:0);g.updateMatrixWorld(true);
+   for(const l of [...d.legs,...(d.knuckles||[])]){
+    end.set(0,-l.upperLength,0).applyMatrix4(l.upper.matrixWorld);l.knee.getWorldPosition(target);
+    assert(end.distanceTo(target)<1e-6,id+' upper segment detached from knee');
+    end.set(0,-l.lowerLength,0).applyMatrix4(l.knee.matrixWorld);
+    if(l.ankle)l.ankle.getWorldPosition(target);else target.set(0,.055,0).applyMatrix4(l.paw.matrixWorld);
+    assert(end.distanceTo(target)<1e-6,id+' lower segment detached from paw/hock');
+    if(l.ankle){end.set(0,-Math.hypot(l.drop,.095),0).applyMatrix4(l.ankle.matrixWorld);target.set(0,.055,0).applyMatrix4(l.paw.matrixWorld);assert(end.distanceTo(target)<1e-6,id+' metatarsal stopped above paw');}
+   }
+  }
  }
 });

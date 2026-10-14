@@ -3,6 +3,7 @@ import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 
 // Five finite, shared sets of geometry. Articulation moves groups, never vertices.
 const templates=new Map();
+const combatHeights={mushroom:1.3615263199806213,wolf:1.350000011920929,golem:2.1435913920402525,spitter:1.8900000041723253,shaman:1.8900000041723253};
 const skin=new T.MeshStandardMaterial({vertexColors:true,roughness:.91,metalness:0});
 const light=new T.MeshStandardMaterial({vertexColors:true,roughness:.6,emissive:0xffffff,emissiveIntensity:.35});
 // One texture-free finish for the five shared templates. Detail fades before it
@@ -51,6 +52,22 @@ function profile(points,color,{x=0,y=0,z=0,depth=1,bend=0,flute=0,segments=16,li
 function branch(c,points,radius=.035,segments=10){
  return colored(new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),segments,radius,5,false),c);
 }
+// Curved, tapered growth: roots and foliage belong to the creature's silhouette.
+function rootlet(c,points,radii){
+ const curve=new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),g=new T.TubeGeometry(curve,6,1,6,false),p=g.attributes.position,n=g.attributes.normal;
+ for(let row=0;row<=6;row++){const u=row/6,k=u*(radii.length-1),a=Math.min(radii.length-2,Math.floor(k)),r=T.MathUtils.lerp(radii[a],radii[a+1],k-a),at=curve.getPointAt(u);for(let j=0;j<=6;j++){const i=row*7+j;p.setXYZ(i,at.x+n.getX(i)*r,at.y+n.getY(i)*r,at.z+n.getZ(i)*r);}}
+ g.computeVertexNormals();return colored(g,c);
+}
+function frond(c,x,y,z,width,length,tilt=0){
+ const p=[],ix=[];
+ for(let row=0;row<=7;row++){const u=row/7,w=Math.sin(Math.PI*u)*width*(1-.3*u),cy=y-length*u,cz=z+.09*Math.sin(u*Math.PI);for(const side of[-1,0,1])p.push(x+side*w+tilt*u,cy+Math.abs(side)*.025,cz+(side===0?.028:0));}
+ for(let row=0;row<7;row++)for(let col=0;col<2;col++){const i=row*3+col;ix.push(i,i+3,i+1,i+1,i+3,i+4);}
+ // Separate back vertices: reversed triangles sharing front vertices cancel
+ // their normals and make the leaf look like torn black holes.
+ const count=p.length/3,front=[...ix];for(let i=0;i<count;i++)p.push(p[i*3],p[i*3+1],p[i*3+2]-.008);
+ for(let i=0;i<front.length;i+=3)ix.push(front[i]+count,front[i+2]+count,front[i+1]+count);
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setIndex(ix);g.computeVertexNormals();return colored(g,c);
+}
 function wolfCoat(rings,head=false){
  const p=[],indices=[],sides=16;
  // Shared ring vertices give the shoulder, throat and muzzle one continuous
@@ -96,15 +113,13 @@ function template(kind){
  if(kind==='mushroom'){
   p.body=joined([
    profile([[0,.14],[.18,.155],[.265,.23],[.28,.35],[.225,.56],[.184,.79],[.19,.90],[0,.94]],0xc4b491,{depth:.87,bend:-.025,flute:.022,segments:20}),
-   oval(0xe2d2a9,0,.60,.18,.21,.27,.10),
-   ...[-1,1].flatMap(s=>[oval(0x423b32,s*.12,.70,.254,.073,.096,.025),oval(0xf5dfa0,s*.115,.714,.275,.026,.044,.013),oval(0xc3906b,s*.19,.60,.24,.045,.025,.015)]),
-   oval(0x695342,0,.54,.269,.065,.018,.011),
-   ...[-1,1].map(s=>oval(0xb3a37b,s*.265,.34,.02,.08,.18,.10))
+   ...[-1,1].flatMap(s=>[branch(0x736343,[[s*.17,.47,.17],[s*.12,.65,.20],[s*.075,.80,.18]],.016,6),oval(0x342f28,s*.083,.70,.180,.036,.024,.018),oval(0xc1c57b,s*.083,.70,.194,.020,.009,.006)]),
+   ...[-1,1].map(s=>rootlet(0xb5a67a,[[s*.20,.44,.025],[s*.25,.29,.08],[s*.30,.24,.13]],[.067,.048,.006]))
   ]);
   const cap=[profile([[0,-.10],[.29,-.12],[.56,-.055],[.625,-.003],[.64,.03],[.625,.076],[.60,.14],[.44,.27],[.19,.34],[0,.35]],0x985239,{depth:.95,segments:28,lip:.018}),
    profile([[0,-.116],[.27,-.12],[.53,-.059],[.622,.008]],0xc6ad86,{depth:.95,segments:28,lip:.018}),capGills()];
   for(let i=0;i<11;i++){const a=i*2.399,r=.16+(i%4)*.089;cap.push(capPatch(Math.cos(a)*r,Math.sin(a)*r,.037+i%2*.022,.028+i%3*.009,i%2?0xe1cc9e:0xc3a478));}
-  p.cap=joined(cap);p.foot=joined([oval(0xa88e65,0,0,.035,.13,.105,.20)]);
+  p.cap=joined(cap);p.foot=joined([profile([[0,.10],[.07,.08],[.095,-.025],[0,-.06]],0xa88e65,{depth:1.2,segments:10}),...[-1,0,1].map(s=>rootlet(0x93815d,[[s*.025,0,0],[s*.045,-.032,.09],[s*.077,-.042,.17]],[.044,.028,.002]))]);
  }else if(kind==='wolf'){
   p.body=joined([wolfCoat([[-.58,0,0,.69],[-.49,.19,.205,.675],[-.34,.245,.255,.695],[-.13,.215,.228,.728],[.055,.264,.30,.755],[.23,.277,.325,.775],[.36,.221,.27,.81],[.465,.168,.215,.86],[.57,.13,.155,.89],[.61,0,0,.90]])]);
   p.head=joined([
@@ -160,6 +175,32 @@ function template(kind){
   p.castingUpper=joined([oval(cloth,0,-.105,0,.10,.15,.105)]);
   p.castingForearm=joined([oval(cloth,0,-.115,0,.078,.135,.081),oval(trim,0,-.209,0,.083,.032,.086)]);
   p.foot=joined([oval(0x493f34,0,0,.045,.091,.075,.14)]);
+  // The poison beast and woodland priest used to be the same pointed-hat doll.
+  // Keep the working grip rig; replace the visible anatomy and clothing.
+  for(const key of ['body','head','hatTip','hem'])p[key].dispose();
+  if(spitter){
+   p.body=joined([profile([[0,.24],[.27,.27],[.36,.45],[.38,.66],[.32,.88],[.27,1.05],[.18,1.18],[0,1.21]],0x68614e,{depth:.85,bend:-.025,flute:.022,segments:20}),
+    ...[-1,1].map(s=>frond(0x55475d,s*.16,1.16,.15,.19,.67,s*.07)),
+    ...[-1,1].map(s=>rootlet(0x3e3d31,[[s*.29,1.01,-.03],[s*.34,.76,.19],[s*.28,.51,.23]],[.045,.038,.015])),
+    ...[-1,1].flatMap(s=>[oval(0x7b735b,s*.26,.92,.11,.12,.14,.12,8,5),oval(0x947c8c,s*.29,.93,.16,.063,.087,.047,8,5)])]);
+   p.head=joined([wolfCoat([[-.23,0,0,0],[-.18,.19,.15,.015],[-.06,.29,.21,.035],[.10,.30,.17,-.01],[.23,.24,.115,-.04],[.32,.18,.07,-.04],[.35,0,0,-.04]],true),
+    ...[-1,1].flatMap(s=>[oval(0x454b36,s*.213,.097,.138,.089,.050,.047),oval(0xb9a15c,s*.216,.090,.176,.039,.022,.015),oval(0x283229,s*.217,.090,.19,.010,.022,.006),rootlet(0x788566,[[s*.11,.128,.10],[s*.21,.156,.12],[s*.285,.109,.07]],[.039,.043,.004])]),
+    branch(0x30382c,[[-.24,-.085,.205],[-.15,-.118,.28],[0,-.13,.319],[.15,-.118,.28],[.24,-.085,.205]],.012,10),
+    ...[-1,1].map(s=>oval(0x353c2e,s*.065,-.018,.332,.019,.013,.008))]);
+   p.hem=joined([profile([[0,.10],[.26,.11],[.35,.24],[.33,.39],[.26,.53]],0x49404d,{depth:.91,flute:.13,segments:20}),...[-1,1].map(s=>frond(0x655568,s*.16,.52,.255,.12,.42,s*.025))]);
+   p.hatTip=joined([frond(0x5c6750,0,.23,-.04,.17,.30,-.13),frond(0x777f56,.08,.11,.015,.13,.31,.11)]);
+  }else{
+   p.body=joined([profile([[0,.27],[.24,.29],[.26,.54],[.195,.80],[.245,1.04],[.16,1.22],[0,1.25]],0x566451,{depth:.86,bend:-.015,flute:.08,segments:20}),
+    ...[-1,1].flatMap(s=>[frond(0x294b3d,s*.14,1.20,.08,.24,.63,s*.16),frond(0x50705b,s*.09,1.13,.20,.14,.43,s*.07)]),
+    branch(0x88764f,[[-.17,1.14,.16],[-.19,.91,.22],[.02,.80,.22],[.19,.92,.20]],.018)]);
+   p.head=joined([profile([[0,-.19],[.155,-.13],[.225,.02],[.213,.17],[.12,.29],[0,.34]],0x344b3c,{depth:.83,bend:-.04,flute:.045,segments:16}),
+    // A long carved bark mask, narrow eye clefts and antler-like living shoots.
+    profile([[0,-.21],[.065,-.15],[.12,.025],[.138,.13],[.08,.22],[0,.235]],0xa3a28a,{x:0,z:.145,depth:.25,flute:.16,segments:12}),
+    ...[-1,1].flatMap(s=>[oval(0x29392c,s*.062,.076,.185,.053,.022,.01),oval(0xb8d396,s*.063,.076,.194,.030,.006,.004),rootlet(0x6b6645,[[s*.13,.18,-.01],[s*.21,.36,-.025],[s*.25,.50,-.10]],[.055,.037,.002])]),
+    branch(0x64705a,[[0,.17,.19],[-.026,.0,.186],[0,-.17,.157]],.008,6)]);
+   p.hem=joined([profile([[0,.07],[.27,.09],[.30,.19],[.28,.39],[.24,.54]],0x344c3d,{depth:1,flute:.17,segments:20}),...[-1,0,1].map(s=>frond(s?0x516049:0x698062,s*.16,.62,.235,.14,.52,s*.02))]);
+   p.hatTip=joined([frond(0x587f58,-.06,.20,0,.12,.24,-.10),frond(0x9aab70,.045,.11,.035,.085,.20,.09)]);
+  }
  }
  for(const geometry of Object.values(p))geometry.setAttribute('creatureSurface',new T.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count).fill(kind==='wolf'?1:kind==='golem'?2:0),1));
  templates.set(kind,p);return p;
@@ -168,7 +209,7 @@ function group(parent,x=0,y=0,z=0){const g=new T.Group();g.position.set(x,y,z);p
 function add(parent,geometry,name,glow=false){const m=new T.Mesh(geometry,glow?light:skin);m.name=name;m.castShadow=!glow;m.receiveShadow=!glow;parent.add(m);return m;}
 export function polishEnemyAppearance(g){
  const d=g.userData,kind=d.kind;if(d.appearance||!['mushroom','wolf','golem','spitter','shaman'].includes(kind)||d.species)return g;
- const p=template(kind),rig=d.rig;rig.clear();d.appearance=true;d.legs=[];d.arms=[];add(rig,p.body,'creature-body');
+ const p=template(kind),rig=d.rig;rig.clear();d.appearance=true;d.combatHeight=combatHeights[kind];d.legs=[];d.arms=[];add(rig,p.body,'creature-body');
  if(kind==='mushroom'){
   d.cap=group(rig,0,1.01,0);add(d.cap,p.cap,'mushroom-cap');d.feet=[-1,1].map(s=>{const f=group(rig,s*.18,.12,.10);add(f,p.foot,'mushroom-foot');return f;});
  }else if(kind==='wolf'){
@@ -180,7 +221,7 @@ export function polishEnemyAppearance(g){
   d.head=group(rig,0,1.80,.03);add(d.head,p.head,'golem-head');
   for(const s of[-1,1]){const arm=group(rig,s*.73,1.34,0);add(arm,p.arm,'golem-arm');d.arms.push(arm);const joint=group(rig,s*.30,.57,0);add(joint,p.leg,'golem-leg');d.legs.push({joint,phase:s<0?0:Math.PI});}
  }else{
-  d.head=group(rig,0,1.26,0);add(d.head,p.head,'caster-head');d.hatTip=group(d.head,-.035,.40,-.035);add(d.hatTip,p.hatTip,'caster-hat-tip');d.hem=group(rig);add(d.hem,p.hem,'caster-hem');
+  d.head=group(rig,0,1.26,0);add(d.head,p.head,'caster-head');d.hatTip=group(d.head,-.035,kind==='spitter'?.26:.40,-.035);add(d.hatTip,p.hatTip,'caster-hat-tip');d.hem=group(rig);add(d.hem,p.hem,'caster-hem');
   d.staff=group(rig,.48,.76,.1);add(d.staff,p.staff,'caster-staff');d.focus=add(group(d.staff,0,.82,0),p.focus,'caster-focus',true);
   const arm=group(rig,-.26,1.03,0);add(arm,p.arm,'caster-free-arm');d.arms=[arm];
   const upper=group(rig,.245,1.035,.005),forearm=group(rig);add(upper,p.castingUpper,'caster-upper-arm');add(forearm,p.castingForearm,'caster-forearm');

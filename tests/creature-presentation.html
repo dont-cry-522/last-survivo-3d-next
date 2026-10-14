@@ -1,50 +1,91 @@
 <!doctype html><meta charset="utf-8"><title>五境怪物表现检查</title>
-<style>body{background:#192821;color:#f0e9d8;font:15px system-ui;margin:16px}button,select{padding:8px}canvas{display:block;max-width:100%;margin-top:12px}#portraits img{width:160px;background:#25352f;border-radius:12px;margin:6px}pre{white-space:pre-wrap}</style>
+<style>body{background:#192821;color:#f0e9d8;font:15px system-ui;margin:16px}button,select{padding:8px}canvas{display:block;max-width:100%;height:auto;margin-top:12px}#portraits img{width:160px;background:#25352f;border-radius:12px;margin:6px}pre{white-space:pre-wrap}.filmstrip-row{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:8px;max-width:1120px}.filmstrip-row figure{margin:0;background:#25352f}.filmstrip-row img{width:100%;display:block}.filmstrip-row figcaption{font-size:12px;padding:6px}@media(max-width:700px){.filmstrip-row{grid-template-columns:repeat(2,minmax(120px,1fr))}}</style>
 <h1>五境怪物 · 实际模型与连续动作</h1>
 <p>每张地图五种普通怪物，使用正式模型、动作与共享材质；本页不写玩家存档。</p>
-<select id="biome"><option value="forest">森林</option><option value="snow">雪地</option><option value="ash">灰烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="air">五境飞行怪</option></select><select id="mode"><option value="walk">行走</option><option value="attack">蓄力 → 攻击 → 收招</option><option value="idle">待机</option></select>
+<select id="biome"><option value="forest">森林</option><option value="snow">雪地</option><option value="ash">灰烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="air">五境飞行怪</option><option value="boss">五境首领</option></select><select id="mode"><option value="walk">行走</option><option value="attack">蓄力 → 攻击 → 收招</option><option value="idle">待机</option></select>
 <select id="focus" aria-label="观察距离"><option value="all">全组对照</option><option value="0">近看第一种</option><option value="1">近看第二种</option><option value="2">近看第三种</option><option value="3">近看第四种</option><option value="4">近看第五种</option></select><label><input type="checkbox" id="old">旧造型对照</label><button id="pause">暂停</button><button id="step">前进 0.1 秒</button><button id="portraits-button">生成正式图鉴图片</button>
+<select id="view" aria-label="观察角度"><option value="front">正面</option><option value="side">侧面</option><option value="three-quarter" selected>斜侧</option><option value="back">背面</option></select><label><input type="checkbox" id="translate" checked>真实根移动 · 1 米地面刻线</label><button id="filmstrip-button">狼 / 霜狼 / 雪兔 · 连续 8 帧</button>
 <button id="checks">检查全部怪物</button><button id="hit">受击预览</button><button id="still">固定展示姿势</button><pre id="checks-report"></pre><pre id="report">LOADING</pre><div id="stage"></div><div id="portraits"></div>
+<section id="filmstrip"><h2>连续走动对照</h2><p>每组先连续行走 1 秒，再按 0.1 秒间隔截取 8 帧；抽帧之间仍以 1/60 秒推进正式动作。相机跟随，地面刻线保持世界坐标，便于观察脚是否滑地。此页只检查模型动作，不模拟寻路或伤害。</p><pre id="filmstrip-report">尚未生成</pre><div id="filmstrip-images"></div></section>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=192';
-import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=192';
-import {setCreatureTime} from '../creature-forms.js?v=192';
-import {MAP_ROSTERS} from '../map-enemies.js?v=192';
-import {recordEnemyHit} from '../enemy-feedback.js?v=192';
-import {enemyCastFlight} from '../enemy-cast-vfx.js?v=192';
-import {SkillVFX} from '../skill-vfx.js?v=192';
-import {ENEMY_MOTION} from '../enemy-motion.js?v=192';
+import {actor,animateActor} from '../world.js?v=193';
+import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=193';
+import {setCreatureTime} from '../creature-forms.js?v=193';
+import {MAP_ROSTERS,REGIONAL_ENEMIES} from '../map-enemies.js?v=193';
+import {ENEMIES} from '../rules.js';
+import {BOSS_STYLES} from '../boss-combat.js?v=193';
+import {recordEnemyHit} from '../enemy-feedback.js?v=193';
+import {enemyCastFlight} from '../enemy-cast-vfx.js?v=193';
+import {SkillVFX} from '../skill-vfx.js?v=193';
+import {ENEMY_MOTION,gaitPace,advanceEnemyLocomotion} from '../enemy-motion.js?v=193';
 let kinds=[];const scene=new T.Scene(),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
 renderer.setSize(1120,460);renderer.setClearColor(0x25382f);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
 document.querySelector('#stage').append(renderer.domElement);scene.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));
 const sun=new T.DirectionalLight(0xffe6c2,3.6);sun.position.set(3,7,5);scene.add(sun);const rim=new T.DirectionalLight(0x93cfd9,1.3);rim.position.set(-4,3,-3);scene.add(rim);
-const floor=new T.Mesh(new T.PlaneGeometry(25,10),new T.MeshStandardMaterial({color:0x3b4c3c,roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=-.015;scene.add(floor);
+const floor=new T.Mesh(new T.PlaneGeometry(30,160),new T.MeshStandardMaterial({color:0x3b4c3c,roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=-.015;scene.add(floor);
+const lines=[];for(let z=-80;z<=80;z++)lines.push(-15,-.012,z,15,-.012,z);const marks=new T.LineSegments(new T.BufferGeometry().setAttribute('position',new T.Float32BufferAttribute(lines,3)),new T.LineBasicMaterial({color:0x93a491,transparent:true,opacity:.30}));marks.name='WorldMeterReference';scene.add(marks);
 const camera=new T.OrthographicCamera(-8.25,8.25,2.80,-2.80,.1,60);camera.position.set(0,4.6,16);camera.lookAt(0,.9,0);
 const vfx=new SkillVFX(scene,{groundHeight:()=>0});const lastEffects=new Map();
-let models=[],clock=0,last=0,paused=false;
-function reset(){lastEffects.clear();kinds=document.querySelector('#biome').value==='air'?Object.values(AIR_ROSTERS):Object.values(MAP_ROSTERS[document.querySelector('#biome').value]).slice(0,5);vfx.clear();for(const m of models)scene.remove(m);models=kinds.map((kind,i)=>{const m=AIR_ENEMIES[kind]?makeAirborne(kind):actor(kind,undefined,!document.querySelector('#old').checked);m.position.x=(i-2)*3.1;m.rotation.y=.35;scene.add(m);return m;});clock=0;frameModels();draw();}
+let models=[],clock=0,last=0,paused=false,filmstripBusy=false;
+function reset(){lastEffects.clear();kinds=document.querySelector('#biome').value==='boss'?Object.values(MAP_ROSTERS).map(r=>r.boss):document.querySelector('#biome').value==='air'?Object.values(AIR_ROSTERS):Object.values(MAP_ROSTERS[document.querySelector('#biome').value]).slice(0,5);vfx.clear();for(const m of models)scene.remove(m);models=kinds.map((kind,i)=>{const m=AIR_ENEMIES[kind]?makeAirborne(kind):actor(kind,undefined,!document.querySelector('#old').checked);m.position.x=(i-2)*3.1;m.rotation.y=0;const bounds=new T.Box3().setFromObject(m),center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3());m.userData.fixture={gait:0,distance:0,offset:center.sub(m.position),half:Math.max(size.y,size.x*.55,size.z*.55)*.74+.08};scene.add(m);return m;});clock=0;poseModels(0);draw();}
 function frameModels(){
  const focus=document.querySelector('#focus').value;
  models.forEach((m,i)=>m.visible=focus==='all'||String(i)===focus);
  if(focus==='all'){
   camera.left=-8.25;camera.right=8.25;camera.top=2.80;camera.bottom=-2.80;
-  camera.position.set(0,4.6,16);camera.lookAt(0,.9,0);
+  const z=models.reduce((n,m)=>n+m.position.z,0)/models.length;camera.position.set(0,4.6,z+16);camera.lookAt(0,.9,z);
  }else{
-  const m=models[Number(focus)],bounds=new T.Box3().setFromObject(m),center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3()),half=Math.max(size.y,size.x*.55,size.z*.55)*.66+.08;
-  camera.top=half;camera.bottom=-half;camera.left=-half*1120/460;camera.right=half*1120/460;
-  camera.position.copy(center).add(new T.Vector3(2,1.2,6));camera.lookAt(center);
+  const m=models[Number(focus)],center=m.position.clone().add(m.userData.fixture.offset),half=m.userData.fixture.half,size=renderer.getSize(new T.Vector2());
+  camera.top=half;camera.bottom=-half;camera.left=-half*size.x/size.y;camera.right=half*size.x/size.y;
+  const angle=document.querySelector('#view').value,offset=angle==='side'?[6,.65,0]:angle==='back'?[0,1,-6]:angle==='front'?[0,1,6]:[3,1.2,6];camera.position.copy(center).add(new T.Vector3(...offset));camera.lookAt(center);
  }
+ const z=focus==='all'?models.reduce((n,m)=>n+m.position.z,0)/models.length:models[Number(focus)].position.z;floor.position.z=marks.position.z=Math.round(z/20)*20;
  camera.updateProjectionMatrix();
 }
-document.querySelector('#focus').onchange=()=>{frameModels();draw();};
-function draw(){setCreatureTime(clock);const mode=document.querySelector('#mode').value;for(const [i,m] of models.entries()){const cfg=ENEMY_MOTION[kinds[i]]||{wind:1},phase=clock%2.8,wind=mode==='attack'&&phase<cfg.wind?cfg.wind-phase:0;if(AIR_ENEMIES[kinds[i]])animateAirborne({kind:kinds[i],mesh:m,id:i,flight:{stage:mode==='attack'?(wind>0?'wind':phase<1.6?'strike':'recover'):'orbit'}},clock);else animateActor(m,clock,mode==='walk'?3:0,wind);if(mode==='attack'&&phase>=cfg.wind&&phase<cfg.wind+.04&&lastEffects.get(kinds[i])!==Math.floor(clock/2.8)&&['spitter','icewitch','cinderwisp','sandspitter','jellyseer'].includes(kinds[i])){lastEffects.set(kinds[i],Math.floor(clock/2.8));enemyCastFlight(vfx,{mesh:m,x:m.position.x,y:0,z:0,tx:m.position.x,tz:2,zone:({icewitch:'frost',cinderwisp:'ember',sandspitter:'sand',jellyseer:'tide'})[kinds[i]]||'poison'},()=>0);}}models.forEach((m,i)=>m.visible=document.querySelector('#focus').value==='all'||String(i)===document.querySelector('#focus').value);renderer.render(scene,camera);document.querySelector('#report').textContent=JSON.stringify({status:'READY',mode,time:+clock.toFixed(2),biome:document.querySelector('#biome').value,polished:!document.querySelector('#old').checked,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles});}
-document.querySelector('#biome').onchange=reset;document.querySelector('#mode').onchange=reset;document.querySelector('#hit').onclick=()=>{for(const m of models)recordEnemyHit(m,{damage:20,kind:'rifle',angle:.5});clock+=1/60;draw();};document.querySelector('#still').onclick=()=>{paused=true;document.querySelector('#pause').textContent='继续';document.querySelector('#mode').value='idle';reset();for(let i=1;i<=30;i++){clock=i/60;draw();}};document.querySelector('#old').onchange=reset;document.querySelector('#pause').onclick=()=>{paused=!paused;document.querySelector('#pause').textContent=paused?'继续':'暂停';};document.querySelector('#step').onclick=()=>{paused=true;document.querySelector('#pause').textContent='继续';clock+=.1;vfx.update(.1);draw();};
-document.querySelector('#portraits-button').onclick=()=>{const root=document.querySelector('#portraits');root.replaceChildren();const r=new T.WebGLRenderer({alpha:true,antialias:true,preserveDrawingBuffer:true});r.setSize(256,256);r.setClearColor(0,0);r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.25;const s=new T.Scene();s.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));s.add(sun.clone(),rim.clone());for(const kind of [...Object.values(MAP_ROSTERS).flatMap(roster=>Object.values(roster).slice(0,5)),...Object.values(AIR_ROSTERS)]){const m=AIR_ENEMIES[kind]?makeAirborne(kind):actor(kind);s.add(m);const bounds=new T.Box3().setFromObject(m),center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3()),half=Math.max(size.x,size.y,size.z)*.67,c=new T.OrthographicCamera(-half,half,half,-half,.1,60);c.position.copy(center).add(new T.Vector3(4,2.2,6).normalize().multiplyScalar(20));c.lookAt(center);r.render(s,c);const img=document.createElement('img');img.id='portrait-'+kind;img.alt=kind;img.src=r.domElement.toDataURL('image/png');root.append(img);s.remove(m);}r.dispose();};
+document.querySelector('#focus').onchange=draw;document.querySelector('#view').onchange=()=>{if(document.querySelector('#focus').value==='all')document.querySelector('#focus').value='1';draw();};document.querySelector('#translate').onchange=reset;
+function poseModels(dt){
+ const mode=document.querySelector('#mode').value,translate=document.querySelector('#translate').checked;setCreatureTime(clock);
+ for(const [i,m]of models.entries()){
+  const kind=kinds[i],cfg=ENEMY_MOTION[kind]||{wind:1,cadence:4},phase=clock%2.8,wind=mode==='attack'&&phase<cfg.wind?cfg.wind-phase:0,d=m.userData,fixture=d.fixture;
+  if(AIR_ENEMIES[kind])animateAirborne({kind,mesh:m,id:i,flight:{stage:mode==='attack'?(wind>0?'wind':phase<1.6?'strike':'recover'):'orbit'}},clock);
+  else{
+   if(d.bossModel){d.bossStage=mode==='attack'?(wind>0?'wind':phase<cfg.wind+.65?'strike':'recover'):'move';d.windProgress=wind>0?1-wind/cfg.wind:0;d.strikeProgress=Math.max(0,Math.min(1,(phase-cfg.wind)/.65));d.recoverProgress=Math.max(0,Math.min(1,(phase-cfg.wind-.65)/.7));}
+   if(mode==='walk')fixture.gait+=dt*cfg.cadence;
+   const intended=mode==='walk'?(REGIONAL_ENEMIES[kind]?.speed??ENEMIES[kind]?.speed??BOSS_STYLES[kind].speed)*gaitPace(kind,fixture.gait):0,start=m.position.z;
+   if(translate)m.position.z+=intended*dt;
+   const distance=m.position.z-start;fixture.distance+=distance;d.walkPhase=fixture.gait;
+   advanceEnemyLocomotion(d,dt,distance,mode==='walk'&&translate&&distance>0);
+   animateActor(m,clock,translate?(dt>0?distance/dt:0):intended,wind);
+  }
+  if(mode==='attack'&&phase>=cfg.wind&&phase<cfg.wind+.04&&lastEffects.get(kind)!==Math.floor(clock/2.8)&&['spitter','icewitch','cinderwisp','sandspitter','jellyseer'].includes(kind)){lastEffects.set(kind,Math.floor(clock/2.8));enemyCastFlight(vfx,{mesh:m,x:m.position.x,y:0,z:m.position.z,tx:m.position.x,tz:m.position.z+2,zone:({icewitch:'frost',cinderwisp:'ember',sandspitter:'sand',jellyseer:'tide'})[kind]||'poison'},()=>0);}
+ }
+}
+function advanceTime(amount){for(let remaining=amount;remaining>1e-9;){const dt=Math.min(1/60,remaining);clock+=dt;poseModels(dt);vfx.update(dt);remaining-=dt;}}
+function draw(){setCreatureTime(clock);frameModels();renderer.render(scene,camera);document.querySelector('#report').textContent=JSON.stringify({status:'READY',mode:document.querySelector('#mode').value,time:+clock.toFixed(2),biome:document.querySelector('#biome').value,view:document.querySelector('#view').value,translation:document.querySelector('#translate').checked,roots:models.map((m,i)=>({kind:kinds[i],z:+m.position.z.toFixed(4),distance:+m.userData.fixture.distance.toFixed(4)})),polished:!document.querySelector('#old').checked,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles});}
+document.querySelector('#biome').onchange=reset;document.querySelector('#mode').onchange=reset;document.querySelector('#hit').onclick=()=>{for(const m of models)recordEnemyHit(m,{damage:20,kind:'rifle',angle:.5});advanceTime(1/60);draw();};document.querySelector('#still').onclick=()=>{paused=true;document.querySelector('#pause').textContent='继续';document.querySelector('#mode').value='idle';reset();advanceTime(.5);draw();};document.querySelector('#old').onchange=reset;document.querySelector('#pause').onclick=()=>{paused=!paused;document.querySelector('#pause').textContent=paused?'继续':'暂停';};document.querySelector('#step').onclick=()=>{paused=true;document.querySelector('#pause').textContent='继续';advanceTime(.1);draw();};
+document.querySelector('#portraits-button').onclick=()=>{const root=document.querySelector('#portraits');root.replaceChildren();const r=new T.WebGLRenderer({alpha:true,antialias:true,preserveDrawingBuffer:true});r.setSize(256,256);r.setClearColor(0,0);r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.25;const s=new T.Scene();s.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));s.add(sun.clone(),rim.clone());for(const kind of [...Object.values(MAP_ROSTERS).flatMap(roster=>Object.values(roster).slice(0,5)),...Object.values(AIR_ROSTERS)]){const m=AIR_ENEMIES[kind]?makeAirborne(kind):actor(kind);s.add(m);m.userData.expressionSeed=0;if(!AIR_ENEMIES[kind])animateActor(m,.5,0,0,0);const bounds=new T.Box3().setFromObject(m),center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3()),half=Math.max(size.x,size.y,size.z)*.67,c=new T.OrthographicCamera(-half,half,half,-half,.1,60);c.position.copy(center).add(new T.Vector3(4,2.2,6).normalize().multiplyScalar(20));c.lookAt(center);r.render(s,c);const img=document.createElement('img');img.id='portrait-'+kind;img.alt=kind;img.src=r.domElement.toDataURL('image/png');root.append(img);s.remove(m);}r.dispose();};
 document.querySelector('#checks').onclick=()=>{
  const results=[];let error=null;document.querySelector('#focus').value='all';
- try{for(const biome of [...Object.keys(MAP_ROSTERS),'air']){document.querySelector('#biome').value=biome;reset();for(const mode of ['idle','walk','attack']){document.querySelector('#mode').value=mode;reset();for(let i=0;i<210;i++){clock=i/60;vfx.update(1/60);draw();}for(const m of models){m.updateMatrixWorld(true);m.traverse(o=>{if(!o.matrixWorld.elements.every(Number.isFinite))throw Error(biome+' '+mode+' invalid pose');});}if(renderer.getContext().getError()!==0||renderer.info.programs.some(p=>p.diagnostics?.runnable===false))throw Error(biome+' shader/GL');results.push({biome,mode,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles});}}
+ try{for(const biome of [...Object.keys(MAP_ROSTERS),'air','boss']){document.querySelector('#biome').value=biome;reset();for(const mode of ['idle','walk','attack']){document.querySelector('#mode').value=mode;reset();for(let i=0;i<210;i++){clock=i/60;poseModels(1/60);vfx.update(1/60);draw();}for(const m of models){m.updateMatrixWorld(true);m.traverse(o=>{if(!o.matrixWorld.elements.every(Number.isFinite))throw Error(biome+' '+mode+' invalid pose');});}if(renderer.getContext().getError()!==0||renderer.info.programs.some(p=>p.diagnostics?.runnable===false))throw Error(biome+' shader/GL');results.push({biome,mode,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles});}}
  }catch(e){error=String(e);}finally{paused=true;document.querySelector('#pause').textContent='继续';document.querySelector('#checks-report').textContent=JSON.stringify({results,error});}
 };
-reset();function frame(now){if(!paused){const dt=Math.min(.04,(now-last)/1000||0);clock+=dt;vfx.update(dt);draw();}last=now;requestAnimationFrame(frame);}requestAnimationFrame(frame);
+document.querySelector('#filmstrip-button').onclick=()=>{
+ if(filmstripBusy)return;filmstripBusy=true;paused=true;document.querySelector('#pause').textContent='继续';
+ const output=document.querySelector('#filmstrip-images');output.replaceChildren();const results=[];
+ try{
+  renderer.setSize(480,320);document.querySelector('#mode').value='walk';document.querySelector('#view').value='side';document.querySelector('#translate').checked=true;
+  for(const [biome,kind,index]of [['forest','wolf',1],['snow','frostwolf',1],['snow','snowhare',0]]){
+   document.querySelector('#biome').value=biome;document.querySelector('#focus').value=String(index);reset();advanceTime(1);
+   const heading=document.createElement('h3');heading.textContent=kind;output.append(heading);const row=document.createElement('div');row.className='filmstrip-row';output.append(row);
+   for(let i=0;i<8;i++){
+    if(i)advanceTime(.1);draw();const fig=document.createElement('figure'),img=document.createElement('img'),caption=document.createElement('figcaption');img.id='motion-'+kind+'-'+i;img.alt=kind+' frame '+i;img.src=renderer.domElement.toDataURL('image/png');caption.textContent=clock.toFixed(1)+' s · z '+models[index].position.z.toFixed(3)+' m';fig.append(img,caption);row.append(fig);
+    results.push({kind,frame:i,time:+clock.toFixed(3),z:models[index].position.z,phase:models[index].userData.walkPhase});
+   }
+  }
+  document.querySelector('#filmstrip-report').textContent=JSON.stringify({status:'PASS',frames:results});
+ }catch(e){document.querySelector('#filmstrip-report').textContent=JSON.stringify({status:'FAIL',error:String(e)});}
+ finally{filmstripBusy=false;renderer.setSize(1120,460);draw();}
+};
+reset();function frame(now){if(!paused){const dt=Math.min(.04,(now-last)/1000||0);clock+=dt;poseModels(dt);vfx.update(dt);draw();}last=now;requestAnimationFrame(frame);}requestAnimationFrame(frame);
 </script>

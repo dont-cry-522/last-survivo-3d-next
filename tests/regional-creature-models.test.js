@@ -90,6 +90,31 @@ test('actual coastal water poses keep both fixed leg links joined through entry,
  }
 });
 
+test('translated sand and coast walkers plant support feet and settle without walking through a blockage',()=>{
+ const cases=[['tidecrab',3.7],['reefturtle',1.5],['clawbeetle',3.7],['sandguard',1.6],['sandspitter',2.1],['duneoracle',1.9]],point=new T.Vector3(),hip=new T.Vector3();
+ for(const [kind,normalSpeed]of cases)for(const fps of[30,60,120])for(const speed of[normalSpeed,.45]){
+  const m=make(kind),d=m.userData,previous=[];m.rotation.y=.67;let contacts=0,threeFeet=0;
+  for(let i=0;i<fps*3;i++){
+   const t=i/fps;m.position.set(Math.sin(.67)*speed*t,0,Math.cos(.67)*speed*t);animate(m,t,speed,0,1/fps);m.updateMatrixWorld(true);
+   if(d.legs.filter(l=>l.planted).length===3)threeFeet++;
+   d.legs.forEach((l,n)=>{
+    l.paw.getWorldPosition(point);if(i>fps&&l.planted&&previous[n].planted){assert(Math.hypot(point.x-previous[n].x,point.z-previous[n].z)<1e-5,`${kind}/${fps}: planted foot slid with the translating body`);contacts++;}
+    previous[n]={x:point.x,z:point.z,planted:l.planted};hip.set(l.hip.x,l.hip.y,l.hip.z);assert(l.joint.position.distanceTo(hip)<.055,`${kind}: hip pulled out of the body`);
+   });
+  }
+  assert(contacts>fps,kind+' never established support');if(kind==='reefturtle')assert(threeFeet>fps*.2,'turtle still lifts both diagonal pairs together');
+  const phase=d.phase;for(let i=0;i<fps;i++)animate(m,3+i/fps,0,0,1/fps);assert.equal(d.phase,phase,'blocked actor keeps taking steps');assert(d.walkStride<1e-5,'stopping did not settle the legs');
+  const frozen=pose(m);animate(m,4-1/fps,0,0,0);assert.deepEqual(pose(m),frozen,'paused settled walker drifts');
+ }
+});
+
+test('distance-matched coastal and sand steps reach the same complete pose at each supported frame rate',()=>{
+ for(const kind of ['tidecrab','reefturtle','clawbeetle','sandguard','sandspitter','duneoracle']){
+  const samples=[];for(const fps of [30,60,120]){const m=make(kind);for(let i=1;i<=fps*2;i++)animate(m,i/fps,1.5,0,1/fps);samples.push(pose(m));}
+  for(const sample of samples.slice(1))assert(Math.max(...sample.map((v,i)=>Math.abs(v-samples[0][i])))<1e-8,kind+' stepping depends on rendering frequency');
+ }
+});
+
 test('sandworm mouth has real depth and the crab and beetle retain different shell proportions',()=>{
  const worm=make('sandworm');worm.updateMatrixWorld(true);const hits=new T.Raycaster(new T.Vector3(0,.25,1),new T.Vector3(0,0,-1)).intersectObject(worm,true);
  assert(hits.length);assert(hits[0].point.z<.23,'a flat front cap plugs the open throat');assert(hits[0].point.z>.10,'throat has an unsealed hole through the body');

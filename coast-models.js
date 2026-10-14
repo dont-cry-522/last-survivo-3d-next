@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=192';
-import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=192';
+import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=193';
+import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=193';
 const geometries=new Map(),materials=new Map();
 function part(p,color,pos,size,type='sphere',glow=false){
  if(!geometries.has(type))geometries.set(type,type==='rock'?new T.DodecahedronGeometry(1,1):type==='box'?new T.BoxGeometry(2,2,2):type==='cone'?new T.ConeGeometry(1,2,12):type==='barrel'?new T.CylinderGeometry(.88,1,2,10):type==='hoop'?new T.TorusGeometry(1,.055,5,12):new T.SphereGeometry(1,16,12));
@@ -34,7 +34,9 @@ function makeCoastCreature(kind){
   });
   d.head=organicJoint(r,0,.37,.50);form(d.head,'Reefturtle_ExtendedNeckBeak',()=>[surface(0x879577,[[-.19,.13,.115],[.06,.13,.125,0,-.015],[.24,.17,.14,0,.005],[.42,.20,.135,0,.005],[.58,.145,.09,0,-.018],[.66,.085,.05,0,-.022]],{axis:'z',sides:20,shade:(c,x,y,z)=>c.lerp(new T.Color(y<0?0xb1b493:0x536e58),y<0?.22:.18)}),surface(0x605d46,[[.54,.135,.067,0,-.021],[.66,.091,.055,0,-.047],[.71,.031,.034,0,-.075]],{axis:'z',sides:12}),...[-1,1].map(side=>tube(0x5b7357,[[side*.123,.065,.451],[side*.151,.084,.459],[side*.185,.078,.432],[side*.195,.062,.409]],[.012,.019,.015,.009],{sides:5,steps:8})),tube(0x36483a,[[-.12,-.055,.57],[0,-.062,.665],[.12,-.055,.57]],[.011,.014,.011],{steps:10})]);
   for(const side of[-1,1]){const eye=organicJoint(d.head,side*.158,.057,.43);form(eye,'Reefturtle_LiddedEye_'+side,()=>[oval(0x202d23,0,0,0,.037,.018,.028,10,6),oval(0xb2a575,side*.012,.001,.022,.013,.009,.008,8,5),oval(0x30372b,side*.012,.001,.028,.004,.008,.003,6,4)]);d.eyes.push(eye);}
-  for(const side of[-1,1])for(const z of[-.39,.38])d.legs.push(leg(r,'Reefturtle_HeavyToes',{x:side*.44,y:.29,z,side,reach:.14,a:.22,b:.20,width:.148,color:0x63795d,foot:0x393d2c,sole:'toes',phase:side*z>0?0:Math.PI}));
+  // A walking turtle transfers weight around four feet, rather than lifting
+  // both diagonal pairs together like a trotting quadruped.
+  for(const side of[-1,1])for(const z of[-.39,.38])d.legs.push(leg(r,'Reefturtle_HeavyToes',{x:side*.44,y:.29,z,side,reach:.14,a:.22,b:.20,width:.148,color:0x63795d,foot:0x393d2c,sole:'toes',phase:(side<0?(z<0?0:3):(z<0?2:1))*Math.PI/2}));
  }else if(kind==='jellyseer'){
   d.body=form(r,'Jellyseer_TranslucentUmbrella',()=>[surface(0x8baaaa,[[.91,.48,.43],[.955,.61,.56],[1.00,.59,.55],[1.12,.50,.47],[1.24,.34,.34],[1.31,.16,.17],[1.34,.006,.008]],{sides:32,deform:(x,y,z,a,j)=>[x,y+(j<2?.026*Math.cos(a*10):0),z],shade:(c,x,y)=>c.lerp(new T.Color(0xc5d3be),T.MathUtils.smoothstep(y,1.12,1.34))})],{translucent:true});
   d.inner=form(r,'Jellyseer_RadialCanals',()=>[surface(0x527f83,[[.91,.28,.27],[.97,.34,.33],[1.075,.29,.28],[1.16,.17,.18],[1.20,.008,.008]],{sides:20,shade:(c,x,y,z)=>c.lerp(new T.Color(0xaaa9a6),.28*Math.sin(Math.atan2(x,z)*4)**2)}),...Array.from({length:8},(_,i)=>{const a=i*Math.PI/4;return tube(0xb7cbc0,[[Math.sin(a)*.09,1.28,Math.cos(a)*.09],[Math.sin(a)*.37,1.19,Math.cos(a)*.35],[Math.sin(a)*.53,1.02,Math.cos(a)*.48],[Math.sin(a)*.56,.954,Math.cos(a)*.51]],[.009,.015,.018,.010],{sides:5,steps:12});}),...Array.from({length:8},(_,i)=>{const a=i*Math.PI/4;return tube(0x96b9b3,[[Math.sin(a)*.38,1.17,Math.cos(a)*.37],[Math.sin(a+.14)*.48,1.10,Math.cos(a+.14)*.46],[Math.sin(a+.28)*.56,.963,Math.cos(a+.28)*.51]],[.010,.008,.004],{sides:4,steps:6});})]);
@@ -69,7 +71,12 @@ export function makeCoastEnemy(kind){
  d.arms=[...d.claws,...d.tips];d.cap=d.body;return g;
 }
 export function animateCoastEnemy(g,t,speed,attack,dt){
- const d=g.userData,r=d.rig,s=Math.min(1,speed/3);d.phase+=speed*dt*3;const p=d.phase;
+ const d=g.userData,r=d.rig,walking=d.organicModel&&d.legs.length>0,travel=d.kind==='reefturtle'?.24:.27,desiredStride=Math.min(1,speed/(d.kind==='reefturtle'?.8:1.8));
+ if(walking)d.walkStride=(d.walkStride||0)+(desiredStride-(d.walkStride||0))*(1-Math.exp(-dt*14));
+ const s=walking?d.walkStride:Math.min(1,speed/3);
+ // The shared gait spends 64% of a cycle moving a planted foot from +travel
+ // to -travel. Match that retreat to the actor's real translation.
+ d.phase+=speed*dt*(walking?Math.PI*.64/(travel*Math.max(.01,desiredStride)):3);const p=d.phase;
  const target=attack>0?Math.min(1,1-attack/1.2):0;d.wind=(d.wind||0)+(target-(d.wind||0))*(1-Math.exp(-dt*10));
  if(d.oldAttack>0&&attack<=0)d.release=.35;d.oldAttack=attack;d.release=Math.max(0,(d.release||0)-dt);const hit=Math.sin((d.release||0)/.35*Math.PI);
  let wind=d.wind,strike=hit;if(d.coastBoss){wind=d.bossStage==='wind'?d.windProgress:d.bossStage==='strike'?1-d.strikeProgress:0;strike=d.bossStage==='strike'?Math.sin(Math.PI*d.strikeProgress):0;}
@@ -87,7 +94,7 @@ export function animateCoastEnemy(g,t,speed,attack,dt){
   }else if(d.kind==='tidestar'){
    r.position.y=0;r.rotation.set(0,Math.sin(t*.55)*.022*s,0);d.body.scale.set(1-wind*.045,1+wind*.08-strike*.05,1-wind*.045);
   }else{
-   for(const l of d.legs)stepLeg(l,r,p,s*(1-wind*.78),{travel:d.kind==='reefturtle'?.060:.08,lift:d.kind==='reefturtle'?.043:.057,sideways:d.kind==='tidecrab'?.060:0});
+   for(const l of d.legs)stepLeg(l,r,p,s,{travel,lift:d.kind==='reefturtle'?.043:.057});
    d.claws.forEach((o,i)=>{const side=i?1:-1;o.rotation.set(-wind*.12+strike*.09,side*(wind*.25-strike*.30),0);});d.tips.forEach((o,i)=>o.rotation.y=(i?1:-1)*(-wind*.22+strike*.13));
    if(d.head){d.head.position.z=.50-wind*.12+strike*.14;d.head.rotation.x=-wind*.12+strike*.08;d.head.rotation.y=Math.sin(t*.8)*.025*(1-s);}
    d.eyes.forEach((eye,i)=>{const side=i?1:-1;if(d.kind==='tidecrab'){eye.rotation.set(-wind*.20+strike*.10,Math.sin(t*.85+i*.9)*.12*(1-wind)+side*wind*.10,side*(-wind*.08+Math.sin(t*.63+i)*.028));}else{const phase=T.MathUtils.euclideanModulo(t+i*.065,5.3),blink=phase<.20?Math.sin(phase/.20*Math.PI)**2:0;eye.scale.y=Math.max(.06,1-.92*blink-wind*.16);}});

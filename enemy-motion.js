@@ -1,5 +1,5 @@
-import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=192';
-import{updateEnemyGrip,animateEnemyExpression}from'./enemy-appearance.js?v=192';
+import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=193';
+import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=193';
 // Attack timings are shared with the pose driver so the strike matches its hit.
 export const ENEMY_MOTION={
  foamling:{wind:.55,recover:.25,cadence:9,range:2.1},tidecrab:{wind:.7,recover:.35,cadence:10,range:3.1},reefturtle:{wind:1.1,recover:.6,cadence:4,range:4},jellyseer:{wind:.85,recover:.4,cadence:4,range:12},tidestar:{wind:.9,recover:.45,cadence:4,range:11},wreckwarden:{wind:1.25,recover:1.7,cadence:4},
@@ -25,52 +25,16 @@ export function advanceEnemyLocomotion(d,dt,distance,walking){
  d.motionTurn=(d.motionTurn||0)+(turn-(d.motionTurn||0))*blend;
  d.motionLook=(d.motionLook||0)+(look-(d.motionLook||0))*blend;
  d.motionSpeed=walking?Math.max(0,distance)/dt:0;
- if(!d.appearance||!['wolf','mushroom'].includes(d.kind))return 0;
+ const kind=d.species||d.kind,travel={wolf:.38,frostwolf:.38,ashstalker:.28,emberling:.27,yeti:.25,lavabrute:.30}[kind];
  const grounded=walking&&distance>1e-6&&!(d.pounce>0);
- if(d.kind==='wolf'){d.visualPhase=(d.visualPhase||0)+(grounded?distance*4.5:0);d.walkPhase=d.visualPhase;}
+ // Only the presentation clock follows distance; AI timing and hop speed stay
+ // on e.gait. A planted foot retreats by exactly the distance the root travels.
+ if(travel){d.visualPhase=(d.visualPhase||0)+(grounded?distance*Math.PI*.64/(travel*Math.max(.01,Math.min(1,d.motionSpeed/2.5))):0);d.walkPhase=d.visualPhase;}
+ if(!d.appearance||!['wolf','mushroom'].includes(d.kind))return 0;
  const phase=d.walkPhase||0,previous=d.contactPhase;d.contactPhase=phase;
  if(!grounded||previous===undefined||phase<=previous)return 0;
  if(d.kind==='wolf'){const beat=Math.floor(phase/Math.PI);return beat>Math.floor(previous/Math.PI)?beat%2?6:9:0;}
  return Math.floor((phase-Math.PI)/(Math.PI*2))>Math.floor((previous-Math.PI)/(Math.PI*2))?3:0;
-}
-const wolfSoles=new WeakMap();
-function wolfSole(leg){
- const geometry=leg.knee.children.find(n=>n.name==='wolf-lower-leg').geometry;
- if(wolfSoles.has(geometry))return wolfSoles.get(geometry);
- // The existing batch contains two equal-topology ellipsoids: calf and paw.
- // Cache their support bounds once, rather than visiting vertices each frame.
- const positions=geometry.attributes.position,parts=[];
- for(let part=0;part<2;part++){
-  const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
-  for(let i=part*positions.count/2;i<(part+1)*positions.count/2;i++)for(let axis=0;axis<3;axis++){const v=positions.array[i*3+axis];lo[axis]=Math.min(lo[axis],v);hi[axis]=Math.max(hi[axis],v);}
-  const center=lo.map((v,i)=>(v+hi[i])/2),radius=lo.map((v,i)=>(hi[i]-v)/2*(i===1?1:1/Math.cos(Math.PI/10)));
-  parts.push({center,radius});
- }
- wolfSoles.set(geometry,parts);return parts;
-}
-// The paw stays low during the longer support phase, then folds for the return.
-// Solve for its real batched sole, not the empty ankle marker. Leg lengths and
-// the actor's collision root are unchanged; at most four support corrections.
-function plantPaw(leg,rig,phase,stride,crouch,pounce){
- const u=((phase/(Math.PI*2))%1+1)%1,support=u<.62;
- const swing=support?0:(u-.62)/.38,travel=support?1-2*u/.62:-1+2*smooth(swing);
- const lift=Math.sin(swing*Math.PI)*.13*stride;
- const upper=leg.upperLength,lower=leg.lowerLength,z=.12+travel*.16*stride+crouch*.065+pounce*(leg.joint.position.z>0?.12:-.12);
- let y=upper+lower-.025-lift-crouch*.075-pounce*.045;
- const clamp=x=>Math.max(-1,Math.min(1,x));
- const rx=Math.cos(rig.rotation.x)*Math.sin(rig.rotation.z),ry=Math.cos(rig.rotation.x)*Math.cos(rig.rotation.z),rz=-Math.sin(rig.rotation.x),sole=wolfSole(leg);
- let knee,hip;
- for(let i=0;i<=4;i++){
-  const distance=Math.min(upper+lower-.002,Math.max(.08,Math.hypot(y,z)));
-  knee=Math.PI-Math.acos(clamp((upper*upper+lower*lower-distance*distance)/(2*upper*lower)));
-  hip=-Math.atan2(z,y)-Math.acos(clamp((upper*upper+distance*distance-lower*lower)/(2*upper*distance)));
-  if(i===4)break;
-  const c=Math.cos(hip+knee),s=Math.sin(hip+knee),sy=ry*c+rz*s,sz=-ry*s+rz*c;
-  const origin=rig.position.y+rx*leg.joint.position.x+ry*(leg.restY-upper*Math.cos(hip))+rz*(leg.joint.position.z-upper*Math.sin(hip));
-  let bottom=Infinity;for(const {center:p,radius:r}of sole)bottom=Math.min(bottom,origin+rx*p[0]+sy*p[1]+sz*p[2]-Math.hypot(rx*r[0],sy*r[1],sz*r[2]));
-  if(bottom>=.004)break;y=Math.max(.15,y-(.006-bottom)*1.25);
- }
- leg.joint.rotation.set(hip,0,0);leg.knee.rotation.set(knee,0,0);leg.paw.rotation.set(-hip-knee,0,0);
 }
 const stoneSoles=new WeakMap();
 function plantStoneFoot(leg,rig,phase,stride){
@@ -110,7 +74,7 @@ function animateForestEnemy(d,t,stride,phase,gather,drive,impact){
   d.tail.rotation.set(-.05-gather*.2+airborne*.18+brake*.09,Math.sin(phase*.65-.5)*(.07+.18*stride)-turn*.22,0);
   if(d.tailTip)d.tailTip.rotation.set(Math.sin(phase*.65-.9)*.055*stride,Math.sin(phase*.65-1.25)*(.055+.11*stride)-turn*.28,0);
   d.ears?.forEach((ear,i)=>ear.rotation.set(-.06-Math.sin(phase-.8+i*.35)*.075*stride-gather*.19+drive*.11,look*.05,(i?1:-1)*.07+breath*.025+turn*.045));
-  for(const leg of d.legs)if(leg.knee&&leg.paw)plantPaw(leg,rig,phase+leg.phase,stride,gather+landing*(leg.joint.position.z>0?1.2:.75)+brake*.25,pounce);
+  prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,phase,stride,{travel:.38,lift:.115,air:airborne*.26,reachZ:airborne*(leg.back?-.11:.11),toeRoll:.18});
  }else if(d.kind==='golem'){
   const weight=Math.sin(phase)*stride;
   rig.position.set(weight*.045,Math.abs(sway)*.014*stride-gather*.09-drive*.08-settle*.025,-impact*.13-gather*.045+drive*.04);

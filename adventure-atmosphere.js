@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {CLIMATE_LIGHT} from './environment-lighting.js?v=192';
+import {CLIMATE_LIGHT} from './environment-lighting.js?v=193';
 
 const cloudStrength={forest:.46,snow:.54,ash:.32,sand:.24,coast:.52};
 // Frequency and edge softness distinguish wind-swept snow, ash banks, dune wisps and coastal cloud.

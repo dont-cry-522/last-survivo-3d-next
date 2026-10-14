@@ -50,12 +50,12 @@ float mottled=sin(dot(cp,vec3(13.,9.,17.)))*sin(dot(cp,vec3(-7.,19.,11.)));
 creatureGrain=0.;creatureRelief=0.;creatureRoughness=roughness;
 if(ck>.5&&ck<1.5){
  // Overlapping short fur clumps, with a fine strand inside each clump.
- float flow=cq.x*240.+sin(cq.y*25.)*2.4;
- float strand=sin(flow)*(.55+.45*sin(cq.y*67.+cq.x*19.));
+ float flow=cq.x*315.+sin(cq.y*112.+sin(cq.x*38.))*2.5+sin(cp.z*82.)*1.5;
+ float strand=sin(flow)*smoothstep(-.4,.45,sin(cq.y*113.+sin(cq.x*39.)*2.));
  float clump=sin(cq.x*53.+sin(cq.y*15.))*sin(cq.y*21.+cq.x*7.);
  float strandFade=1.-smoothstep(.002,.010,footprint);
- creatureGrain=strand*.25*strandFade+clump*.09+mottled*.08;
- creatureRelief=strand*.00065*strandFade+clump*.0004;creatureRoughness=.88;
+ creatureGrain=strand*.17*strandFade+clump*.055+mottled*.08;
+ creatureRelief=strand*.00022*strandFade+clump*.00016;creatureRoughness=.88;
 }else if(ck<2.5&&ck>1.5){
  float seam=abs(sin(cq.x*13.+sin(cq.y*7.))*sin(cq.y*17.+cq.x*4.));
  float crack=1.-smoothstep(.012,.070,seam);
@@ -117,6 +117,6 @@ export function installCreatureSurface(material){
   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,creatureRoughness,step(.5,vCreatureFinish.x)*.82);');
   shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\n'+relief);
  };
- material.customProgramCacheKey=()=>baseKey+'|creature-surface-v1';
+ material.customProgramCacheKey=()=>baseKey+'|creature-surface-v2';
  return material;
 }

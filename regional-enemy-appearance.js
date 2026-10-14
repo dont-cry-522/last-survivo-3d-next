@@ -1,8 +1,8 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {updateEnemyGrip,animateEnemyExpression} from './enemy-appearance.js?v=192';
+import {updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot} from './enemy-appearance.js?v=193';
 
-import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=192';
+import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=193';
 
 // Bounded shared templates; every moving part is a batch, not a collection of
 // decorative meshes. Only joints move after construction.
@@ -17,8 +17,8 @@ const tube=(c,points,r=.03,segments=10)=>color(new T.TubeGeometry(new T.CatmullR
 function joined(parts){const flat=parts.map(g=>g.index?g.toNonIndexed():g),g=mergeGeometries(flat,false);for(const p of new Set([...parts,...flat]))p.dispose();g.computeBoundingBox();g.computeBoundingSphere();return g;}
 // Smooth cross sections join ribcage, waist and neck into a single skin. Ends
 // close to one vertex; normals are shared around the rings before batching.
-function skinLoft(rings,c,axis='y',sides=14,steps=18,fold=0){
- sides=Math.min(sides,12);steps=Math.min(steps,12);
+function skinLoft(rings,c,axis='y',sides=14,steps=18,fold=0,coat=false){
+ sides=Math.min(sides,coat?18:12);steps=Math.min(steps,coat?22:12);
  const curve=new T.CatmullRomCurve3(rings.map(r=>new T.Vector3(r[0],r[1],r[2]))),centers=rings.map(r=>r[3]||0),p=[],idx=[];
  for(let j=0;j<=steps;j++){
   const t=j/steps,q=curve.getPoint(t),k=t*(rings.length-1),i=Math.min(rings.length-2,Math.floor(k)),shift=T.MathUtils.lerp(centers[i],centers[i+1],k-i);
@@ -28,6 +28,51 @@ function skinLoft(rings,c,axis='y',sides=14,steps=18,fold=0){
  for(const end of [0,1]){const row=end?steps:0,base=row*sides,index=p.length/3,coord=rings[end?rings.length-1:0];p.push(0,axis==='z'?coord[3]||0:coord[0],axis==='z'?coord[0]:coord[3]||0);for(let i=0;i<sides;i++){const a=base+i,b=base+(i+1)%sides;idx.push(...(end?[index,b,a]:[index,a,b]));}}
  if((axis==='z')!==(rings.at(-1)[0]<rings[0][0]))for(let i=0;i<idx.length;i+=3)[idx[i+1],idx[i+2]]=[idx[i+2],idx[i+1]];
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setIndex(idx);g.computeVertexNormals();return color(g,c);
+}
+// Short, overlapping locks follow the coat rather than radiating like spikes.
+// They are sealed into the existing body batch: no transparent fur shell,
+// additional material, per-frame vertex writes or per-lock draw calls.
+function coatLoft(rings,c,axis='y',length=.016){
+ const g=skinLoft(rings,c,axis,12,14,0,true),p=g.attributes.position,n=g.attributes.normal,parts=[g];
+ const tangent=new T.Vector3(),normal=new T.Vector3(),root=new T.Vector3(),a=new T.Vector3(),b=new T.Vector3();
+ for(let row=3;row<13;row+=2)for(let side=0;side<12;side++){
+  if((side+row)%3!==0)continue;
+  const i=row*12+side;normal.fromBufferAttribute(n,i);if(axis==='z'&&normal.y<-.28)continue;
+  root.fromBufferAttribute(p,i).addScaledVector(normal,-length*.18);tangent.set(0,axis==='z'?-.18:-1,axis==='z'?-1:-.18).addScaledVector(normal,-tangent.dot(normal)).normalize();
+  a.copy(root).addScaledVector(tangent,length*.50).addScaledVector(normal,length*.38);
+  b.copy(root).addScaledVector(tangent,length*1.9).addScaledVector(normal,length*.10);
+  parts.push(horn(c,[root.toArray(),a.toArray(),b.toArray()],[length*.32,length*.27,.0007],3,4));
+ }
+ const merged=joined(parts);merged.userData.shortCoat=true;return merged;
+}
+function hareEar(){
+ const g=skinLoft([[0,.041,.026],[.09,.065,.032],[.24,.080,.023],[.42,.070,.018],[.57,.038,.012],[.63,.014,.007],[.65,.002,.002]],0xd5ddd1,'y',12,22,0,true);
+ const p=g.attributes.position,n=g.attributes.normal,c=g.attributes.color,inner=new T.Color(0xa6b0a8),shade=new T.Color();
+ for(let i=0;i<p.count;i++){
+  const y=p.getY(i);
+  const margin=1-smooth(Math.abs(p.getX(i))/.052),inside=smooth((y-.055)/.08)*(1-smooth((y-.51)/.105))*Math.max(0,n.getZ(i));
+  shade.setRGB(c.getX(i),c.getY(i),c.getZ(i)).lerp(inner,margin*inside*.86);c.setXYZ(i,shade.r,shade.g,shade.b);
+ }
+ // Two shared smooth flex shapes keep the membrane continuous and participate
+ // in Three's regular shadow pass. Individual ears own only two scalar weights;
+ // unlike skeletons this creates no per-creature GPU bone texture to dispose.
+ g.morphTargetsRelative=true;g.morphAttributes.position=[];g.morphAttributes.normal=[];
+ for(const [pivot,name]of [[.21,'MidFlex'],[.44,'TipFlex']]){
+  const next=g.clone(),q=next.attributes.position;
+  for(let i=0;i<p.count;i++){
+   const y=p.getY(i),z=p.getZ(i),angle=.50*smooth((y-pivot)/.20),s=Math.sin(angle),c=Math.cos(angle),dy=y-pivot;
+   q.setXYZ(i,p.getX(i),pivot+dy*c-z*s,dy*s+z*c);
+  }
+  next.computeVertexNormals();const deltaP=new Float32Array(p.count*3),deltaN=new Float32Array(p.count*3),nn=next.attributes.normal;
+  for(let i=0;i<deltaP.length;i++){deltaP[i]=q.array[i]-p.array[i];deltaN[i]=nn.array[i]-n.array[i];}
+  const dp=new T.Float32BufferAttribute(deltaP,3),dn=new T.Float32BufferAttribute(deltaN,3);dp.name=dn.name=name;
+  g.morphAttributes.position.push(dp);g.morphAttributes.normal.push(dn);next.dispose();
+ }
+ g.computeBoundingBox();g.computeBoundingSphere();return g;
+}
+function addHareEar(parent,geometry,id){
+ prepareCreatureSurface(geometry,id,'Ear');const mesh=new T.Mesh(geometry,skin);
+ mesh.name='SM_Enemy_'+id+'_SoftEar';mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);parent.userData.softEar={mesh};return mesh;
 }
 function tintFront(g,c,centerY,radiusY,zStart){const p=g.attributes.position,colors=g.attributes.color,target=new T.Color(c),shade=new T.Color();for(let i=0;i<p.count;i++){const front=smooth((p.getZ(i)-zStart)/.17),center=1-smooth(Math.abs(p.getX(i))/.40),height=1-smooth(Math.abs(p.getY(i)-centerY)/radiusY);shade.setRGB(colors.getX(i),colors.getY(i),colors.getZ(i)).lerp(target,front*center*height*.78);colors.setXYZ(i,shade.r,shade.g,shade.b);}return g;}
 function faceted(g){const next=g.index?g.toNonIndexed():g;next.computeVertexNormals();if(next!==g)g.dispose();return next;}
@@ -44,12 +89,17 @@ function template(id){
  if(templates.has(id))return templates.get(id);const p={};
  if(id==='snowhare'){
   // One horizontal back flows from powerful rear haunches into the small chest.
-  p.body=joined([skinLoft([[-.53,.07,.08,.42],[-.38,.31,.32,.45],[-.12,.34,.33,.46],[.18,.25,.26,.46],[.38,.16,.18,.53],[.50,.10,.12,.62]],0xc7d6cf,'z',12,12)]);
-  p.head=joined([skinLoft([[-.18,.035,.07,.015],[-.10,.155,.19,.03],[.05,.185,.18,.015],[.18,.135,.10,-.035],[.30,.069,.054,-.052]],0xdde4da,'z',10,10),...eyes(0x3e4c51,.135,.047,.172,.018)]);
-  p.ear=joined([skinLoft([[0,.066,.045],[.17,.069,.03],[.40,.050,.022],[.60,.018,.009],[.66,.002,.002]],0xcddbd3,'y',8,10),horn(0x829997,[[0,.08,.035],[0,.27,.025],[0,.48,.020]],[.026,.030,.008],7,5)]);
-  p.haunch=joined([skinLoft([[.07,.05,.07],[.01,.18,.20],[-.12,.22,.22],[-.27,.13,.15],[-.34,.063,.085]],0xc2d0c8,'y',10,10)]);
-  p.shin=joined([link(0xb8cac5,.29,.085,.04)]);p.fore=joined([skinLoft([[.025,.058,.060],[-.06,.083,.074,-.01],[-.15,.074,.065,-.025],[-.245,.051,.048]],0xd1ded3,'y',10,8)]);p.foreLower=joined([link(0xb9ceca,.235,.057,.041)]);
-  p.foot=paw(0xb6cbc5,.11,.25,0x879c98);p.frontFoot=paw(0xc1d4cd,.083,.12,0x879c98);p.tail=joined([oval(0xd5dfd2,0,0,0,.13,.12,.11)]);
+  p.body=coatLoft([[-.53,.06,.07,.42],[-.38,.30,.30,.45],[-.12,.33,.31,.46],[.18,.26,.25,.46],[.38,.17,.18,.53],[.50,.10,.12,.62]],0xc7d6cf,'z',.021);
+  p.head=joined([coatLoft([[-.18,.035,.07,.015],[-.10,.155,.19,.03],[.05,.185,.18,.015],[.18,.135,.10,-.035],[.30,.069,.054,-.052]],0xdde4da,'z',.010),...eyes(0x3e4c51,.135,.047,.172,.018)]);
+  p.ear=hareEar();
+  p.haunch=coatLoft([[.08,.045,.06],[.025,.18,.18,-.015],[-.08,.215,.205,-.018],[-.20,.165,.16,.014],[-.29,.078,.084],[-.31,.068,.064]],0xc2d0c8,'y',.015);
+  p.shin=joined([skinLoft([[.03,.066,.067],[0,.078,.074],[-.075,.085,.066,-.015],[-.17,.052,.05,-.014],[-.255,.044,.04],[-.27,.043,.042]],0xb8cac5,'y',12,12)]);
+  p.hock=joined([skinLoft([[.022,.043,.042],[0,.048,.044],[-.07,.041,.038],[-Math.hypot(.115,.095),.048,.040]],0xc2d2c9,'y',10,9)]);
+  p.fore=coatLoft([[.08,.031,.041],[.025,.087,.092,-.01],[-.075,.073,.066,-.02],[-.17,.050,.048,-.018],[-.245,.045,.043]],0xd1ded3,'y',.009);
+  p.foreLower=joined([skinLoft([[.028,.044,.044],[0,.052,.048],[-.06,.055,.048,-.008],[-.14,.037,.035],[-.21,.039,.038],[-.235,.045,.042]],0xb9ceca,'y',12,12)]);
+  // The heel stays beneath the hock; the long metatarsal/toes project forward.
+  p.foot=joined([skinLoft([[-.078,.025,.020,.050],[-.040,.069,.047,.050],[.035,.093,.051,.051],[.18,.105,.039,.039],[.30,.078,.028,.032],[.33,.026,.018,.030]],0xc4d4c9,'z',12,12)]);
+  p.frontFoot=paw(0xc1d4cd,.080,.115,0x879c98);p.tail=coatLoft([[-.11,.020,.022],[-.06,.095,.090],[.01,.125,.12],[.09,.064,.062],[.11,.008,.008]],0xd5dfd2,'z',.012);
  }else if(id==='emberling'){
   // Squat coal imp, forward shoulders and a narrow angular face, not a rabbit.
   p.body=joined([skinLoft([[.33,.14,.15],[.52,.23,.22],[.74,.29,.22],[.91,.27,.17],[1.02,.11,.10]],0x62372e,'y',10,10),tube(0xb76332,[[-.12,.65,.20],[0,.78,.226],[.12,.66,.20]],.018,6)]);
@@ -60,14 +110,16 @@ function template(id){
   p.tail=joined([horn(0x81432e,[[0,0,0],[0,-.12,-.18],[.06,-.08,-.40],[.13,.08,-.48]],[.09,.07,.035,.002],10,6)]);
  }else if(id==='frostwolf'){
   // Deep brisket / tucked flank / high withers, not a cylindrical dog torso.
-  p.body=joined([skinLoft([[-.70,.065,.09,.71],[-.52,.235,.255,.75],[-.30,.19,.21,.79],[-.05,.205,.25,.80],[.23,.30,.375,.82],[.45,.28,.355,.87],[.61,.18,.23,.96],[.68,.13,.17,1.03]],0x93abb6,'z',12,12)]);
+  p.body=coatLoft([[-.70,.065,.09,.71],[-.52,.235,.255,.75],[-.30,.195,.215,.79],[-.05,.225,.265,.80],[.23,.30,.35,.84],[.45,.28,.34,.90],[.61,.19,.23,.97],[.68,.13,.17,1.03]],0x93abb6,'z',.024);
   p.head=joined([skinLoft([[-.23,.04,.06,.035],[-.13,.18,.22,.07],[.015,.205,.19,.04],[.16,.145,.105,-.005],[.34,.079,.065,-.04],[.47,.063,.05,-.035]],0xc9d7d4,'z',12,12),...eyes(0x97cee0,.148,.058,.15,.020),...[-1,1].map(side=>tube(0x3c5360,[[side*.092,-.081,.16],[side*.081,-.082,.30],[side*.056,-.060,.45]],.006,6)),...[-1,1].map(side=>piece(new T.ConeGeometry(.010,.045,5),0xc8cdb8,side*.065,-.098,.315,1,1,1,Math.PI)),...[-1,1].map(s=>horn(0x698494,[[s*.08,.098,.18],[s*.155,.11,.10],[s*.18,.084,.04]],[.019,.029,.020],5,5))]);
   p.ear=joined([skinLoft([[0,.078,.058],[.13,.059,.038],[.27,.006,.005]],0xb7cccd,'y',8,8),horn(0x627f8c,[[0,.055,.044],[0,.13,.028],[0,.19,.013]],[.028,.024,.003],5,5)]);
   p.jaw=joined([skinLoft([[.05,.07,.027],[.23,.066,.035],[.42,.052,.02]],0xa5bdc3,'z',8,8),...[-1,1].map(side=>piece(new T.ConeGeometry(.008,.022,5),0xbac2af,side*.043,.032,.34))]);
   p.tail=joined([horn(0x90aeb8,[[0,0,0],[0,-.08,-.17],[0,-.20,-.34],[0,-.25,-.51]],[.12,.15,.13,.072],10,8)]);p.tailTip=joined([horn(0xc7d4cf,[[0,0,0],[0,-.025,-.14],[0,.025,-.26]],[.077,.047,.002],8,7)]);
-  p.frontUpper=joined([link(0x8daab6,.35,.128,.082)]);p.frontLower=joined([link(0x9eb9c3,.37,.083,.052)]);
-  p.haunch=joined([skinLoft([[.10,.016,.02],[.03,.17,.21],[-.15,.18,.20],[-.34,.082,.075],[-.39,.063,.061]],0x88a3b0,'y',10,10)]);
-  p.shin=joined([link(0xa1b9c2,.31,.087,.054)]);p.hock=joined([link(0x9ab1ba,Math.hypot(.18,.095),.055,.051)]);p.foot=paw(0xb0c8cd,.095,.14);
+  p.frontUpper=coatLoft([[.19,.025,.035],[.125,.12,.14,.015],[.025,.145,.16,.025],[-.10,.113,.12,.014],[-.245,.082,.081,-.012],[-.35,.073,.069]],0x8daab6,'y',.014);
+  p.frontLower=joined([skinLoft([[.035,.060,.061],[0,.078,.074],[-.07,.078,.063,-.016],[-.18,.058,.049,-.01],[-.29,.047,.043],[-.355,.059,.051],[-.37,.055,.048]],0x9eb9c3,'y',12,12)]);
+  p.haunch=coatLoft([[.13,.022,.028],[.055,.16,.18,-.02],[-.085,.19,.18,-.027],[-.21,.145,.13,.01],[-.33,.086,.074,.008],[-.39,.069,.064]],0x88a3b0,'y',.015);
+  p.shin=joined([skinLoft([[.028,.066,.061],[0,.082,.077],[-.07,.099,.080,-.018],[-.17,.074,.059,-.015],[-.28,.052,.049],[-.31,.058,.054]],0xa1b9c2,'y',12,12)]);
+  p.hock=joined([skinLoft([[.025,.055,.052],[0,.061,.056],[-.08,.040,.038],[-.17,.047,.042],[-Math.hypot(.18,.095),.056,.047]],0x9ab1ba,'y',10,9)]);p.foot=paw(0xb0c8cd,.095,.14);
  }else if(id==='ashstalker'){
   p.body=joined([skinLoft([[-.79,.02,.025,.37],[-.62,.20,.135,.40],[-.34,.31,.18,.43],[.05,.33,.19,.44],[.37,.27,.16,.45],[.60,.21,.12,.46],[.77,.17,.085,.45]],0x514b46,'z',12,12),...Array.from({length:6},(_,i)=>horn(i%2?0x814d34:0xa2663c,[[0,.54,-.55+i*.19],[0,.82+Math.sin(i/5*Math.PI)*.28,-.62+i*.19],[0,.92+Math.sin(i/5*Math.PI)*.27,-.72+i*.19]],[.080,.046,.002],6,5))]);
   p.head=joined([skinLoft([[-.18,.12,.060],[.00,.26,.094],[.24,.275,.064,-.01],[.50,.21,.04,-.025],[.61,.15,.025,-.025]],0x77624d,'z',12,10),...[-1,1].map(s=>oval(0x292a26,s*.206,.086,.14,.050,.018,.037)),...[-1,1].map(s=>oval(0xd99b4e,s*.209,.098,.148,.022,.005,.025)),...[-1,1].map(s=>horn(0x9b774f,[[s*.15,.07,.04],[s*.30,.07,-.08],[s*.35,.025,-.28]],[.080,.062,.002],7,5)),...[-1,1].map(s=>oval(0x352c26,s*.095,.015,.597,.013,.008,.018))]);
@@ -128,7 +180,7 @@ export function polishRegionalEnemy(g,id=g.userData.species){
  if(p.body)add(root,p.body,id,'Body');
  if(id==='snowhare'){
   d.cap=group(root,0,.73,.45);add(d.cap,p.head,id,'Head');
-  for(const s of [-1,1]){const ear=group(d.cap,s*.077,.14,-.025);add(ear,p.ear,id,'Ear');d.ears.push(ear);d.legs.push(makeLeg(root,p,id,{x:s*.24,y:.47,z:-.25,a:.34,b:.29,upper:'haunch',lower:'shin',foot:'foot',phase:0,back:true}));d.legs.push(makeLeg(root,p,id,{x:s*.135,y:.49,z:.30,a:.245,b:.235,upper:'fore',lower:'foreLower',foot:'frontFoot',phase:1.4}));}
+  for(const s of [-1,1]){const ear=group(d.cap,s*.082,.14,-.025);addHareEar(ear,p.ear,id);d.ears.push(ear);d.legs.push(makeLeg(root,p,id,{x:s*.24,y:.47,z:-.25,a:.31,b:.27,upper:'haunch',lower:'shin',foot:'foot',phase:0,back:true,drop:.115}));d.legs.push(makeLeg(root,p,id,{x:s*.135,y:.49,z:.30,a:.245,b:.235,upper:'fore',lower:'foreLower',foot:'frontFoot',phase:1.4}));}
   d.smallTail=group(root,0,.48,-.50);add(d.smallTail,p.tail,id,'Tail');
  }else if(id==='emberling'){
   d.cap=group(root,0,1.12,.04);add(d.cap,p.head,id,'Head');for(const s of [-1,1]){const ear=group(d.cap,s*.14,.13,-.045);add(ear,p.ear,id,'Horn');ear.scale.x=s;d.ears.push(ear);const arm=group(root,s*.27,.87,0),elbow=group(arm,0,-.27,0);add(arm,p.upper,id,'UpperArm');add(elbow,p.lower,id,'Forearm');arm.userData.elbow=elbow;d.arms.push(arm);d.legs.push(makeLeg(root,p,id,{x:s*.16,y:.52,z:0,a:.28,b:.26,upper:'thigh',lower:'shin',foot:'foot',phase:s<0?0:Math.PI}));}
@@ -137,7 +189,7 @@ export function polishRegionalEnemy(g,id=g.userData.species){
   const wolf=id==='frostwolf';d.head=group(root,0,wolf?1.01:.465,wolf?.57:.67);add(d.head,p.head,id,'Head');d.jaw=group(d.head,0,wolf?-.09:-.047,0);add(d.jaw,p.jaw,id,'Jaw');
   if(wolf)for(const s of [-1,1]){const ear=group(d.head,s*.136,.18,-.09);add(ear,p.ear,id,'Ear');d.ears.push(ear);}
   d.tail=group(root,0,wolf?.79:.40,wolf?-.56:-.67);add(d.tail,p.tail,id,'Tail');d.tailTip=group(d.tail,0,wolf?-.25:-.06,wolf?-.50:-.80);add(d.tailTip,p.tailTip,id,'TailTip');
-  for(const s of [-1,1])for(const front of [false,true])d.legs.push(makeLeg(root,p,id,{x:s*(wolf?.235:.27),y:wolf?(front?.75:.72):.40,z:front?(wolf?.32:.40):(wolf?-.48:-.43),a:wolf?(front?.35:.39):.30,b:wolf?(front?.37:.31):.30,upper:wolf?(front?'frontUpper':'haunch'):'upper',lower:wolf?(front?'frontLower':'shin'):'lower',foot:'foot',phase:(s>0)===front?0:Math.PI,back:!front,drop:wolf&&!front?.18:0,reach:wolf?0:.31}));
+  for(const s of [-1,1])for(const front of [false,true])d.legs.push(makeLeg(root,p,id,{x:s*(wolf?.235:.27),y:wolf?.72:.40,z:front?(wolf?.32:.40):(wolf?-.48:-.43),a:wolf?(front?.35:.39):.30,b:wolf?(front?.37:.31):.30,upper:wolf?(front?'frontUpper':'haunch'):'upper',lower:wolf?(front?'frontLower':'shin'):'lower',foot:'foot',phase:(s>0)===front?0:Math.PI,back:!front,drop:wolf&&!front?.18:0,reach:wolf?0:.31}));
  }else if(id==='yeti'||id==='lavabrute'){
   const ape=id==='yeti';d.head=group(root,0,ape?1.66:2.05,ape?.36:.19);add(d.head,p.head,id,'Head');d.knuckles=[];
   for(const s of [-1,1]){
@@ -163,41 +215,30 @@ export function polishRegionalEnemy(g,id=g.userData.species){
  if(!fitting){const height=new T.Box3().setFromObject(g).max.y-g.position.y;fittings.set(id,{height:oldHeight,scale:oldHeight/height});}
  root.scale.setScalar(fittings.get(id).scale);root.name='SM_Enemy_'+id+'_Rig';d.regionalHeight=d.combatHeight=oldHeight;g.updateMatrixWorld(true);return g;
 }
-const down=new T.Vector3(0,-1,0),end=new T.Vector3(),target=new T.Vector3(),direction=new T.Vector3(),bend=new T.Vector3(),elbowPoint=new T.Vector3(),linkDirection=new T.Vector3(),inverse=new T.Matrix4(),rigMatrix=new T.Matrix4(),flat=new T.Quaternion(),footOffset=new T.Vector3();
-function prepareFeet(d){d.rig.updateMatrix();d.regionalRoot.updateMatrix();rigMatrix.multiplyMatrices(d.rig.matrix,d.regionalRoot.matrix);inverse.copy(rigMatrix).invert();flat.copy(d.rig.quaternion).invert();}
-function plant(l,phase,stride,{air=0,reachZ=0,lift=.09,travel=.15,raise=0}={}){
- const u=((phase+l.phase)/(Math.PI*2)%1+1)%1,support=u<.64,q=support?0:(u-.64)/.36,step=(support?1-u/.64*2:-1+2*smooth(q))*stride;
- const fit=l.joint.parent.scale.x;
- target.set((l.restX+Math.sign(l.restX)*l.reach)*fit,.006+Math.sin(q*Math.PI)*lift*stride+air+raise,(l.restZ+reachZ)*fit+step*travel).applyMatrix4(inverse);
- end.copy(target).add(footOffset.set(0,.055+l.drop,l.drop?-.095:0).applyQuaternion(flat));
- l.joint.position.set(l.restX,l.restY,l.restZ);l.joint.rotation.set(0,0,0);
- direction.copy(end).sub(l.joint.position);const a=l.upperLength,b=l.lowerLength,raw=direction.length(),d=clamp(raw,Math.abs(a-b)+.001,a+b-.001);direction.normalize();
- // A few centimetres of shoulder/hip yield preserve fixed bone lengths and
- // the actual contact point during a long step or an interrupted wind-up.
- l.joint.position.addScaledVector(direction,raw-d);
- l.paw.position.copy(target).sub(l.joint.position);l.paw.quaternion.copy(flat);end.sub(l.joint.position);
- const along=(a*a-b*b+d*d)/(2*d),height=Math.sqrt(Math.max(0,a*a-along*along));bend.set(l.reach?Math.sign(l.restX):0,0,l.back?1:-1).addScaledVector(direction,-bend.dot(direction)).normalize();
- elbowPoint.copy(direction).multiplyScalar(along).addScaledVector(bend,height);l.upper.quaternion.setFromUnitVectors(down,linkDirection.copy(elbowPoint).normalize());l.knee.position.copy(elbowPoint);l.knee.quaternion.setFromUnitVectors(down,linkDirection.copy(end).sub(elbowPoint).normalize());
- if(l.ankle){l.ankle.position.copy(end);l.ankle.quaternion.setFromUnitVectors(down,linkDirection.copy(l.paw.position).add(footOffset.set(0,.055,0).applyQuaternion(flat)).sub(end).normalize());}
-}
 export function animateRegionalAppearance(d,t,stride,phase,wind,release,impact){
  if(!d.regionalAppearance)return;const id=d.species,rig=d.rig,active=d.previousAttack>0,drive=active?smooth((wind-.66)/.34):release,gather=active?smooth(wind/.6)*(1-.85*drive):release*.15,pounce=d.pounce||0,turn=d.motionTurn||0,look=d.motionLook||0,wave=Math.sin(phase),breath=Math.sin(t*1.9),air=Math.sin(Math.min(1,pounce)*Math.PI);rig.scale.set(1,1,1);
  if(id==='snowhare'){
-  const hop=Math.max(0,wave);rig.position.set(0,hop*.15*stride-gather*.045+air*.36,-impact*.08);rig.rotation.set(-hop*.11*stride+gather*.075-drive*.08,0,turn*.025);
-  d.cap.rotation.set(hop*.075*stride+gather*.10-drive*.16,look*.16,0);d.cap.scale.setScalar(1);d.ears.forEach((e,i)=>e.rotation.set(-.22-Math.sin(phase-.7)*.13*stride-gather*.25+drive*.12,0,(i?1:-1)*.09));d.smallTail.rotation.set(0,breath*.025,0);
-  prepareFeet(d);for(const leg of d.legs)plant(leg,phase,stride,{air:air*.36+hop*.085*stride,travel:leg.back?.22:.14,lift:leg.back?.14:.10,reachZ:leg.back?.08:0});
+  const hop=Math.max(0,wave),landing=Math.sin(clamp((d.landRecover||0)/.18,0,1)*Math.PI);rig.position.set(0,hop*.15*stride-gather*.045+air*.36-landing*.032,-impact*.08);rig.rotation.set(-hop*.11*stride+gather*.075-drive*.08,0,turn*.025);
+  d.cap.rotation.set(hop*.075*stride+gather*.10-drive*.16,look*.16,0);d.cap.scale.setScalar(1);
+  d.ears.forEach((e,i)=>{
+   const side=i?1:-1,lag=phase-.8-i*.13,soft=e.userData.softEar;
+   e.rotation.set(-.18-Math.sin(phase-.35)*.105*stride-gather*.25+drive*.10,look*.045,-side*(.16+breath*.014));
+   soft.mesh.morphTargetInfluences[0]=(.018-Math.sin(lag)*.18*stride-gather*.10+landing*.14+drive*.07)/.50;
+   soft.mesh.morphTargetInfluences[1]=(.035-Math.sin(lag-.6)*.22*stride-gather*.09+landing*.19+drive*.10+Math.sin(t*1.6+i*.5)*.018)/.50;
+  });d.smallTail.rotation.set(0,breath*.025,0);
+  prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,phase,stride,{air:air*.36+hop*.085*stride,travel:leg.back?.23:.14,lift:leg.back?.145:.10,reachZ:leg.back?.075:0,toeRoll:leg.back?.36:.12});
  }else if(id==='emberling'){
   rig.position.set(wave*.015*stride,Math.abs(wave)*.025*stride-gather*.07+air*.25,-impact*.09);rig.rotation.set(gather*.13-drive*.22,0,wave*.055*stride);d.cap.rotation.set(gather*.12-drive*.15,look*.25,-rig.rotation.z*.55);d.cap.scale.setScalar(1);d.ears.forEach((e,i)=>e.rotation.set(gather*.08,0,(i?1:-1)*.06));d.smallTail.rotation.set(0,Math.sin(phase-.75)*.23*stride,0);
-  d.arms.forEach((a,i)=>{a.rotation.set(Math.sin(phase+i*Math.PI)*.4*stride-gather*.4-drive*.3,0,(i?1:-1)*.14);a.userData.elbow.rotation.x=-.28-gather*.36+drive*.28;});prepareFeet(d);for(const leg of d.legs)plant(leg,phase,stride,{air:air*.25,lift:.09,travel:.16});
+  d.arms.forEach((a,i)=>{a.rotation.set(Math.sin(phase+i*Math.PI)*.4*stride-gather*.4-drive*.3,0,(i?1:-1)*.14);a.userData.elbow.rotation.x=-.28-gather*.36+drive*.28;});prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,phase,stride,{air:air*.25,lift:.09,travel:.27});
  }else if(id==='frostwolf'||id==='ashstalker'){
   const wolf=id==='frostwolf';rig.position.set(0,Math.abs(wave)*.013*stride-gather*.055+air*.23,-impact*.10);rig.rotation.set(gather*.055+drive*.055,wolf?0:Math.sin(phase*.63)*.065*stride,wave*.014*stride-turn*.025);
   d.head.rotation.set(gather*.12-drive*.21,look*.25-rig.rotation.y*.7,0);d.jaw.position.y=(wolf?-.09:-.047)-drive*.018;d.jaw.rotation.x=gather*.055+drive*.15;
   d.tail.rotation.set(0,Math.sin(phase*(wolf?.55:.63)-.5)*(wolf?.10:.26)*stride-turn*.12,0);d.tailTip.rotation.set(0,Math.sin(phase*(wolf?.55:.63)-1.0)*(wolf?.12:.28)*stride,0);d.ears.forEach((e,i)=>e.rotation.set(-gather*.16,look*.10,(i?1:-1)*.09));
-  prepareFeet(d);for(const leg of d.legs)plant(leg,phase,stride*(pounce>0?.3:1),{air:air*.23,lift:wolf?.09:.055,travel:wolf?.19:.14});
+  prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,phase,stride*(pounce>0?.3:1),{air:air*.23,lift:wolf?.09:.055,travel:wolf?.38:.28});
  }else if(id==='yeti'||id==='lavabrute'){
   const ape=id==='yeti';rig.position.set(wave*.021*stride,Math.abs(wave)*.013*stride-gather*.065-drive*.025,-impact*.12);rig.rotation.set(-gather*.12+drive*.16,ape?Math.sin(phase-.4)*.028*stride:-gather*.24+drive*.28,wave*.028*stride);
-  d.head.rotation.set(-rig.rotation.x*.45,look*.16-rig.rotation.y*.35,-rig.rotation.z*.3);prepareFeet(d);for(const leg of d.legs)plant(leg,phase,stride,{lift:ape?.07:.045,travel:ape?.13:.10});
-  if(ape)for(const arm of d.knuckles)plant(arm,phase,stride,{lift:.07,travel:.19,reachZ:.23-gather*.27+drive*.35,raise:gather*.87+drive*.09});
+  d.head.rotation.set(-rig.rotation.x*.45,look*.16-rig.rotation.y*.35,-rig.rotation.z*.3);prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,phase,stride,{lift:ape?.07:.045,travel:ape?.25:.30});
+  if(ape)for(const arm of d.knuckles)plantCreatureFoot(arm,phase,stride,{lift:.07,travel:.25,reachZ:.23-gather*.27+drive*.35,raise:gather*.87+drive*.09});
   else d.arms.forEach((a,i)=>{a.rotation.set(Math.sin(phase+i*Math.PI-.3)*.12*stride-gather*(i?1.6:.3)+drive*.40,0,(i?1:-1)*.075);a.userData.elbow.rotation.x=-.18-gather*.34+drive*.16;});
  }else if(d.staff){
   const ice=id==='icewitch',walk=wave*stride;rig.position.set(walk*.009,(ice?.085+breath*.015:.008+Math.abs(wave)*.013*stride)+gather*.04,-impact*.10);rig.rotation.set(gather*(ice?-.045:.045)-drive*.06,Math.sin(phase-.4)*.018*stride,walk*.023);d.head.rotation.set(-rig.rotation.x*.65,look*.18,-rig.rotation.z*.6);

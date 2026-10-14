@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=192';
+import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=193';
 
 // Five finite, shared sets of geometry. Articulation moves groups, never vertices.
 const templates=new Map();
@@ -114,8 +114,21 @@ function template(kind){
   p.jaw=joined([oval(0x7b8d80,0,0,.29,.12,.056,.18),oval(0x575447,0,.041,.34,.085,.008,.115),...[-1,1].map(s=>piece(new T.ConeGeometry(.012,.038,5),0xd4ceb1,s*.081,.053,.37))]);
   p.tail=joined([branch(0x677b70,[[0,0,0],[0,-.015,-.10],[0,-.055,-.21],[0,-.09,-.29]],.09)]);
   p.tailTip=joined([oval(0xa8b4af,0,-.025,-.065,.08,.075,.14)]);
-  p.upper=joined([profile([[0,.025],[.075,.004],[.092,-.075],[.071,-.17],[.056,-.25],[0,-.265]],0x6b7e73,{depth:1.06,bend:.009,segments:12})]);
-  p.lower=joined([oval(0x556d61,0,-.103,0,.052,.13,.057),oval(0x819486,0,-.231,.050,.075,.055,.105),...[-1,0,1].flatMap(s=>[oval(0x919e8b,s*.043,-.235,.120,.029,.045,.062,6,4),piece(new T.ConeGeometry(.010,.046,5),0x485047,s*.043,-.24,.181,1,1,1,Math.PI/2)])]);
+  // Muscular shoulder / thigh taper into wrist / hock, with a real separate
+  // paw. The ankle node must move the visible foot, not an empty marker.
+  p.frontUpper=joined([profile([[0,.12],[.09,.10],[.112,.035],[.094,-.08],[.062,-.22],[.058,-.31],[0,-.34]].reverse(),0x78847b,{depth:1.24,segments:12}),
+   ...[-1,1].map(side=>rootlet(0x859083,[[side*.062,.072,-.015],[side*.086,.015,-.072],[side*.069,-.07,-.10]],[.036,.041,.002]))]);
+  p.frontLower=joined([profile([[0,.04],[.054,.02],[.055,-.07],[.036,-.21],[.041,-.29],[0,-.33]].reverse(),0x778477,{depth:1.08,segments:10})]);
+  p.haunch=joined([profile([[0,.13],[.10,.105],[.14,.005],[.135,-.10],[.093,-.23],[.065,-.32],[0,-.36]].reverse(),0x788079,{depth:1.4,segments:12}),
+   ...[-1,1].map(side=>rootlet(0x7b887a,[[side*.071,-.016,-.13],[side*.072,-.10,-.171],[side*.043,-.18,-.176]],[.035,.042,.002]))]);
+  p.shin=joined([profile([[0,.04],[.070,.015],[.073,-.07],[.053,-.17],[.038,-.275],[0,-.30]].reverse(),0x68776c,{depth:1.15,segments:10})]);
+  p.hock=joined([profile([[0,.035],[.043,.013],[.037,-.07],[.034,-.13],[0,-.171]].reverse(),0x7b887a,{depth:1.05,segments:10})]);
+  p.frontUpper.scale(1,.35/.31,1);p.frontLower.scale(1,.35/.32,1);p.haunch.scale(1,.36/.33,1);p.shin.scale(1,.32/.28,1);
+  p.paw=joined([oval(0x98a08d,0,.051,.031,.072,.051,.096),...[-1,0,1].flatMap(side=>[oval(0xa6ab95,side*.043,.042,.102,.029,.04,.055,6,4),piece(new T.ConeGeometry(.010,.041,5),0x485047,side*.043,.035,.161,1,1,1,Math.PI/2)])]);
+  // Broad roots lie along the coat, narrow tips break only cheeks and tail.
+  // Merge into existing moving batches: no alpha cards or per-hair draw calls.
+  p.head=joined([p.head,...[-1,1].flatMap(side=>Array.from({length:3},(_,i)=>rootlet(i%2?0x899487:0x7a877c,[[side*(.19-i*.012),-.04-i*.046,.075-i*.035],[side*(.25-i*.009),-.08-i*.045,.015-i*.041],[side*(.258-i*.008),-.13-i*.044,-.075-i*.039]],[.025,.021,.0015])))]);
+  p.tail=joined([p.tail,...[-1,1].flatMap(side=>Array.from({length:3},(_,i)=>rootlet(i%2?0x829284:0x748679,[[side*.051,-.035-i*.015,-.065-i*.071],[side*.095,-.047-i*.027,-.12-i*.071],[side*.064,-.066-i*.031,-.205-i*.065]],[.028,.025,.0015])))]);
  }else if(kind==='golem'){
   p.body=joined([
    boulder(0x626958,0,.93,-.015,.67,.69,.70,.12,.2,-.07),boulder(0x8a8d75,-.15,1.36,.07,.43,.35,.40,.2,-.2,-.1),
@@ -201,7 +214,12 @@ export function polishEnemyAppearance(g){
   d.head=group(rig,0,.80,.47);add(d.head,p.head,'wolf-head');d.jaw=group(d.head,0,-.21,0);add(d.jaw,p.jaw,'wolf-jaw');
   d.ears=[-1,1].map(s=>{const ear=group(d.head,s*.17,.25,-.06);add(ear,p.ear,'wolf-ear');return ear;});
   d.tail=group(rig,0,.75,-.46);add(d.tail,p.tail,'wolf-tail');d.tailTip=group(d.tail,0,-.09,-.26);add(d.tailTip,p.tailTip,'wolf-tail-tip');
-  for(const x of[-.22,.22])for(const z of[-.28,.28]){const joint=group(rig,x,.49,z),knee=group(joint,0,-.24,0),paw=group(knee,0,-.24,.03);add(joint,p.upper,'wolf-upper-leg');add(knee,p.lower,'wolf-lower-leg');d.legs.push({joint,knee,paw,phase:x*z>0?0:Math.PI,upperLength:.24,lowerLength:.24,restY:.49});}
+  for(const x of[-.215,.215])for(const z of[-.32,.28]){
+   const back=z<0,y=back?.65:.665,joint=group(rig,x,y,z),upper=group(joint),knee=group(joint),paw=group(joint),ankle=back?group(joint):null;
+   add(upper,back?p.haunch:p.frontUpper,back?'wolf-haunch':'wolf-shoulder');add(knee,back?p.shin:p.frontLower,'wolf-lower-leg');add(paw,p.paw,'wolf-paw');if(ankle)add(ankle,p.hock,'wolf-hock');
+   d.legs.push({joint,upper,knee,paw,ankle,phase:x*z>0?0:Math.PI,upperLength:back?.36:.35,lowerLength:back?.32:.35,restX:x,restY:y,restZ:z,back,drop:back?.14:0,reach:0});
+  }
+  prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,0,0);
  }else if(kind==='golem'){
   d.head=group(rig,0,1.80,.03);add(d.head,p.head,'golem-head');
   for(const s of[-1,1]){const arm=group(rig,s*.73,1.34,0);add(arm,p.arm,'golem-arm');d.arms.push(arm);const joint=group(rig,s*.30,.57,0);add(joint,p.leg,'golem-leg');d.legs.push({joint,phase:s<0?0:Math.PI});}
@@ -258,4 +276,25 @@ export function animateEnemyExpression(d,t,stride,gather,drive,impact=0){
  if(d.ears&&(id==='snowhare'||id==='wolf'||id==='frostwolf'))d.ears.forEach((ear,i)=>{ear.rotation.x+=alert*(i?.035:-.10);ear.rotation.z+=alert*(i?-.04:.07);});
  if(d.head&&(id==='wolf'||id==='frostwolf'))d.head.rotation.x+=sniff*.018;
  d.expressionBlink=blink;d.expressionSniff=sniff;d.expressionAlert=alert;
+}
+
+// Shared articulated support used by forest and regional limb carriers.
+const footDown=new T.Vector3(0,-1,0),footEnd=new T.Vector3(),footTarget=new T.Vector3(),footDirection=new T.Vector3(),footBend=new T.Vector3(),footElbowPoint=new T.Vector3(),footLinkDirection=new T.Vector3(),footInverse=new T.Matrix4(),footRigMatrix=new T.Matrix4(),footFlat=new T.Quaternion(),footFootOffset=new T.Vector3();
+export function prepareCreatureFeet(d){d.rig.updateMatrix();footRigMatrix.copy(d.rig.matrix);if(d.regionalRoot){d.regionalRoot.updateMatrix();footRigMatrix.multiply(d.regionalRoot.matrix);}footInverse.copy(footRigMatrix).invert();footFlat.copy(d.rig.quaternion).invert();}
+export function plantCreatureFoot(l,phase,stride,{air=0,reachZ=0,lift=.09,travel=.15,raise=0,toeRoll=0}={}){
+ const u=((phase+l.phase)/(Math.PI*2)%1+1)%1,support=u<.64,q=support?0:(u-.64)/.36,step=(support?1-u/.64*2:-1+2*(q*q*(3-2*q)))*stride;
+ l.planted=support&&stride>.001&&air<.001&&raise<.001;
+ const fit=l.joint.parent.scale.x;
+ footTarget.set((l.restX+Math.sign(l.restX)*l.reach)*fit,.006+Math.sin(q*Math.PI)*lift*stride+air+raise,(l.restZ+reachZ)*fit+step*travel).applyMatrix4(footInverse);
+ l.paw.quaternion.copy(footFlat);if(toeRoll)l.paw.rotateX(-toeRoll*Math.sin(q*Math.PI)*stride);
+ footEnd.copy(footTarget).add(footFootOffset.set(0,.055,0).applyQuaternion(l.paw.quaternion));if(l.drop)footEnd.add(footFootOffset.set(0,l.drop,-.095).applyQuaternion(footFlat));
+ l.joint.position.set(l.restX,l.restY,l.restZ);l.joint.rotation.set(0,0,0);
+ footDirection.copy(footEnd).sub(l.joint.position);const a=l.upperLength,b=l.lowerLength,raw=footDirection.length(),d=T.MathUtils.clamp(raw,Math.abs(a-b)+.001,a+b-.001);footDirection.normalize();
+ // A few centimetres of shoulder/hip yield preserve fixed bone lengths and
+ // the actual contact point during a long step or an interrupted wind-up.
+ l.joint.position.addScaledVector(footDirection,raw-d);
+ l.paw.position.copy(footTarget).sub(l.joint.position);footEnd.sub(l.joint.position);
+ const along=(a*a-b*b+d*d)/(2*d),height=Math.sqrt(Math.max(0,a*a-along*along));footBend.set(l.reach?Math.sign(l.restX):0,0,l.back?1:-1).addScaledVector(footDirection,-footBend.dot(footDirection)).normalize();
+ footElbowPoint.copy(footDirection).multiplyScalar(along).addScaledVector(footBend,height);l.upper.quaternion.setFromUnitVectors(footDown,footLinkDirection.copy(footElbowPoint).normalize());l.knee.position.copy(footElbowPoint);l.knee.quaternion.setFromUnitVectors(footDown,footLinkDirection.copy(footEnd).sub(footElbowPoint).normalize());
+ if(l.ankle){l.ankle.position.copy(footEnd);l.ankle.quaternion.setFromUnitVectors(footDown,footLinkDirection.copy(l.paw.position).add(footFootOffset.set(0,.055,0).applyQuaternion(l.paw.quaternion)).sub(footEnd).normalize());}
 }

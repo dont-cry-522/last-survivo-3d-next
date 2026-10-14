@@ -2,11 +2,11 @@ import test from'node:test';
 import assert from'node:assert/strict';
 import * as T from'../vendor/three.module.js';
 import{polishEnvironmentModels,prepareBatchedSurface,batchedSurfaceMaterial}from'../environment-props.js';
-import{placeTemplate}from'../biome-places.js?v=192';
-import{installEnvironmentClusters}from'../environment-clusters.js?v=192';
-import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=192';
+import{placeTemplate}from'../biome-places.js?v=193';
+import{installEnvironmentClusters}from'../environment-clusters.js?v=193';
+import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=193';
 import{buildWorld}from'../world.js';
-import{boulderRockGeometry}from'../biome-scenery.js?v=192';
+import{boulderRockGeometry}from'../biome-scenery.js?v=193';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 
 test('batched grain follows the piece axis and curved rope length without changing original geometry',()=>{

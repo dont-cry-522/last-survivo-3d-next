@@ -18,10 +18,10 @@ test('ten regional templates preserve spawn hit heights and gameplay data while 
   polishRegionalEnemy(g,id);assert.deepEqual(g.userData.rig.children,before,'polish duplicated the rig');
   parts.forEach((part,i)=>{assert.equal(part.geometry,copies[i].geometry);assert.equal(part.material,copies[i].material);assert(part.name.startsWith('SM_Enemy_'+id+'_'));assert(!part.userData.ownedGeometry);assert.equal(part.material.side,T.FrontSide);assert.equal(part.geometry.attributes.color.count,part.geometry.attributes.position.count);for(const key of ['position','normal','color'])assert(part.geometry.attributes[key].array.every(Number.isFinite),id+' invalid geometry');triangles+=(part.geometry.index?.count||part.geometry.attributes.position.count)/3;materials.add(part.material);});calls+=parts.length;
  }
- // Separate planted paws and hind hocks add moving batches; reduced cross-section
- // tessellation more than offsets them in triangle cost (v190: 37,648 triangles).
- // Four paired-lid batches and two noses add six independent face motions.
- assert(calls<=126,'articulated body/face batches exceeded budget');assert(triangles<33700,'regional templates exceeded the bounded detail budget');assert.equal(materials.size,2);assert.equal(JSON.stringify(ENEMIES),rules);assert.equal(JSON.stringify(ENEMY_MOTION),motion);
+ // The v193 hare adds two articulated hind ankles. Soft ears remain one draw
+ // each; coat locks are merged into existing limbs/body. Real curved anatomy
+ // and outline fur remain below 43,000 triangles for all ten templates.
+ assert(calls<=128,'articulated body/face batches exceeded budget');assert(triangles<43000,'regional templates exceeded the bounded detail budget');assert.equal(materials.size,2);assert.equal(JSON.stringify(ENEMIES),rules);assert.equal(JSON.stringify(ENEMY_MOTION),motion);
 });
 
 test('warm regional construction reuses species fitting without repeating bounds traversal',()=>{

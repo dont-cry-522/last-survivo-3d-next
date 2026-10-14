@@ -1,4 +1,4 @@
-import{SFX_FILE,SFX_CUES}from'./material-sfx.js?v=192';
+import{SFX_FILE,SFX_CUES}from'./material-sfx.js?v=193';
 
 export class RecordedEffects{
  constructor(context,{file=SFX_FILE,cues=SFX_CUES,fetcher=(...args)=>globalThis.fetch(...args)}={}){

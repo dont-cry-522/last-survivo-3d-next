@@ -2,7 +2,7 @@
 export const MAP_ROSTERS={coast:{mushroom:'foamling',wolf:'tidecrab',golem:'reefturtle',spitter:'jellyseer',shaman:'tidestar',boss:'wreckwarden'},sand:{mushroom:'sandworm',wolf:'clawbeetle',golem:'sandguard',spitter:'sandspitter',shaman:'duneoracle',boss:'dunescorpion'},forest:{mushroom:'mushroom',wolf:'wolf',golem:'golem',spitter:'spitter',shaman:'shaman',boss:'boss'},snow:{mushroom:'snowhare',wolf:'frostwolf',golem:'yeti',spitter:'icewitch',shaman:'snowtotem',boss:'frostking'},ash:{mushroom:'emberling',wolf:'ashstalker',golem:'lavabrute',spitter:'cinderwisp',shaman:'ashseer',boss:'cinderlord'}};
 export const REGIONAL_ENEMIES={
  foamling:{map:'coast',role:'mushroom',hp:30,speed:2.9,damage:11,xp:7,size:.5,name:'海沫跳灵',traits:'青蓝卷浪软体、内凹浪窝和白色泡缘；压低后跳扑，落地回弹。',attack:'锁定方向后短距离跳扑',tip:'看到身体压低，侧移避开。'},
- tidecrab:{map:'coast',role:'wolf',hp:40,speed:3.7,damage:13,xp:10,size:.65,name:'钳潮蟹',traits:'低扁分片甲壳、外展关节足和长螯；交替侧行，张螯后夹击。',attack:'短蓄力后前冲夹击',tip:'不要直线后退，横向闪过钳口。'},
+ tidecrab:{map:'coast',role:'wolf',hp:40,speed:3.7,damage:13,xp:10,size:.65,name:'钳潮蟹',traits:'低扁分片甲壳、外展关节足和长螯；交替撑地前进，张螯后夹击。',attack:'短蓄力后前冲夹击',tip:'不要直线后退，横向闪过钳口。'},
  reefturtle:{map:'coast',role:'golem',hp:150,speed:1.5,damage:21,xp:25,size:.9,name:'礁背海龟',traits:'低拱分缝龟甲、礁脊、厚趾足和钩喙；交替撑地，伸颈吐出浪涌。',attack:'前方两段延迟浪涌，命中减速',tip:'离开前方的青色水纹，绕龟壳两侧。'},
  jellyseer:{map:'coast',role:'spitter',hp:46,speed:2.3,damage:12,xp:13,size:.6,zone:'tide',name:'刺灯水母',traits:'透明伞盖、内侧径脉和长短不齐的口腕；伞盖收缩、触丝波动，漂浮时不受水阻。',attack:'锁定位置后放出延迟水爆，留下短暂减速水域',tip:'看见青色落点就继续移动，水爆后也别立刻返回。'},
  tidestar:{map:'coast',role:'shaman',hp:72,speed:1.8,damage:10,xp:19,size:.65,name:'潮汐海星',traits:'厚扁五臂与沿臂沟槽，中心有暗潮核；逐臂起伏爬动，抬臂呼唤回潮。',attack:'治疗附近受伤同伴；否则向目标释放减速水爆',tip:'先处理海星，避免厚壳怪反复恢复。'},
@@ -15,7 +15,7 @@ export const REGIONAL_ENEMIES={
  duneoracle:{map:'sand',role:'shaman',hp:75,speed:1.9,damage:11,xp:19,size:.65,name:'遗城祈者',traits:'紫灰深兜袍、浅色面罩和叉形沉芯杖；顿步抬杖。',attack:'治疗受伤同伴；否则施放减速咒',tip:'优先清除，防止盾卫反复恢复。'},
  dunescorpion:{map:'sand',role:'boss',name:'蚀金巨蝎',traits:'宽阔甲壳、六足、双钳和分节高蝎尾；步足交替、尾节回摆。',attack:'近身夹击、锁定尾刺、钻地后破沙而出',tip:'夹击退后，尾刺横移；钻地时离开落点，出土后反击。'},
 
- snowhare:{map:'snow',role:'mushroom',hp:26,speed:3,damage:9,xp:6,size:.5,name:'雪原跳兔',traits:'白毛长耳、伏低前身和厚实后躯；折叠后腿蹬地跳扑，前爪接地后耳朵回弹。',attack:'低身蓄力后短距离跳扑',tip:'看到它蹲下就侧移，让它扑空后反击。'},
+ snowhare:{map:'snow',role:'mushroom',hp:26,speed:3,damage:9,xp:6,size:.5,name:'雪原跳兔',traits:'白毛长耳、伏低前身和厚实后躯；耳中段与耳尖柔弯，折叠后踝和长掌蹬地跳扑，前爪接地后耳朵回弹。',attack:'低身蓄力后短距离跳扑',tip:'看到它蹲下就侧移，让它扑空后反击。'},
  frostwolf:{map:'snow',role:'wolf',hp:30,speed:4.2,damage:11,xp:9,size:.6,hitSlow:.65,name:'霜牙狼',traits:'白蓝厚胸、收紧腹线、长吻和弯折飞节；交错步绕侧追猎，伏低后扑咬。',attack:'锁定方向突扑，命中附带 0.65 秒寒霜减速',tip:'横向闪开扑击，不要被减速后继续沿直线逃跑。'},
  yeti:{map:'snow',role:'golem',hp:140,speed:1.6,damage:17,xp:24,size:1,name:'雪岭巨猿',traits:'厚背低颈、前伸面庞与撑地长臂；重心前倾迈步，抬臂砸出寒霜。',attack:'举臂后拍地，留下短暂伤害与减速的冰面',tip:'离开脚下预告区域，等冰面消退再靠近。'},
  icewitch:{map:'snow',role:'spitter',hp:48,speed:2.2,damage:10,xp:12,size:.6,zone:'frost',name:'冰冠巫灵',traits:'冰蓝连续长袍、狭窄面缝与冰杖；低空侧滑、抬杖送出冰晶，靠近时会退让。',attack:'锁定你的位置，延迟形成持续 1.5 秒的寒霜区',tip:'保持移动；冰面亮起后绕开，别被减速困在原地。'},

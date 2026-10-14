@@ -1,10 +1,10 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 双视角实测</title><style>body{margin:12px;background:#17272b;color:#e2ecea;font:14px system-ui}button{padding:10px;margin:4px;background:#254943;border:1px solid #709582;color:inherit;border-radius:5px}iframe{display:block;border:0;margin-top:8px}pre{white-space:pre-wrap}#view{overflow:auto}</style><button id="run" disabled>运行双视角回归</button><select id="preview-map" aria-label="预览地图"><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="confluence">五境</option></select><select id="preview-place" aria-label="预览位置"><option value="spawn">出生地</option><option value="water">水岸</option><option value="waterbed">浅水石底</option><option value="watercenter">水中近看</option><option value="trees">树丛</option><option value="ruins">遗迹近景</option><option value="ruin-arch">残拱与通道</option><option value="elder">古树空地</option><option value="thicket">幽暗密林</option><option value="floor">地表细节近景</option></select><button id="third" disabled>第三人称预览</button><button id="first" disabled>第一人称预览</button><button id="capture" disabled>保存画面</button><p id="status">正在加载真实游戏（隔离存档，固定帧测试）</p><div id="view"></div><pre id="report"></pre><script type="module">
 import * as T from '../vendor/three.module.js';
-import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=187';
-import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=187';
-import {terrainAt,waterDepth} from '../water.js?v=187';
-import {updateTide} from '../coast.js?v=187';
-import {biomeWeights} from '../confluence.js?v=187';
+import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=188';
+import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=188';
+import {terrainAt,waterDepth} from '../water.js?v=188';
+import {updateTide} from '../coast.js?v=188';
+import {biomeWeights} from '../confluence.js?v=188';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
 const previewHero=document.createElement('select'),previewWeapon=document.createElement('select'),sourceDocument=new DOMParser().parseFromString(html,'text/html');
@@ -30,7 +30,7 @@ async function load(mobile=false,width=1180,height=720){
  const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
  // LOD generation must run in this renderer's realm: geometry merges compare
  // typed-array constructors, and WebGL uploads use instanceof checks.
- window.qaWorldReady=import('./world.js?v=187').then(module=>{window.qaAnimateWorld=module.animateWorld;});
+ window.qaWorldReady=import('./world.js?v=188').then(module=>{window.qaAnimateWorld=module.animateWorld;});
  <\/script>`;
  frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
  for(let i=0;i<600&&!win.game3d;i++)await sleep(50);assert(win.game3d,'加载超时 '+(win.qaErrors||[]).join(' / '));g=win.game3d;assert(await g.surfaceReady,'本地土石材质未全部加载');g.audio.init=async()=>true;const render=g.renderer.render.bind(g.renderer);g.renderer.render=(scene,camera)=>{if(scene!==g.hero.parent)return render(scene,camera);win.qaCamera=camera;if(g.state==='menu'&&win.document.querySelector('#preview-detail').getAttribute('aria-pressed')!=='true'){
@@ -319,6 +319,7 @@ function positionClusterEdge(mode){
  throw Error('真实景物簇附近没有安全的近景站位');
 }
 function positionPreview(mode,place){
+ if(place==='identity'){positionIdentity(mode,$('#preview-map').value);return;}
  if(place==='terrain-approach'||place==='terrain-bank'){positionTerrainApproach(mode,place==='terrain-bank');return;}
  if(place==='terrain-relief'){positionTerrainRelief(mode,terrainReliefView());return;}
  if(place==='terrain-crest'){const p=terrainLane();putTerrainPlayer(p.x,p.z,p.yaw);g.adventureCamera.pitch=mode==='first'?-.7:-.35;return;}
@@ -483,8 +484,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=187');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=187');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=188');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=188');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -1203,10 +1204,50 @@ ambientButton.onclick=async()=>{
   assert(sheet.toDataURL('image/png').startsWith('data:image/png;base64,'),'真实画面对比不能保存');errors.push(...win.qaErrors);publish();$('#status').textContent='微风与水面检查：'+results.filter(r=>r.pass).length+'/'+results.length+'；对比图可保存，手机为尺寸/触控模拟，非真机或帧率结论。';
  }catch(e){errors.push(e.message);publish();$('#status').textContent='微风水面检查中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);ambientSave.disabled=!$('#ambient-contact');}
 };
+
+// Inspect the production map; only the test camera/player is repositioned.
+const identityButton=document.createElement('button');identityButton.id='identity-run';identityButton.textContent='五境地貌与水岸检查';$('#capture').before(identityButton);
+$('#preview-place').add(new Option('本图地貌特色','identity'));
+function identityTarget(map){
+ const w=g.world;
+ if(map==='forest'||map==='confluence'){const p=w.ponds.filter(p=>p.biome==='forest')[2]||w.ponds[0];assert(p,'没有相连溪流');return{x:p.x,z:p.z,y:.2};}
+ if(map==='coast'){const r=w.harborLife?.userData.records[0];assert(r,'有码头但没有实际泊船');const c=Math.cos(r.angle),s=Math.sin(r.angle);return{x:r.origin.x+c*r.x+s*r.z,z:r.origin.z-s*r.x+c*r.z,y:.5};}
+ const r=w.climateLandforms?.records[0];assert(r,'没有本图地貌');return{x:r.x,z:r.z,y:r.kind==='dune'?.3:1.2};
+}
+function positionIdentity(mode,map){
+ const target=identityTarget(map);let stand;
+ for(const distance of[10,14,18,22]){for(let i=0;i<32;i++){const a=i*Math.PI/16,x=target.x+Math.sin(a)*distance,z=target.z+Math.cos(a)*distance;
+ if(!terrainStandClear(x,z))continue;
+ const yaw=Math.atan2(target.x-x,target.z-z),bx=x-Math.sin(yaw)*4.8,bz=z-Math.cos(yaw)*4.8;
+ if(!sceneryStandClear(bx,bz,.5))continue;
+ // Reject foreground solids actually crossing the target sightline.
+ const eye=terrainFloor(x,z)+1.5,hit=g.world.overhead.firstHit({x,y:eye,z},{x:target.x,y:target.y+.5,z:target.z});if(hit&&hit.distance<distance*.68)continue;
+ stand={x,z,yaw,distance};break;}if(stand)break;}
+ assert(stand,'本图特色没有安全取景点');putTerrainPlayer(stand.x,stand.z,stand.yaw);g.adventureCamera.pitch=Math.atan2(target.y-terrainFloor(stand.x,stand.z)-1.5,stand.distance);return{target,stand};
+}
+identityButton.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
+ const options=new URLSearchParams(location.search),mobile=options.get('mobile')==='1',sheet=document.createElement('canvas'),cw=590,ch=365;sheet.id='identity-contact';sheet.width=cw*2;sheet.height=ch*6;sheet.style.cssText='display:block;max-width:100%;height:auto';$('#identity-contact')?.remove();$('#report').before(sheet);const paint=sheet.getContext('2d');
+ try{await load(mobile,mobile?844:1180,mobile?390:680);const preparedTextures=g.renderer.info.memory.textures;
+ for(const [row,map]of['forest','snow','ash','sand','coast','confluence'].entries()){
+ select('silver',0,map);const old=g.world,ponds=old.ponds,solids=old.obstacles,fixed=JSON.stringify(old.sites.map(s=>[s.x,s.z,s.claimed,s.availableAt]));
+ for(const[column,mode]of['first','third'].entries())await check(map+' 地貌 '+mode+(mobile?' 手机尺寸':' 电脑'),()=>{
+ g.setView(mode);const view=positionIdentity(mode,map);step(3);g.environmentLighting.timeOffset=-g.time;g.environmentLighting.update(map,old.regions?biomeWeights(g.player.x,g.player.z):null,0,g.time);g.renderer.shadowMap.needsUpdate=true;step(1,0);
+ const stats=reportFrame();assert(stats.calls<2000,'环境超出绘制预算 '+JSON.stringify(stats));step(2,0);assert(g.renderer.info.memory.textures===stats.textures,'静态检查持续分配纹理');old.group.traverse(o=>{for(const m of[].concat(o.material||[]))for(const t of Object.values(m))if(t?.isTexture&&t.image?.width)assert(t.image.width<=2048&&t.image.height<=2048,'环境纹理超过2048');});assert(g.camera.position.y>=terrainFloor(g.camera.position.x,g.camera.position.z)+.349,'镜头穿地');
+ assert(g.world===old&&old.ponds===ponds&&old.obstacles===solids&&JSON.stringify(old.sites.map(s=>[s.x,s.z,s.claimed,s.availableAt]))===fixed,'取景改变了场景或奖励');
+ assert(Math.abs(g.player.y-terrainFloor(g.player.x,g.player.z))<.00001,'角色未贴地');
+ paint.fillStyle='#17272b';paint.fillRect(column*cw,row*ch,cw,ch);paint.drawImage(g.renderer.domElement,column*cw,row*ch,cw,ch-28);paint.fillStyle='#e2ecea';paint.font='16px sans-serif';paint.fillText(map+' · '+mode,column*cw+12,(row+1)*ch-7);
+ const time=g.time;g.pause();step(2);assert(g.time===time,'暂停推进时间');g.resume();return{...stats,preparedTextures,view,ponds:ponds.length,landforms:old.climateLandforms?.records.length||0,boats:old.harborLife?.userData.records.length||0,mobileSimulated:mobile};
+ });
+ }
+ errors.push(...win.qaErrors);publish();$('#status').textContent='五境地貌：'+results.filter(r=>r.pass).length+'/'+results.length+'；手机为尺寸模拟。';
+ }catch(e){errors.push(e.message);publish();$('#status').textContent='地貌检查中断：'+e.message;}finally{controls.forEach(c=>c.disabled=false);}
+};
+
 // A fresh page can run one named inspection after loading; this avoids overlapping
 // iframe rebuilds when browser input acknowledgements time out during heavy QA.
 const autoCheck=new URLSearchParams(location.search).get('check');
-const autoButtons={lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',slingshot:'slingshot-run',polish:'polish-run',heroes:'run'};
+const autoButtons={identity:'identity-run',lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',slingshot:'slingshot-run',polish:'polish-run',heroes:'run'};
 if(g&&autoButtons[autoCheck]){$('#status').textContent='正在运行 '+autoCheck+' 检查…';$('#'+autoButtons[autoCheck]).click();}
 </script>
 </html>

@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import * as T from '../vendor/three.module.js';
-import {buildWoodlandPlace} from '../woodland-places.js?v=187';
-import {naturalRockGeometry} from '../biome-scenery.js?v=187';
+import {buildWoodlandPlace} from '../woodland-places.js?v=188';
+import {naturalRockGeometry} from '../biome-scenery.js?v=188';
 
 function capture(biome,variant=0){
  const pieces=[],solids=[];

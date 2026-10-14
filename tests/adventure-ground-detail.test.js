@@ -8,15 +8,15 @@ import {segmentDistance} from '../rules.js';
 import {installForestHabitats,forestHabitatAt} from '../forest-habitats.js';
 import {polishEnvironmentModels} from '../environment-props.js';
 import {installForestVista} from '../forest-vista.js';
-import {installBiomePlaces} from '../biome-places.js?v=187';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=187';
+import {installBiomePlaces} from '../biome-places.js?v=188';
+import {installEnvironmentClusters} from '../environment-clusters.js?v=188';
 import {installExplorationRoutes} from '../exploration-routes.js';
 import {installExplorationLandmarks} from '../exploration-landmarks.js';
 import {installExplorationComposition} from '../exploration-composition.js';
 import {installForestTerrain} from '../forest-terrain.js';
 import {installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
-import {naturalRockGeometry} from '../biome-scenery.js?v=187';
-import {surfaceUniforms} from '../surface-textures.js?v=187';
+import {naturalRockGeometry} from '../biome-scenery.js?v=188';
+import {surfaceUniforms} from '../surface-textures.js?v=188';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const maps=['forest','snow','ash','sand','coast','confluence'];
@@ -399,7 +399,7 @@ test('biome edges connect both cover layers with lee pockets, broken scree, wind
 });
 
 test('forest transitions join low cover and understory at real banks and groves within the existing instance budget',()=>{
- for(const [seed,habitatCount]of[[7,1138],[522,1137],[43837033,1146]]){
+ for(const [seed,habitatCount]of[[7,1151],[522,1122],[43837033,1116]]){
   const w=buildWorld('forest',seed);installForestHabitats(w,'forest');const before=state(w),floor=installAdventureGroundDetail(w,'forest'),understory=installHabitatDetail(w,'forest');
   assert.equal(state(w),before);assert.equal(floor.userData.records.length,1200);assert.equal(understory.userData.records.length,habitatCount);
   assert.equal(floor.children.length,2);assert(understory.children.length<=16);
@@ -479,7 +479,7 @@ test('near-shore approaches retain a clear walking strip while the same cover bu
 
 test('opening forest cover forms two bounded path-side masses and keeps roots, gameplay and terrain attachment',()=>{
  const matrix=new T.Matrix4(),point=new T.Vector3();
- for(const [id,seed,highCount]of[['forest',7,1142],['forest',522,1123],['forest',43837033,1126],['confluence',7,2115],['confluence',522,2145],['confluence',43837033,2114]]){
+ for(const [id,seed,highCount]of[["forest",7,1130],["forest",522,1104],["forest",43837033,1114],["confluence",7,2114],["confluence",522,2103],["confluence",43837033,2131]]){
   const world=scenicWorld(id,seed),before=state(world),habitat=world.forestHabitats;
   const length=route=>route?.points.reduce((n,p,i,points)=>n+(i?Math.hypot(p.x-points[i-1].x,p.z-points[i-1].z):0),0)||0;
   const route=length(habitat.approach)>=14?habitat.approach:world.explorationRoutes.find(r=>r.site===habitat.relic);

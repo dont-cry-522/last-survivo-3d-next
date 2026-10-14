@@ -1,30 +1,31 @@
-import{bodyTravel}from'./actor-collision.js?v=187';
-import{followNaturalGround}from'./adventure-mobility.js?v=187';
-import{canMoveBelowOverhead}from'./adventure-overheads.js?v=187';
-import{buildConfluence,biomeWeights}from'./confluence.js?v=187';
-import{addTree,updateTreeDetail,animateTreeCanopy}from'./tree-scenery.js?v=187';
-import{installTactics}from'./map-tactics.js?v=187';
-import{installRoaming}from'./roaming-events.js?v=187';
-import{installDiscoveries}from'./map-discoveries.js?v=187';
-import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=187';
-import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=187';
-import{districtLayout,buildDistricts}from'./map-districts.js?v=187';
-import{makeCoastEnemy,animateCoastEnemy,coastProp}from'./coast-models.js?v=187';
-import{installCoast}from'./coast.js?v=187';
-import{coastLayout as buildCoastLayout}from'./coast-layout.js?v=187';
-import{makeBoss,animateBoss,makeSandEnemy,animateSandEnemy}from'./expansion-models.js?v=187';
-import{siteSchedule}from'./site-discovery.js?v=187';
-import{MAP_EVENTS,biomeEvent,eventNodes}from'./map-events.js?v=187';
-import{MAP_HALF,MAP_SCALE}from'./map-layout.js?v=187';
-import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=187';
-import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=187';
-import{polishEnemyAppearance}from'./enemy-appearance.js?v=187';
-import{REGIONAL_ENEMIES}from'./map-enemies.js?v=187';
-import{groundCue}from'./ground-cues.js?v=187';
-import{heroesReady,createSkinnedHero,animateSkinnedHero}from'./skinned-hero.js?v=187';
+import{forestStreamLayout}from'./forest-stream-layout.js?v=188';
+import{bodyTravel}from'./actor-collision.js?v=188';
+import{followNaturalGround}from'./adventure-mobility.js?v=188';
+import{canMoveBelowOverhead}from'./adventure-overheads.js?v=188';
+import{buildConfluence,biomeWeights}from'./confluence.js?v=188';
+import{addTree,updateTreeDetail,animateTreeCanopy}from'./tree-scenery.js?v=188';
+import{installTactics}from'./map-tactics.js?v=188';
+import{installRoaming}from'./roaming-events.js?v=188';
+import{installDiscoveries}from'./map-discoveries.js?v=188';
+import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=188';
+import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=188';
+import{districtLayout,buildDistricts}from'./map-districts.js?v=188';
+import{makeCoastEnemy,animateCoastEnemy,coastProp}from'./coast-models.js?v=188';
+import{installCoast}from'./coast.js?v=188';
+import{coastLayout as buildCoastLayout}from'./coast-layout.js?v=188';
+import{makeBoss,animateBoss,makeSandEnemy,animateSandEnemy}from'./expansion-models.js?v=188';
+import{siteSchedule}from'./site-discovery.js?v=188';
+import{MAP_EVENTS,biomeEvent,eventNodes}from'./map-events.js?v=188';
+import{MAP_HALF,MAP_SCALE}from'./map-layout.js?v=188';
+import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=188';
+import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=188';
+import{polishEnemyAppearance}from'./enemy-appearance.js?v=188';
+import{REGIONAL_ENEMIES}from'./map-enemies.js?v=188';
+import{groundCue}from'./ground-cues.js?v=188';
+import{heroesReady,createSkinnedHero,animateSkinnedHero}from'./skinned-hero.js?v=188';
 import * as T from './vendor/three.module.js';
-import{makeHero,animateHero}from'./hero-model.js?v=187';
-import{MAPS,seeded}from'./rules.js?v=187';
+import{makeHero,animateHero}from'./hero-model.js?v=188';
+import{MAPS,seeded}from'./rules.js?v=188';
 const geo=new Map(),materials=new Map(),terrainMaterials=new Map(),detailMaterials=new Map(),weatherMaterials=new Map();
 const hiddenWeatherMatrix=new T.Matrix4().makeScale(0,0,0);
 let fireflyTexture;
@@ -210,11 +211,19 @@ export function buildWorld(id,seed=1){if(id==='confluence')return buildConfluenc
  const ground=mesh('PlaneGeometry',[(MAP_HALF+8)*2,(MAP_HALF+8)*2],theme.ground,0,-.03,0,group);ground.rotation.x=-Math.PI/2;
  if(!terrainMaterials.has(id))terrainMaterials.set(id,new T.MeshStandardMaterial({map:groundTexture(id,theme),roughness:1}));ground.material=terrainMaterials.get(id);
 
- const ponds=id==='sand'?[]:buildPonds(group,id,rnd,spawn,sites,coastLayout?.ponds);patches.push(...ponds);const inWater=(x,z,padding=0)=>ponds.some(p=>waterDepth(id==='coast'?{...p,rx:p.rx*1.19+padding,rz:p.rz*1.19+padding,r:p.r*1.19+padding}:p,x,z)>0);
+ const ponds=id==='sand'?[]:buildPonds(group,id,rnd,spawn,sites,coastLayout?.ponds||(id==='forest'?forestStreamLayout(rnd,spawn,sites,{half:MAP_HALF}):null));patches.push(...ponds);const inWater=(x,z,padding=0)=>ponds.some(p=>waterDepth({...p,rx:p.rx*(id==='coast'?1.19:1)+padding,rz:p.rz*(id==='coast'?1.19:1)+padding,r:p.r*(id==='coast'?1.19:1)+padding},x,z)>0);
+ // Relocate six existing groves to the stream banks. The first four spawn
+ // groves, candidate count and later tree-clearance rules remain unchanged.
+ if(id==='forest'&&ponds.length)for(let i=0;i<6;i++){
+  const old=groves[i+4],p=ponds[Math.min(ponds.length-1,Math.floor((i+.35)*ponds.length/6))],side=i%2?-1:1;
+  const phase=old.x*.17+old.z*.11,u=side*(p.rx*1.115+6.5+1.5*Math.sin(phase)),v=Math.cos(phase*1.7)*p.rz*.32,c=Math.cos(p.angle),s=Math.sin(p.angle);
+  const x=p.x+c*u+s*v,z=p.z-s*u+c*v;
+  if(Math.abs(x)<=MAP_HALF-8&&Math.abs(z)<=MAP_HALF-8)groves[i+4]={x,z};
+ }
  // Soft irregular paths and terrain islands give the forest a readable floor.
  for(const site of sites){site.trail=trail(group,spawn,site,id,rnd);site.trail.visible=site.type==='relic';}
  for(let i=0;i<28;i++){const x=(rnd()-.5)*106*MAP_SCALE,z=(rnd()-.5)*106*MAP_SCALE,r=2+rnd()*3;if(Math.hypot(x-spawn.x,z-spawn.z)<9||id==='coast'&&(inWater(x,z,r)||sites.some(s=>Math.hypot(x-s.x,z-s.z)<r+6)))continue;const kind=id==='ash'&&i%3===0&&!sites.some(s=>Math.hypot(x-s.x,z-s.z)<(s.event?9:7))?'vent':'slow',patch={x,z,r,kind,phase:rnd()*4};patches.push(patch);group.add(groundShape(x,z,r,rnd,id==='snow'?0xc1d6d9:id==='ash'?kind==='vent'?0xb55438:0x8b6255:id==='sand'?0x938366:0x2b4640));if(kind==='vent'){const marker=groundCue(0xffa45f,r);marker.position.set(x,.09,z);group.add(marker);marker.visible=false;patch.marker=marker;}}
- for(let i=0;i<300;i++){const center=groves[i%groves.length],cluster=['forest','snow'].includes(id)&&i%4!==0,a=rnd()*Math.PI*2,r=Math.sqrt(rnd())*7,x=cluster?center.x+Math.sin(a)*r:(rnd()-.5)*118*MAP_SCALE,z=cluster?center.z+Math.cos(a)*r:(rnd()-.5)*118*MAP_SCALE;if(obstacles.some(o=>Math.hypot(o.x-x,o.z-z)<2.3)||districts.some(d=>Math.hypot(x-d.x,z-d.z)<10)||(id==='coast'?inWater(x,z,1.2):ponds.some(p=>Math.hypot(x-p.x,z-p.z)<p.r+1))||Math.hypot(x-spawn.x,z-spawn.z)<7||Math.hypot(x,z)<7||sites.some(s=>Math.hypot(x-s.x,z-s.z)<(s.event?9:7))||patches.some(p=>p.kind==='vent'&&Math.hypot(x-p.x,z-p.z)<p.r+1.05)||Math.abs(x-z)<3||Math.abs(x+z)<3)continue;const tall=2.5+rnd()*3.5,tree=new T.Group();tree.position.set(x,0,z);group.add(tree);obstacles.push({x,z,r:.65,mesh:tree});
+ for(let i=0;i<300;i++){const center=groves[i%groves.length],cluster=['forest','snow'].includes(id)&&i%4!==0,a=rnd()*Math.PI*2,r=Math.sqrt(rnd())*7,x=cluster?center.x+Math.sin(a)*r:(rnd()-.5)*118*MAP_SCALE,z=cluster?center.z+Math.cos(a)*r:(rnd()-.5)*118*MAP_SCALE;if(obstacles.some(o=>Math.hypot(o.x-x,o.z-z)<2.3)||districts.some(d=>Math.hypot(x-d.x,z-d.z)<10)||(['coast','forest'].includes(id)?inWater(x,z,1.2):ponds.some(p=>Math.hypot(x-p.x,z-p.z)<p.r+1))||Math.hypot(x-spawn.x,z-spawn.z)<7||Math.hypot(x,z)<7||sites.some(s=>Math.hypot(x-s.x,z-s.z)<(s.event?9:7))||patches.some(p=>p.kind==='vent'&&Math.hypot(x-p.x,z-p.z)<p.r+1.05)||Math.abs(x-z)<3||Math.abs(x+z)<3)continue;const tall=2.5+rnd()*3.5,tree=new T.Group();tree.position.set(x,0,z);group.add(tree);obstacles.push({x,z,r:.65,mesh:tree});
   if(id==='coast'){obstacles.at(-1).r=coastProp(tree,i,rnd);}
   else if(id==='sand'){const h=.6+rnd()*1.9;if(i%4===0){mesh('CylinderGeometry',[.5,.64,h,10],0xa6977c,0,h/2,0,tree);box(tree,0xc2b89b,0,h+.1,0,1.15,.2,1.15);}else{const rock=mesh('DodecahedronGeometry',[.7,1],i%2?0xb1a083:0x978768,0,.3,0,tree);rock.scale.set(1,.5+rnd()*.6,1);if(i%3===0){const slab=box(tree,0xbcb092,0,.4,0,.9,.45,.8);slab.rotation.z=.25;}}}
   else if(id==='ash'){const stone=mesh('DodecahedronGeometry',[1.2,0],0x66565c,0,tall*.38,0,tree);stone.scale.multiply(new T.Vector3(.7,tall*.55,.8));cone(tree,0xeaa169,0,tall*.8,0,.24,.85);}

@@ -38,8 +38,8 @@ test('rotated visible shoreline vertices keep shallow water inside and dry groun
 });
 test('ponds stay clear of trees, spawn and reward sites; ash stays dry; surface meshes are shared',()=>{
  let previous;for(const id of ['forest','snow','ash'])for(let seed=0;seed<30;seed++){
-  const w=buildWorld(id,seed);assert.equal(w.ponds.length,id==='ash'?0:6);
-  for(const p of w.ponds){assert(Math.hypot(p.x-w.spawn.x,p.z-w.spawn.z)>p.r+5);for(const s of w.sites)assert(Math.hypot(p.x-s.x,p.z-s.z)>p.r+7);for(const o of w.obstacles)assert(Math.hypot(p.x-o.x,p.z-o.z)>p.r);if(previous)assert.strictEqual(previous,p.mesh.geometry);previous=p.mesh.geometry;}
+  const w=buildWorld(id,seed);if(id==='forest')assert(w.ponds.length>=3&&w.ponds.length<=8);else assert.equal(w.ponds.length,id==='ash'?0:6);
+  for(const p of w.ponds){if(id==='forest'){for(const q of [w.spawn,...w.sites,...w.obstacles])assert.equal(waterDepth(p,q.x,q.z),0,'stream covers a spawn, reward or solid');}else{assert(Math.hypot(p.x-w.spawn.x,p.z-w.spawn.z)>p.r+5);for(const s of w.sites)assert(Math.hypot(p.x-s.x,p.z-s.z)>p.r+7);for(const o of w.obstacles)assert(Math.hypot(p.x-o.x,p.z-o.z)>p.r);}if(previous)assert.strictEqual(previous,p.mesh.geometry);previous=p.mesh.geometry;}
   w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
  }
 });
@@ -194,4 +194,18 @@ test('forest reflection follows the rendered day/night sky and resets without al
  updateWaterLighting('confluence',lighting);assert.strictEqual(forest.waterSky.value,sky);assert(sky.equals(lighting.hemi.color.clone().multiplyScalar(.55)));assert(forest.waterHorizon.value.equals(lighting.scene.fog.color.clone().multiplyScalar(.55)));assert(snow.waterSky.value.equals(oldSnow));
  const night=sky.clone();updateWaterLighting('snow',{...lighting,day:1});assert(sky.equals(night));
  lighting.day=1;lighting.hemi.color.setHex(0x9bbbd2);updateWaterLighting('forest',lighting);assert(sky.equals(lighting.hemi.color));
+});
+
+test('connected forest reaches bind their own union on render and use strongest water depth',()=>{
+ const aGroup=new T.Group(),bGroup=new T.Group(),a=buildPonds(aGroup,'forest',seeded(4),{x:-40,z:-40},[],[{x:0,z:0,rx:3,rz:8,angle:0},{x:1,z:9,rx:4,rz:8,angle:.2}]),b=buildPonds(bGroup,'forest',seeded(5),{x:-40,z:-40},[],[{x:35,z:12,rx:6,rz:5,angle:.3}]);
+ const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};a[0].mesh.material.onBeforeCompile(shader);
+ assert.strictEqual(a[0].mesh.material,b[0].mesh.material);
+ a[0].mesh.onBeforeRender();assert.equal(shader.uniforms.coastCount.value,2);assert.equal(shader.uniforms.coastPonds.value[1].y,9);
+ b[0].mesh.onBeforeRender();assert.equal(shader.uniforms.coastCount.value,1);assert.equal(shader.uniforms.coastPonds.value[0].x,35);
+ a[1].bank.onBeforeRender();assert.equal(shader.uniforms.coastCount.value,2);assert.equal(shader.uniforms.coastPonds.value[0].x,0);
+ assert(shader.fragmentShader.includes('coastRadial(waterWorld.xz,1.0,radial)'));
+ assert(shader.fragmentShader.indexOf('dFdx(waveHeight)')<shader.fragmentShader.indexOf('if(ownRadial>radial+.0001)discard'));
+ for(let z=0;z<=9;z+=.5){const x=z/9,depth=Math.max(...a.map(p=>waterDepth(p,x,z)));assert(depth>0);assert.equal(terrainAt({patches:a},x,z).depth,depth);}
+ const matrix=new T.Matrix4();for(const name of ['pond-reeds','pond-shore-stones']){const mesh=aGroup.getObjectByName(name);for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,matrix);const x=matrix.elements[12],z=matrix.elements[14];assert(!a.every(p=>waterDepth(p,x,z)>.3),'internal river join contains shore dressing');}}
+ for(const group of[aGroup,bGroup])group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});
 });

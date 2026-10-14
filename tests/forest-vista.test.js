@@ -1,7 +1,7 @@
 import test from'node:test';
 import * as T from'../vendor/three.module.js';
-import{surfaceUniforms}from'../surface-textures.js?v=187';
-import{wornStoneBlock}from'../environment-props.js?v=187';
+import{surfaceUniforms}from'../surface-textures.js?v=188';
+import{wornStoneBlock}from'../environment-props.js?v=188';
 import assert from'node:assert/strict';
 import{buildWorld,clearAt}from'../world.js';
 import{installForestVista}from'../forest-vista.js';
@@ -67,7 +67,7 @@ test('ivy follows real irregular stone faces instead of a detached spiral at unc
  const world=buildWorld('forest',43837033),originalDispose=T.BufferGeometry.prototype.dispose,paths=new Set();
  T.BufferGeometry.prototype.dispose=function(){if(this.type==='TubeGeometry')paths.add(this.parameters.path);return originalDispose.call(this);};
  let r;try{r=installForestVista(world,'forest');}finally{T.BufferGeometry.prototype.dispose=originalDispose;}
- assert.equal(paths.size,r.columns);assert.equal(r.triangles,13632);assert.equal(r.leaves,128);assert.equal(r.drawCalls,3);
+ assert.equal(paths.size,r.columns);assert.equal(r.triangles,12912);assert.equal(r.leaves,128);assert.equal(r.drawCalls,3);
  const stone=r.group.getObjectByName('forest-vista-stone'),ray=new T.Raycaster();stone.updateMatrixWorld(true);
  for(const path of paths){
   const points=path.points,first=points[0],anchor=r.anchors.reduce((best,a)=>Math.hypot(first.x-a.x,first.z-a.z)<Math.hypot(first.x-best.x,first.z-best.z)?a:best),angles=[];

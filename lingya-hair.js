@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {crownPositions,crownIndices} from './lingya-hair-crown.js?v=187';
+import {crownPositions,crownIndices} from './lingya-hair-crown.js?v=188';
 
 let template;
 const smooth=T.MathUtils.smoothstep;

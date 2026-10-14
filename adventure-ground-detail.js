@@ -1,13 +1,13 @@
-import {applyFernSurface} from './fern-surfaces.js?v=187';
-import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=187';
-import{sceneryRhythmAt}from'./exploration-composition.js?v=187';
+import {applyFernSurface} from './fern-surfaces.js?v=188';
+import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=188';
+import{sceneryRhythmAt}from'./exploration-composition.js?v=188';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {seeded,segmentDistance} from './rules.js?v=187';
-import {forestHabitatAt} from './forest-habitats.js?v=187';
-import {bridgeContains} from './coast.js?v=187';
-import {naturalRockGeometry} from './biome-scenery.js?v=187';
-import {surfaceUniforms} from './surface-textures.js?v=187';
+import {seeded,segmentDistance} from './rules.js?v=188';
+import {forestHabitatAt} from './forest-habitats.js?v=188';
+import {bridgeContains} from './coast.js?v=188';
+import {naturalRockGeometry} from './biome-scenery.js?v=188';
+import {surfaceUniforms} from './surface-textures.js?v=188';
 
 const profiles={
  forest:{count:1200,grass:.83,height:1,tuft:[0x6e8650,0x87985a],litter:[0x827561,0x66685c]},
@@ -311,7 +311,7 @@ function softenSceneryEdges(world,mapId,records,footprint,allowed){
   // Two unequal, loose lobes leave bare intervals instead of forming a ring.
   // Places use their real outer solid edges, including irregular fallen timber.
   let planted=0;
-  for(let attempt=0;attempt<Math.min(180,quota*20)&&planted<quota&&moved<budget;attempt++){
+  for(let attempt=0;attempt<Math.min(biome==='coast'?300:180,quota*20)&&planted<quota&&moved<budget;attempt++){
    const solid=source.solids[Math.floor(random()*source.solids.length)];
    let angle=source.edge==='place'?Math.atan2(solid.x-source.x,solid.z-source.z)+(random()-.5)*1.25:axis+(random()<.78?0:2.3)+(random()-.5)*1.35;
    let distance=random()**2*2.7;
@@ -352,7 +352,7 @@ function softenSceneryEdges(world,mapId,records,footprint,allowed){
 function connectForestCover(world,mapId,records,footprint,allowed){
  const habitat=world.forestHabitats;if(!habitat)return;
  const random=seeded(layoutSeed(world,mapId)^0x5f23a91),sources=[],floor=footprint===FOOTPRINT;
- const add=(x,z,angle,zone)=>{if(!habitat.region||habitat.region.contains(x,z))sources.push({x,z,angle,zone});};
+ const add=(x,z,angle,zone,tree)=>{if(!habitat.region||habitat.region.contains(x,z))sources.push({x,z,angle,zone,tree});};
  for(const grove of habitat.groves)for(let i=0;i<3;i++){
   const a=random()*Math.PI*2,r=5+random()*7;add(grove.x+Math.sin(a)*r,grove.z+Math.cos(a)*r,a,'shade');
  }
@@ -360,7 +360,7 @@ function connectForestCover(world,mapId,records,footprint,allowed){
  // bare circular hole. Keep openings between their roots and the nearby path.
  for(const [i,tree]of(world.forestVista?.anchors||[]).slice(0,12).entries()){
   const a=i*2.399+Math.sin(tree.x*.19+tree.z*.13),r=tree.r+2.5;
-  add(tree.x+Math.sin(a)*r,tree.z+Math.cos(a)*r,a+Math.PI/2,'root');
+  add(tree.x+Math.sin(a)*r,tree.z+Math.cos(a)*r,a+Math.PI/2,'root',tree);
  }
  for(const pond of habitat.ponds)for(let i=0;i<7;i++){
   // Unequal arcs have breaks and varying inland depth, rather than an even ring.
@@ -398,6 +398,9 @@ function connectForestCover(world,mapId,records,footprint,allowed){
  }
  const lanes=[...(world.explorationRoutes||[]),...(habitat.approach?[habitat.approach]:[])].flatMap(r=>r.points.slice(1).map((b,i)=>({a:r.points[i],b}))),shoulderAllowed=floor?placementFilter(world,footprint,true):allowed;
  const passages=(world.biomePlaces||[]).map(p=>({...p,c:Math.cos(p.angle||0),s:Math.sin(p.angle||0)}));
+ // Moving a wide fern needs its whole footprint on dry ground, including the
+ // irregular high-water edge; the old fixed .9m pad only covered the low layer.
+ const banks=(world.ponds||[]).map(p=>{const tide=p.baseRx===undefined?1:1.19;return{x:p.x,z:p.z,c:Math.cos(p.angle||0),s:Math.sin(p.angle||0),rx:(p.baseRx??p.rx)*tide*1.12+footprint*1.42+.15,rz:(p.baseRz??p.rz)*tide*1.12+footprint*1.42+.15};});
  const shares=sources.slice(focused).map(s=>s.zone==='root'?6:s.zone==='shoulder'&&near(s.x,s.z,world.spawn,20)?3:1),totalShares=shares.reduce((n,w)=>n+w,0);
  let moved=0,remainder=budget,share=0;
  for(const [sourceIndex,source]of sources.entries()){
@@ -405,22 +408,34 @@ function connectForestCover(world,mapId,records,footprint,allowed){
   // Reserve half for the old habitats. Apportion it across the complete source
   // list, so early groves cannot consume the later root, shore and path shares.
   const index=sourceIndex-focused,nextShare=share+(shares[index]||0);
-  const quota=!focused?Math.max(2,Math.ceil(budget/sources.length)):sourceIndex<focused?Math.floor(budget*(sourceIndex===0?.32:.18)):Math.floor(nextShare*remainder/totalShares)-Math.floor(share*remainder/totalShares);
+  const allotted=!focused?Math.max(2,Math.ceil(budget/sources.length)):sourceIndex<focused?Math.floor(budget*(sourceIndex===0?.32:.18)):Math.floor(nextShare*remainder/totalShares)-Math.floor(share*remainder/totalShares);
+  // Even a constrained joined biome with only two vista trees keeps a small
+  // root patch at each; the shared moved<budget cap still bounds all planting.
+  const quota=source.tree?Math.max(2,allotted):allotted;
   if(sourceIndex>=focused)share=nextShare;
   const kinds=floor?['tuft','litter']:source.zone==='bank'?['reed','stone']:source.zone==='shade'?['fern']:source.zone==='root'||source.zone==='approach'?['fern','shrub']:['shrub'];
   let planted=0;
-  for(let attempt=0;attempt<quota*16&&planted<quota&&moved<budget;attempt++){
+  for(let attempt=0;planted<quota&&moved<budget&&(attempt<quota*16||(source.tree?planted<2:source.zone==='approach'&&planted<8)&&attempt<quota*(source.tree?40:64));attempt++){
    let x,z;
    if(source.zone==='approach'){
-    const t=random(),distance=source.from+(source.to-source.from)*t,s=path.find(s=>s.start+s.length>=distance),u=(distance-s.start)/s.length;
-    const offset=source.side*(4.8+random()*(1.2+Math.sin(t*Math.PI)*2.2));
+    // If the near shoulder is blocked, continue along the same real opening
+    // route before giving up, rather than pushing plants into its water/solids.
+    const fallback=planted<8&&attempt>=quota*8,to=sourceIndex===0&&fallback?end:source.to;
+    const t=random(),distance=source.from+(to-source.from)*t,s=path.find(s=>s.start+s.length>=distance),u=(distance-s.start)/s.length;
+    const offset=source.side*(4.8+random()*(fallback?3.4:1.2+Math.sin(t*Math.PI)*2.2));
     x=s.a.x+s.dx*u+s.dz/s.length*offset;z=s.a.z+s.dz*u-s.dx/s.length*offset;
+   }else if(source.tree&&(attempt%4===3||attempt>=quota*8)){
+    // A creek or route may occupy the original root-side strip. Try another
+    // nearby sector of this same tree, using the same quota and safety checks.
+    const angle=source.angle+attempt*2.399,r=source.tree.r+footprint+.35+random()*2.7;
+    x=source.tree.x+Math.sin(angle)*r;z=source.tree.z+Math.cos(angle)*r;
    }else{const along=(random()-.5)*7.5,across=(random()-.5)*2.8;x=source.x+Math.sin(source.angle)*along+Math.cos(source.angle)*across;z=source.z+Math.cos(source.angle)*along-Math.sin(source.angle)*across;}
    if(region&&!region.contains(x,z))continue;
    const h=forestHabitatAt(world,x,z),rhythm=sceneryRhythmAt(world,x,z);
-   if(source.zone==='shade'&&h.shade<.2||source.zone==='bank'&&h.bank<.22||rhythm.opening>.78&&!habitat.approach)continue;
+   if(source.zone==='shade'&&h.shade<.2||source.zone==='bank'&&h.bank<.22||rhythm.opening>.78&&!habitat.approach&&source.zone!=='approach')continue;
    if(lanes.some(({a,b})=>segmentDistance(x,z,a.x,a.z,b.x,b.z)<2+footprint))continue;
    if(passages.some(p=>{const dx=x-p.x,dz=z-p.z;return Math.abs(p.c*dx-p.s*dz)<3.1+footprint&&Math.abs(p.s*dx+p.c*dz)<10+footprint;}))continue;
+   if(banks.some(p=>{const dx=x-p.x,dz=z-p.z;return Math.hypot((p.c*dx-p.s*dz)/p.rx,(p.s*dx+p.c*dz)/p.rz)<1;}))continue;
    if(!(['shoulder','approach'].includes(source.zone)?shoulderAllowed:allowed)(x,z)||records.some(p=>near(x,z,p,floor?(source.zone==='shade'||source.zone==='bank'||source.zone==='approach'?.64:.9):.62)))continue;
    const kind=kinds[Math.floor(random()*kinds.length)],list=donors.get(kind+':'+quadrant({x,z}));if(!list?.length)continue;
    const record=records[list.pop()];record.x=x;record.z=z;record.transition=source.zone;record.transitionIndex=sourceIndex;

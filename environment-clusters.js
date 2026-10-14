@@ -1,10 +1,10 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries,toCreasedNormals} from './vendor/BufferGeometryUtils.js';
-import {naturalRockGeometry} from './biome-scenery.js?v=187';
-import {batchedSurfaceMaterial,prepareBatchedSurface,wornStoneBlock} from './environment-props.js?v=187';
-import {addTree} from './tree-scenery.js?v=187';
-import {bridgeContains} from './coast.js?v=187';
-import {seeded,segmentDistance} from './rules.js?v=187';
+import {naturalRockGeometry} from './biome-scenery.js?v=188';
+import {batchedSurfaceMaterial,prepareBatchedSurface,wornStoneBlock} from './environment-props.js?v=188';
+import {addTree} from './tree-scenery.js?v=188';
+import {bridgeContains} from './coast.js?v=188';
+import {seeded,segmentDistance} from './rules.js?v=188';
 
 const templates=new Map(),finishes=new Map(),BIOMES=['forest','snow','ash','sand','coast'];
 function finish(kind){
@@ -272,10 +272,11 @@ export function installEnvironmentClusters(world,mapId){
    const variant=count%2,template=clusterTemplate(biome,variant),scale=.88+random()*.13,r=template.footprint*scale;let x,z,angle,composition='grove',anchorIndex;
    if(attempt<600&&places.length){
     if(placed>=placeTarget)continue;
-    const entry=places[attempt%places.length],p=entry.place,slot=placeCounts.get(entry.index)||0;if(slot>=3)continue;
+    const entry=places[attempt%places.length],p=entry.place;if((placeCounts.get(entry.index)||0)>=3)continue;
     // Stay outside the full authored footprint, with both entrance and exit
     // open. Cargo/strata follow the place axis; natural growth is less regular.
-    const side=(Math.sin(p.x*.19+p.z*.13)>0?1:-1)*(attempt<300?1:-1),u=side*(9.4+r+1.3+random()*2.8),v=-5.8+slot*5.8+(random()-.5)*2.2,c=Math.cos(p.angle),s=Math.sin(p.angle);
+    // A blocked end slot must not prevent sampling the middle and other end.
+    const slot=Math.floor(attempt/places.length)%3,side=(Math.sin(p.x*.19+p.z*.13)>0?1:-1)*(attempt<300?1:-1),u=side*(9.4+r+1.3+random()*2.8),v=-5.8+slot*5.8+(random()-.5)*2.2,c=Math.cos(p.angle),s=Math.sin(p.angle);
     x=p.x+c*u+s*v;z=p.z-s*u+c*v;angle=p.angle+(random()-.5)*(biome==='coast'||biome==='sand'?.28:.9);composition='place';anchorIndex=entry.index;
    }else if(attempt<1050&&shoulders.length){
     if(count>=target-2)continue;

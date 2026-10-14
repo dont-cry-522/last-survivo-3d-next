@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {forestHabitatAt} from './forest-habitats.js?v=187';
+import {forestHabitatAt} from './forest-habitats.js?v=188';
 
 function bakeForestFloor(world,data,size,extent){
  const habitat=world.forestHabitats;if(!habitat)return 0;
@@ -91,7 +91,7 @@ export function installEnvironmentGrounding(world){
  if(world.environmentGrounding&&!world.environmentGrounding.disposed)return world.environmentGrounding;
  // Ruin columns reuse tree colliders rather than place/cluster records. Their
  // permanent plinths need the same ground contact; falling timber still does not.
- const sources=(world.obstacles||[]).filter(o=>(o.place||o.environmentCluster||o.mesh?.userData.forestVistaTrunk&&!world.breakables?.includes(o))&&!o.tactic&&Number.isFinite(o.x+o.z+o.r)&&o.r>0);
+ const sources=(world.obstacles||[]).filter(o=>(o.place||o.environmentCluster||o.climateLandform||o.mesh?.userData.forestVistaTrunk&&!world.breakables?.includes(o))&&!o.tactic&&Number.isFinite(o.x+o.z+o.r)&&o.r>0);
  const plants=[];
  for(const group of [world.adventureGroundDetail,world.habitatDetail])for(const p of group?.userData.records||[]){
   if(plants.length>=4096)break;

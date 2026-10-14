@@ -41,6 +41,19 @@ const BIOMES=['forest','snow','ash','sand','coast'];
 const fade=T.MathUtils.smoothstep;
 const HEIGHT=1.2,AXIS_GRADE=.12,OVERLAY_BUDGET=4096;
 
+function regionalShoulderPoints(points){
+ if(points.length<2)return points;
+ const length=points.reduce((sum,p,i)=>sum+(i?Math.hypot(p.x-points[i-1].x,p.z-points[i-1].z):0),0);
+ if(length>=48)return points;
+ // Short regional links often start on a pier or end at a protected supply.
+ // Continue only their terrain shoulders along the endpoint tangents, so dry
+ // banks beyond those flat footprints can enter the middle of a 48m candidate.
+ // The actual route, its walking lane and all protection masks stay unchanged.
+ const a=points[0],b=points[1],d=points.at(-1),c=points.at(-2),first=Math.hypot(a.x-b.x,a.z-b.z),last=Math.hypot(d.x-c.x,d.z-c.z);
+ if(first<.001||last<.001)return points;
+ return[{x:a.x+(a.x-b.x)*16/first,z:a.z+(a.z-b.z)*16/first},...points,{x:d.x+(d.x-c.x)*16/last,z:d.z+(d.z-c.z)*16/last}];
+}
+
 function corridor(points,biome,from=0,extent=48){
  const segments=[];let walked=0,length=0;
  for(let i=1;i<points.length;i++){
@@ -96,17 +109,18 @@ export function installForestTerrain(world,mapId){
   if(biome==='forest'&&!world.regions&&approach?.points?.length){const first=corridor(approach.points,biome,0,Infinity);if(first)corridors.push(first);}
   for(const route of world.explorationRoutes||[]){
    if((route.biome||mapId)!==biome||route.points.length<2)continue;
-   const length=route.points.reduce((n,p,i)=>n+(i?Math.hypot(p.x-route.points[i-1].x,p.z-route.points[i-1].z):0),0);
+   const points=region?regionalShoulderPoints(route.points):route.points;
+   const length=points.reduce((n,p,i)=>n+(i?Math.hypot(p.x-points[i-1].x,p.z-points[i-1].z):0),0);
    for(const start of new Set([0,Math.max(0,length*.5-24),Math.max(0,length-48)])){
-    const candidate=corridor(route.points,biome,start);if(!candidate||region&&!region.contains(candidate.x,candidate.z))continue;
-    let score=0;for(const s of candidate.segments)for(const t of[.25,.75])for(const side of[-6,0,6]){const x=s.a.x+s.dx*t+s.dz/s.l*side,z=s.a.z+s.dz*t-s.dx/s.l*side;score+=protection(x,z)*corridorWeight(candidate,x,z)*s.l;}
+    const candidate=corridor(points,biome,start);if(!candidate||region&&!region.contains(candidate.x,candidate.z))continue;
+    let score=0;for(const s of candidate.segments)for(const t of[.25,.75])for(const side of[-6,0,6]){const x=s.a.x+s.dx*t+s.dz/s.l*side,z=s.a.z+s.dz*t-s.dx/s.l*side;if(!region||region.contains(x,z))score+=protection(x,z)*corridorWeight(candidate,x,z)*s.l;}
     if(score>.01)candidates.push({...candidate,score});
    }
   }
   candidates.sort((a,b)=>b.score-a.score);
   for(const candidate of candidates){const selected=corridors.filter(q=>q.biome===biome);if(selected.length===2)break;if(selected.some(q=>Math.hypot(q.x-candidate.x,q.z-candidate.z)<18))continue;corridors.push(candidate);}
  }
- if(!corridors.length)return null;
+ if(!corridors.length&&!world.climateLandforms?.records.some(r=>r.kind==='dune'))return null;
  // Refine the existing surface once; interpolate its original colour triangles
  // so the denser grid does not change the established forest palette.
  const geometry=new T.PlaneGeometry(width,height,cols,rows),p=geometry.attributes.position,sourceColor=old.attributes.color;
@@ -124,7 +138,8 @@ export function installForestTerrain(world,mapId){
  for(let i=0;i<p.count;i++){
   const x=p.getX(i)+ground.position.x,z=-p.getY(i)+ground.position.z;
   let weight=0;for(const route of corridors)weight=Math.max(weight,corridorWeight(route,x,z));
-  if(weight>0)heights[i]=HEIGHT*Math.min(weight,protection(x,z));
+  const dune=world.climateLandforms?.heightAt(x,z)||0;
+  if(weight>0||dune>0)heights[i]=Math.max(HEIGHT*Math.min(weight,protection(x,z)),dune*protection(x,z));
  }
  // Bound both triangle gradients. Only lower peaks; protected zeroes never rise.
  const stepX=dx*AXIS_GRADE,stepZ=dz*AXIS_GRADE;

@@ -1,14 +1,14 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
-import{batchedSurfaceMaterial,prepareBatchedSurface}from'./environment-props.js?v=187';
-import{waterDepth}from'./water.js?v=187';
-import{bridgeContains}from'./coast.js?v=187';
-import{segmentDistance}from'./rules.js?v=187';
-import{buildWoodlandPlace}from'./woodland-places.js?v=187';
-import{buildRuinPlace}from'./ruin-places.js?v=187';
-import{buildHarborPlace}from'./harbor-place.js?v=187';
-import{coastPlaceCandidates,harborPierPlan}from'./harbor-bank-layout.js?v=187';
-import{installHarborBank}from'./harbor-bank.js?v=187';
+import{batchedSurfaceMaterial,prepareBatchedSurface}from'./environment-props.js?v=188';
+import{waterDepth}from'./water.js?v=188';
+import{bridgeContains}from'./coast.js?v=188';
+import{segmentDistance}from'./rules.js?v=188';
+import{buildWoodlandPlace}from'./woodland-places.js?v=188';
+import{buildRuinPlace}from'./ruin-places.js?v=188';
+import{buildHarborPlace}from'./harbor-place.js?v=188';
+import{coastPlaceCandidates,harborPierPlan}from'./harbor-bank-layout.js?v=188';
+import{installHarborBank}from'./harbor-bank.js?v=188';
 
 const templates=new Map(),materials=new Map(),HALF_X=9.4,HALF_Z=8.4;
 function finish(category){
@@ -47,7 +47,9 @@ export function placeTemplate(id,variant=0){
 
 const local=(p,x,z)=>{const dx=x-p.x,dz=z-p.z,c=Math.cos(p.angle),s=Math.sin(p.angle);return{x:c*dx-s*dz,z:s*dx+c*dz};};
 const at=(p,x,z)=>{const c=Math.cos(p.angle),s=Math.sin(p.angle);return{x:p.x+c*x+s*z,z:p.z-s*x+c*z};};
-const inFootprint=(p,x,z,margin=0)=>{const q=local(p,x,z);return Math.abs(q.x)<HALF_X+margin&&Math.abs(q.z)<HALF_Z+margin;};
+// The walk-through endpoints extend beyond the visible floor. Keep their rounded
+// approach clear as well, without enlarging the whole place or moving its props.
+const inFootprint=(p,x,z,margin=0)=>{const q=local(p,x,z);return Math.abs(q.x)<HALF_X+margin&&Math.abs(q.z)<HALF_Z+margin||Math.hypot(q.x,Math.max(0,Math.abs(q.z)-9))<margin;};
 function protectedRoot(world,o){
  return o.tactic||world.breakables.includes(o)||o.mesh.userData.district||o.mesh.userData.fragile||o.mesh.userData.forestVistaTrunk||o===world.forestHabitats?.elder||world.forestVista?.anchors.some(a=>a.x===o.x&&a.z===o.z)||(world.regions||[]).some(r=>r.beacon?.parent===o.mesh)||world.sites.some(s=>s.mesh===o.mesh||(s.gates||[]).includes(o));
 }

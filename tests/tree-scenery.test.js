@@ -1,3 +1,4 @@
+// v188: forest and confluence snapshots intentionally adopt the connected creek layout.
 import{test}from'node:test';
 import assert from'node:assert/strict';
 import{createHash}from'node:crypto';
@@ -5,7 +6,7 @@ import{readFileSync}from'node:fs';
 import * as T from'../vendor/three.module.js';
 import{addTree,updateTreeDetail,animateTreeCanopy,installForestBackdrop}from'../tree-scenery.js';
 import{buildWorld,animateWorld}from'../world.js';
-import{damageTerrain,updateTactics}from'../map-tactics.js?v=187';
+import{damageTerrain,updateTactics}from'../map-tactics.js?v=188';
 import{installDistantLandscape}from'../environment-lighting.js';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
@@ -68,7 +69,7 @@ test('snow preserves its previous canopy motion and does not inherit the forest 
 });
 
 test('tree art preserves the established obstacle, reward, terrain and ground-detail layouts',()=>{
- const before={forest:['1c485468e05a8657eff1b670350553cb666c403693a607332926b653f1f536d2','ebf829a3b04a874d0704b2694466aebf4e9347246448562584bd2dbe5cd4535b'],snow:['b0abb255379b8280117d8ecbc5d3131483118603a25c01633fb71609556183d4','a40ac01130c5da5389c6840dc3d16bea0b45e302ac606e498ac337feadb48b7e'],confluence:['61a3e28ac98ef4704f18e8c4722c18a8d0e03d8f4079eb8337860cac335d5ed2','2949ce831ae43f87aeb8d274d0253388c2793e746ef1499a06ca967eeb4f2f2b']};
+ const before={"forest":["62c6fbaeccf4aaa44429b96a9d0e854b4c4c7e0f924192cf4a0b0b50aa85593f","3cb03048cc5f99261c3faed88a57bdd88f453b7db2624d5cecef5ca52354ebff"],"snow":["b0abb255379b8280117d8ecbc5d3131483118603a25c01633fb71609556183d4","a40ac01130c5da5389c6840dc3d16bea0b45e302ac606e498ac337feadb48b7e"],"confluence":["11b961eb2048501a2661bb096d0249fa5b2ca66293862603b7fdee25792952cd","0498f7b555796d3c543c990b21e3493e79ce4fa1bc7a4ebef18d06d648583740"]};
  for(const id of Object.keys(before))for(const[i,seed]of[1,7].entries()){
   const w=buildWorld(id,seed),layout={obstacles:w.obstacles.map(o=>[o.x,o.z,o.r,o.tactic]),sites:w.sites.map(s=>[s.x,s.z,s.type,s.event,s.availableAt]),patches:w.patches.map(p=>[p.x,p.z,p.r,p.kind]),details:w.regions?w.regions.map(r=>r.scenery.records):w.scenery.records};
   assert.equal(createHash('sha256').update(JSON.stringify(layout)).digest('hex'),before[id][i],id+' gameplay layout changed');dispose(w);

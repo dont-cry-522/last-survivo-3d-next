@@ -2,7 +2,7 @@ import test from'node:test';
 import assert from'node:assert/strict';
 import{createHash}from'node:crypto';
 import * as T from'../vendor/three.module.js';
-import{buildWoodlandPlace}from'../woodland-places.js?v=187';
+import{buildWoodlandPlace}from'../woodland-places.js?v=188';
 
 const collisionHashes={
  forest:['3baae8f962f742d3a6b8f56bb6a6ddafec11ac5f5a9ceccb22cf18691555f74e','785ccf9b55f54d3514f27d4f9e3c0a6e95dd8623d6d3d5d303700c3081297dc5'],

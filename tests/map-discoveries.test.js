@@ -1,3 +1,4 @@
+// v188: forest and confluence snapshots intentionally adopt the connected creek layout.
 import{test}from'node:test';import assert from'node:assert/strict';
 import{createHash}from'node:crypto';import * as T from'../vendor/three.module.js';
 import{buildWorld,clearAt}from'../world.js';
@@ -107,7 +108,7 @@ test('inland scenery stays wholly dry, including the snow seed 3 sled regression
 });
 
 test('dry fitting preserves all seeded placement, timing and downstream gameplay data',()=>{
- const hashes={forest:'051a9fa8446da70b916b8ab19075686cfefec4e0c82013ced126fa7e2ce3c3cc',snow:'42678fb6ad80dede767adf9f94918c74d91cee6076eca3ddca9b3a76db43e024',ash:'abb6ef5bef6c25512584c7bf60bd3e620c0800d2760d45e88fb469dd7ce57af3',sand:'315d8c732fc1d39a60f2cd16a6ff202eeaf272513f9054b4df44296a6ff39ff0',coast:'78c26ae59f7e231f37c07e5e5a0d00dd2e7261bd287cae60f3eb33ae05d3e0ff',confluence:'7a3deaec63ea8a4b498a9773ea1b3e2682106e32e6acdb8713cf6e72249f9ad7'};
+ const hashes={"forest":"04de2834699803127dd4990798a944b30150cca68763609014f94def7b038f94","snow":"42678fb6ad80dede767adf9f94918c74d91cee6076eca3ddca9b3a76db43e024","ash":"abb6ef5bef6c25512584c7bf60bd3e620c0800d2760d45e88fb469dd7ce57af3","sand":"315d8c732fc1d39a60f2cd16a6ff202eeaf272513f9054b4df44296a6ff39ff0","coast":"78c26ae59f7e231f37c07e5e5a0d00dd2e7261bd287cae60f3eb33ae05d3e0ff","confluence":"4260f4ca296baccee4526f37fa65e1ebfa68338aca29f662d64acf4aebe625fe"};
  for(const [id,hash]of Object.entries(hashes)){
   const w=buildWorld(id,3),data={spawn:w.spawn,obstacles:w.obstacles.map(o=>[o.x,o.z,o.r]),patches:w.patches.map(p=>[p.x,p.z,p.r,p.kind]),sites:w.sites.map(s=>[s.x,s.z]),finds:w.discoveries.map(n=>[n.x,n.z,n.phase,n.availableAt]),roaming:w.roaming.map(n=>[n.x,n.z])};
   assert.equal(createHash('sha256').update(JSON.stringify(data)).digest('hex'),hash,id+' dry-fitting consumed randomness or moved game objects');dispose(w);

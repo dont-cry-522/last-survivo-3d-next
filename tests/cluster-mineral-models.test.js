@@ -5,15 +5,15 @@ import * as T from '../vendor/three.module.js';
 import {buildWorld} from '../world.js';
 import {installForestVista} from '../forest-vista.js';
 import {installForestHabitats} from '../forest-habitats.js';
-import {installBiomePlaces} from '../biome-places.js?v=187';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=187';
+import {installBiomePlaces} from '../biome-places.js?v=188';
+import {installEnvironmentClusters} from '../environment-clusters.js?v=188';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const create=id=>{const w=buildWorld(id,7);installForestVista(w,id);installForestHabitats(w,id);installBiomePlaces(w,id);return{w,s:installEnvironmentClusters(w,id)};};
 const clean=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
 
-test('mineral model changes preserve v163 placement, scale, collision height and radius exactly',()=>{
- const before={forest:'694af20e8aa86f572b34f9370e7007142e1f58b2d43d1a52c80f098694b293ab',snow:'dd1e66c0919421e683db135c460b0b917fc7d58e839bc7951c742fc8caf02460',ash:'c664d67cd82fad23efd4a74f634082bd8aeb46b1f96ac23e0f70ffbc474f65a5',sand:'a609bc7b0397a1639b075c1369e9afed9082121a0d45352c225c969c190e2f0c',coast:'1849275bcbd2052baf188ef9e716cfd0da9a9592c343e62805b47857f12f047f',confluence:'58b555a459f79619df2041bf61b3306cf897034ae2b63c4ad0017d82a6a6116f'};
+test('mineral model changes preserve v188 placement, scale, collision height and radius exactly',()=>{
+ const before={"forest":"dc8b59a9ea40d701ee0b4bb95417e8e369c517376558a022ee2fb7d17e35b639","snow":"4f59d2508bf032a096f2ceab0d1bbbc9ca6943a1202ba36a869ec8bd2a9b6ab8","ash":"ae80cadbf5174aac0edeaf51b372fa0684ebe0ce9d6a533eab2247f58c412b41","sand":"a609bc7b0397a1639b075c1369e9afed9082121a0d45352c225c969c190e2f0c","coast":"877bbb375bd4a1acb31613942f6d51ac5e4623e1c580466e0a7ef5ab213b4aaa","confluence":"0b165c40d1c0de71076bb19ac0b603cfb0256d1f2435e10538909edfa41ee385"};
  for(const [id,expected]of Object.entries(before)){
   const{w,s}=create(id),records=s.records.map(({obstacle,...r})=>r);
   assert.equal(createHash('sha256').update(JSON.stringify(records)).digest('hex'),expected,id+' moved scenery or changed collision');

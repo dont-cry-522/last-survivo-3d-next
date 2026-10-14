@@ -1,16 +1,17 @@
+import{forestStreamLayout}from'./forest-stream-layout.js?v=188';
 import * as T from './vendor/three.module.js';
-import{addTree}from'./tree-scenery.js?v=187';
-import{MAPS,seeded,segmentDistance}from'./rules.js?v=187';
-import{buildPonds}from'./water.js?v=187';
-import{installCoast}from'./coast.js?v=187';
-import{coastProp}from'./coast-models.js?v=187';
-import{buildDistricts}from'./map-districts.js?v=187';
-import{installScenery}from'./biome-scenery.js?v=187';
-import{installDiscoveries}from'./map-discoveries.js?v=187';
-import{installTactics}from'./map-tactics.js?v=187';
-import{installRoaming}from'./roaming-events.js?v=187';
-import{biomeEvent}from'./map-events.js?v=187';
-import{groundCue}from'./ground-cues.js?v=187';
+import{addTree}from'./tree-scenery.js?v=188';
+import{MAPS,seeded,segmentDistance}from'./rules.js?v=188';
+import{buildPonds,waterDepth}from'./water.js?v=188';
+import{installCoast}from'./coast.js?v=188';
+import{coastProp}from'./coast-models.js?v=188';
+import{buildDistricts}from'./map-districts.js?v=188';
+import{installScenery}from'./biome-scenery.js?v=188';
+import{installDiscoveries}from'./map-discoveries.js?v=188';
+import{installTactics}from'./map-tactics.js?v=188';
+import{installRoaming}from'./roaming-events.js?v=188';
+import{biomeEvent}from'./map-events.js?v=188';
+import{groundCue}from'./ground-cues.js?v=188';
 export const CONFLUENCE_HALF=140;
 export const REGIONS=[
  {id:'forest',x:-72,z:20,label:'古木河谷',transition:'林缘渐冷，针叶林沿山麓向雪线延伸'},
@@ -47,14 +48,21 @@ export function buildConfluence(seed,{mesh,trail,makeWeather,buildSites,groundSh
   w.sites.push(site,{x:r.x-17,z:r.z-13,type:'supply',biome:r.id,availableAt:30,claimed:false,discovered:false,reveal:0});
  }
  w.sites.push({x:-98,z:38,type:'relic',biome:'forest',availableAt:0,claimed:false,discovered:false,reveal:0});
- const locations={forest:[{x:-111,z:5,rx:7,rz:5,angle:.45}],snow:[{x:-77,z:-102,rx:6,rz:4,angle:-.3}],ash:[],sand:[],coast:[{x:0,z:88,rx:12,rz:17},{x:34,z:112,rx:7,rz:11}]};
+ const locations={forest:forestStreamLayout(rnd,spawn,w.sites,{half:CONFLUENCE_HALF,center:REGIONS[0],contains:(x,z)=>biomeAt(x,z)==='forest',roadDistance}),snow:[{x:-77,z:-102,rx:6,rz:4,angle:-.3}],ash:[],sand:[],coast:[{x:0,z:88,rx:12,rz:17},{x:34,z:112,rx:7,rz:11}]};
  for(const r of REGIONS){
   const ponds=['ash','sand'].includes(r.id)?[]:buildPonds(group,r.id,rnd,spawn,w.sites,locations[r.id]);w.ponds.push(...ponds);w.patches.push(...ponds);
  }
  // Sparse groves and mixed foothill stones soften borders; the old road stays passable.
  for(let i=0;i<850;i++){
-  const r=REGIONS[i%5],cluster=i%3!==0,ang=rnd()*6.28,rad=18+Math.sqrt(rnd())*58,x=cluster?r.x+Math.sin(ang)*rad:(rnd()-.5)*264,z=cluster?r.z+Math.cos(ang)*rad:(rnd()-.5)*264;
-  if(Math.abs(x)>134||Math.abs(z)>134||roadDistance(x,z)<5.8||Math.hypot(x-spawn.x,z-spawn.z)<7||REGIONS.some(r=>Math.hypot(x-r.x,z-r.z)<11)||w.sites.some(s=>Math.hypot(x-s.x,z-s.z)<11)||w.ponds.some(p=>Math.hypot((x-p.x)/p.rx,(z-p.z)/p.rz)<1.4)||w.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<3.1))continue;
+  const r=REGIONS[i%5],cluster=i%3!==0,ang=rnd()*6.28,rad=18+Math.sqrt(rnd())*58;let x=cluster?r.x+Math.sin(ang)*rad:(rnd()-.5)*264,z=cluster?r.z+Math.cos(ang)*rad:(rnd()-.5)*264;
+  // Reuse forest candidates along alternating, staggered banks rather than
+  // increasing the global tree budget or lining the water with two rigid rows.
+  if(r.id==='forest'&&cluster&&locations.forest.length){
+   const slot=Math.floor(i/5),p=locations.forest[Math.floor(slot/2)%locations.forest.length],side=slot%2?-1:1,c=Math.cos(p.angle),s=Math.sin(p.angle);
+   const u=side*(p.rx*1.115+6.5+1.5*Math.sin(slot*2.39+p.x*.1))+Math.cos(ang)*(rad-18)*.06,v=Math.sin(ang)*(rad-18)*.12;
+   x=p.x+c*u+s*v;z=p.z-s*u+c*v;
+  }
+  if(Math.abs(x)>134||Math.abs(z)>134||roadDistance(x,z)<5.8||Math.hypot(x-spawn.x,z-spawn.z)<7||REGIONS.some(r=>Math.hypot(x-r.x,z-r.z)<11)||w.sites.some(s=>Math.hypot(x-s.x,z-s.z)<11)||w.ponds.some(p=>waterDepth({...p,rx:p.rx*1.4,rz:p.rz*1.4,r:p.r*1.4},x,z)>0)||w.obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<3.1))continue;
   const weights=biomeWeights(x,z);let roll=rnd(),id=REGIONS.at(-1).id;for(const q of REGIONS){roll-=weights[q.id];if(roll<=0){id=q.id;break;}}
   const prop=new T.Group();prop.position.set(x,0,z);group.add(prop);const o={x,z,r:.7,mesh:prop,biome:id};w.obstacles.push(o);const tall=2.8+rnd()*2.2;
   if(id==='forest'||id==='snow'){

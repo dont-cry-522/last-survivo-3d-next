@@ -1,11 +1,11 @@
-import{onIce,onFord}from'./map-tactics.js?v=187';
-import{onBridge}from'./coast.js?v=187';
-import{MAP_SCALE}from'./map-layout.js?v=187';
-import{coastLayout}from'./coast-layout.js?v=187';
-import{swimStroke,swimLimb,HERO_SWIM,heroSwimPose,swimTravel}from'./swim-motion.js?v=187';
-import{newHeroAttack}from'./new-hero-motion.js?v=187';
-import{naturalRockGeometry,environmentDetailTexture}from'./biome-scenery.js?v=187';
-import{CLIMATE_LIGHT}from'./environment-lighting.js?v=187';
+import{onIce,onFord}from'./map-tactics.js?v=188';
+import{onBridge}from'./coast.js?v=188';
+import{MAP_SCALE}from'./map-layout.js?v=188';
+import{coastLayout}from'./coast-layout.js?v=188';
+import{swimStroke,swimLimb,HERO_SWIM,heroSwimPose,swimTravel}from'./swim-motion.js?v=188';
+import{newHeroAttack}from'./new-hero-motion.js?v=188';
+import{naturalRockGeometry,environmentDetailTexture}from'./biome-scenery.js?v=188';
+import{CLIMATE_LIGHT}from'./environment-lighting.js?v=188';
 import * as T from './vendor/three.module.js';
 const clamp=T.MathUtils.clamp;
 const shore=a=>1+.07*Math.sin(a*3)+.045*Math.cos(a*5);
@@ -61,7 +61,7 @@ const reedGeometry=(()=>{
 })();
 // Adjacent reaches shade as one body of water; their internal shores must not
 // fade independently into bright crossing bands.
-// ponytail: eight reaches cover this harbor; expand the uniform arrays and loop together if more are added.
+// Eight reaches bound both the harbor and forest creek; shared uniforms bind per world.
 const coastUnionShader=`uniform vec4 coastPonds[8];uniform vec2 coastTurns[8];uniform int coastCount;
 float coastRadial(vec2 point,float scale,float nearest){
  for(int i=0;i<8;i++){
@@ -81,7 +81,7 @@ function waterSurface(id){
   surfaceGeometry=new T.BufferGeometry();surfaceGeometry.setAttribute('position',new T.Float32BufferAttribute(points,3));surfaceGeometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));surfaceGeometry.setIndex(indices);surfaceGeometry.computeVertexNormals();
  }
  if(!surfaces.has(id)){
-  const clock={value:0},detail={value:environmentDetailTexture()},climate=CLIMATE_LIGHT[id]||CLIMATE_LIGHT.forest,reflection={waterSky:{value:new T.Color(climate.sky)},waterHorizon:{value:new T.Color(climate.fog)}},coast=id==='coast'?{coastPonds:{value:Array.from({length:8},()=>new T.Vector4())},coastTurns:{value:Array.from({length:8},()=>new T.Vector2())},coastCount:{value:0}}:null,material=new T.MeshStandardMaterial({color:id==='snow'?0x71bdcf:0x398f91,vertexColors:true,roughness:.38,metalness:0,side:T.DoubleSide,transparent:true,depthWrite:false});
+  const clock={value:0},detail={value:environmentDetailTexture()},climate=CLIMATE_LIGHT[id]||CLIMATE_LIGHT.forest,reflection={waterSky:{value:new T.Color(climate.sky)},waterHorizon:{value:new T.Color(climate.fog)}},coast=['coast','forest'].includes(id)?{coastPonds:{value:Array.from({length:8},()=>new T.Vector4())},coastTurns:{value:Array.from({length:8},()=>new T.Vector2())},coastCount:{value:0}}:null,material=new T.MeshStandardMaterial({color:id==='snow'?0x71bdcf:0x398f91,vertexColors:true,roughness:.38,metalness:0,side:T.DoubleSide,transparent:true,depthWrite:false});
   material.forceSinglePass=true;
   // One stationary bed continues through each wet shoreline. Each climate tints
   // the same small texture; sand exposes less gravel than the colder rocky banks.
@@ -216,15 +216,15 @@ export function buildPonds(group,id,rnd,spawn,sites,locations=null){
   const p={kind:'water',x,z,rx,rz,r,biome:id,angle:locations?.[i]?.angle??(id==='coast'?0:rnd()*Math.PI*2)},bank=new T.Mesh(surfaceGeometry,surface.bank);bank.position.set(x,.045,z);bank.rotation.y=p.angle;bank.scale.set(rx*1.12,1,rz*1.12);bank.receiveShadow=true;group.add(bank);const m=new T.Mesh(surfaceGeometry,surface.material);m.position.set(x,.075,z);m.rotation.y=p.angle;m.scale.set(rx,1,rz);m.receiveShadow=true;group.add(m);p.mesh=m;p.bank=bank;ponds.push(p);
  }
  if(surface.coast){
-  // Bind on render, not generation: lobby previews and the active map share
-  // these materials but have different coastlines and tidal radii.
+  // Bind on render: menu and combat share materials, but retain their own
+  // continuous shorelines. No internal bank or reed stripes across a join.
   const bind=()=>{surface.coast.coastCount.value=Math.min(8,ponds.length);for(let i=0;i<Math.min(8,ponds.length);i++){const p=ponds[i];surface.coast.coastPonds.value[i].set(p.x,p.z,p.rx,p.rz);surface.coast.coastTurns.value[i].set(Math.cos(p.angle),Math.sin(p.angle));}};
   for(const p of ponds){p.mesh.onBeforeRender=p.bank.onBeforeRender=bind;p.bank.renderOrder=-2;p.mesh.renderOrder=-1;}
  }
  const reeds=new T.InstancedMesh(reedGeometry,surface.reeds,ponds.length*24),stones=new T.InstancedMesh(stoneGeometry,surface.stones,ponds.length*6),dummy=new T.Object3D();let ri=0,si=0;
  reeds.name='pond-reeds';stones.name='pond-shore-stones';
  for(const pond of ponds){const c=Math.cos(pond.angle),s=Math.sin(pond.angle),at=(a,r)=>{const k=shore(a)*r,lx=Math.cos(a)*pond.rx*k,lz=Math.sin(a)*pond.rz*k;return{x:pond.x+c*lx+s*lz,z:pond.z-s*lx+c*lz};};
-  const submerged=point=>id==='coast'&&ponds.some(p=>p!==pond&&waterDepth(p,point.x,point.z)>.03);
+  const submerged=point=>['coast','forest'].includes(id)&&ponds.some(p=>p!==pond&&waterDepth(p,point.x,point.z)>.03);
   // Keep the same random draws and instance counts: only forest shore dressing
   // groups into four uneven reed patches and three stone clusters.
   const forest=id==='forest';let reedAnchor=0,stoneAnchor=0;

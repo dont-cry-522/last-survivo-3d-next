@@ -12,7 +12,7 @@ function fixture(){
  const context=vm.createContext({preparing:false,state:'menu',last:0,surfaceReady:Promise.resolve(),document:{hidden:false},performance:{now:()=>123},
   $:id=>nodes[id],keys:{clear(){}},releaseStick(){},clearAttack(){},unlockAudio(){events.push('audio');},restorePauseControls(){},
   sound:{stopWeapons(){},stopCreatures(){}},renderBudget:{reset(){events.push('reset');}},console:{error(){}},
-  yieldPreparation:async()=>{},build(){events.push('build');},warmCurrentScene(...args){events.push(['warm',...args]);reached.resolve();return gate.promise;},
+  yieldPreparation:async()=>{},async buildPrepared(){events.push('build');},warmCurrentScene(...args){events.push(['warm',...args]);reached.resolve();return gate.promise;},
   start(prepared){events.push(['start',prepared]);context.state='playing';},pause(){events.push('pause');context.state='paused';},requestMouseLook(){events.push('mouse');},
   loadingScreen:{show(){events.push('show');},hide(){events.push('hide');},setLoadingProgress(){},fail(message,retry){context.retry=retry;events.push('fail');}}
  });
@@ -34,6 +34,35 @@ test('failed entry remains safe to retry and a successful retry releases all loa
  const f=fixture(),pending=f.start();await f.reached.promise;f.gate.reject(Error('shader upload'));await pending;
  assert.equal(f.context.state,'loading');assert(f.context.preparing&&f.nodes['#menu'].inert&&f.nodes['#start'].disabled);assert.equal(typeof f.context.retry,'function');assert(!f.events.some(x=>Array.isArray(x)&&x[0]==='start'));
  f.context.warmCurrentScene=async()=>{};await f.context.retry();assert.equal(f.context.state,'playing');assert(!f.context.preparing&&!f.nodes['#menu'].inert&&!f.nodes['#start'].disabled);assert.equal(f.events.filter(x=>x==='build').length,2);
+});
+
+test('map preparation holds the menu lock and ignores repeated selections until the scene is ready',async()=>{
+ const f=fixture(),c=f.context;
+ Object.assign(c,{mapId:'forest',MAPS:{forest:{name:'森林'},coast:{name:'海港'},snow:{name:'雪地'}},renderChoices(){f.events.push('choices');},prepareLobby(){f.events.push('retry-lobby');}});
+ vm.runInContext(source.slice(source.indexOf('async function prepareMap('),source.indexOf('async function prepareLobby(')),c);
+ await vm.runInContext("prepareMap('forest')",c);assert.equal(f.events.length,0);
+ const pending=vm.runInContext("prepareMap('coast')",c);await f.reached.promise;
+ assert.equal(c.state,'menu');assert.equal(c.mapId,'coast');assert(c.preparing&&f.nodes['#menu'].inert);
+ await vm.runInContext("prepareMap('snow')",c);assert.equal(c.mapId,'coast');assert.equal(f.events.filter(x=>x==='build').length,1);
+ f.gate.resolve();await pending;assert(!c.preparing&&!f.nodes['#start'].disabled);assert(!f.events.some(x=>Array.isArray(x)&&x[0]==='start'));
+ c.state='playing';await vm.runInContext("prepareMap('snow')",c);assert.equal(c.mapId,'coast');
+});
+
+test('failed map preparation keeps the partial scene locked and offers a fresh lobby rebuild',async()=>{
+ const f=fixture(),c=f.context;
+ Object.assign(c,{mapId:'forest',MAPS:{coast:{name:'海港'}},renderChoices(){},prepareLobby(){f.events.push('retry-lobby');}});
+ vm.runInContext(source.slice(source.indexOf('async function prepareMap('),source.indexOf('async function prepareLobby(')),c);
+ const pending=vm.runInContext("prepareMap('coast')",c);await f.reached.promise;f.gate.reject(Error('map upload'));await pending;
+ assert(c.preparing&&f.nodes['#menu'].inert);assert.equal(c.state,'menu');assert.equal(c.retry,c.prepareLobby);await c.retry();assert(f.events.includes('retry-lobby'));
+});
+
+test('menu preview instances are reused by loadout, detached on switch and never confused with combat instances',()=>{
+ const created=[],disposed=[],removed=[],c=vm.createContext({hero:null,weaponFor:(kind,index)=>({id:kind+index}),actor(kind,weapon){const h={kind,weapon};created.push(h);return h;},scene:{remove(h){removed.push(h);}},disposeHero(h){disposed.push(h);}});
+ vm.runInContext(source.slice(source.indexOf('const menuHeroes='),source.indexOf('function rebuildHero(')),c);
+ const one=vm.runInContext("previewHero('scout',0)",c);assert.equal(vm.runInContext("previewHero('scout',0)",c),one);
+ const two=vm.runInContext("previewHero('scout',1)",c);assert.notEqual(two,one);assert.equal(created.length,2);
+ c.hero=one;vm.runInContext('releaseHero()',c);assert.equal(c.hero,null);assert.deepEqual(removed,[one]);assert.equal(disposed.length,0);
+ const combat={kind:'scout',weapon:'scout0'};c.hero=combat;vm.runInContext('releaseHero()',c);assert.deepEqual(disposed,[combat]);assert.equal(vm.runInContext("previewHero('scout',0)",c),one);
 });
 
 test('the actual animation entry advances neither simulation nor scenery during preparation',()=>{

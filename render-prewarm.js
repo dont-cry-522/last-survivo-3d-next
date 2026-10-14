@@ -27,7 +27,7 @@ function sceneTextures(scene){
 // The caller owns the render target and the actual world -> weapon -> postprocess
 // draw. No simulation update occurs here. Custom onBeforeCompile samplers and
 // shadow/postprocess resources are also exercised by the two real draw passes.
-export async function warmScene({renderer,scene,camera,render,report=()=>{},yieldWork=yieldTask}){
+export async function warmScene({renderer,scene,camera,render,passes=2,compile=()=>renderer.compileAsync(scene,camera),report=()=>{},yieldWork=yieldTask}){
  const mask=camera.layers.mask;
  try{
   const textures=sceneTextures(scene);
@@ -37,20 +37,20 @@ export async function warmScene({renderer,scene,camera,render,report=()=>{},yiel
    report('textures',i+1,textures.length);
    if((i+1)%8===0||i+1===textures.length)await yieldWork();
   }
-  report('compile',0,2);
+  report('compile',0,passes);
   await yieldWork();
-  for(let layer=0;layer<2;layer++){
+  for(let layer=0;layer<passes;layer++){
    try{
     camera.layers.set(layer);
-    await renderer.compileAsync(scene,camera);
+    await compile(layer);
    }finally{camera.layers.mask=mask;}
-   report('compile',layer+1,2);
+   report('compile',layer+1,passes);
    await yieldWork();
   }
-  report('render',0,2);
-  for(let pass=0;pass<2;pass++){
+  report('render',0,passes);
+  for(let pass=0;pass<passes;pass++){
    await render(pass);
-   report('render',pass+1,2);
+   report('render',pass+1,passes);
    await yieldWork();
   }
  }finally{camera.layers.mask=mask;}

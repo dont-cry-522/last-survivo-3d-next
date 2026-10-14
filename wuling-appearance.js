@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon,lanternCoreMaterial}from'./weapon-identity.js?v=186';
+import{weaponInlay,nameWeapon,lanternCoreMaterial}from'./weapon-identity.js?v=187';
 // Programmatic prototype: existing rig and cloth surfaces, original herb-gatherer accessories.
 export const WULING_PALETTE=Object.freeze({cloak:0x342139,trim:0x927955,copper:0x9d7f4d,leather:0x322730,ivory:0xb6a995,glass:0xe4c484});
 const geometry=new Map(),materials=new Map();
@@ -21,7 +21,7 @@ export function wulingOutfit(root){root.traverse(o=>{
  }
  o.material.onBeforeCompile=s=>{s.fragmentShader=s.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>\nfloat herbWeave=dot(diffuseColor.rgb,vec3(.21,.72,.07));diffuseColor.rgb=vec3(${tint})*(.78+herbWeave*.48);`);};o.material.customProgramCacheKey=()=> 'wuling-cloth-'+tint;
 });}
-export function wulingMask(model){
+export function wulingMask(model,sample){
  let skin;model.traverse(o=>{if(o.isSkinnedMesh&&o.material.name.includes('Superhero'))skin=o;});
  const material=new T.MeshStandardMaterial({color:0x756d88,roughness:.72,metalness:.07,side:T.DoubleSide});
  const probe=new T.Mesh(skin.geometry,material),ray=new T.Raycaster(),pos=[],uv=[],indices=[],cols=32,rows=24;
@@ -33,7 +33,7 @@ export function wulingMask(model){
   const v=row/rows,y=T.MathUtils.lerp(profile[0][0],profile.at(-1)[0],v),u=col/cols*2-1;
   let j=0;while(j<profile.length-2&&y>profile[j+1][0])j++;
   const a=profile[j],b=profile[j+1],f=(y-a[0])/(b[0]-a[0]),width=T.MathUtils.lerp(a[1],b[1],f),center=T.MathUtils.lerp(a[2],b[2],f),edge=T.MathUtils.lerp(a[3],b[3],f),x=u*width;
-  ray.set(new T.Vector3(x,y,1),new T.Vector3(0,0,-1));const hit=ray.intersectObject(probe,false)[0];
+  let hit;if(sample)hit=sample(x,y);else{ray.set(new T.Vector3(x,y,1),new T.Vector3(0,0,-1));hit=ray.intersectObject(probe,false)[0];}
   pos.push(x,y,Math.max(edge+(center-edge)*Math.pow(1-u*u,.62),(hit?.point.z??-.1)+.006));uv.push(col/cols,v);
  }
  for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){const a=row*(cols+1)+col;indices.push(a,a+1,a+cols+1,a+1,a+cols+2,a+cols+1);}

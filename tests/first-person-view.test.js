@@ -359,11 +359,13 @@ test('harpoon is held behind the forward fork with two spaced contacts and three
   assert.deepEqual(view.center.toArray(),[0,0,-.08]);assert(view.grip.length()<1e-8);
   const rear=contact.clone().applyMatrix4(view.hands[0].matrixWorld),front=contact.clone().applyMatrix4(view.hands[1].matrixWorld),tip=new T.Vector3(0,0,1.75).sub(view.center).applyMatrix4(view.weapon.matrixWorld);
   assert(front.distanceTo(rear)>.23&&front.distanceTo(rear)<.31,'hands pinch the same short section of the pole');assert(tip.z<rear.z-.95);assert(tip.z< -1.7,'fork has no forward perspective');
-  let min=Infinity,max=-Infinity;
+  let min=Infinity,max=-Infinity,top=-Infinity;
   for(const [source,node]of view.parts)if(source.geometry?.type==='ExtrudeGeometry')for(let i=0;i<node.geometry.attributes.position.count;i++){
-   node.getVertexPosition(i,point);point.applyMatrix4(node.matrixWorld).project(camera);min=Math.min(min,point.x);max=Math.max(max,point.x);
+   node.getVertexPosition(i,point);point.applyMatrix4(node.matrixWorld).project(camera);min=Math.min(min,point.x);max=Math.max(max,point.x);top=Math.max(top,point.y);
   }
-  assert(max-min<.43,'distant fork is too wide on screen');
+  // A broader functional fork may cover up to a quarter of a portrait screen,
+  // but stays below the aiming center and never shortens the two-hand stance.
+  assert(max-min<(aspect<1?.52:.15),'distant fork is too wide on screen');assert(top<-.10,'fork covers the central aiming area');
   const gestures=new Set();
   for(let combo=0;combo<3;combo++){
    Object.assign(actor.userData,{harpoonCombo:combo,attackAge:.16,reloadPhase:.16/.48});view.update(1.16,.016,{visible:true});camera.updateMatrixWorld(true);

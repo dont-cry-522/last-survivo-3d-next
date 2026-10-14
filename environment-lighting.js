@@ -1,5 +1,5 @@
-import{installHarborHorizon,harborBayLayout,harborBayCut}from'./harbor-horizon.js?v=186';
-import{installForestBackdrop}from'./tree-scenery.js?v=186';
+import{installHarborHorizon,harborBayLayout,harborBayCut}from'./harbor-horizon.js?v=187';
+import{installForestBackdrop}from'./tree-scenery.js?v=187';
 import * as T from './vendor/three.module.js';
 
 // The same three lights serve every climate; transitions do not allocate lights or shadow maps.
@@ -70,6 +70,33 @@ export class EnvironmentLighting{
 }
 
 const ridgeMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:1,side:T.DoubleSide});
+// This radial mesh already has an exact spatial index: each angular sector is
+// contiguous in each ring. Tree roots and harbor footings only cast vertically.
+// Keep Three's actual triangle intersection/face data, but avoid scanning the
+// other 189 sectors for every support point. Oblique rays retain the full path.
+function indexRidgeQueries(mesh,segments,rows){
+ const geometry=mesh.geometry,inverse=new T.Matrix4(),localRay=new T.Ray(),raycast=T.Mesh.prototype.raycast,sectorIndices=(rows-1)*6,ringIndices=segments*sectorIndices;
+ mesh.raycast=function(raycaster,intersections){
+  inverse.copy(this.matrixWorld).invert();localRay.copy(raycaster.ray).applyMatrix4(inverse);
+  if(this.geometry!==geometry||Math.abs(localRay.direction.x)>1e-12||Math.abs(localRay.direction.z)>1e-12)return raycast.call(this,raycaster,intersections);
+  const angle=(Math.atan2(localRay.origin.x,localRay.origin.z)+Math.PI*2)%(Math.PI*2),sector=Math.min(segments-1,Math.floor(angle*segments/(Math.PI*2))),wrap=sector===0||sector===segments-1;
+  const {start,count}=geometry.drawRange,end=start+count;
+  try{
+   for(let ring=0;ring<2;ring++)for(let part=0;part<(wrap?2:1);part++){
+    // Include both neighbors for Float32 boundary/seam precision. Visit in
+    // original index order so equal-distance hits keep the same face priority.
+    const first=wrap?(part===0?0:sector===0?segments-1:segments-2):sector-1;
+    const last=wrap?(part===0?(sector===0?2:1):segments):sector+2;
+    const from=Math.max(start,ring*ringIndices+first*sectorIndices),to=Math.min(end,ring*ringIndices+last*sectorIndices);
+    if(from>=to)continue;
+    geometry.setDrawRange(from,to-from);raycast.call(this,raycaster,intersections);
+   }
+  }finally{
+   // Rendering and later queries always retain the caller's original range.
+   geometry.setDrawRange(start,count);
+  }
+ };
+}
 // Opaque foothill silhouettes live beyond the playable square. No new collision or rewards.
 export function installDistantLandscape(world,id,biomeAt=()=>id){
  const positions=[],colors=[],indices=[],segments=192,rows=9,half=world.half;
@@ -165,5 +192,5 @@ export function installDistantLandscape(world,id,biomeAt=()=>id){
   seam.fromBufferAttribute(normal,first).add(last.fromBufferAttribute(normal,end)).normalize();
   normal.setXYZ(first,seam.x,seam.y,seam.z);normal.setXYZ(end,seam.x,seam.y,seam.z);
  }
- const mesh=new T.Mesh(geometry,ridgeMaterial);mesh.name='distant-landscape';mesh.userData.ownedGeometry=true;world.group.add(mesh);installForestBackdrop(world,id,biomeAt);installHarborHorizon(world,id,biomeAt,mesh);return mesh;
+ const mesh=new T.Mesh(geometry,ridgeMaterial);mesh.name='distant-landscape';mesh.userData.ownedGeometry=true;indexRidgeQueries(mesh,segments,rows);world.group.add(mesh);installForestBackdrop(world,id,biomeAt);installHarborHorizon(world,id,biomeAt,mesh);return mesh;
 }

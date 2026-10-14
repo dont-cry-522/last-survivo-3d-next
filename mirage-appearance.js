@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
-import{mirrorPetalGeometry,nameWeapon,lanternCoreMaterial}from'./weapon-identity.js?v=186';
-import {wulingOutfit,wulingMask} from './wuling-appearance.js?v=186';
+import{mirrorPetalGeometry,nameWeapon,lanternCoreMaterial}from'./weapon-identity.js?v=187';
+import {wulingOutfit,wulingMask} from './wuling-appearance.js?v=187';
 
 // Authored procedural prototype on the existing female rig; no extra model download.
 export const MIRAGE_PALETTE=Object.freeze({cloth:0x1c2030,violet:0x394057,mist:0x8e9eae,ivory:0xe9e3f2,silver:0xa5afbe,glow:0x8f5cff});
@@ -111,8 +111,8 @@ export function animateMirageHair(locks,t,dt,d,relative){
   p.needsUpdate=n.needsUpdate=true;
  }
 }
-export function mirageMask(model){
- const mask=wulingMask(model);mask.name='mirage-full-mask';
+export function mirageMask(model,sample){
+ const mask=wulingMask(model,sample);mask.name='mirage-full-mask';
  // A complete fitted shell, inspired by Volto masks: rounded jaw, cheek returns,
  // a visible edge and dark eye insets. No skin or lips are exposed through it.
  const p=mask.geometry.attributes.position,uv=mask.geometry.attributes.uv,pos=[],tex=[],indices=Array.from(mask.geometry.index.array),cols=32,rows=24;
@@ -122,7 +122,7 @@ export function mirageMask(model){
   const x=p.getX(i),y=p.getY(i),lower=1-T.MathUtils.smoothstep(y,1.539,1.622),cheek=Math.exp(-(((y-1.617)/.052)**2)),upper=T.MathUtils.smoothstep(y,1.687,1.757);
   const nx=x*(1+.28*lower+.085*cheek),across=uv.getX(i)*2-1,ny=y>1.687?1.687+(.037-.021*across*across)*(y-1.687)/.07:y-.015*lower;
   let nz=p.getZ(i)+.003*cheek-upper*.026;
-  if(upper){ray.set(new T.Vector3(nx,ny,1),new T.Vector3(0,0,-1));const hit=ray.intersectObject(probe,false)[0];if(hit)nz=Math.max(nz,hit.point.z+.004);}
+  if(upper){let hit;if(sample)hit=sample(nx,ny);else{ray.set(new T.Vector3(nx,ny,1),new T.Vector3(0,0,-1));hit=ray.intersectObject(probe,false)[0];}if(hit)nz=Math.max(nz,hit.point.z+.004);}
   pos.push(nx,ny,nz);tex.push(uv.getX(i),uv.getY(i));
  }
  // Fold the perimeter inward to show a thin physical rim in side views.

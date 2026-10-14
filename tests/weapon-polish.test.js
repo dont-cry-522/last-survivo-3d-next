@@ -33,3 +33,19 @@ test('harpoon side tines are rounded at their neck but retain a thin forward con
  for(const side of[-1,1]){const tine=fork.getObjectByName('SM_Harpoon_CurvedTine_'+side);assert(tine.geometry.parameters.shapes.curves.some(c=>c.isQuadraticBezierCurve));}
  const book=shadowFocus('grimoire');for(const side of[-1,1]){const pages=book.getObjectByName('SM_Grimoire_AshenPages_'+side);assert.equal(pages.geometry.name,'SM_Grimoire_BoundPageLayers');assert.equal(pages.material.metalness,0);assert(pages.material.roughness>.9);}
 });
+
+test('the broader harpoon fork has a supported blade root while full reach and hand diameters stay fixed',()=>{
+ const fork=makeHarpoon(),box=new T.Box3().setFromObject(fork),size=box.getSize(new T.Vector3());
+ assert(size.x>.36&&size.x<.38,'fork should read as a distinct broad three-pronged head');
+ assert(Math.abs(box.min.z+.78)<1e-5&&Math.abs(box.max.z-1.7584853)<1e-5,'visual reach changed');
+ const shaft=fork.getObjectByName('SM_Harpoon_SaltedWoodHaft'),socket=fork.getObjectByName('SM_Harpoon_ForkSocket'),tip=fork.getObjectByName('SM_Harpoon_CentralGroundPoint');
+ const bounds=n=>new T.Box3().setFromObject(n),tipSize=bounds(tip).getSize(new T.Vector3()),socketBox=bounds(socket);
+ assert(tipSize.x>.115&&tipSize.y>.05,'central blade root still reads like a wire');
+ assert(socketBox.intersectsBox(bounds(shaft))&&socketBox.intersectsBox(bounds(tip)),'fork socket is disconnected');
+ for(const side of[-1,1])assert(socketBox.intersectsBox(bounds(fork.getObjectByName('SM_Harpoon_CurvedTine_'+side))),'side tine root is disconnected');
+ const radiusAt=z=>new T.Raycaster(new T.Vector3(.2,0,z),new T.Vector3(-1,0,0)).intersectObject(shaft,false)[0]?.point.x;
+ for(const z of[-.08,.34])assert(Math.abs(radiusAt(z)-.029)<1e-5,'hand contact grew through the unchanged palm');
+ assert(radiusAt(1.2)>.0315,'forward haft does not support the enlarged fork');
+ let meshes=0,triangles=0;fork.traverse(n=>{if(n.isMesh){meshes++;triangles+=(n.geometry.index?.count||n.geometry.attributes.position.count)/3;}});
+ assert.equal(meshes,10);assert(triangles<=2500,'fork proportions should not require extra ornament layers');
+});

@@ -12,8 +12,9 @@ import {miasmaLantern} from '../mirage-appearance.js';
 const make=(kind,id)=>kind==='wraith'?shadowFocus(id):id==='harpoon'?makeHarpoon():id==='boomerang'?makeSlingshot():id==='sporelantern'?sporeLantern():id==='miasmalantern'?miasmaLantern():makeHero(kind,id).userData.weapon;
 // Source-space envelopes measured before the identity changes. These are also
 // the envelopes used by the viewmodel framing, not combat collision dimensions.
-// The replaced slingshot has an upright envelope, including its fully drawn bands.
-const limits={rifle:[.1225,.426,1.069],shotgun:[.177,.379,1.069],fire:[.3723,1.6126,.23],crossbow:[.918,.3651,.775],shuriken:[.4669,.1559,.7401],dark:[.3723,1.6126,.23],shade:[.0819,.1533,.0208],shadowblade:[1.1151,1.4063,.1055],grimoire:[.4577,.0829,.2901],harpoon:[.2592,.0861,2.5386],boomerang:[.366,.540,.429],sporelantern:[.2615,.5691,.2672],miasmalantern:[.2229,.5051,.2596]};
+// The slingshot is upright; the reforged harpoon has a wider fork/socket but
+// retains the same full length and original hand contact positions.
+const limits={rifle:[.1225,.426,1.069],shotgun:[.177,.379,1.069],fire:[.3723,1.6126,.23],crossbow:[.918,.3651,.775],shuriken:[.4669,.1559,.7401],dark:[.3723,1.6126,.23],shade:[.0819,.1533,.0208],shadowblade:[1.1151,1.4063,.1055],grimoire:[.4577,.0829,.2901],harpoon:[.372,.1141,2.5386],boomerang:[.366,.540,.429],sporelantern:[.2615,.5691,.2672],miasmalantern:[.2229,.5051,.2596]};
 
 test('all thirteen named weapons keep their declared framing and a bounded identity structure',()=>{
  let count=0;

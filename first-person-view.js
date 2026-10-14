@@ -1,12 +1,12 @@
-import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=186';
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=187';
 import * as T from './vendor/three.module.js';
-import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=186';
-import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=186';
-import {sporePod} from './wuling-appearance.js?v=186';
+import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=187';
+import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=187';
+import {sporePod} from './wuling-appearance.js?v=187';
 import {poseSlingshot} from './slingshot-model.js';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=186';
+import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=187';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
@@ -27,7 +27,7 @@ const PROFILES={
  // The small rift floats above the fingertips, rather than an oversized hidden glove.
  shade:{type:'palm',width:.42,height:.72,depth:.35,x:.42,y:-.43,pitch:.12,grip:[0,.085,.07]},
  grimoire:{type:'book',width:.74,height:.66,depth:.44,x:.01,y:-.47,pitch:.42,grip:[-.15,.01,.065],support:[.16,.01,.065]},
- harpoon:{type:'thrust',width:.76,height:1,depth:1.66,x:.42,y:-.66,pitch:.13,support:[0,0,.36]},
+ harpoon:{type:'thrust',width:1.16,height:1,depth:1.66,x:.42,y:-.66,pitch:.13,support:[0,0,.36]},
  sporelantern:{type:'lamp',width:.64,height:1.08,depth:.36,x:.58,y:-.40,pitch:.01},
  miasmalantern:{type:'lamp',width:.62,height:1.08,depth:.36,x:.58,y:-.40,pitch:.01}
 };

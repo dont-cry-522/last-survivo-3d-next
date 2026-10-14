@@ -1,0 +1,40 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>切换响应验证</title>
+<style>body{background:#162d2b;color:#eee;font:14px system-ui;margin:16px}button{padding:10px;margin:5px}iframe{border:0;width:1024px;height:600px}pre{white-space:pre-wrap}</style>
+<h1>真实首页切换响应</h1><p>隔离存档，记录实际点击处理、首屏等待和动画帧间隔；这不是手机真机帧率保证。</p>
+<button id="run">运行切换检查</button><p id="status">等待运行</p><div id="view"></div><pre id="report"></pre>
+<script type="module">
+const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const html=await(await fetch('../index.html')).text();let frame,win,g;const report={samples:[],checks:[],errors:[]};
+const publish=()=>$('#report').textContent=JSON.stringify(report,null,2);
+async function ready(){for(let i=0;i<2400;i++){if(win.game3d&&!win.document.querySelector('#start').disabled&&win.document.querySelector('#asset-loading').hidden)return;await sleep(50);}throw Error('准备超时');}
+$('#run').onclick=async()=>{
+ $('#run').disabled=true;
+ try{
+  frame=document.createElement('iframe');frame.title='实际首页';$('#view').append(frame);
+  frame.srcdoc=html.replace('<head>',`<head><base href="../"><script>
+   const data=new Map();Object.defineProperty(window,'localStorage',{value:{getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,String(v)),removeItem:k=>data.delete(k)}});
+   window.qaErrors=[];addEventListener('error',e=>qaErrors.push(e.message));addEventListener('unhandledrejection',e=>qaErrors.push(String(e.reason)));
+   let seed=522;Math.random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};
+  <\/script>`);win=frame.contentWindow;await ready();g=win.game3d;g.audio.setMuted(true);await sleep(100);
+  for(const [name,selector] of [['影裔首次','[data-hero=wraith]'],['潮行者首次','[data-hero=tide]'],['铃芽首次','[data-hero=lingya]'],['雾苓首次','[data-hero=wuling]'],['蜃影首次','[data-hero=mirage]'],['游侠首次','[data-hero=scout]'],['霰弹首次','#weapons button:nth-child(2)'],['火杖首次','#weapons button:nth-child(3)'],['影裔返回','[data-hero=wraith]'],['战镰首次','#weapons button:nth-child(2)'],['魔典首次','#weapons button:nth-child(3)'],['霜影返回','[data-hero=silver]'],['月刃首次','#weapons button:nth-child(2)'],['暗杖首次','#weapons button:nth-child(3)'],['雪地首次','[data-map=snow]'],['灰烬首次','[data-map=ash]'],['海港首次','[data-map=coast]'],['沙漠首次','[data-map=sand]'],['森林返回','[data-map=forest]']]){
+   $('#status').textContent=name;
+   const oldWorld=g.world,oldTime=g.time,gaps=[],stages=[];let active=true,last=win.performance.now(),lastStage=last;
+   const observer=new win.MutationObserver(()=>{const now=win.performance.now();stages.push({stage:win.document.querySelector('#asset-loading-stage').textContent,ms:now-lastStage});lastStage=now;});observer.observe(win.document.querySelector('#asset-loading-stage'),{childList:true,subtree:true,characterData:true});
+   const tick=now=>{if(!active)return;gaps.push(now-last);last=now;win.requestAnimationFrame(tick);};win.requestAnimationFrame(tick);
+   const start=win.performance.now();win.document.querySelector(selector).click();const handlerMs=win.performance.now()-start;
+   await ready();await new Promise(r=>win.requestAnimationFrame(()=>win.requestAnimationFrame(r)));const readyMs=win.performance.now()-start;
+   await sleep(120);active=false;observer.disconnect();
+   report.samples.push({name,handlerMs,readyMs,maxFrameGap:Math.max(0,...gaps),visibility:win.document.visibilityState,worldReused:g.world===oldWorld,timeUnchanged:g.time===oldTime,nodes:(()=>{let n=0;g.world.group.traverse(()=>n++);return n;})(),drawCalls:g.renderer.info.render.calls,stages:stages.filter(s=>s.ms>60)});publish();
+   if(!selector.includes('data-map')&&g.world!==oldWorld)report.errors.push(name+' 重建了场景');
+   if(g.time!==oldTime)report.errors.push(name+' 推进了战斗时间');
+  }
+  const same=g.hero,sameWorld=g.world;win.document.querySelector('[data-hero=silver]').click();win.document.querySelector('#weapons .selected').click();
+  report.checks.push({name:'重复点击当前人物和装备不重建模型或地图',pass:g.hero===same&&g.world===sameWorld});
+  win.document.querySelector('[data-hero=lingya]').click();const pet=g.companionMesh;
+  win.document.querySelector('[data-hero=tide]').click();report.checks.push({name:'离开铃芽时移除伙伴',pass:!!pet&&!pet.parent&&!g.companionMesh});
+  report.checks.push({name:'大厅不建立不可见的第一人称武器',pass:!g.firstPerson.weapon});
+  report.errors.push(...report.checks.filter(c=>!c.pass).map(c=>c.name));
+  report.errors.push(...win.qaErrors);$('#status').textContent='完成';
+ }catch(e){report.errors.push(e.stack||String(e));$('#status').textContent='失败';}finally{publish();$('#run').disabled=false;}
+};
+</script></html>

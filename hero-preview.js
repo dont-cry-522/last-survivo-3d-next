@@ -14,7 +14,7 @@ export class HeroPreview {
   element.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home'].includes(e.key))return;e.preventDefault();this.yaw=e.key==='Home'?0:this.yaw+(e.key==='ArrowLeft'?-.18:.18);this.needsFit=true;});
  }
  setPortrait(value){this.portrait=value;this.full.setAttribute('aria-pressed',String(!value));this.detail.setAttribute('aria-pressed',String(value));}
- render(scene,hero,pet){
+ render(scene,hero,pet,draw=(scene,camera)=>this.renderer.render(scene,camera)){
   const rect=this.element.getBoundingClientRect(),width=innerWidth,height=innerHeight;
   if(rect.width<=0||rect.height<=0)return;
   const petPosition=pet?.position.clone(),petVisible=pet?.visible,fogDensity=scene.fog?.density,clippedMaterials=new Map(),autoMatrix=scene.matrixWorldAutoUpdate;
@@ -59,7 +59,7 @@ export class HeroPreview {
    // The framing pass already updated the scene. Only this newly positioned
    // fill light still needs a matrix; camera updates above remain independent.
    this.fill.updateMatrixWorld();scene.matrixWorldAutoUpdate=false;
-   this.renderer.render(scene,this.camera);
+   return draw(scene,this.camera);
   }finally{
    scene.matrixWorldAutoUpdate=autoMatrix;
    if(fogDensity!==undefined)scene.fog.density=fogDensity;

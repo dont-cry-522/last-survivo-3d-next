@@ -64,3 +64,10 @@ test('default yielding uses task timers and works without requestAnimationFrame'
   assert(tasks>=2);assert.equal(draws,2);
  }finally{globalThis.setTimeout=oldTimer;if(raf)Object.defineProperty(globalThis,'requestAnimationFrame',raf);else delete globalThis.requestAnimationFrame;}
 });
+
+test('a lobby prewarm uses its framed camera/light setup once without compiling absent first-person equipment',async()=>{
+ const scene=new T.Scene(),camera=new T.PerspectiveCamera(),events=[];camera.layers.set(4);
+ await warmScene({scene,camera,passes:1,renderer:{initTexture(){},compileAsync(){assert.fail('must use actual preview setup');}},
+  compile:async()=>events.push('preview compile'),yieldWork:async()=>{},render:pass=>events.push(pass)});
+ assert.deepEqual(events,['preview compile',0]);assert.equal(camera.layers.mask,16);
+});

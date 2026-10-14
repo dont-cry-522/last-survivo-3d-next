@@ -7,6 +7,17 @@ function renderer(float=true){
   getDrawingBufferSize(v){return v.set(this.width,this.height);},getRenderTarget(){return this.target;},setRenderTarget(target){this.target=target;},render(scene){this.passes.push({target:this.target,scene});}};
 }
 
+test('dive reuses the final pass, reads the supplied game clock, and clears the canvas fallback',()=>{
+ for(const float of[true,false]){const r=renderer(float);r.domElement={style:{}};const cinema=new CinematicRenderer(r);
+  try{cinema.setUnderwater(.8,12);cinema.render(()=>{});assert.equal(cinema.underwater,.8);
+   if(float){assert.equal(r.passes.length,3);assert.equal(cinema.finish.uniforms.waterTime.value,12);assert.equal(cinema.finish.uniforms.underwater.value,.8);}
+   cinema.render(()=>{},.7);assert.match(r.domElement.style.filter,/blur\(0.64px\)/);
+   cinema.setUnderwater(0,12);cinema.render(()=>{},.7);assert.equal(r.domElement.style.filter,'');
+   cinema.setUnderwater(NaN,Infinity);assert.equal(cinema.underwater,0);assert.equal(cinema.waterTime,0);
+  }finally{cinema.dispose();assert.equal(r.domElement.style.filter,'');}
+ }
+});
+
 test('cinematic targets stay within the drawing budget and are reused across frames and quality changes',()=>{
  const r=renderer(),cinema=new CinematicRenderer(r),targets=[cinema.sceneTarget,cinema.glowA,cinema.glowB];let sceneDraws=0;
  const draw=()=>{sceneDraws++;assert.equal(r.target,cinema.sceneTarget);};

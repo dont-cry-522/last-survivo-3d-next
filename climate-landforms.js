@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {batchedSurfaceMaterial} from './environment-props.js?v=196';
-import {segmentDistance} from './rules.js?v=196';
+import {batchedSurfaceMaterial} from './environment-props.js?v=197';
+import {segmentDistance} from './rules.js?v=197';
 
 const BIOMES=['snow','ash','sand'],materials=new Map(),fade=T.MathUtils.smoothstep;
 const palette={snow:[0x647e88,0x90a6ac,0xd6e4e5],ash:[0x383b3b,0x56504a,0x777065],sand:[0x9d8059,0xbd9e6b,0xd1b887]};

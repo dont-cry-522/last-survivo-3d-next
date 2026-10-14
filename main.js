@@ -1,92 +1,93 @@
-import{bossZoneEffect}from'./boss-effects.js?v=196';
-import{setCreatureTime}from'./creature-forms.js?v=196';
-import{enemyCastFlight as castEnemyFlight}from'./enemy-cast-vfx.js?v=196';
-import{installClimateLandforms}from'./climate-landforms.js?v=196';
-import{installHarborLife}from'./harbor-life.js?v=196';
-import {createLoadingScreen} from './loading-screen.js?v=196';
-import {warmScene} from './render-prewarm.js?v=196';
-import {prepareCombatSamples} from './combat-prewarm.js?v=196';
-import {loadTreeTextures} from './tree-scenery.js?v=196';
-import {loadFernTextures} from './fern-surfaces.js?v=196';
-import{bodiesClear}from'./actor-collision.js?v=196';
-import{BOSS_ROUTES,BOSS_ROUNDS,BOSS_BREAK,createBossRun,advanceBossRun}from'./boss-expedition.js?v=196';
-import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=196';
-import{beginScythe,scytheHits,scytheDamage}from'./scythe-combat.js?v=196';
-import{AIR_ENEMIES,AIR_ROSTERS,airWaveEligible,makeAirborne,tickAirborne}from'./airborne-enemies.js?v=196';
-import{MOBILITY,resetMobility,airborne,bodyHeight,attackReachesPlayer,beginJump,tickMobility,restoreMobilityPose,applyMobilityPose}from'./adventure-mobility.js?v=196';
-import{installAdventureCampfire,updateAdventureCampfire}from'./adventure-campfire.js?v=196';
-import{loadSurfaceTextures}from'./surface-textures.js?v=196';
-import{createOverheadQuery,mobilityCeiling as queryMobilityCeiling,needsMobilityCeiling}from'./adventure-overheads.js?v=196';
-import{installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail}from'./adventure-ground-detail.js?v=196';
-import{AdventureCamera}from'./adventure-camera.js?v=196';
-import{FirstPersonView}from'./first-person-view.js?v=196';
-import{AdventureAtmosphere}from'./adventure-atmosphere.js?v=196';
-import{aimPoint,groundAim,launchVelocity,segmentHitsBody,bodyContact,segmentBodyEntry,segmentGroundEntry}from'./adventure-combat.js?v=196';
-import{CinematicRenderer}from'./cinematic-renderer.js?v=196';
-import{lobbyLandscape,entryLandscapeYaw}from'./lobby-landscape.js?v=196';
-import{installForestHabitats}from'./forest-habitats.js?v=196';
-import{installExplorationRoutes}from'./exploration-routes.js?v=196';
-import{installBiomePlaces}from'./biome-places.js?v=196';
-import{installEnvironmentClusters}from'./environment-clusters.js?v=196';
-import{installEnvironmentGrounding}from'./environment-grounding.js?v=196';
-import{installForestTerrain}from'./forest-terrain.js?v=196';
-import{installForestFloorRelief}from'./forest-floor-relief.js?v=196';
-import{installExplorationLandmarks}from'./exploration-landmarks.js?v=196';
-import{installExplorationComposition}from'./exploration-composition.js?v=196';
-import{installForestVista}from'./forest-vista.js?v=196';
-import{installWorldLightShafts,updateWorldLightShafts,installForestMist}from'./world-light-shafts.js?v=196';
-import{mapBrief}from'./expedition-brief.js?v=196';
-import{polishEnvironmentModels}from'./environment-props.js?v=196';
-import{EnvironmentLighting,installDistantLandscape}from'./environment-lighting.js?v=196';
-import{MirageCombat}from'./mirage-combat.js?v=196';
-import{MirageVFX}from'./mirage-vfx.js?v=196';
-import{mirageSound}from'./mirage-audio.js?v=196';
-import{PoisonCombat}from'./poison-combat.js?v=196';
-import{PoisonVFX}from'./poison-vfx.js?v=196';
-import{poisonSound}from'./poison-audio.js?v=196';
-import {HeroPreview} from './hero-preview.js?v=196';
-import {knownMapPoints,mapWaypoint,waypointHint} from './map-navigation.js?v=196';
-import {createExploration,EXPLORATION_SIZE} from './map-exploration.js?v=196';
-import{REGIONS,biomeAt,biomeWeights,biomeColor,CONFLUENCE_TEXT}from'./confluence.js?v=196';
-import{observePlayer}from'./target-awareness.js?v=196';
-import{TERRAIN_TIPS,onIce,iceMotion,damageTerrain,updateTactics,terrainMesh}from'./map-tactics.js?v=196';
-import{advanceRoaming,roamingHint,courierDirection}from'./roaming-events.js?v=196';
-import{discoveryInfo,discoveryVariants,discoveryThreatened,advanceDiscovery,discoveryHint,animateDiscoveries}from'./map-discoveries.js?v=196';
-import{recordEnemyHit,EnemyDeaths}from'./enemy-feedback.js?v=196';
-import{sandWeather}from'./sand-weather.js?v=196';
-import{HERO_DODGES,HERO_ABILITY_TEXT,dodgeTravel}from'./hero-dodge.js?v=196';
-import{LINGYA_HOP_DURATION,lingyaHopScale,planLingyaHop,steerLingyaHop}from'./lingya-motion.js?v=196';
-import{BeastCompanion,PET_TIMING,sideHopTravel}from'./beast-companion.js?v=196';
-import{makeBadger,animateBadger}from'./beast-model.js?v=196';
-import{updateTide,harpoonHit,tideDashTravel,HARPOON_ATTACKS}from'./coast.js?v=196';
-import{tickBoss}from'./boss-combat.js?v=196';
-import{inMeleeArc,meleeDamageScale}from'./melee.js?v=196';
-import{discoverSite}from'./site-discovery.js?v=196';
-import{MAP_EVENTS,createMapEvent,advanceMapEvent,eventProgress}from'./map-events.js?v=196';
-import{MAP_HALF as DEFAULT_HALF}from'./map-layout.js?v=196';
-import{terrainAt,updateWaterLighting}from'./water.js?v=196';
-import{crossedSwimPhase}from'./swim-motion.js?v=196';
-import{RELICS,relicChoices,equipRelic,relicEvent,incomingRelicDamage,readJournal,writeJournal,recordDiscovery,recordVictory}from'./expedition.js?v=196';
-import{EXPEDITION_BOSS_TIME,encounterPhase,enemyGrowth,encounterRole,HUNT_SQUAD,huntFormation,HUNT_BOONS,takeHuntBoon,enemyApproach,separation,attackSlotAvailable}from'./encounters.js?v=196';
-import{setupMobileDisplay}from'./mobile-display.js?v=196';
-import{weaponCuePhases,mirageShotDelay}from'./weapon-performance.js?v=196';
-import{ENEMY_VOICES}from'./enemy-audio.js?v=196';
-import{ENEMY_MOTION,gaitPace,advanceEnemyLocomotion}from'./enemy-motion.js?v=196';
-import{MAP_ROSTERS,REGIONAL_ENEMIES,regionalEnemy}from'./map-enemies.js?v=196';
-import{HeroSkills}from'./hero-skills.js?v=196';
-import{EXTRA_BY_ID,skillPairState,skillPairHint}from'./skill-catalog.js?v=196';
-import{SCOUT_ROLL_DURATION,rollTravel}from'./dodge-motion.js?v=196';
-import{adventureDodgePose}from'./adventure-dodge.js?v=196';
-import{renderPixelRatio,RenderBudget}from'./render-budget.js?v=196';
-import{groundCue,disposeCue,fitGroundCue,fitGroundSurface,disposeGroundSurface}from'./ground-cues.js?v=196';
-import{weaponRouteEffect,WEAPON_ROUTE_LOOKS}from'./weapon-route-vfx.js?v=196';
-import{SkillVFX}from'./skill-vfx.js?v=196';
-import{loadHeroAssets,disposeHero}from'./skinned-hero.js?v=196';
-import{GameAudio,SFX_STYLES}from'./audio.js?v=196';
-import{ENEMY_GUIDE,CIRCLE_GUIDE}from'./battle-guide.js?v=196';
+import{bossZoneEffect}from'./boss-effects.js?v=197';
+import{setCreatureTime}from'./creature-forms.js?v=197';
+import{enemyCastFlight as castEnemyFlight}from'./enemy-cast-vfx.js?v=197';
+import{installClimateLandforms}from'./climate-landforms.js?v=197';
+import{installHarborLife}from'./harbor-life.js?v=197';
+import {createLoadingScreen} from './loading-screen.js?v=197';
+import {warmScene} from './render-prewarm.js?v=197';
+import {prepareCombatSamples} from './combat-prewarm.js?v=197';
+import {loadTreeTextures} from './tree-scenery.js?v=197';
+import {loadFernTextures} from './fern-surfaces.js?v=197';
+import{bodiesClear}from'./actor-collision.js?v=197';
+import{BOSS_ROUTES,BOSS_ROUNDS,BOSS_BREAK,createBossRun,advanceBossRun}from'./boss-expedition.js?v=197';
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=197';
+import{beginScythe,scytheHits,scytheDamage}from'./scythe-combat.js?v=197';
+import{AIR_ENEMIES,AIR_ROSTERS,airWaveEligible,makeAirborne,tickAirborne}from'./airborne-enemies.js?v=197';
+import{MOBILITY,resetMobility,airborne,bodyHeight,attackReachesPlayer,beginJump,tickMobility,restoreMobilityPose,applyMobilityPose}from'./adventure-mobility.js?v=197';
+import{installAdventureCampfire,updateAdventureCampfire}from'./adventure-campfire.js?v=197';
+import{loadSurfaceTextures}from'./surface-textures.js?v=197';
+import{createOverheadQuery,mobilityCeiling as queryMobilityCeiling,needsMobilityCeiling}from'./adventure-overheads.js?v=197';
+import{installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail}from'./adventure-ground-detail.js?v=197';
+import{AdventureCamera}from'./adventure-camera.js?v=197';
+import{FirstPersonView}from'./first-person-view.js?v=197';
+import{AdventureAtmosphere}from'./adventure-atmosphere.js?v=197';
+import{aimPoint,groundAim,launchVelocity,segmentHitsBody,bodyContact,segmentBodyEntry,segmentGroundEntry}from'./adventure-combat.js?v=197';
+import{CinematicRenderer}from'./cinematic-renderer.js?v=197';
+import{EnvironmentImpacts,waterCrossing}from'./environment-impact.js?v=197';
+import{lobbyLandscape,entryLandscapeYaw}from'./lobby-landscape.js?v=197';
+import{installForestHabitats}from'./forest-habitats.js?v=197';
+import{installExplorationRoutes}from'./exploration-routes.js?v=197';
+import{installBiomePlaces}from'./biome-places.js?v=197';
+import{installEnvironmentClusters}from'./environment-clusters.js?v=197';
+import{installEnvironmentGrounding}from'./environment-grounding.js?v=197';
+import{installForestTerrain}from'./forest-terrain.js?v=197';
+import{installForestFloorRelief}from'./forest-floor-relief.js?v=197';
+import{installExplorationLandmarks}from'./exploration-landmarks.js?v=197';
+import{installExplorationComposition}from'./exploration-composition.js?v=197';
+import{installForestVista}from'./forest-vista.js?v=197';
+import{installWorldLightShafts,updateWorldLightShafts,installForestMist}from'./world-light-shafts.js?v=197';
+import{mapBrief}from'./expedition-brief.js?v=197';
+import{polishEnvironmentModels}from'./environment-props.js?v=197';
+import{EnvironmentLighting,installDistantLandscape}from'./environment-lighting.js?v=197';
+import{MirageCombat}from'./mirage-combat.js?v=197';
+import{MirageVFX}from'./mirage-vfx.js?v=197';
+import{mirageSound}from'./mirage-audio.js?v=197';
+import{PoisonCombat}from'./poison-combat.js?v=197';
+import{PoisonVFX}from'./poison-vfx.js?v=197';
+import{poisonSound}from'./poison-audio.js?v=197';
+import {HeroPreview} from './hero-preview.js?v=197';
+import {knownMapPoints,mapWaypoint,waypointHint} from './map-navigation.js?v=197';
+import {createExploration,EXPLORATION_SIZE} from './map-exploration.js?v=197';
+import{REGIONS,biomeAt,biomeWeights,biomeColor,CONFLUENCE_TEXT}from'./confluence.js?v=197';
+import{observePlayer}from'./target-awareness.js?v=197';
+import{TERRAIN_TIPS,onIce,iceMotion,damageTerrain,updateTactics,terrainMesh}from'./map-tactics.js?v=197';
+import{advanceRoaming,roamingHint,courierDirection}from'./roaming-events.js?v=197';
+import{discoveryInfo,discoveryVariants,discoveryThreatened,advanceDiscovery,discoveryHint,animateDiscoveries}from'./map-discoveries.js?v=197';
+import{recordEnemyHit,EnemyDeaths}from'./enemy-feedback.js?v=197';
+import{sandWeather}from'./sand-weather.js?v=197';
+import{HERO_DODGES,HERO_ABILITY_TEXT,dodgeTravel}from'./hero-dodge.js?v=197';
+import{LINGYA_HOP_DURATION,lingyaHopScale,planLingyaHop,steerLingyaHop}from'./lingya-motion.js?v=197';
+import{BeastCompanion,PET_TIMING,sideHopTravel}from'./beast-companion.js?v=197';
+import{makeBadger,animateBadger}from'./beast-model.js?v=197';
+import{updateTide,harpoonHit,tideDashTravel,HARPOON_ATTACKS}from'./coast.js?v=197';
+import{tickBoss}from'./boss-combat.js?v=197';
+import{inMeleeArc,meleeDamageScale}from'./melee.js?v=197';
+import{discoverSite}from'./site-discovery.js?v=197';
+import{MAP_EVENTS,createMapEvent,advanceMapEvent,eventProgress}from'./map-events.js?v=197';
+import{MAP_HALF as DEFAULT_HALF}from'./map-layout.js?v=197';
+import{terrainAt,updateWaterLighting}from'./water.js?v=197';
+import{crossedSwimPhase}from'./swim-motion.js?v=197';
+import{RELICS,relicChoices,equipRelic,relicEvent,incomingRelicDamage,readJournal,writeJournal,recordDiscovery,recordVictory}from'./expedition.js?v=197';
+import{EXPEDITION_BOSS_TIME,encounterPhase,enemyGrowth,encounterRole,HUNT_SQUAD,huntFormation,HUNT_BOONS,takeHuntBoon,enemyApproach,separation,attackSlotAvailable}from'./encounters.js?v=197';
+import{setupMobileDisplay}from'./mobile-display.js?v=197';
+import{weaponCuePhases,mirageShotDelay}from'./weapon-performance.js?v=197';
+import{ENEMY_VOICES}from'./enemy-audio.js?v=197';
+import{ENEMY_MOTION,gaitPace,advanceEnemyLocomotion}from'./enemy-motion.js?v=197';
+import{MAP_ROSTERS,REGIONAL_ENEMIES,regionalEnemy}from'./map-enemies.js?v=197';
+import{HeroSkills}from'./hero-skills.js?v=197';
+import{EXTRA_BY_ID,skillPairState,skillPairHint}from'./skill-catalog.js?v=197';
+import{SCOUT_ROLL_DURATION,rollTravel}from'./dodge-motion.js?v=197';
+import{adventureDodgePose}from'./adventure-dodge.js?v=197';
+import{renderPixelRatio,RenderBudget}from'./render-budget.js?v=197';
+import{groundCue,disposeCue,fitGroundCue,fitGroundSurface,disposeGroundSurface}from'./ground-cues.js?v=197';
+import{weaponRouteEffect,WEAPON_ROUTE_LOOKS}from'./weapon-route-vfx.js?v=197';
+import{SkillVFX}from'./skill-vfx.js?v=197';
+import{loadHeroAssets,disposeHero}from'./skinned-hero.js?v=197';
+import{GameAudio,SFX_STYLES}from'./audio.js?v=197';
+import{ENEMY_GUIDE,CIRCLE_GUIDE}from'./battle-guide.js?v=197';
 import * as T from './vendor/three.module.js';
-import{MAPS,WEAPONS,ENEMIES,HERO_LOADOUTS,heroHealth,weaponFor,experienceNeeded,grantExperience,chooseUpgrades,takeUpgrade,weaponStats,weaponReachText,WEAPON_PATHS,segmentDistance,registerCrossbowHit,registerShadowHit,UPGRADES}from'./rules.js?v=196';
-import{actor,animateActor,animateWorld,buildWorld,clearAt,moveActor,followTerrain,supportHeight,mesh,mat}from'./world.js?v=196';
+import{MAPS,WEAPONS,ENEMIES,HERO_LOADOUTS,heroHealth,weaponFor,experienceNeeded,grantExperience,chooseUpgrades,takeUpgrade,weaponStats,weaponReachText,WEAPON_PATHS,segmentDistance,registerCrossbowHit,registerShadowHit,UPGRADES}from'./rules.js?v=197';
+import{actor,animateActor,animateWorld,buildWorld,clearAt,moveActor,followTerrain,supportHeight,mesh,mat}from'./world.js?v=197';
 const $=s=>document.querySelector(s),touch=matchMedia('(pointer:coarse)').matches;
 const loadingScreen=createLoadingScreen();
 let preparing=true,sceneryTime=0;
@@ -107,6 +108,8 @@ let eyeHeight=1.55;
 try{if(localStorage.getItem('forest3d-next-view')==='first')adventureCamera.setMode('first');}catch{}
 window.addEventListener('pagehide',e=>{if(!e.persisted){firstPerson.dispose();atmosphere.dispose();disposeGroundSurface(contactShadow);}});
 const vfx=new SkillVFX(scene,{mobile:touch,groundHeight:groundAt});
+const environmentImpacts=new EnvironmentImpacts(scene,vfx,{mobile:touch});
+window.addEventListener('pagehide',e=>{if(!e.persisted)environmentImpacts.dispose();});
 const poisonVFX=new PoisonVFX(scene,vfx);
 const mirageVFX=new MirageVFX(scene,vfx);
 const enemyDeaths=new EnemyDeaths(scene,touch?8:12);
@@ -137,7 +140,7 @@ try{const saved=JSON.parse(storage?.getItem('forest3d-next-discovered-enemies')|
 function discoverEnemy(kind){if(discoveredEnemies.has(kind))return false;discoveredEnemies.add(kind);try{storage?.setItem('forest3d-next-discovered-enemies',JSON.stringify([...discoveredEnemies]));}catch{}return true;}
 const sound=new GameAudio();
 const heroSkills=new HeroSkills({companion:()=>companion,player:()=>player,active:()=>state==='playing',aim:()=>aimInput.hasAim?aimInput.angle:hero.rotation.y,foes:()=>enemies.filter(e=>e.alive).concat(boss?.alive?[boss]:[]),blocked:(ax,az,bx,bz)=>Math.abs(bx)>mapHalf()-1||Math.abs(bz)>mapHalf()-1||world.obstacles.some(o=>segmentDistance(o.x,o.z,ax,az,bx,bz)<o.r+.1),damage:hurtEnemy,knock:(e,amount)=>{const d=Math.hypot(e.x-player.x,e.z-player.z)||1;moveActor(world,e,(e.x-player.x)/d*amount,(e.z-player.z)/d*amount,e.size*.6);e.mesh.position.set(e.x,e.y||0,e.z);e.stagger=Math.max(e.stagger||0,.18);},fx:e=>{vfx.skill(e);sound.skill(e.kind);}});
-const poison=new PoisonCombat({groundHeight:groundAt,player:()=>player,active:()=>state==='playing',foes:()=>[...enemies,...(boss?.alive?[boss]:[])],blocked:(ax,az,bx,bz)=>world.obstacles.some(o=>segmentDistance(o.x,o.z,ax,az,bx,bz)<o.r+.05),damage:hurtEnemy,release:()=>{hero.updateMatrixWorld(true);const hand=hero.userData.support?.hand;const p=hand?.getWorldPosition(new T.Vector3());return p&&clearAt(world,p.x,p.z,.1)?p:player;},impactTerrain:(x,z,r,n)=>{for(const o of world.breakables||[])if(o.state==='standing'&&Math.hypot(o.x-x,o.z-z)<r+o.r)terrainHit(o,n);},fx:e=>{poisonVFX.event(e);if(e.w&&(e.kind==='poisonLand'&&e.w.stillRank||e.kind==='poisonMove'&&e.w.pathId==='sporelantern_roam'))weaponRouteEffect(vfx,e.w,'hit',e.x,e.z,e.angle||0,{radius:e.r});if(e.kind==='poisonThrow')sound.shot('sporelantern');else poisonSound(sound,e.kind);}});
+const poison=new PoisonCombat({groundHeight:groundAt,player:()=>player,active:()=>state==='playing',foes:()=>[...enemies,...(boss?.alive?[boss]:[])],blocked:(ax,az,bx,bz)=>world.obstacles.some(o=>segmentDistance(o.x,o.z,ax,az,bx,bz)<o.r+.05),damage:hurtEnemy,release:()=>{hero.updateMatrixWorld(true);const hand=hero.userData.support?.hand;const p=hand?.getWorldPosition(new T.Vector3());return p&&clearAt(world,p.x,p.z,.1)?p:player;},impactTerrain:(x,z,r,n)=>{for(const o of world.breakables||[])if(o.state==='standing'&&Math.hypot(o.x-x,o.z-z)<r+o.r){const y=groundAt(x,z)+.45;environmentImpacts.hit({id:'sporelantern'},environmentImpacts.contact(o,{x,y,z},{x:o.x,y,z:o.z},.1));terrainHit(o,n);}},fx:e=>{poisonVFX.event(e);if(e.kind==='poisonLand')environmentImpacts.ground({id:'sporelantern'},world,e.x,e.z);if(e.w&&(e.kind==='poisonLand'&&e.w.stillRank||e.kind==='poisonMove'&&e.w.pathId==='sporelantern_roam'))weaponRouteEffect(vfx,e.w,'hit',e.x,e.z,e.angle||0,{radius:e.r});if(e.kind==='poisonThrow')sound.shot('sporelantern');else poisonSound(sound,e.kind);}});
 const mirage=new MirageCombat({groundHeight:groundAt,player:()=>player,active:()=>state==='playing',foes:()=>[...enemies,...(boss?.alive?[boss]:[])],blocked:(ax,az,bx,bz)=>world.obstacles.some(o=>segmentDistance(o.x,o.z,ax,az,bx,bz)<o.r+.05),damage:hurtEnemy,fx:e=>{mirageVFX.event(e);mirageSound(sound,e.kind);if(e.kind==='mirageBloom'&&e.w)weaponRouteEffect(vfx,e.w,'bloom',e.x,e.z,e.angle||0,{radius:e.r});if(e.kind==='mirageBurst'&&e.w)weaponRouteEffect(vfx,e.w,'hit',e.x,e.z,e.angle||0,{radius:e.r,empowered:!!e.w.miragePursuit});}});
 for(const [value,profile]of Object.entries(SFX_STYLES))$('#sfx-style').add(new Option(profile.label,value));
 function syncAudioUI(){const active=sound.ctx?.state==='running';$('#sound').textContent=sound.muted?'声音：关':active?'声音：开':'开启声音';$('#sound').setAttribute('aria-pressed',String(!sound.muted));$('#music-volume').value=Math.round(sound.musicVolume*100);$('#sfx-volume').value=Math.round(sound.sfxVolume*100);$('#music-value').textContent=Math.round(sound.musicVolume*100)+'%';$('#sfx-value').textContent=Math.round(sound.sfxVolume*100)+'%';$('#sfx-style').value=sound.sfxStyle;$('#sfx-style-note').textContent=sound.effectProfile.description;}
@@ -206,7 +209,7 @@ function updateCompanion(dt){if(!companion)return;companion.update(dt);companion
  if(d.waterDepth>.4&&d.waterBlend>.5&&crossedSwimPhase(d.lastWaterPhase,d.swimPhase)&&Math.hypot(companion.x-player.x,companion.z-player.z)<14)vfx.water(companion.x,companion.z,companion.angle,.30);d.lastWaterPhase=d.swimPhase;
  const cycle=Math.floor((d.idleClock||0)/8.6),phase=(d.idleClock||0)%8.6;if(d.waterBlend<.1&&companion.state==='sniff'&&phase>.5&&phase<1.7&&d.soundSniff!==cycle){d.soundSniff=cycle;sound.companion('sniff',companion.x-player.x,companion.z-player.z);}}
 }
-function clearObjects(){setCreatureTime(0);disposeGroundSurface(contactShadow);bossRun=createBossRun();hitConfirmUntil=0;mirage.reset();mirageVFX.clear();poison.reset();poisonVFX.clear();enemyDeaths.clear();if(companionMesh)scene.remove(companionMesh);companion=companionMesh=null;document.body.classList.remove('has-companion');$('#companion-status').hidden=true;relicBurst=false;heroSkills.reset();vfx.clear();fields=[];riftStrikes=[];for(const list of [enemies,bullets,orbs,effects,zones])for(const o of list){scene.remove(o.mesh);disposeCue(o.mesh);if(o.kind==='line'){o.mesh.geometry.dispose();o.mesh.material.dispose();}}if(boss)scene.remove(boss.mesh);enemies=[];bullets=[];orbs=[];effects=[];zones=[];boss=null;}
+function clearObjects(){environmentImpacts.clear();cinema.setUnderwater(0);setCreatureTime(0);disposeGroundSurface(contactShadow);bossRun=createBossRun();hitConfirmUntil=0;mirage.reset();mirageVFX.clear();poison.reset();poisonVFX.clear();enemyDeaths.clear();if(companionMesh)scene.remove(companionMesh);companion=companionMesh=null;document.body.classList.remove('has-companion');$('#companion-status').hidden=true;relicBurst=false;heroSkills.reset();vfx.clear();fields=[];riftStrikes=[];for(const list of [enemies,bullets,orbs,effects,zones])for(const o of list){scene.remove(o.mesh);disposeCue(o.mesh);if(o.kind==='line'){o.mesh.geometry.dispose();o.mesh.material.dispose();}}if(boss)scene.remove(boss.mesh);enemies=[];bullets=[];orbs=[];effects=[];zones=[];boss=null;}
 function mapHalf(){return world?.half||DEFAULT_HALF;}
 function localBiome(x=player.x,z=player.z){return world?.regions?biomeAt(x,z):mapId;}
 // Bounded to the existing loadouts. Preview actors never participate in combat;
@@ -400,7 +403,7 @@ function resolveRelic(event,x,z,angle=0,range=0){
  const previous=relicBurst;relicBurst=event.kind==='ember'||previous;
  try{for(const e of foes){if(event.kind==='storm')lightning(x,z,e.x,e.z);if(event.slow)e.slow=Math.max(e.slow||0,event.slow);hurtEnemy(e,event.damage);if(state!=='playing')break;}}finally{relicBurst=previous;}
 }
-function finish(win){if(state!=='playing')return;state=win?'won':'lost';player.melee=null;player.scytheStepUntil=0;resetMobility(player,groundAt(player.x,player.z));restoreMobilityPose(hero);hero.position.y=player.y;adventureCamera._ready=false;sound.stopWeapons();sound.stopCreatures();mirage.reset();mirageVFX.clear();hero.userData.mirageConceal=0;if(heroId==='mirage'){hero.userData.mirageFade=0;for(const surface of hero.userData.mirageSurfaces||[]){surface.mesh.material.opacity=surface.opacity;surface.mesh.material.depthWrite=surface.depthWrite;surface.mesh.castShadow=surface.castShadow;}for(const b of bullets)scene.remove(b.mesh);bullets=[];}poison.reset();poisonVFX.clear();if(['wuling','mirage'].includes(heroId)){sound.stopWeapons();vfx.clear();}keys.clear();releaseStick();clearAttack();const first=win&&recordVictory(journal,mapId,player.weaponId);if(first)saveJournal();
+function finish(win){if(state!=='playing')return;environmentImpacts.clear();cinema.setUnderwater(0);state=win?'won':'lost';player.melee=null;player.scytheStepUntil=0;resetMobility(player,groundAt(player.x,player.z));restoreMobilityPose(hero);hero.position.y=player.y;adventureCamera._ready=false;sound.stopWeapons();sound.stopCreatures();mirage.reset();mirageVFX.clear();hero.userData.mirageConceal=0;if(heroId==='mirage'){hero.userData.mirageFade=0;for(const surface of hero.userData.mirageSurfaces||[]){surface.mesh.material.opacity=surface.opacity;surface.mesh.material.depthWrite=surface.depthWrite;surface.mesh.castShadow=surface.castShadow;}for(const b of bullets)scene.remove(b.mesh);bullets=[];}poison.reset();poisonVFX.clear();if(['wuling','mirage'].includes(heroId)){sound.stopWeapons();vfx.clear();}keys.clear();releaseStick();clearAttack();const first=win&&recordVictory(journal,mapId,player.weaponId);if(first)saveJournal();
  showRunResult(win,first);
 }
 function showRunResult(win,first=false){
@@ -534,7 +537,10 @@ function stepMirageOrb(b,dt,foes){
  for(const e of foes){const t=segmentBodyEntry(start,end,e,b.hitRadius);if(t!==null&&(t<stop||t===stop&&!contact)){stop=t;primary=e;obstacle=null;contact=true;}}
  const t=Math.max(0,stop-(contact&&!primary?1e-5:0));b.x=start.x+(end.x-start.x)*t;b.height=start.y+(end.y-start.y)*t;b.z=start.z+(end.z-start.z)*t;b.elapsed+=travel;b.life-=travel;
  b.mesh.position.set(b.x,b.height,b.z);b.mesh.rotation.y=Math.atan2(b.vx,b.vz);vfx.flight(b,travel);
- if(!contact&&b.life>1e-8)return;b.life=0;const angle=Math.atan2(b.vx,b.vz);
+ if(!b.waterContact){const water=waterCrossing(world,start,{x:b.x,y:b.height,z:b.z});if(water){environmentImpacts.water(b,water);b.waterContact=true;}}
+ if(!contact&&b.life>1e-8)return;
+ if(contact&&!primary){if(obstacle)environmentImpacts.hit(b,environmentImpacts.contact(obstacle,start,end,b.hitRadius));else if(roof&&Math.abs(stop-roof.distance/(Math.hypot(end.x-start.x,end.y-start.y,end.z-start.z)||1))<.001)environmentImpacts.hit(b,{...roof.point,normal:roof.normal,object:roof.object});else if(soil!==null&&Math.abs(stop-soil)<.001&&!b.waterContact)environmentImpacts.ground(b,world,b.x,b.z);}
+ b.life=0;const angle=Math.atan2(b.vx,b.vz);
  if(obstacle?.tactic&&obstacle.state==='standing')terrainHit(obstacle,b.damage,{x:b.x,z:b.z});
  if(primary){hurtEnemy(primary,b.damage,true,{kind:b.kind,angle});if(state!=='playing')return;heroSkills.onHit(primary);}
  if(state==='playing')mirage.burst(b.x,b.z,{...b.w,angle,impactY:b.height},primary);
@@ -557,7 +563,7 @@ function updateStatus(e,dt){
 }
 function addGravity(x,z,rank,w=null){const old=fields.find(f=>Math.hypot(f.x-x,f.z-z)<1);if(old){old.life=Math.max(old.life,1.2+rank*.2);return;}if(fields.length>=3)fields.shift();fields.push({x,z,r:2.3+rank*.3,rank,life:1.2+rank*.2,pulse:.22,w});if(!weaponRouteEffect(vfx,w,'field',x,z,0,{radius:2.3+rank*.3}))vfx.dark(x,z,2.3+rank*.3,true);}
 function updateFields(dt){for(const f of fields){f.life-=dt;f.pulse-=dt;if(f.pulse<=0){f.pulse=.42;if(!weaponRouteEffect(vfx,f.w,'field',f.x,f.z,0,{radius:f.r}))vfx.dark(f.x,f.z,f.r);}for(const e of [...enemies,...(boss?.alive?[boss]:[])]){if(!e.alive)continue;const d=Math.hypot(e.x-f.x,e.z-f.z);if(d<f.r&&d>.3){const amount=Math.min(d-.3,dt*(2+f.rank*.45)*(e===boss?.2:1));moveActor(world,e,(f.x-e.x)/d*amount,(f.z-e.z)/d*amount,e.size*.6);}}}fields=fields.filter(f=>f.life>0);}
-function updateRiftStrikes(dt){for(const r of riftStrikes){r.delay-=dt;if(r.delay>0)continue;for(const o of world.breakables||[])if(o.state==='standing'&&Math.hypot(o.x-r.x,o.z-r.z)<r.r+o.r)terrainHit(o,r.damage);vfx.riftCast(r.x,r.z,r.r,r.angle,true);weaponRouteEffect(vfx,r.w,r.echoing?'echo':'hit',r.x,r.z,r.angle,{radius:r.r});sound.impact('grimoire',true,1,r.x-player.x,r.z-player.z);for(const e of [...enemies,...(boss?.alive?[boss]:[])])if(e.alive&&Math.hypot(e.x-r.x,e.z-r.z)<r.r+e.size*.35){hurtEnemy(e,r.damage);if(state!=='playing')return;}if(r.echo){r.damage*=r.echo;r.echo=0;r.echoing=true;r.delay=.32;vfx.riftCast(r.x,r.z,r.r,r.angle,false);}else r.done=true;}riftStrikes=riftStrikes.filter(r=>!r.done);}
+function updateRiftStrikes(dt){for(const r of riftStrikes){r.delay-=dt;if(r.delay>0)continue;for(const o of world.breakables||[])if(o.state==='standing'&&Math.hypot(o.x-r.x,o.z-r.z)<r.r+o.r)terrainHit(o,r.damage);vfx.riftCast(r.x,r.z,r.r,r.angle,true);if(!r.echoing)environmentImpacts.ground({id:'grimoire'},world,r.x,r.z);weaponRouteEffect(vfx,r.w,r.echoing?'echo':'hit',r.x,r.z,r.angle,{radius:r.r});sound.impact('grimoire',true,1,r.x-player.x,r.z-player.z);for(const e of [...enemies,...(boss?.alive?[boss]:[])])if(e.alive&&Math.hypot(e.x-r.x,e.z-r.z)<r.r+e.size*.35){hurtEnemy(e,r.damage);if(state!=='playing')return;}if(r.echo){r.damage*=r.echo;r.echo=0;r.echoing=true;r.delay=.32;vfx.riftCast(r.x,r.z,r.r,r.angle,false);}else r.done=true;}riftStrikes=riftStrikes.filter(r=>!r.done);}
 function updateShadowSpells(dt){if(heroId!=='wraith')return;const near=()=>[...enemies,...(boss?.alive?[boss]:[])].filter(e=>e.alive&&Math.hypot(e.x-player.x,e.z-player.z)<14).sort((a,b)=>Math.hypot(a.x-player.x,a.z-player.z)-Math.hypot(b.x-player.x,b.z-player.z));
  for(const id of ['veil','chain','rift']){const rank=player.upgrades[id]||0;if(!rank)continue;player.spell[id]-=dt;if(player.spell[id]>0)continue;const foes=near();if(!foes.length)continue;player.spell[id]=id==='veil'?8:id==='chain'?7:9;const selected=id==='chain'?foes.slice(0,2+rank):foes.filter(e=>Math.hypot(e.x-player.x,e.z-player.z)<(id==='veil'?3.8:4.5));if(id==='rift'&&!selected.length){player.spell[id]=.5;continue;}
   if(id==='veil'){vfx.shadowSpell('veil',player.x,player.z);for(const e of selected){e.slow=Math.max(e.slow||0,2.5);hurtEnemy(e,10*rank);}}
@@ -800,7 +806,10 @@ function update(dt){const rollStart=['scout','wuling','mirage'].includes(heroId)
  for(const b of bullets){if(b.releaseDelay>0){if(player.dashTime>0||mirage.hidden){b.life=0;continue;}b.releaseDelay-=dt;b.x=player.x;b.z=player.z;if(b.releaseDelay>0)continue;const release=weaponLaunchPoint(b.kind);b.x=release.x;b.z=release.z;b.height=release.y;Object.assign(b,launchVelocity({x:b.x,y:b.height,z:b.z},b.aimPoint,b.speed));b.mesh.visible=true;companion?.order(Math.atan2(b.vx,b.vz));vfx.muzzle(b,b.x,b.z,Math.atan2(b.vx,b.vz),b.height,true);weaponRouteEffect(vfx,b,'cast',b.x,b.z,Math.atan2(b.vx,b.vz),{empowered:!!b.w?.miragePursuit});if(b.kind==='miasmalantern'){mirageVFX.event({kind:'mirageShot',x:b.x,z:b.z,angle:Math.atan2(b.vx,b.vz)});mirageSound(sound,'mirageShot');}else sound.shot('boomerang');}if(b.kind==='miasmalantern'){stepMirageOrb(b,dt,targets());if(state!=='playing')return;continue;}if(b.returnable&&!b.returning&&b.turnAt===0)beginReturn(b);const ox=b.x,oy=b.height??1.15,oz=b.z,travelDt=Math.min(dt,Math.max(0,b.life));let redirected=false;b.elapsed+=travelDt;
  if(b.returning){const catchPoint={x:player.x,y:(player.y||0)+eyeHeight*.76*(1-.45*(player.crouch||0)),z:player.z},d=Math.hypot(catchPoint.x-b.x,catchPoint.y-b.height,catchPoint.z-b.z);if(d<Math.max(.65,b.speed*travelDt)){b.life=0;weaponRouteEffect(vfx,b,'catch',b.x,b.z,Math.atan2(b.vx,b.vz));continue;}Object.assign(b,launchVelocity({x:b.x,y:b.height,z:b.z},catchPoint,b.speed));}
  else if(b.kind==='dark'&&b.target?.alive){const a=Math.atan2(b.target.x-b.x,b.target.z-b.z),blend=1-Math.exp(-dt*6);b.vx=T.MathUtils.lerp(b.vx,Math.sin(a)*b.speed,blend);b.vz=T.MathUtils.lerp(b.vz,Math.cos(a)*b.speed,blend);if(b.spatial){const v=launchVelocity({x:b.x,y:b.height,z:b.z},{x:b.target.x,y:(b.target.y||0)+(b.target.height||1.4)*.55,z:b.target.z},b.speed);b.vy=T.MathUtils.lerp(b.vy,v.vy,blend);}}
- b.x+=b.vx*travelDt;b.z+=b.vz*travelDt;if(b.spatial)b.height+=b.vy*travelDt;const soilEntry=b.spatial&&!b.returning?segmentGroundEntry({x:ox,y:oy,z:oz},{x:b.x,y:b.height,z:b.z},world.groundHeightAt,.04):null;if(soilEntry!==null){b.x=ox+(b.x-ox)*soilEntry;b.height=oy+(b.height-oy)*soilEntry;b.z=oz+(b.z-oz)*soilEntry;}b.mesh.position.set(b.x,b.height??.82,b.z);if(b.spatial)b.mesh.rotation.x=-Math.atan2(b.vy,Math.hypot(b.vx,b.vz));if(['shuriken','shadowblade'].includes(b.kind)){b.mesh.rotation.y+=dt*24;}else b.mesh.rotation.y=Math.atan2(b.vx,b.vz);const overheadHit=b.spatial&&!b.returning&&world.overhead.firstHit({x:ox,y:oy,z:oz},{x:b.x,y:b.height,z:b.z}),obstacle=!b.returning&&world.obstacles.find(o=>b.spatial?segmentHitsBody(ox,oy,oz,b.x,b.height,b.z,o,b.hitRadius):segmentDistance(o.x,o.z,ox,oz,b.x,b.z)<o.r+b.hitRadius),blocked=!b.returning&&(!!overheadHit||!!obstacle||b.spatial&&(b.height<.04||Math.abs(b.x)>mapHalf()-b.hitRadius||Math.abs(b.z)>mapHalf()-b.hitRadius)||!b.spatial&&!clearAt(world,b.x,b.z,b.hitRadius));if(blocked){if(obstacle?.tactic&&obstacle.state==='standing')terrainHit(obstacle,b.damage,{x:ox,z:oz});b.life=0;}
+ b.x+=b.vx*travelDt;b.z+=b.vz*travelDt;if(b.spatial)b.height+=b.vy*travelDt;const soilEntry=b.spatial&&!b.returning?segmentGroundEntry({x:ox,y:oy,z:oz},{x:b.x,y:b.height,z:b.z},world.groundHeightAt,.04):null;if(soilEntry!==null){b.x=ox+(b.x-ox)*soilEntry;b.height=oy+(b.height-oy)*soilEntry;b.z=oz+(b.z-oz)*soilEntry;}b.mesh.position.set(b.x,b.height??.82,b.z);if(b.spatial)b.mesh.rotation.x=-Math.atan2(b.vy,Math.hypot(b.vx,b.vz));if(['shuriken','shadowblade'].includes(b.kind)){b.mesh.rotation.y+=dt*24;}else b.mesh.rotation.y=Math.atan2(b.vx,b.vz);const overheadHit=b.spatial&&!b.returning&&world.overhead.firstHit({x:ox,y:oy,z:oz},{x:b.x,y:b.height,z:b.z}),obstacle=!b.returning&&world.obstacles.find(o=>b.spatial?segmentHitsBody(ox,oy,oz,b.x,b.height,b.z,o,b.hitRadius):segmentDistance(o.x,o.z,ox,oz,b.x,b.z)<o.r+b.hitRadius),blocked=!b.returning&&(!!overheadHit||!!obstacle||b.spatial&&(b.height<.04||Math.abs(b.x)>mapHalf()-b.hitRadius||Math.abs(b.z)>mapHalf()-b.hitRadius)||!b.spatial&&!clearAt(world,b.x,b.z,b.hitRadius));if(blocked){
+  if(obstacle)environmentImpacts.hit(b,environmentImpacts.contact(obstacle,{x:ox,y:oy,z:oz},{x:b.x,y:b.height,z:b.z},b.hitRadius));
+  else if(overheadHit)environmentImpacts.hit(b,{...overheadHit.point,normal:overheadHit.normal,object:overheadHit.object});
+  if(obstacle?.tactic&&obstacle.state==='standing')terrainHit(obstacle,b.damage,{x:ox,z:oz});b.life=0;}
  vfx.flight(b,dt);
  for(const e of targets()){if(!e.alive||b.hits.has(e.id??'boss')||b.life<=0||b.pierce<=0)continue;if(b.spatial?segmentHitsBody(ox,oy,oz,b.x,b.height,b.z,e,b.hitRadius):segmentDistance(e.x,e.z,ox,oz,b.x,b.z)<e.size+b.hitRadius){const contact=closeContact(bodyContact(ox,oy,oz,b.x,b.height??.82,b.z,e,b.hitRadius));b.hits.add(e.id??'boss');const strong=b.kind==='crossbow'&&registerCrossbowHit(player,e.id??'boss',time);hurtEnemy(e,b.damage*(strong?1.35:1),true,{kind:b.kind,angle:Math.atan2(b.vx,b.vz)});heroSkills.onHit(e);if(b.bounceOrigin){weaponRouteEffect(vfx,b,'bounce',e.x,e.z,Math.atan2(b.vx,b.vz),{x2:b.bounceOrigin.x,y2:b.bounceOrigin.y,z2:b.bounceOrigin.z,contact});b.bounceOrigin=null;}if(b.kind==='boomerang'){companion?.marked(e);if(!b.careCounted){b.careCounted=true;heroSkills.newHeroes.slingHit();}vfx.weaponContact('boomerang',e.x,e.z,Math.atan2(b.vx,b.vz),b.returning?2:0,contact);}inflictStatus(e,b);const visualHit=(e.id??'boss')+':'+b.returning;if(!b.visualHits.has(visualHit)){b.visualHits.add(visualHit);weaponRouteEffect(vfx,b,'hit',e.x,e.z,Math.atan2(b.vx,b.vz),{returning:b.returning,empowered:strong||!!b.w?.miragePursuit,combo:player.crossbowMark?.hits||0,targetSize:e.size,radius:b.radius,contact});}if(b.kind!=='miasmalantern')sound.impact(b.kind,strong,b.kind==='boomerang'&&b.returning?1:strong?1:0,e.x-player.x,e.z-player.z);if(b.kind==='shuriken'||b.kind==='shadowblade')vfx.bladeImpact(e.x,e.z,Math.atan2(b.vx,b.vz),b.kind==='shadowblade',contact);else if(b.kind==='rifle'||b.kind==='shotgun')vfx.enemyContact(ENEMY_VOICES[e.kind]?.texture,ENEMY_VOICES[e.kind]?.color||0xb8baa2,e.x,e.z,Math.atan2(b.vx,b.vz),b.kind==='shotgun',contact);if(b.kind==='crossbow'){vfx.boltImpact(e.x,e.z,strong,Math.atan2(b.vx,b.vz),contact);if(strong&&e.alive&&e!==boss){const d=Math.hypot(e.x-player.x,e.z-player.z)||1;moveActor(world,e,(e.x-player.x)/d*1.8,(e.z-player.z)/d*1.8,e.size*.6);e.mesh.position.set(e.x,e.y||0,e.z);e.stagger=Math.max(e.stagger||0,.3);e.hurt=.3;}}
  if(b.kind==='shade'){const marked=registerShadowHit(e,time);vfx.shadowMark(e.x,e.z,marked,contact);weaponRouteEffect(vfx,b,'mark',e.x,e.z,Math.atan2(b.vx,b.vz),{empowered:marked,combo:e.shadowMark?.hits||0,radius:b.markRadius,contact});if(marked){sound.spell('rift');hurtEnemy(e,b.markDamage);for(const other of targets())if(other!==e&&other.alive&&Math.hypot(other.x-e.x,other.z-e.z)<b.markRadius)hurtEnemy(other,b.markDamage*.5);}}
@@ -808,6 +817,14 @@ function update(dt){const rollStart=['scout','wuling','mirage'].includes(heroId)
  if(b.bounces>0){const next=targets().filter(q=>q.alive&&!b.hits.has(q.id??'boss')&&Math.hypot(q.x-e.x,q.z-e.z)<7).sort((a,c)=>Math.hypot(a.x-e.x,a.z-e.z)-Math.hypot(c.x-e.x,c.z-e.z))[0];if(next){const a=Math.atan2(next.x-e.x,next.z-e.z);b.x=e.x;b.z=e.z;b.vx=Math.sin(a)*b.speed;b.vz=Math.cos(a)*b.speed;if(b.spatial){const velocity=launchVelocity({x:b.x,y:b.height,z:b.z},{x:next.x,y:(next.y||0)+(next.height||1.4)*.55,z:next.z},b.speed);Object.assign(b,velocity);}b.damage*=.75;b.bounces--;b.bounceOrigin={x:contact.x,y:contact.y,z:contact.z};weaponRouteEffect(vfx,b,'bounce',e.x,e.z,a,{contact});b.life=Math.min(7,visibleWeaponRange(a,7,b.x,b.z))/b.speed;redirected=true;b.mesh.position.set(b.x,b.height??.82,b.z);break;}}
  b.pierce--;if(b.pierce<=0){if(b.returnable&&!b.returning)b.turnAt=0;else b.life=0;}
  }}
+ // Visual water contact uses the real segment and cannot run beyond a blocking tree/roof.
+ if(!b.returning&&!b.waterContact&&(b.life>0||blocked)){
+  const start={x:ox,y:oy,z:oz},end={x:b.x,y:b.height,z:b.z},water=waterCrossing(world,start,end);
+  let stop=1;if(obstacle)stop=segmentBodyEntry(start,end,obstacle,b.hitRadius)??1;
+  if(overheadHit)stop=Math.min(stop,Math.hypot(overheadHit.point.x-ox,overheadHit.point.y-oy,overheadHit.point.z-oz)/(Math.hypot(end.x-ox,end.y-oy,end.z-oz)||1));
+  if(water&&water.t<=stop){environmentImpacts.water(b,water);b.waterContact=true;}
+ }
+ if(soilEntry!==null&&!blocked&&!redirected&&b.life>0&&!b.waterContact)environmentImpacts.ground(b,world,b.x,b.z);
  if(soilEntry!==null&&!redirected)b.life=0;if(!redirected)b.life-=travelDt;if(!blocked&&b.returnable&&!b.returning&&(b.life<=1e-8||b.turnAt===0))beginReturn(b);
  }bullets=bullets.filter(b=>{if(b.life>0)return true;scene.remove(b.mesh);return false;});if(state!=='playing')return;updateCompanion(dt);if(state!=='playing')return;
  for(const z of zones){z.delay-=dt;z.life-=dt;z.mesh.material.opacity=z.kind==='meteor'?.25:z.delay>0?.58:.75;if(z.delay<=0){z.mesh.material.color.set(z.kind==='tide'?0x83d8d7:z.kind==='sand'?0xd2b47a:z.kind==='root'?0x8cac68:z.kind==='frost'?0x91d5ee:z.kind==='ember'?0xf47739:z.kind==='meteor'?0xffbc63:z.kind==='boss'?0xff6b48:z.kind==='hex'?0x57bc91:0xaa60cc);z.mist-=dt;if(['frost','ember'].includes(z.kind)&&z.mist<=0){z.mist=.3;if(z.kind==='frost'){for(let i=0;i<3;i++)vfx.particle('crystal',0xa4dcf2,z.x+Math.sin(i*2.1)*z.r*.55,groundAt(z.x+Math.sin(i*2.1)*z.r*.55,z.z+Math.cos(i*2.1)*z.r*.55)+.18,z.z+Math.cos(i*2.1)*z.r*.55,{life:.35,size:[.055,.24,.055],additive:false});}else vfx.particle('flame',0xf88c42,z.x,groundAt(z.x,z.z)+.35,z.z,{life:.4,size:[z.r*.35,.35,1],opacity:.6});}if(z.kind==='poison'&&z.mist<=0){z.mist=.3;vfx.mist(z.x,z.z,z.r);}if(!z.burst){z.burst=true;if(z.kind==='meteor'){vfx.fire(z.x,z.z,z.r,true);sound.spell('fire');z.mesh.visible=false;}else{if(z.visual){bossZoneEffect(vfx,z,groundAt);}else if(z.kind==='tide'){vfx.water(z.x,z.z,0,z.r);sound.water(true);}else if(z.kind==='root'||z.kind==='sand'){for(let i=0;i<9;i++){const a=i*2.4;vfx.particle('crystal',z.kind==='root'?0x83935e:0xb9a275,z.x+Math.sin(a)*z.r*.65,groundAt(z.x+Math.sin(a)*z.r*.65,z.z+Math.cos(a)*z.r*.65)+.1,z.z+Math.cos(a)*z.r*.65,{life:.6,size:[.12,.8,.12],velocity:[0,2.4,0],gravity:6,additive:false});}}else burst(z.kind==='frost'?'ice':z.kind==='ember'?'fire':z.kind==='boss'?'fire':z.kind==='hex'?'hex':'dark',z.x,z.z,z.r,!!z.source);if(z.source)enemySound({kind:z.source},'impact',z.x,z.z);}if(z.kind==='meteor')for(const e of targets())if(Math.hypot(e.x-z.x,e.z-z.z)<z.r)hurtEnemy(e,z.damage);}if(z.kind!=='meteor'&&mirage.decoy?.alive&&Math.hypot(mirage.decoy.x-z.x,mirage.decoy.z-z.z)<z.r+.4&&(z.decoyHitId!==mirage.decoy.id||time>=(z.decoyHitAt||0))){z.decoyHitId=mirage.decoy.id;z.decoyHitAt=time+.7;mirage.damageDecoy(z.damage);}if(z.kind!=='meteor'&&companion?.alive&&Math.hypot(companion.x-z.x,companion.z-z.z)<z.r+.3)companion.takeDamage(z.damage);if(z.kind!=='meteor'&&Math.hypot(player.x-z.x,player.z-z.z)<z.r+.4){hitPlayer(z.damage,z.x,z.z,z.kind);if(!mirage.hidden&&attackReachesPlayer(player,z.kind,groundAt(player.x,player.z))&&['hex','frost','tide'].includes(z.kind))player.hexSlow=Math.max(player.hexSlow,z.kind==='frost'?.8:1.2);}}}
@@ -817,14 +834,15 @@ function update(dt){const rollStart=['scout','wuling','mirage'].includes(heroId)
  for(const o of orbs){o.age=(o.age||0)+dt;const d=Math.hypot(o.x-player.x,o.z-player.z);if(d<3.5+(player.upgrades.magnet||0)*2||o.attract||o.age>=24||o.age>=12&&d<26){o.attract=true;const a=Math.atan2(player.x-o.x,player.z-o.z),s=Math.min(d,dt*15);o.x+=Math.sin(a)*s;o.z+=Math.cos(a)*s;}o.mesh.position.set(o.x,groundAt(o.x,o.z)+.45+Math.sin(time*3)*.08,o.z);o.mesh.rotation.y+=dt*2;if(d<.6){collectExperience(o.xp);o.dead=true;scene.remove(o.mesh);}}
  orbs=orbs.filter(o=>!o.dead);if(orbs.length>200){const merged=orbs.splice(0,orbs.length-199),keep=merged.shift();for(const o of merged){keep.xp+=o.xp;scene.remove(o.mesh);}keep.attract=true;orbs.push(keep);}updateSites(dt);if(state!=='playing')return;updateDiscoveries(dt);updateRoaming(dt);if(world.regions){if(!boss?.alive){const r=world.regions.find(r=>!r.cleared&&r.landmark.claimed&&Math.hypot(player.x-r.x,player.z-r.z)<18);if(r)spawnBoss(r.id);}}else if(time>=bossRun.nextAt&&!boss?.alive&&bossRun.defeated<3)spawnBoss();if(player.pending)upgrade();}
 function collectExperience(n){const previous=player.level;player.xpGain=(player.xpFlash>0?player.xpGain:0)+n;player.xpFlash=.9;grantExperience(player,n);if(player.level>previous){sound.level();vfx.rise(player.x,player.z,0x8ef9ff,2.2);}else sound.pickup();}
-function updateEffects(dt){vfx.update(dt);for(const e of effects){e.life-=dt;const p=1-e.life/e.max;if(e.kind==='line')continue;if(e.kind==='lane'){e.mesh.material.opacity=.5+.15*p;continue;}if(e.kind==='cue'||e.kind==='target')e.mesh.material.opacity=.48+.2*p;const scale=e.telegraph?e.r:e.kind==='spike'?e.r*Math.sin(Math.PI*Math.min(.99,p)):e.r*(1-p*.7);e.mesh.scale.setScalar(Math.max(.001,scale));if(e.kind==='cue'||e.kind==='target')fitGroundCue(e.mesh,world.groundHeightAt);if(e.vy)e.mesh.position.y+=dt*e.vy;if(e.vx)e.mesh.position.x+=dt*e.vx;if(e.vz)e.mesh.position.z+=dt*e.vz;}effects=effects.filter(e=>{if(e.life>0)return true;scene.remove(e.mesh);disposeCue(e.mesh);if(e.kind==='line'){e.mesh.geometry.dispose();e.mesh.material.dispose();}return false;});}
+function updateEffects(dt){vfx.update(dt);environmentImpacts.update(dt);for(const e of effects){e.life-=dt;const p=1-e.life/e.max;if(e.kind==='line')continue;if(e.kind==='lane'){e.mesh.material.opacity=.5+.15*p;continue;}if(e.kind==='cue'||e.kind==='target')e.mesh.material.opacity=.48+.2*p;const scale=e.telegraph?e.r:e.kind==='spike'?e.r*Math.sin(Math.PI*Math.min(.99,p)):e.r*(1-p*.7);e.mesh.scale.setScalar(Math.max(.001,scale));if(e.kind==='cue'||e.kind==='target')fitGroundCue(e.mesh,world.groundHeightAt);if(e.vy)e.mesh.position.y+=dt*e.vy;if(e.vx)e.mesh.position.x+=dt*e.vx;if(e.vz)e.mesh.position.z+=dt*e.vz;}effects=effects.filter(e=>{if(e.life>0)return true;scene.remove(e.mesh);disposeCue(e.mesh);if(e.kind==='line'){e.mesh.geometry.dispose();e.mesh.material.dispose();}return false;});}
 function viewDodge(){return ['menu','won','lost'].includes(state)?null:adventureDodgePose(heroId,player,adventureCamera.yaw);}
 function updateCamera(dt){const menuMode=state==='menu',pose=viewDodge(),first=adventureCamera.mode==='first',seconds=state==='playing'||menuMode?dt:0;
  const fov=(first?70:58)+(pose?.fov||0)*(first?1:.35);if(camera.fov!==fov){camera.fov=fov;camera.updateProjectionMatrix();}
  const posture=(player.crouch||0)*eyeHeight*(1-MOBILITY.crouchRatio),lift=player.y||0;const shoulderHeight=eyeHeight*.84-posture*.8+(pose?.thirdHeight||0);
  adventureCamera.update(seconds,{x:player.x,y:lift-Math.min(.55,player.waterDepth||0),z:player.z},world.obstacles,{eyeHeight:eyeHeight-posture+(pose?.firstHeight||0),shoulderHeight,groundHeight:world.groundHeightAt,followRate:pose?24:12,roll:first?pose?.roll||0:0});
  if(!first){const hit=world.overhead.firstHit({x:player.x,y:lift+shoulderHeight-Math.min(.55,player.waterDepth||0),z:player.z},camera.position,.25);if(hit)adventureCamera.retract(hit.point);}
- const edge=$('#dodge-view');edge.style.opacity=first&&pose?pose.edge:0;if(pose)edge.dataset.kind=pose.kind;
+ const submerged=heroId==='tide'&&pose?.kind==='dive'?(pose.weight||0)*(first?1:.62):0;cinema.setUnderwater(submerged,time);
+ const edge=$('#dodge-view');edge.style.opacity=submerged>0?submerged*.30:first&&pose?pose.edge:0;if(pose)edge.dataset.kind=pose.kind;
  sun.position.copy(environmentLighting.direction).multiplyScalar(38);sun.position.x+=player.x;sun.position.z+=player.z;sun.target.position.set(player.x,0,player.z);const shadowSpan=menuMode?18:28;if(sun.shadow.camera.right!==shadowSpan){Object.assign(sun.shadow.camera,{left:-shadowSpan,right:shadowSpan,top:shadowSpan,bottom:-shadowSpan});sun.shadow.camera.updateProjectionMatrix();renderer.shadowMap.needsUpdate=true;}}
 function resetMouseLook(){freeMousePoint=null;if(state!=='playing'){if(mouseLockRequest)mouseLockRequest.cancelled=true;mouseWasLocked=false;if(document.pointerLockElement===canvas){mouseReleasedAt=performance.now();document.exitPointerLock();}}}
 async function requestMouseLook(event,manual=false){
@@ -1028,4 +1046,4 @@ function frame(now){
  if(!active&&now-last<1000/30-.5){requestAnimationFrame(frame);return;}
  const frameSeconds=(now-last)/1000,dt=Math.max(0,Math.min(.04,frameSeconds));last=now;if(renderWidth!==innerWidth||renderHeight!==innerHeight||renderDpr!==devicePixelRatio){resizeRendering();renderBudget.reset();}else if(renderBudget.sample(frameSeconds,active))resizeRendering();if(active){shadowClock+=dt;const shadowInterval=state==='menu'||touch||renderBudget.quality<.8?1/20:1/30;if(shadowClock>=shadowInterval){renderer.shadowMap.needsUpdate=true;shadowClock%=shadowInterval;}}if(state==='playing'||state==='menu'){sceneryTime+=dt;animateWorld(world,sceneryTime,player.x,player.z);}sound.update(dt,{map:world.activeBiome||localBiome(),seamless:!!world.regions,mode:state,boss:!!boss?.alive,pressure:state==='playing'?Math.max(world.roaming?.some(s=>s.state==='running')?.5:0,localBiome()==='sand'&&world.sandstorm?.active ? .42 : localBiome()==='coast'&&world.tide?.high ? .30 : 0,battlePhase.mood,Math.min(1,enemies.filter(e=>e.alive&&Math.hypot(e.x-player.x,e.z-player.z)<12).length/12)):0});if(state==='playing'){update(dt);updateEffects(dt);}else if(state==='menu'){if(companionMesh){companionMesh.rotation.y=heroPreview.landscapeYaw-.2;animateBadger(companionMesh,now/1000,0);}animateActor(hero,now/1000,0);hero.rotation.y=heroPreview.landscapeYaw+heroPreview.yaw+Math.sin(now/3000)*.07;world.light.intensity=9+Math.sin(now/100)*1.5;}for(let i=0;i<world.motes.length;i++){const m=world.motes[i];m.position.y+=Math.sin(now/1200+i)*dt*.15;m.scale.setScalar(.5+Math.sin(now/550+i)*.3);}updateAdventureCampfire(world,sceneryTime);animateAdventureGroundDetail(sceneryTime);
  if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0){$('#toast').style.opacity=0;syncMobileNotices();}}if(state==='playing'){if(encounterTime>0){encounterTime-=dt;if(encounterTime<=0){$('#encounter').hidden=true;currentIntroduction=null;nextIntroductionAt=time+(touch?35:20);syncMobileNotices();}}else showNextIntroduction();}shake=Math.max(0,shake-dt);if(active){environmentLighting.update(mapId,world.regions?biomeWeights(player.x,player.z):null,dt,state==='menu'?0:time);updateWaterLighting(mapId,environmentLighting);updateWorldLightShafts(world,sceneryTime,environmentLighting);if(world.forestMist)world.forestMist.visible=renderBudget.quality>=.8;}updateCamera(dt);uiTime+=dt;if(uiTime>.1&&state!=='menu'){uiTime=0;updateHUD();}contactShadow.position.set(player.x,(player.groundHeight||0)+.018,player.z);if(adventureCamera.mode!=='first')fitGroundSurface(contactShadow,world.groundHeightAt,{centerHeight:true});contactShadow.visible=(player.waterDepth||0)<.08;contactShadow.material.opacity=(heroId==='wraith'?.24:.52)*(heroId==='tide'?1-(viewDodge()?.weight||0):heroId==='mirage'?1-(hero.userData.mirageFade||0):1);firstPerson.update(time,active?dt:0,{moving:player.dashTime>0||airborne(player)?0:Math.min(1,Math.hypot(player.vx||0,player.vz||0)/6.5),strafe:player.dashTime>0?0:(-(player.vx||0)*Math.cos(adventureCamera.yaw)+(player.vz||0)*Math.sin(adventureCamera.yaw))/6.5,yaw:adventureCamera.yaw,pitch:adventureCamera.pitch,attack:hero.userData.shoot,dodgePose:viewDodge(),visible:state!=='menu'&&adventureCamera.mode==='first'});if(state==='playing'&&dt>0)vfx.trackMelee(player.dashTime>0?null:adventureCamera.mode==='first'?firstPerson.model:hero.userData.gun,player.weaponId,hero.userData.shotSerial,hero.userData.attackAge,hero.userData.reloadDuration);else if(state!=='paused')vfx.meleeEdge=null;atmosphere.update(sceneryTime,camera,{mapId:world.activeBiome||localBiome(),visible:state!=='menu',skyColor:hemisphere.color,fogColor:scene.fog.color,sunColor:sun.color,sunDirection:environmentLighting.direction,sunStrength:Math.min(1,sun.intensity/3.25),skyStrength:.55+.45*environmentLighting.day});$('#crosshair').hidden=state!=='playing';$('#crosshair').classList.toggle('confirmed',time<hitConfirmUntil);if(state!=='playing'&&document.pointerLockElement===canvas)document.exitPointerLock();syncViewUI();cinema.render(renderWorld,renderBudget.quality);requestAnimationFrame(frame);}requestAnimationFrame(frame);
-window.game3d={surfaceReady,get environmentLighting(){return environmentLighting;},get adventureCamera(){return adventureCamera;},get firstPerson(){return firstPerson;},get atmosphere(){return atmosphere;},setView,get cinema(){return cinema;},get mirage(){return mirage;},get mirageVFX(){return mirageVFX;},get poison(){return poison;},get poisonVFX(){return poisonVFX;},get companion(){return companion;},get companionMesh(){return companionMesh;},get encounter(){return{...battlePhase,hunt:hunt?{cycle:hunt.cycle,remaining:hunt.members.filter(e=>e.alive).length,rewarded:hunt.rewarded}:null};},get orbs(){return orbs;},get heroSkills(){return heroSkills;},get renderQuality(){return renderBudget.quality;},get audio(){return sound;},get hero(){return hero;},get state(){return state;},get player(){return player;},get enemies(){return enemies;},get boss(){return boss;},get bossRun(){return {...bossRun};},get world(){return world;},get time(){return time;},get renderer(){return renderer;},get camera(){return camera;},get controls(){return aimInput;},get vfx(){return vfx;},get bullets(){return bullets;},get fields(){return fields;},get riftStrikes(){return riftStrikes;},get zones(){return zones;},start,prepareStart,pause,resume,menu,dash,jump,spawn,spawnBoss,step(dt){if(state==='playing')update(dt);},grant(n){collectExperience(n);upgrade();},damage:hitPlayer,hurtEnemy,select(hero,map,index){heroId=Object.hasOwn(HERO_LOADOUTS,hero)?hero:'silver';mapId=Object.hasOwn(MAPS,map)?map:'forest';weaponIndex=Number.isInteger(index)&&index>=0&&index<HERO_LOADOUTS[heroId].length?index:0;renderChoices();build();}};
+window.game3d={surfaceReady,get environmentLighting(){return environmentLighting;},get adventureCamera(){return adventureCamera;},get firstPerson(){return firstPerson;},get atmosphere(){return atmosphere;},setView,get cinema(){return cinema;},get environmentImpacts(){return environmentImpacts;},get mirage(){return mirage;},get mirageVFX(){return mirageVFX;},get poison(){return poison;},get poisonVFX(){return poisonVFX;},get companion(){return companion;},get companionMesh(){return companionMesh;},get encounter(){return{...battlePhase,hunt:hunt?{cycle:hunt.cycle,remaining:hunt.members.filter(e=>e.alive).length,rewarded:hunt.rewarded}:null};},get orbs(){return orbs;},get heroSkills(){return heroSkills;},get renderQuality(){return renderBudget.quality;},get audio(){return sound;},get hero(){return hero;},get state(){return state;},get player(){return player;},get enemies(){return enemies;},get boss(){return boss;},get bossRun(){return {...bossRun};},get world(){return world;},get time(){return time;},get renderer(){return renderer;},get camera(){return camera;},get controls(){return aimInput;},get vfx(){return vfx;},get bullets(){return bullets;},get fields(){return fields;},get riftStrikes(){return riftStrikes;},get zones(){return zones;},start,prepareStart,pause,resume,menu,dash,jump,spawn,spawnBoss,step(dt){if(state==='playing')update(dt);},grant(n){collectExperience(n);upgrade();},damage:hitPlayer,hurtEnemy,select(hero,map,index){heroId=Object.hasOwn(HERO_LOADOUTS,hero)?hero:'silver';mapId=Object.hasOwn(MAPS,map)?map:'forest';weaponIndex=Number.isInteger(index)&&index>=0&&index<HERO_LOADOUTS[heroId].length?index:0;renderChoices();build();}};

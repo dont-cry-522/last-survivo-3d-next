@@ -6,7 +6,7 @@ import {polishEnvironmentModels} from '../environment-props.js';
 import {installForestVista} from '../forest-vista.js';
 import {AdventureCamera} from '../adventure-camera.js';
 import {createOverheadQuery,mobilityCeiling,canMoveBelowOverhead,needsMobilityCeiling} from '../adventure-overheads.js';
-import {installBiomePlaces} from '../biome-places.js?v=196';
+import {installBiomePlaces} from '../biome-places.js?v=197';
 
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
 const close=(a,b)=>assert(Math.abs(a-b)<1e-6,`${a} differs from ${b}`);

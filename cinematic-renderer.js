@@ -25,8 +25,23 @@ const finishShader=`varying vec2 vUv;
 uniform sampler2D sceneColor;
 uniform sampler2D glowColor;
 uniform float glowStrength;
+uniform float underwater;
+uniform float waterTime;
+uniform vec2 texel;
 void main(){
- vec3 color=texture2D(sceneColor,vUv).rgb;
+ vec2 uv=vUv;
+ float edge=smoothstep(.12,.72,length(vUv-.5));
+ if(underwater>.001)uv+=vec2(sin(vUv.y*23.+waterTime*1.8),cos(vUv.x*19.-waterTime*1.4))*.0025*underwater*(.35+edge);
+ uv=clamp(uv,texel,1.-texel);
+ vec3 color=texture2D(sceneColor,uv).rgb;
+ if(underwater>.001){
+  vec2 blur=texel*(1.3+edge*2.3)*underwater;
+  vec3 soft=(texture2D(sceneColor,clamp(uv+vec2(blur.x,0.),texel,1.-texel)).rgb+texture2D(sceneColor,clamp(uv-vec2(blur.x,0.),texel,1.-texel)).rgb+texture2D(sceneColor,clamp(uv+vec2(0.,blur.y),texel,1.-texel)).rgb+texture2D(sceneColor,clamp(uv-vec2(0.,blur.y),texel,1.-texel)).rgb)*.25;
+  color=mix(color,soft,(.34+edge*.28)*underwater);
+  color=mix(color*mix(vec3(1.),vec3(.69,.94,1.02),underwater),vec3(.055,.23,.27),(.13+edge*.21)*underwater);
+  float caustic=pow(max(0.,sin(vUv.x*13.+sin(vUv.y*11.+waterTime)*1.7-waterTime*.8)),14.);
+  color+=vec3(.025,.07,.075)*caustic*underwater*(.3+.7*vUv.y);
+ }
  // Only bright highlights bloom; black smoke, silhouettes and danger markings stay crisp.
  color+=texture2D(glowColor,vUv).rgb*glowStrength;
  gl_FragColor=vec4(color,1.);
@@ -40,7 +55,7 @@ void main(){
 // Unsupported float targets retain the normal renderer; no additional asset downloads.
 export class CinematicRenderer{
  constructor(renderer,{mobile=false}={}){
-  this.renderer=renderer;this.mobile=mobile;this.disposed=false;this.enabled=renderer.extensions.has('EXT_color_buffer_float');
+  this.renderer=renderer;this.mobile=mobile;this.disposed=false;this.underwater=0;this.waterTime=0;this.enabled=renderer.extensions.has('EXT_color_buffer_float');
   this.originalAutoReset=renderer.info.autoReset;renderer.info.autoReset=false;
   if(!this.enabled)return;
   const options={type:T.HalfFloatType,format:T.RGBAFormat,minFilter:T.LinearFilter,magFilter:T.LinearFilter};
@@ -50,15 +65,19 @@ export class CinematicRenderer{
   this.glowA=new T.WebGLRenderTarget(1,1,{...options,depthBuffer:false});
   this.glowB=new T.WebGLRenderTarget(1,1,{...options,depthBuffer:false});
   this.blur=new T.ShaderMaterial({vertexShader,fragmentShader:blurShader,depthTest:false,depthWrite:false,toneMapped:false,uniforms:{source:{value:null},direction:{value:new T.Vector2()},extract:{value:0}}});
-  this.finish=new T.ShaderMaterial({vertexShader,fragmentShader:finishShader,depthTest:false,depthWrite:false,uniforms:{sceneColor:{value:this.sceneTarget.texture},glowColor:{value:this.glowB.texture},glowStrength:{value:0}}});
+  this.finish=new T.ShaderMaterial({vertexShader,fragmentShader:finishShader,depthTest:false,depthWrite:false,uniforms:{sceneColor:{value:this.sceneTarget.texture},glowColor:{value:this.glowB.texture},glowStrength:{value:0},underwater:{value:0},waterTime:{value:0},texel:{value:new T.Vector2(1,1)}}});
   // A single oversized triangle covers the same viewport without duplicate
   // fragment-quad work along the diagonal of a two-triangle fullscreen plane.
   const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute([-1,-1,0,3,-1,0,-1,3,0],3));geometry.setAttribute('uv',new T.Float32BufferAttribute([0,0,2,0,0,2],2));
   this.quad=new T.Mesh(geometry,this.finish);this.quad.frustumCulled=false;
   this.screen=new T.Scene();this.screen.add(this.quad);this.camera=new T.Camera();this.size=new T.Vector2();
  }
+ setUnderwater(strength,time=0){this.underwater=Math.max(0,Math.min(1,Number.isFinite(strength)?strength:0));this.waterTime=Number.isFinite(time)?time:0;}
  render(draw,quality=1){
   const r=this.renderer;r.info.reset();
+  // Low-budget/WebGL fallback affects only the scene canvas, never HUD text or controls.
+  const fallback=!this.enabled||quality<.8;
+  if(r.domElement?.style)r.domElement.style.filter=fallback&&this.underwater>.001?`blur(${(.8*this.underwater).toFixed(2)}px) saturate(.82)` : '';
   if(!this.enabled||this.disposed||quality<.8){
    // Release full-sized HDR buffers while the ordinary renderer handles a slow device.
    if(this.enabled&&!this.disposed&&this.sceneTarget.width>1)for(const target of [this.sceneTarget,this.glowA,this.glowB])target.setSize(1,1);
@@ -66,6 +85,7 @@ export class CinematicRenderer{
   }
   r.getDrawingBufferSize(this.size);
   const width=Math.max(1,this.size.x),height=Math.max(1,this.size.y),smallW=Math.max(1,Math.ceil(width/4)),smallH=Math.max(1,Math.ceil(height/4));
+  this.finish.uniforms.underwater.value=this.underwater;this.finish.uniforms.waterTime.value=this.waterTime;this.finish.uniforms.texel.value.set(1/width,1/height);
   const resized=this.sceneTarget.width!==width||this.sceneTarget.height!==height;
   // Leave highlights and tone mapping intact under moderate load; shed the
   // extra HDR multisample storage/resolve first. Restore it only at full quality.
@@ -85,6 +105,7 @@ export class CinematicRenderer{
  }
  dispose(){
   if(this.disposed)return;this.disposed=true;
+  if(this.renderer.domElement?.style)this.renderer.domElement.style.filter='';
   for(const resource of [this.sceneTarget,this.glowA,this.glowB,this.blur,this.finish,this.quad?.geometry])resource?.dispose();
   this.renderer.info.autoReset=this.originalAutoReset;
  }

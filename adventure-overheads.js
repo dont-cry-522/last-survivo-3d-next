@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {bodyHeight} from './adventure-mobility.js?v=196';
+import {bodyHeight} from './adventure-mobility.js?v=197';
 
 const ceilingOffsets=[[0,0],[.3,0],[-.3,0],[0,.3],[0,-.3]];
 // Natural soil elevation is not an airborne/platform posture. Avoid raycasting
@@ -73,6 +73,7 @@ export function createOverheadQuery(world){
   // Clearance retracts along the segment; it does not expand a roof's footprint.
   const distance=Math.max(0,hits[0].distance-Math.max(0,clearance));
   const point=raycaster.ray.at(distance,direction);
-  return{point:{x:point.x,y:point.y,z:point.z},distance};
+  const normal=hits[0].face?.normal.clone().transformDirection(hits[0].object.matrixWorld);if(normal?.dot(raycaster.ray.direction)>0)normal.negate();
+  return{point:{x:point.x,y:point.y,z:point.z},distance,normal,object:hits[0].object};
  }};
 }

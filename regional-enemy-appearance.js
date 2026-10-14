@@ -1,8 +1,8 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot} from './enemy-appearance.js?v=196';
+import {updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot} from './enemy-appearance.js?v=197';
 
-import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=196';
+import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=197';
 
 // Bounded shared templates; every moving part is a batch, not a collection of
 // decorative meshes. Only joints move after construction.

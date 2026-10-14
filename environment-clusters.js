@@ -1,10 +1,10 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries,toCreasedNormals} from './vendor/BufferGeometryUtils.js';
-import {naturalRockGeometry} from './biome-scenery.js?v=196';
-import {batchedSurfaceMaterial,prepareBatchedSurface,wornStoneBlock} from './environment-props.js?v=196';
-import {addTree} from './tree-scenery.js?v=196';
-import {bridgeContains} from './coast.js?v=196';
-import {seeded,segmentDistance} from './rules.js?v=196';
+import {naturalRockGeometry} from './biome-scenery.js?v=197';
+import {batchedSurfaceMaterial,prepareBatchedSurface,wornStoneBlock} from './environment-props.js?v=197';
+import {addTree} from './tree-scenery.js?v=197';
+import {bridgeContains} from './coast.js?v=197';
+import {seeded,segmentDistance} from './rules.js?v=197';
 
 const templates=new Map(),finishes=new Map(),BIOMES=['forest','snow','ash','sand','coast'];
 function finish(kind){

@@ -1,8 +1,8 @@
-import{meleeSwing}from'./weapon-performance.js?v=196';
+import{meleeSwing}from'./weapon-performance.js?v=197';
 import * as T from './vendor/three.module.js';
-import {flatGround,fitGroundSurface,disposeGroundSurface} from './ground-cues.js?v=196';
-import{shadowCrescentGeometry}from'./shadow-weapons.js?v=196';
-import{spellShapes,streakTexture,crestTexture}from'./spell-shapes.js?v=196';
+import {flatGround,fitGroundSurface,disposeGroundSurface} from './ground-cues.js?v=197';
+import{shadowCrescentGeometry}from'./shadow-weapons.js?v=197';
+import{spellShapes,streakTexture,crestTexture}from'./spell-shapes.js?v=197';
 
 // Three bowed tongues share one draw and one texture. A ground-level viewer
 // never sees the whole flame disappear edge-on, as with a single flat card.
@@ -37,6 +37,12 @@ function vaporTexture(){
  for(let i=0;i<7;i++){const a=i*2.39996,d=12+i*2.5,x=64+Math.cos(a)*d,y=64+Math.sin(a)*d*.7,r=23+(i%3)*5,g=c.createRadialGradient(x,y,2,x,y,r);g.addColorStop(0,'rgba(255,255,255,.25)');g.addColorStop(.5,'rgba(255,255,255,.13)');g.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=g;c.fillRect(0,0,128,128);}
  return new T.CanvasTexture(canvas);
 }
+function rippleTexture(){
+ if(typeof document==='undefined')return null;
+ const canvas=document.createElement('canvas');canvas.width=canvas.height=128;const c=canvas.getContext('2d'),image=c.createImageData(128,128);
+ for(let y=0;y<128;y++)for(let x=0;x<128;x++){const dx=(x-63.5)/64,dy=(y-63.5)/64,a=Math.atan2(dy,dx),r=Math.hypot(dx,dy),ridge=.75+Math.sin(a*7)*.009,alpha=Math.exp(-(((r-ridge)/.025)**2))*(.3+.7*Math.sin(a*3+.5)**2),i=(y*128+x)*4;image.data[i]=image.data[i+1]=image.data[i+2]=255;image.data[i+3]=Math.round(alpha*190);}
+ c.putImageData(image,0,0);return new T.CanvasTexture(canvas);
+}
 
 // Optional final contact argument: {x,y,z,normal,direction,compact}. Direction
 // points into the target; normal points out. Missing fields keep the legacy yaw/height.
@@ -61,8 +67,8 @@ export class SkillVFX{
  constructor(scene,{mobile=false,groundHeight=flatGround}={}){
   this.groundHeight=groundHeight;
   this.scene=scene;this.limit=mobile?110:190;this.active=[];this.pool=[];this.materials=new Map();
-  this.crestTexture=crestTexture();
-  this.flameTexture=flameTexture();this.shadowTexture=shadowTexture();this.vaporTexture=vaporTexture();this.streakTexture=streakTexture();this.geometry={...spellShapes(),ribbon:new T.PlaneGeometry(1,1),droplet:new T.SphereGeometry(1,10,6),stone:new T.DodecahedronGeometry(1,0),waterArc:new T.RingGeometry(.89,1,24,1,Math.PI*.12,Math.PI*.76),ember:new T.IcosahedronGeometry(1,0),crystal:new T.ConeGeometry(1,2,5),flame:flameGeometry(),veil:new T.PlaneGeometry(2,2),vapor:new T.PlaneGeometry(2,2),smoke:new T.SphereGeometry(1,7,5),ray:new T.BoxGeometry(1,1,1)};
+  this.crestTexture=crestTexture();this.rippleTexture=rippleTexture();
+  this.flameTexture=flameTexture();this.shadowTexture=shadowTexture();this.vaporTexture=vaporTexture();this.streakTexture=streakTexture();this.geometry={...spellShapes(),ripple:new T.PlaneGeometry(2,2),ribbon:new T.PlaneGeometry(1,1),droplet:new T.SphereGeometry(1,10,6),stone:new T.DodecahedronGeometry(1,0),waterArc:new T.RingGeometry(.89,1,24,1,Math.PI*.12,Math.PI*.76),ember:new T.IcosahedronGeometry(1,0),crystal:new T.ConeGeometry(1,2,5),flame:flameGeometry(),veil:new T.PlaneGeometry(2,2),vapor:new T.PlaneGeometry(2,2),smoke:new T.SphereGeometry(1,7,5),ray:new T.BoxGeometry(1,1,1)};
  }
  particle(shape,color,x,y,z,{life=.4,size=[.1,.1,.1],velocity=[0,0,0],opacity=.9,additive=true,grow=false,gravity=0,spin=0,orbit=null,priority=0,motion='',roll=0,delay=0,endColor=null}={}){
   if(this.active.length>=this.limit){let victim=-1,lowest=priority;for(let i=0;i<this.active.length;i++)if(this.active[i].priority<lowest){victim=i;lowest=this.active[i].priority;if(lowest===0)break;}if(victim<0)return null;const old=this.active.splice(victim,1)[0];this.scene.remove(old.mesh);this.pool.push(old.mesh);}
@@ -70,9 +76,9 @@ export class SkillVFX{
   mesh.geometry=this.geometry[shape];mesh.material.color.set(color);mesh.material.opacity=opacity;mesh.material.blending=additive?T.AdditiveBlending:T.NormalBlending;
   // These are open sheets: a second transparent back-face pass cannot add volume.
   // Reset on every checkout, because the same mesh may next become a closed shard.
-  mesh.material.forceSinglePass=['flame','veil','vapor','crest','sweep','claw','waterArc','ribbon'].includes(shape);
-  const map=shape==='flame'?this.flameTexture:shape==='veil'?this.shadowTexture:shape==='vapor'?this.vaporTexture:shape==='crest'?this.crestTexture:['sweep','claw','ribbon'].includes(shape)?this.streakTexture:null;if(mesh.material.map!==map){mesh.material.map=map;mesh.material.needsUpdate=true;}const vertexColors=shape==='shard';if(mesh.material.vertexColors!==vertexColors){mesh.material.vertexColors=vertexColors;mesh.material.needsUpdate=true;}
-  mesh.position.set(x,y,z);mesh.rotation.set(['veil','vapor','waterArc'].includes(shape)?-Math.PI/2:0,shape==='flame'?Math.PI/4:0,0);mesh.scale.set(...size);mesh.visible=delay<=0;mesh.frustumCulled=false;this.scene.add(mesh);
+  mesh.material.forceSinglePass=['flame','veil','vapor','crest','sweep','claw','waterArc','ribbon','ripple'].includes(shape);
+  const map=shape==='ripple'?this.rippleTexture:shape==='flame'?this.flameTexture:shape==='veil'?this.shadowTexture:shape==='vapor'?this.vaporTexture:shape==='crest'?this.crestTexture:['sweep','claw','ribbon'].includes(shape)?this.streakTexture:null;if(mesh.material.map!==map){mesh.material.map=map;mesh.material.needsUpdate=true;}const vertexColors=shape==='shard';if(mesh.material.vertexColors!==vertexColors){mesh.material.vertexColors=vertexColors;mesh.material.needsUpdate=true;}
+  mesh.position.set(x,y,z);mesh.rotation.set(['veil','vapor','waterArc','ripple'].includes(shape)?-Math.PI/2:0,shape==='flame'?Math.PI/4:0,0);mesh.scale.set(...size);mesh.visible=delay<=0;mesh.frustumCulled=false;this.scene.add(mesh);
   const p={mesh,shape,life,max:life,size,velocity,opacity:shape==='flame'?opacity*.76:opacity,grow,gravity,spin,orbit,priority,motion,roll,delay,fromColor:endColor===null?null:mesh.material.color.clone(),endColor:endColor===null?null:new T.Color(endColor)};this.active.push(p);this.animate(p,0);return mesh;
  }
  // Only these entry points accept height above ground. particle/segment and all
@@ -80,7 +86,7 @@ export class SkillVFX{
  groundParticle(shape,color,x,y,z,options={},groundHeight=this.groundHeight){
   const mesh=this.particle(shape,color,x,y+groundHeight(x,z),z,options);if(!mesh)return mesh;
   const p=this.active.at(-1),velocity=options.velocity||[0,0,0];
-  if(['veil','vapor','waterArc'].includes(shape)&&velocity[1]===0&&!options.gravity&&!options.spin&&!options.roll){
+  if(['veil','vapor','waterArc','ripple'].includes(shape)&&velocity[1]===0&&!options.gravity&&!options.spin&&!options.roll){
    p.groundHeight=groundHeight;p.groundY=groundHeight(x,z);fitGroundSurface(mesh,groundHeight,{centerHeight:true});
   }
   return mesh;
@@ -95,6 +101,7 @@ export class SkillVFX{
   else if(p.motion==='combust'){const ignite=Math.min(1,.25+progress*8);p.mesh.scale.set(p.size[0]*(.65+.55*Math.sin(Math.PI*progress)),p.size[1]*(.42+progress*.8),p.size[0]*(.48+.35*Math.sin(Math.PI*progress)));p.mesh.material.opacity=p.opacity*ignite*(1-progress)**.8;}
   else if(p.motion==='discharge'){p.mesh.material.opacity=p.opacity*Math.exp(-progress*3.5)*(.7+.3*Math.cos(progress*18)**2);p.mesh.scale.set(p.size[0]*(1-progress*.45),p.size[1],p.size[2]*(1-progress*.45));}
   else if(p.motion==='implode'){const stretch=Math.sin(Math.PI*Math.min(1,progress*1.25));p.mesh.scale.set(p.size[0]*(1-progress*.7),p.size[1]*(.55+stretch*.6),p.size[2]);p.mesh.material.opacity=p.opacity*Math.sin(Math.PI*Math.min(1,.12+progress*.88));}
+  else if(p.motion==='ripple'){const radius=.2+progress*1.3;p.mesh.scale.set(p.size[0]*radius,p.size[1]*radius,p.size[2]);p.mesh.material.opacity=p.opacity*(1-progress)**1.4;}
   if(p.shape==='flame')p.mesh.scale.z=Math.min(p.mesh.scale.z,p.mesh.scale.x);
  }
  update(dt){

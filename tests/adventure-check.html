@@ -1,11 +1,11 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 双视角实测</title><style>body{margin:12px;background:#17272b;color:#e2ecea;font:14px system-ui}button{padding:10px;margin:4px;background:#254943;border:1px solid #709582;color:inherit;border-radius:5px}iframe{display:block;border:0;margin-top:8px}pre{white-space:pre-wrap}#view{overflow:auto}</style><button id="run" disabled>运行双视角回归</button><select id="preview-map" aria-label="预览地图"><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="confluence">五境</option></select><select id="preview-place" aria-label="预览位置"><option value="spawn">出生地</option><option value="water">水岸</option><option value="waterbed">浅水石底</option><option value="watercenter">水中近看</option><option value="trees">树丛</option><option value="ruins">遗迹近景</option><option value="ruin-arch">残拱与通道</option><option value="elder">古树空地</option><option value="thicket">幽暗密林</option><option value="floor">地表细节近景</option></select><button id="third" disabled>第三人称预览</button><button id="first" disabled>第一人称预览</button><button id="capture" disabled>保存画面</button><p id="status">正在加载真实游戏（隔离存档，固定帧测试）</p><div id="view"></div><pre id="report"></pre><script type="module">
 import * as T from '../vendor/three.module.js';
-import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=196';
-import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=196';
-import {terrainAt,waterDepth} from '../water.js?v=196';
-import {updateTide} from '../coast.js?v=196';
-import {BOSS_STYLES} from '../boss-combat.js?v=196';
-import {biomeWeights} from '../confluence.js?v=196';
+import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=197';
+import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=197';
+import {terrainAt,waterDepth} from '../water.js?v=197';
+import {updateTide} from '../coast.js?v=197';
+import {BOSS_STYLES} from '../boss-combat.js?v=197';
+import {biomeWeights} from '../confluence.js?v=197';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
 const previewHero=document.createElement('select'),previewWeapon=document.createElement('select'),sourceDocument=new DOMParser().parseFromString(html,'text/html');
@@ -31,7 +31,7 @@ async function load(mobile=false,width=1180,height=720){
  const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
  // LOD generation must run in this renderer's realm: geometry merges compare
  // typed-array constructors, and WebGL uploads use instanceof checks.
- window.qaWorldReady=import('./world.js?v=196').then(module=>{window.qaAnimateWorld=module.animateWorld;});
+ window.qaWorldReady=import('./world.js?v=197').then(module=>{window.qaAnimateWorld=module.animateWorld;});
  <\/script>`;
  frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
  for(let i=0;i<600&&!win.game3d;i++)await sleep(50);assert(win.game3d,'加载超时 '+(win.qaErrors||[]).join(' / '));g=win.game3d;assert(await g.surfaceReady,'本地土石材质未全部加载');g.audio.init=async()=>true;const render=g.renderer.render.bind(g.renderer);g.renderer.render=(scene,camera)=>{if(scene!==g.hero.parent)return render(scene,camera);win.qaCamera=camera;if(g.state==='menu'&&win.document.querySelector('#preview-detail').getAttribute('aria-pressed')!=='true'){
@@ -486,8 +486,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=196');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=196');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=197');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=197');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -1299,8 +1299,54 @@ creaturesButton.onclick=async()=>{
  errors.push(...win.qaErrors);publish();$('#status').textContent='怪物实战检查完成 '+results.filter(r=>r.pass).length+'/'+results.length+'；'+(mobile?'手机尺寸模拟':'桌面')+'，非真机帧率测量';
  }catch(e){errors.push(String(e));publish();$('#status').textContent='怪物实战检查中断 '+e.message;}finally{controls.forEach(c=>c.disabled=false);}
 };
+
+const impactsButton=document.createElement('button');impactsButton.id='impacts-run';impactsButton.textContent='潜潮与环境命中检查';$('#capture').before(impactsButton);
+impactsButton.onclick=async()=>{
+ const advance=n=>{for(let i=0;i<n;i++){g.step(1/60);g.vfx.update(1/60);g.environmentImpacts.update(1/60);}step();};
+ const controls=[...document.querySelectorAll('button,select')];controls.forEach(c=>c.disabled=true);results.length=errors.length=0;
+ try{
+  for(const [mobile,width,height]of[[false,1180,720],[true,844,390],[true,390,844]]){
+   await load(mobile,width,height);
+   for(const mode of['first','third'])await check(width+'×'+height+' '+mode+' 潜潮/暂停/提前浮出/重开',()=>{
+    select('tide',0,'coast');g.setView(mode);step(3);const hp=g.player.hp;g.player.dash=0;g.dash();advance(30);
+    assert(g.cinema.underwater>(mode==='first'?.9:.5),'下潜未呈现朦胧');assert(g.player.dashTime>0&&g.player.hp===hp,'潜潮机制异常');
+    const view=reportFrame(),clock=g.time,strength=g.cinema.underwater;g.pause();step(2);assert(g.time===clock&&g.cinema.underwater===strength,'暂停后水下效果推进');
+    g.resume();g.dash();advance(20);assert(g.cinema.underwater===0,'提前出水残留滤镜');assert(!win.document.querySelector('#world').style.filter,'出水残留模糊');
+    g.player.dash=0;g.dash();advance(30);g.menu();step();assert(g.cinema.underwater===0,'大厅残留水下滤镜');return view;
+   });
+   const weapons=mobile?[['scout',0],['scout',2]]:[['scout',0],['scout',1],['scout',2],['silver',0],['silver',1],['silver',2],['wraith',0],['lingya',0],['mirage',0]];
+   for(const [hero,index]of weapons)await check(width+' '+hero+'/'+index+' 实际发射命中树木',()=>{
+    select(hero,index,'forest');win.document.querySelector('[data-attack-mode="manual"]').click();g.setView('first');
+    for(const e of g.enemies){e.alive=false;e.mesh.visible=false;}
+    let target;for(const o of g.world.obstacles){if(o.r>1||o.height<3||o.mesh?.visible===false)continue;for(let i=0;i<12;i++){const a=i*Math.PI/6,x=o.x+Math.sin(a)*3.2,z=o.z+Math.cos(a)*3.2;if(!sceneryStandClear(x,z,.5))continue;g.player.x=x;g.player.z=z;g.player.y=g.player.groundHeight=g.world.groundHeightAt?.(x,z)||0;target=o;break;}if(target)break;}
+    assert(target,'找不到树旁空地');g.hero.position.set(g.player.x,g.player.y,g.player.z);step(4);aimAt({x:target.x,z:target.z,y:(target.y||0)+1.1,height:0});
+    const id=g.player.weaponId,contacts=[],contact=g.environmentImpacts.contact.bind(g.environmentImpacts);g.environmentImpacts.contact=(...args)=>{const hit=contact(...args);contacts.push({accepted:!!hit,start:args[1],end:args[2],target:[args[0].x,args[0].z]});return hit;};
+    let shots;try{fire(id==='crossbow'?24:1);shots=g.bullets.map(b=>({x:b.x,y:b.height,z:b.z,vx:b.vx,vy:b.vy,vz:b.vz}));g.player.attack=9999;advance(60);}finally{g.environmentImpacts.contact=contact;}
+    assert(g.environmentImpacts.active.some(p=>p.kind===id),'真实弹丸没有留下 '+id+' 痕迹 '+JSON.stringify({contacts,shots}));const mark=g.environmentImpacts.active.find(p=>p.kind===id);assert(mark.mesh.geometry.drawRange.count>0,'贴花无可见表面');
+    const life=mark.life;g.pause();step(2);assert(mark.life===life,'暂停后痕迹消退');g.resume();const stats=reportFrame();advance(400);assert(!g.environmentImpacts.active.includes(mark),'痕迹未到期清理');return stats;
+   });
+   for(const heroIndex of[0,2])await check(width+' 枪/火 '+heroIndex+' 实际命中水面',()=>{
+    select('scout',heroIndex,'forest');win.document.querySelector('[data-attack-mode="manual"]').click();g.setView('first');for(const e of g.enemies){e.alive=false;e.mesh.visible=false;}
+    const p=g.world.ponds.find(p=>!(g.world.bridges||[]).some(b=>Math.hypot(b.x-p.x,b.z-p.z)<4));assert(p,'没有水池');
+    g.player.x=p.x;g.player.z=p.z-2;g.player.y=g.player.groundHeight=0;g.hero.position.set(g.player.x,0,g.player.z);step(3);aimAt({x:p.x,z:p.z,y:.075,height:0});
+    fire(1);g.player.attack=9999;advance(45);assert(g.environmentImpacts.lastWater,'没有水面接触反馈');const result={point:g.environmentImpacts.lastWater,...reportFrame()};g.menu();step();assert(!g.environmentImpacts.lastWater&&g.environmentImpacts.active.length===0,'离场未清理');return result;
+   });
+  }
+  errors.push(...win.qaErrors);$('#status').textContent='潜潮与环境检查完成 '+results.filter(r=>r.pass).length+'/'+results.length;publish();
+ }catch(e){errors.push(String(e));publish();$('#status').textContent='环境检查中断 '+e.message;}finally{controls.forEach(c=>c.disabled=false);}
+};
+const impactPreview=document.createElement('button');impactPreview.id='impact-preview';impactPreview.textContent='环境命中近景';$('#capture').before(impactPreview);
+impactPreview.onclick=async()=>{try{
+ select(previewHero.value,Number(previewWeapon.value),$('#preview-map').value);g.setView('first');win.document.querySelector('[data-attack-mode="manual"]').click();for(const e of g.enemies){e.alive=false;e.mesh.visible=false;}
+ const water=$('#preview-place').value==='water';let target;
+ if(water){const p=g.world.ponds.find(p=>!(g.world.bridges||[]).some(b=>Math.hypot(b.x-p.x,b.z-p.z)<4));assert(p,'当前位置没有可用水面');g.player.x=p.x;g.player.z=p.z-2.5;target={x:p.x,y:.075,z:p.z,height:0};}
+ else for(const o of g.world.obstacles){if(o.r>1||o.height<3)continue;for(let i=0;i<12;i++){const a=i*Math.PI/6,x=o.x+Math.sin(a)*2.2,z=o.z+Math.cos(a)*2.2;if(!sceneryStandClear(x,z,.5))continue;g.player.x=x;g.player.z=z;target={x:o.x,y:(o.y||0)+1.15,z:o.z,height:0};break;}if(target)break;}
+ assert(target,'没有可用目标');g.player.y=g.player.groundHeight=g.world.groundHeightAt?.(g.player.x,g.player.z)||0;g.hero.position.set(g.player.x,g.player.y,g.player.z);step(5);aimAt(target);fire(g.player.weaponId==='crossbow'?24:1);g.player.attack=9999;
+ for(let i=0;i<90&&!g.environmentImpacts.active.length&&!g.environmentImpacts.lastWater;i++){g.step(1/60);g.vfx.update(1/60);g.environmentImpacts.update(1/60);}step(6);
+ assert(water?g.environmentImpacts.lastWater:g.environmentImpacts.active.length,'真实攻击没有产生环境反馈');$('#status').textContent='真实 '+g.player.weaponId+' 命中 '+(water?'水面':'树木')+' · '+JSON.stringify(reportFrame());
+ }catch(e){$('#status').textContent='命中预览失败 '+e.message;}};
 const autoCheck=new URLSearchParams(location.search).get('check');
-const autoButtons={bosses:'boss-run',creatures:'creatures-run',water:'water-run',identity:'identity-run',lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',slingshot:'slingshot-run',polish:'polish-run',heroes:'run'};
+const autoButtons={impacts:'impacts-run',bosses:'boss-run',creatures:'creatures-run',water:'water-run',identity:'identity-run',lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',slingshot:'slingshot-run',polish:'polish-run',heroes:'run'};
 if(g&&autoButtons[autoCheck]){$('#status').textContent='正在运行 '+autoCheck+' 检查…';$('#'+autoButtons[autoCheck]).click();}
 </script>
 </html>

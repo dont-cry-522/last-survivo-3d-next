@@ -1237,7 +1237,9 @@ identityButton.onclick=async()=>{
  assert(g.world===old&&old.ponds===ponds&&old.obstacles===solids&&JSON.stringify(old.sites.map(s=>[s.x,s.z,s.claimed,s.availableAt]))===fixed,'取景改变了场景或奖励');
  assert(Math.abs(g.player.y-terrainFloor(g.player.x,g.player.z))<.00001,'角色未贴地');
  paint.fillStyle='#17272b';paint.fillRect(column*cw,row*ch,cw,ch);paint.drawImage(g.renderer.domElement,column*cw,row*ch,cw,ch-28);paint.fillStyle='#e2ecea';paint.font='16px sans-serif';paint.fillText(map+' · '+mode,column*cw+12,(row+1)*ch-7);
- const time=g.time;g.pause();step(2);assert(g.time===time,'暂停推进时间');g.resume();return{...stats,preparedTextures,view,ponds:ponds.length,landforms:old.climateLandforms?.records.length||0,boats:old.harborLife?.userData.records.length||0,mobileSimulated:mobile};
+ // Losing browser focus already pauses the game. pause() is the player toggle,
+ // so calling it again would resume and invalidate this inspection itself.
+ if(g.state==='playing')g.pause();assert(g.state==='paused','未进入暂停');const time=g.time;step(2);assert(g.time===time,'暂停推进时间');g.resume();return{...stats,preparedTextures,view,ponds:ponds.length,landforms:old.climateLandforms?.records.length||0,boats:old.harborLife?.userData.records.length||0,mobileSimulated:mobile};
  });
  }
  errors.push(...win.qaErrors);publish();$('#status').textContent='五境地貌：'+results.filter(r=>r.pass).length+'/'+results.length+'；手机为尺寸模拟。';

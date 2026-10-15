@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {HERO_SIGNATURES,makeIdentityMark} from './identity-motifs.js?v=199';
+import {HERO_SIGNATURES,makeIdentityMark} from './identity-motifs.js?v=200';
 
 // One identifying fitting per outfit. Measurements use the authored bind pose;
 // the fitting is then attached to a real bone, never to a SkinnedMesh container.

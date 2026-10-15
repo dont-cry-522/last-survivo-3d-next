@@ -26,8 +26,15 @@ material.onBeforeCompile=shader=>{
   }else{
    float treeGrain=treeNoise(treePoint*vec3(27.0,1.15,27.0)),treeFissure=smoothstep(.30,.65,treeGrain);
    float treeBark=treeNoise(treePoint*vec3(53.0,5.0,53.0));
-   diffuseColor.rgb*=mix(1.0,.64+treeFissure*.47+treeBark*.18,treeDetail);
-   treeRelief=(treeFissure*.018+treeBark*.005)*treeDetail;
+   float treeWeather=treeNoise(treePoint*vec3(2.8,3.6,2.8));
+   float rootDamp=(1.0-smoothstep(.06,1.12+treeWeather*.48,treePoint.y))*(.55+treeWeather*.45);
+   float barkLichen=smoothstep(.62,.84,treeWeather)*(1.0-rootDamp*.65);
+   diffuseColor.rgb*=mix(1.0,.77+treeFissure*.25+treeBark*.12,treeDetail);
+   // Fine fissures interrupt broad weathered plates; a soft, irregular damp
+   // foot replaces the strong vertical stripes of an extruded-looking trunk.
+   diffuseColor.rgb*=1.0-rootDamp*.23;
+   diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.16,1.18,1.10)+vec3(.010,.012,.009),barkLichen*.42);
+   treeRelief=(treeFissure*.007+treeBark*.002+treeWeather*.002)*treeDetail;
   }
  `);
  // A leaf crown scatters a little back-light; bark and snow keep opaque material response.
@@ -45,12 +52,12 @@ material.onBeforeCompile=shader=>{
   normal=normalize(abs(treeDet)*normal-sign(treeDet)*(dFdx(treeRelief)*treeRx+dFdy(treeRelief)*treeRy));
  `);
 };
-material.customProgramCacheKey=()=> 'tree-open-leaf-sprays';
+material.customProgramCacheKey=()=> 'tree-open-leaf-sprays-weathered-bark';
 function tint(geometry,color,canopy=false){
  const p=geometry.attributes.position,n=geometry.attributes.normal,c=new T.Color(color),colors=[];
  for(let i=0;i<p.count;i++){
   const light=canopy?Math.max(0,n.getY(i)):0,angle=Math.atan2(p.getZ(i),p.getX(i)),moss=canopy?0:Math.max(0,1-p.getY(i)/1.25)*.11;
-  const grain=canopy?.04*Math.sin(p.getX(i)*2.3+p.getY(i)*1.7+p.getZ(i)*1.3):.11*Math.sin(angle*5+.18*Math.sin(p.getY(i)*2))+.055*Math.cos(angle*9-p.getY(i)*.8);
+  const grain=canopy?.04*Math.sin(p.getX(i)*2.3+p.getY(i)*1.7+p.getZ(i)*1.3):.04*Math.sin(angle*5+.18*Math.sin(p.getY(i)*2))+.025*Math.cos(angle*9-p.getY(i)*.8);
   const shade=(canopy?.77+light*.25:.82)+grain;colors.push(c.r*shade*(1+light*.045-moss),c.g*(shade+moss*.38),c.b*shade*(1-light*.06-moss*.3));
  }
  geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.deleteAttribute('uv');return geometry;

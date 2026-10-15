@@ -4,9 +4,9 @@
 <section><h2>三人连续动作</h2><p>以实际基础射速连续推进角色与第一人称动作，检查待机、准备、释放前后、回收。此页是动作验证场景，不进行伤害或碰撞结算；铃芽按实际拉带、释弹与收手时钟推进。</p><button id="motion-check" disabled>播放并生成三人动作对比</button><p id="motion-status">等待默认检查完成</p><div id="motion-live"></div><div id="motion-sheet"></div><p><a id="motion-save-png">保存动作画面</a> · <a id="motion-save-json">保存动作报告</a></p><pre id="motion-report"></pre></section>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=199';
-import {FirstPersonView} from '../first-person-view.js?v=199';
-import {WEAPON_RECOVERY,mirageShotDelay} from '../weapon-performance.js?v=199';
+import {actor,animateActor} from '../world.js?v=200';
+import {FirstPersonView} from '../first-person-view.js?v=200';
+import {WEAPON_RECOVERY,mirageShotDelay} from '../weapon-performance.js?v=200';
 import {weaponStats} from '../rules.js';
 import {POISON} from '../poison-config.js';
 const source=await(await fetch('../world.js',{cache:'no-store'})).text(),entry=source.match(/from['"](.\/skinned-hero\.js[^'"]*)['"]/)[1];

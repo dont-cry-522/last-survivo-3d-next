@@ -75,37 +75,39 @@ if(ck>.5&&ck<1.5){
  // Overlapping short fur clumps, with a fine strand inside each clump.
  float flow=cq.x*315.+sin(cq.y*112.+sin(cq.x*38.))*2.5+sin(cp.z*82.)*1.5;
  float strand=sin(flow)*smoothstep(-.4,.45,sin(cq.y*113.+sin(cq.x*39.)*2.));
- float clump=sin(cq.x*53.+sin(cq.y*15.))*sin(cq.y*21.+cq.x*7.);
+ float clump=sin(cq.x*105.+sin(cq.y*24.)*1.8)*smoothstep(-.5,.65,sin(cq.y*38.+sin(cq.x*19.)));
  float strandFade=1.-smoothstep(.002,.010,footprint);
- creatureGrain=strand*.17*strandFade+clump*.055+mottled*.08;
- creatureRelief=strand*.00022*strandFade+clump*.00016;creatureRoughness=.88;
+ // Readable undercoat at middle distance; fine strands disappear first.
+ // Both scales stay in the original skin pass, without transparent fur shells.
+ creatureGrain=strand*.24*strandFade+clump*.23+mottled*.11;
+ creatureRelief=strand*.00030*strandFade+clump*.00045;creatureRoughness=.96;
 }else if(ck<2.5&&ck>1.5){
  float seam=abs(sin(cq.x*13.+sin(cq.y*7.))*sin(cq.y*17.+cq.x*4.));
  float crack=1.-smoothstep(.012,.070,seam);
- creatureGrain=mottled*.19-crack*.52;
- creatureRelief=-crack*.004+mottled*.0015;creatureRoughness=.91;
+ creatureGrain=mottled*.34-crack*.72;
+ creatureRelief=-crack*.005+mottled*.0022;creatureRoughness=.95-mottled*.035;
 }else if(ck<3.5&&ck>2.5){
  float ribs=sin(cq.y*43.+sin(cq.x*11.)*.8);
  float pits=pow(max(0.,mottled),5.);
- creatureGrain=ribs*.17-pits*.36;
- creatureRelief=ribs*.0019-pits*.003;creatureRoughness=.57;
+ creatureGrain=ribs*.23-pits*.48+mottled*.15;
+ creatureRelief=ribs*.0024-pits*.0035;creatureRoughness=.54+pits*.27;
 }else if(ck<4.5&&ck>3.5){
  float weave=sin(cq.x*145.)*sin(cq.y*135.);
  float threadFade=1.-smoothstep(.004,.018,footprint);
- creatureGrain=weave*.20*threadFade+mottled*.12;
- creatureRelief=weave*.0007*threadFade;creatureRoughness=.93;
+ creatureGrain=weave*.26*threadFade+mottled*.28;
+ creatureRelief=weave*.0009*threadFade+mottled*.0005;creatureRoughness=.97;
 }else if(ck<5.5&&ck>4.5){
  float marbling=sin(cq.x*21.+sin(cq.y*12.)*2.)*sin(cq.y*15.-cq.x*5.);
- creatureGrain=marbling*.32+mottled*.12;
+ creatureGrain=marbling*.40+mottled*.20;
  creatureRelief=marbling*.002;creatureRoughness=.73;
 }else if(ck<6.5&&ck>5.5){
  float scales=sin(cq.x*52.+sin(cq.y*30.)*1.4)*sin(cq.y*44.);
- creatureGrain=scales*.22+mottled*.13;
- creatureRelief=scales*.0016;creatureRoughness=.71;
+ creatureGrain=scales*.34+mottled*.25;
+ creatureRelief=scales*.0025;creatureRoughness=.73-scales*.09;
 }else if(ck<7.5&&ck>6.5){
  float veins=sin(cq.x*19.+sin(cq.y*8.)*2.);
- creatureGrain=veins*.11+mottled*.12;
- creatureRelief=mottled*.0006;creatureRoughness=.39;
+ creatureGrain=veins*.23+mottled*.20;
+ creatureRelief=mottled*.0008;creatureRoughness=.36+mottled*.07;
 }else if(ck<8.5&&ck>7.5){
  float grain=sin(cq.x*32.+sin(cq.y*9.)*2.);
  creatureGrain=grain*.32+mottled*.15;
@@ -140,6 +142,6 @@ export function installCreatureSurface(material){
   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,creatureRoughness,step(.5,vCreatureFinish.x)*.82);');
   shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\n'+relief);
  };
- material.customProgramCacheKey=()=>baseKey+'|creature-surface-v2';
+ material.customProgramCacheKey=()=>baseKey+'|creature-surface-v3';
  return material;
 }

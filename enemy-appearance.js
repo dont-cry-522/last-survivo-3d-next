@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=199';
+import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=200';
 
 // Five finite, shared sets of geometry. Articulation moves groups, never vertices.
 const templates=new Map();
@@ -48,8 +48,15 @@ function frond(c,x,y,z,width,length,tilt=0){
  for(let i=0;i<front.length;i+=3)ix.push(front[i]+count,front[i+2]+count,front[i+1]+count);
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setIndex(ix);g.computeVertexNormals();return colored(g,c);
 }
-function wolfCoat(rings,head=false){
+function wolfCoat(rings,head=false,steps=0){
  const p=[],indices=[],sides=16;
+ // Resample the trunk/muzzle before making the skin. The original sparse
+ // rings left a sharp collar at every change from shoulder to throat.
+ if(steps){
+ const curve=new T.CatmullRomCurve3(rings.map(r=>new T.Vector3(r[0],r[1],r[2]))),centers=rings.map(r=>r[3]),sampled=[];
+ for(let j=0;j<=steps;j++){const t=j/steps,q=curve.getPoint(t),k=t*(rings.length-1),i=Math.min(rings.length-2,Math.floor(k));sampled.push([q.x,Math.max(0,q.y),Math.max(0,q.z),T.MathUtils.lerp(centers[i],centers[i+1],k-i)]);}
+ rings=sampled;
+ }
  // Shared ring vertices give the shoulder, throat and muzzle one continuous
  // surface without the seams left by overlapping ellipsoids.
  for(const [z,rx,ry,y]of rings.slice(1,-1))for(let i=0;i<sides;i++){const a=i/sides*Math.PI*2;p.push(Math.cos(a)*rx,y+Math.sin(a)*ry,z);}
@@ -123,11 +130,11 @@ function template(kind){
   for(let i=0;i<11;i++){const a=i*2.399,r=.16+(i%4)*.089;cap.push(capPatch(Math.cos(a)*r,Math.sin(a)*r,.037+i%2*.022,.028+i%3*.009,i%2?0xe1cc9e:0xc3a478));}
   p.cap=joined(cap);const capColors=p.cap.attributes.color,capPos=p.cap.attributes.position;for(let i=0;i<capColors.count;i++){const r=Math.hypot(capPos.getX(i),capPos.getZ(i)/.95),y=capPos.getY(i);if(y>.025){const band=1-.09*Math.exp(-(((r-.49)/.065)**2)),edge=.96+.04*Math.sin(Math.atan2(capPos.getZ(i),capPos.getX(i))*6+.4);capColors.setXYZ(i,capColors.getX(i)*band*edge,capColors.getY(i)*band*edge,capColors.getZ(i)*band*edge);}}p.foot=joined([profile([[0,.10],[.07,.08],[.095,-.025],[0,-.06]],0xa88e65,{depth:1.2,segments:10}),...[-1,0,1].map(s=>rootlet(0x93815d,[[s*.025,0,0],[s*.045,-.032,.09],[s*.077,-.042,.17]],[.044,.028,.002]))]);
  }else if(kind==='wolf'){
-  p.body=joined([wolfCoat([[-.68,0,0,.72],[-.59,.18,.185,.715],[-.40,.228,.22,.735],[-.13,.202,.19,.758],[.055,.245,.265,.775],[.23,.264,.29,.795],[.36,.221,.27,.81],[.465,.168,.215,.86],[.57,.13,.155,.89],[.61,0,0,.90]])]);
+  p.body=joined([wolfCoat([[-.68,0,0,.72],[-.59,.18,.185,.715],[-.40,.228,.22,.735],[-.13,.202,.19,.758],[.055,.245,.265,.775],[.23,.264,.29,.795],[.36,.221,.27,.81],[.465,.168,.215,.86],[.57,.13,.155,.89],[.61,0,0,.90]],false,10)]);
   p.head=joined([
-   wolfCoat([[-.25,0,0,.045],[-.20,.135,.175,.042],[-.075,.245,.216,.04],[.075,.205,.194,.018],[.19,.18,.16,-.008],[.29,.132,.108,-.055],[.397,.091,.069,-.055],[.437,0,0,-.044]],true),
+   wolfCoat([[-.25,0,0,.045],[-.20,.135,.175,.042],[-.075,.245,.216,.04],[.075,.205,.194,.018],[.19,.18,.16,-.008],[.29,.132,.108,-.055],[.397,.091,.069,-.055],[.437,0,0,-.044]],true,10),
    oval(0x354039,0,-.150,.32,.105,.025,.14),
-   ...[-1,1].flatMap(s=>[oval(0x34463e,s*.155,.08,.180,.056,.031,.046),oval(0xdcc181,s*.163,.083,.215,.025,.013,.011),oval(0x334035,s*.166,.085,.225,.006,.013,.006,6,4),oval(0xe8ddbe,s*.156,.088,.232,.0035,.003,.002,6,4),rock(0x667970,s*.18,.135,.17,.085,.038,.070,0,0,-s*.20),
+   ...[-1,1].flatMap(s=>[oval(0x34463e,s*.155,.08,.180,.056,.031,.046),oval(0xdcc181,s*.163,.083,.215,.025,.013,.011),oval(0x334035,s*.166,.085,.225,.006,.013,.006,6,4),oval(0xe8ddbe,s*.156,.088,.232,.0035,.003,.002,6,4),rootlet(0x7d877d,[[s*.11,.13,.19],[s*.17,.132,.14],[s*.205,.10,.08]],[.025,.027,.010]),
     branch(0x45554c,[[s*.096,-.128,.23],[s*.117,-.133,.33],[s*.076,-.115,.429]],.007,6),piece(new T.ConeGeometry(.017,.057,6),0xd4ceb1,s*.09,-.173,.325,1,1,1,Math.PI)])
   ]);
   p.ear=joined([profile([[0,0],[.105,.02],[.075,.14],[.019,.29],[0,.30]],0x7d8e82,{depth:.48,bend:-.018}),oval(0x48584c,0,.12,.040,.048,.10,.008)]);
@@ -136,9 +143,9 @@ function template(kind){
   p.tailTip=joined([rootlet(0xa8b4af,[[0,0,0],[0,-.028,-.075],[0,-.034,-.17]],[.067,.059,.002])]);
   // Muscular shoulder / thigh taper into wrist / hock, with a real separate
   // paw. The ankle node must move the visible foot, not an empty marker.
-  p.frontUpper=joined([profile([[0,.17],[.078,.13],[.101,.035],[.080,-.08],[.055,-.22],[.052,-.31],[0,-.34]].reverse(),0x78847b,{depth:1.07,segments:12}),
+  p.frontUpper=joined([profile([[0,.17],[.086,.13],[.123,.035],[.106,-.08],[.069,-.22],[.062,-.31],[0,-.34]].reverse(),0x78847b,{depth:1.10,segments:12}),
    ...[-1,1].map(side=>rootlet(0x859083,[[side*.062,.072,-.015],[side*.086,.015,-.072],[side*.069,-.07,-.10]],[.036,.041,.002]))]);
-  p.frontLower=joined([profile([[0,.04],[.054,.02],[.055,-.07],[.036,-.21],[.041,-.29],[0,-.33]].reverse(),0x778477,{depth:1.08,segments:10})]);
+  p.frontLower=joined([profile([[0,.055],[.064,.02],[.063,-.07],[.044,-.21],[.052,-.29],[0,-.33]].reverse(),0x778477,{depth:1.08,bend:.013,segments:10})]);
   p.haunch=joined([profile([[0,.21],[.087,.16],[.116,.035],[.109,-.10],[.077,-.23],[.055,-.32],[0,-.36]].reverse(),0x788079,{depth:1.10,segments:12}),
    ...[-1,1].map(side=>rootlet(0x7b887a,[[side*.071,-.016,-.13],[side*.072,-.10,-.171],[side*.043,-.18,-.176]],[.035,.042,.002]))]);
   p.shin=joined([profile([[0,.04],[.070,.015],[.073,-.07],[.053,-.17],[.038,-.275],[0,-.30]].reverse(),0x68776c,{depth:1.15,segments:10})]);
@@ -147,7 +154,7 @@ function template(kind){
   p.paw=joined([oval(0x98a08d,0,.051,.031,.072,.051,.096),...[-1,0,1].flatMap(side=>[oval(0xa6ab95,side*.043,.042,.102,.029,.04,.055,6,4),piece(new T.ConeGeometry(.010,.041,5),0x485047,side*.043,.035,.161,1,1,1,Math.PI/2)])]);
   // Broad roots lie along the coat, narrow tips break only cheeks and tail.
   // Merge into existing moving batches: no alpha cards or per-hair draw calls.
-  p.head=joined([p.head,...[-1,1].flatMap(side=>Array.from({length:3},(_,i)=>rootlet(i%2?0x899487:0x7a877c,[[side*(.19-i*.012),-.04-i*.046,.075-i*.035],[side*(.25-i*.009),-.08-i*.045,.015-i*.041],[side*(.258-i*.008),-.13-i*.044,-.075-i*.039]],[.025,.021,.0015])))]);
+  p.head=joined([p.head,...[-1,1].flatMap(side=>Array.from({length:2},(_,i)=>rootlet(i%2?0x899487:0x7a877c,[[side*(.19-i*.015),-.045-i*.065,.065-i*.035],[side*(.227-i*.012),-.073-i*.065,.008-i*.035],[side*(.242-i*.010),-.12-i*.065,-.060-i*.035]],[.046,.034,.002])))]);
   p.tail=joined([p.tail,...[-1,1].flatMap(side=>Array.from({length:3},(_,i)=>rootlet(i%2?0x829284:0x748679,[[side*.051,-.035-i*.015,-.065-i*.071],[side*.095,-.047-i*.027,-.12-i*.071],[side*.064,-.066-i*.031,-.205-i*.065]],[.028,.025,.0015])))]);
  }else if(kind==='golem'){
   p.body=joined([

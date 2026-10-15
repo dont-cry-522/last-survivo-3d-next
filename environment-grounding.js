@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {forestHabitatAt} from './forest-habitats.js?v=199';
+import {forestHabitatAt} from './forest-habitats.js?v=200';
 
 function bakeForestFloor(world,data,size,extent){
  const habitat=world.forestHabitats;if(!habitat)return 0;
@@ -150,6 +150,21 @@ export function installEnvironmentGrounding(world){
    diffuseColor.rgb*=mix(vec3(1.0),vec3(1.05,.83,.64),forestDuff*.52);
    diffuseColor.rgb*=mix(vec3(1.0),vec3(.67,.73,.69),forestDamp*.65);
    diffuseColor.rgb*=1.0-groundContact*.22;
+   ${source.userData.groundSurface?`// The outer contact fringe deposits the local ground material; the inner
+   // contact remains darker. Reuse the existing mask and terrain samples so
+   // stones do not sit inside a new circular decal or a second render pass.
+   float contactFringe=4.0*groundContact*(1.0-groundContact);
+   float contactGrain=mix(.55,1.0,smoothstep(.25,.76,soilClump+soilFine.g*.20));
+   float contactDeposit=contactFringe*contactGrain;
+   vec3 contactTone=vec3(1.0);
+   contactTone=mix(contactTone,vec3(.94,.78,.57),soilOrganic*(1.0-soilCoast)*.68);
+   contactTone=mix(contactTone,vec3(.94,1.04,1.13),soilSnow*.74);
+   contactTone=mix(contactTone,vec3(1.14,1.03,.79),soilSand*.64);
+   contactTone=mix(contactTone,vec3(.74,.71,.70),soilAsh*.76);
+   contactTone=mix(contactTone,vec3(.65,.78,.77),soilCoast*.80);
+   diffuseColor.rgb*=mix(vec3(1.0),contactTone,contactDeposit);
+   diffuseColor.rgb+=vec3(.020,.024,.028)*contactDeposit*soilSnow;
+   if(contactDeposit>0.0)roughnessFactor=clamp(roughnessFactor+contactDeposit*(soilSnow*.07+soilSand*.05+soilAsh*.08-soilCoast*.19),.62,1.0);`:''}
    float forestRootGrain=${source.userData.groundSurface?'smoothstep(.28,.70,soilFine.g)*soilGrainDetail':'.5'};
    vec3 forestRootTone=mix(vec3(.84,.96,.78),vec3(1.04,.91,.76),forestRootGrain);
    diffuseColor.rgb*=mix(vec3(1.0),forestRootTone,groundContacts.g*.62);
@@ -159,7 +174,7 @@ export function installEnvironmentGrounding(world){
   shader.fragmentShader=shader.fragmentShader.replace('#include <metalnessmap_fragment>','if(max(forestTrack,max(forestDuff,forestDamp))>0.0){\nroughnessFactor=clamp(roughnessFactor+forestDuff*.07-forestTrack*.025-forestDamp*.21,.66,1.0);\n}\n#include <metalnessmap_fragment>');
   shader.fragmentShader=shader.fragmentShader.replace('#include <aomap_fragment>','#include <aomap_fragment>\nreflectedLight.indirectDiffuse*=1.0-groundContact*.16;\nreflectedLight.indirectDiffuse*=1.0-groundContacts.g*.06;');
  };
- material.customProgramCacheKey=()=>baseKey+'|scenery-ground-contact-forest-root-bed';ground.material=material;
+ material.customProgramCacheKey=()=>baseKey+'|scenery-ground-contact-biome-deposit';ground.material=material;
  const state={texture,material,sources:sources.length,plants:plants.length,forestPixels,disposed:false};world.environmentGrounding=state;
  const release=()=>{if(state.disposed)return;state.disposed=true;texture.dispose();material.dispose();ground.material=source;ground.geometry.removeEventListener('dispose',release);};
  ground.geometry.addEventListener('dispose',release);

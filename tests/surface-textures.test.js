@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
+import {runtimeImport} from './runtime-import.js';
 import * as T from '../vendor/three.module.js';
-import {SURFACE_FILES,surfaceUniforms,loadSurfaceTextures} from '../surface-textures.js?v=210';
+const {SURFACE_FILES,surfaceUniforms,loadSurfaceTextures}=await runtimeImport('biome-scenery.js','surface-textures.js');
 import {installGroundSurface} from '../biome-scenery.js';
 import {polishEnvironmentModels} from '../environment-props.js';
 

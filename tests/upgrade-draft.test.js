@@ -4,7 +4,7 @@ import{chooseUpgrades,takeUpgrade,seeded,HERO_LOADOUTS,UPGRADES,WEAPON_PATHS}fro
 import{EXTRA_BY_ID}from'../skill-catalog.js';
 const make=(hero='tide',weapon=HERO_LOADOUTS[hero][0])=>({heroId:hero,weaponId:weapon,level:2,upgrades:{},hp:100,maxHp:100});
 const spells=['fire','ice','storm','veil','chain','rift'];
-test('level two produces varied real combinations for all twelve loadouts',()=>{
+test('level two produces varied real combinations for all current loadouts',()=>{
  for(const[hero,weapons]of Object.entries(HERO_LOADOUTS))for(const weapon of weapons){
   const hands=new Set(),seen=new Set(),slots=[new Set(),new Set(),new Set()];
   for(let seed=1;seed<=400;seed++){
@@ -14,9 +14,10 @@ test('level two produces varied real combinations for all twelve loadouts',()=>{
    cards.forEach((c,i)=>{seen.add(c.id);slots[i].add(c.id);if(EXTRA_BY_ID[c.id])assert.equal(EXTRA_BY_ID[c.id].hero,hero);});
    hands.add(cards.map(c=>c.id).sort().join(','));
   }
-  assert(hands.size>20,hero+' lacks combinations: '+hands.size);
+  assert(hands.size>(weapon==='arcstaff'?14:20),hero+' lacks combinations: '+hands.size);
   assert.deepEqual([...seen].filter(id=>EXTRA_BY_ID[id]).sort(),Object.values(EXTRA_BY_ID).filter(s=>s.hero===hero&&(!s.weapon||s.weapon===weapon)).map(s=>s.id).sort());
-  assert(slots.every(s=>s.size>=8),'a slot is fixed');
+  assert(slots.every(s=>s.size>=(weapon==='arcstaff'?7:8)),'a slot is fixed');
+  if(weapon==='arcstaff')assert(!seen.has('surge'),'导雷杖不得抽到仅长叉可触发的破浪锋');
  }
 });
 test('successive offers avoid repeating two cards when the pool is broad',()=>{

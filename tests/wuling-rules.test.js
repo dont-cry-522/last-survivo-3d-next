@@ -7,7 +7,7 @@ const near=(actual,expected)=>assert(Math.abs(actual-expected)<1e-9,actual+' != 
 
 test('Wuling has one poison weapon and a bounded base area attack, leaving other loadouts intact',()=>{
  assert.deepEqual(HERO_LOADOUTS.wuling,['sporelantern']);assert.equal(heroHealth('wuling'),120);
- assert.deepEqual(HERO_LOADOUTS.scout,['rifle','shotgun','fire']);assert.deepEqual(HERO_LOADOUTS.silver,['crossbow','shuriken','dark']);assert.deepEqual(HERO_LOADOUTS.wraith,['shade','shadowblade','grimoire']);assert.deepEqual(HERO_LOADOUTS.tide,['harpoon']);assert.deepEqual(HERO_LOADOUTS.lingya,['boomerang']);
+ assert.deepEqual(HERO_LOADOUTS.scout,['rifle','shotgun','fire']);assert.deepEqual(HERO_LOADOUTS.silver,['crossbow','shuriken','dark']);assert.deepEqual(HERO_LOADOUTS.wraith,['shade','shadowblade','grimoire']);assert.deepEqual(HERO_LOADOUTS.tide,['harpoon','arcstaff']);assert.deepEqual(HERO_LOADOUTS.lingya,['boomerang','briarpot']);
  const w=weaponStats(player());assert.equal(w.id,'sporelantern');assert.equal(w.damage,10);assert.equal(w.rate,.8);assert.equal(w.range,10);assert.equal(w.speed,16);assert.equal(w.cloudDamage,22);assert.equal(w.cloudRadius,2);assert.equal(w.cloudDuration,4.8);assert.equal(w.cloudMax,3);assert.equal(w.stillRank,0);assert.equal(w.roamRank,0);assert.equal(w.radius,0);assert(!w.returning);
  assert.match(weaponReachText(w),/毒雾半径 2 米/);assert.match(weaponReachText(w),/最多 3 片/);
 });

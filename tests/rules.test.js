@@ -2,9 +2,9 @@ import{test}from'node:test';import assert from'node:assert/strict';import*as Rul
 test('experience preserves every pending level',()=>{const p={level:1,xp:0,pending:0,hp:30,maxHp:100};grantExperience(p,experienceNeeded(1)+experienceNeeded(2)+5);assert.equal(p.level,3);assert.equal(p.pending,2);assert.equal(p.xp,5);});
 test('random layouts reproducible',()=>{const a=seeded(42),b=seeded(42);for(let i=0;i<20;i++)assert.equal(a(),b());});
 test('hero weapons are distinct',()=>{assert.equal(weaponFor('silver',0).id,'crossbow');assert.equal(weaponFor('scout',0).id,'rifle');});
-test('public roster has seven heroes, thirteen weapons and twenty-six matching routes',()=>{
+test('public roster has seven heroes, fifteen weapons and thirty matching routes',()=>{
  const heroes=Object.keys(Rules.HERO_LOADOUTS),weapons=Object.keys(Rules.WEAPONS),paths=Object.entries(Rules.WEAPON_PATHS);
- assert.deepEqual(heroes,['scout','silver','wraith','tide','lingya','wuling','mirage']);assert.equal(weapons.length,13);assert.equal(paths.length,26);
+ assert.deepEqual(heroes,['scout','silver','wraith','tide','lingya','wuling','mirage']);assert.equal(weapons.length,15);assert.equal(paths.length,30);
  assert.deepEqual(Object.values(Rules.HERO_LOADOUTS).flat().sort(),weapons.sort());
  for(const id of weapons)assert.equal(paths.filter(([,p])=>p.weapon===id).length,2);
  assert.equal(Rules.WEAPONS.hammer,undefined);assert(!Rules.UPGRADES.some(u=>['fault','reprisal','landing'].includes(u.id)));

@@ -1,9 +1,9 @@
-import{newWeaponSample,NEW_WEAPON_SOUNDS}from'./new-weapon-audio.js?v=210';
-import{poisonSample}from'./poison-audio.js?v=210';
-import{mirageSample}from'./mirage-audio.js?v=210';
-import{surfaceSample}from'./enemy-surfaces.js?v=210';
+import{newWeaponSample,NEW_WEAPON_SOUNDS}from'./new-weapon-audio.js?v=211';
+import{poisonSample}from'./poison-audio.js?v=211';
+import{mirageSample}from'./mirage-audio.js?v=211';
+import{surfaceSample}from'./enemy-surfaces.js?v=211';
 // Short original material textures synthesized locally; no remote asset load.
-const DURATIONS={hammer:[.3,.4,.2],rifle:[.18,.16,.12],shotgun:[.42,.27,.23],crossbow:[.32,.18,.2],shuriken:[.3,.18,.14],fire:[.55,.65,.3],dark:[.58,.52,.35],shade:[.24,.32,.15],shadowblade:[.4,.28,.33],grimoire:[.4,.68,.3],shield:[.21,.3,.15],harpoon:[.24,.32,.18],boomerang:[.32,.19,.18],badger:[.20,.23,.14]};
+const DURATIONS={hammer:[.3,.4,.2],rifle:[.18,.16,.12],shotgun:[.42,.27,.23],crossbow:[.32,.18,.2],shuriken:[.3,.18,.14],fire:[.55,.65,.3],dark:[.58,.52,.35],shade:[.24,.32,.15],shadowblade:[.4,.28,.33],grimoire:[.4,.68,.3],shield:[.21,.3,.15],harpoon:[.24,.32,.18],boomerang:[.32,.19,.18],badger:[.20,.23,.14],arcstaff:[.18,.12,.08],briarpot:[.20,.22,.10]};
 const pulse=(t,start,decay)=>t<start?0:(1-Math.exp(-(t-start)*900))*Math.exp(-(t-start)*decay);
 export const weaponTakeCount=id=>DURATIONS[id]&&!NEW_WEAPON_SOUNDS[id]?3:1;
 export function weaponSample(id,event,rate,variant=0,take=0){
@@ -18,10 +18,10 @@ export function weaponSample(id,event,rate,variant=0,take=0){
   const string=new Float32Array(Math.round(rate/(168+take*2)));let stringIndex=0;
   for(let i=0;i<data.length;i++){
     seed=(Math.imul(seed,1664525)+1013904223)>>>0;const n=seed/2147483648-1,t=i/rate,u=i/data.length;
-    const cutoff=id==='dark'||id==='shade'?240+850*(1-u):id==='fire'?1600-1250*u:id==='shuriken'?3100-2200*u:id==='shadowblade'?1500-1050*u:id==='grimoire'?650+250*Math.sin(t*23):2300;
+    const cutoff=id==='dark'||id==='shade'?240+850*(1-u):id==='fire'?1600-1250*u:id==='shuriken'?3100-2200*u:id==='shadowblade'?1500-1050*u:id==='grimoire'?650+250*Math.sin(t*23):id==='arcstaff'?3400-2000*u:2300;
     low+=(n-low)*(1-Math.exp(-2*Math.PI*cutoff/rate));body+=(n-body)*(1-Math.exp(-2*Math.PI*130/rate));
     const high=n-low,tail=Math.exp(-u*(hit?5:7)),snap=Math.exp(-t*100),flutter=(.5+.5*Math.sin(t*2*Math.PI*(id==='shadowblade'?19:37)))**3;
-    phase+=2*Math.PI*(id==='shotgun'?94-58*u:id==='fire'?75-39*u:id==='dark'?52+36*u:id==='grimoire'?41+24*u:140-85*u)/rate;
+    phase+=2*Math.PI*(id==='shotgun'?94-58*u:id==='fire'?75-39*u:id==='dark'?52+36*u:id==='grimoire'?41+24*u:id==='arcstaff'?102-30*u:140-85*u)/rate;
     let v=0;
     if(mechanism){
       const click=Math.exp(-t*120)+Math.exp(-Math.abs(t-.075)*180)*.65;
@@ -34,12 +34,18 @@ export function weaponSample(id,event,rate,variant=0,take=0){
       else if(id==='shadowblade')v=low*Math.sin(Math.PI*u)*(1-u)*(.4+flutter);
       else if(id==='rifle')v=low*.6*pulse(t,.006,100)+high*.20*pulse(t,.045,150)+Math.sin(t*2*Math.PI*680)*.12*pulse(t,.046,120);
       else if(id==='shuriken')v=(low-body)*.38*Math.sin(Math.PI*u)**2;
+      else if(id==='arcstaff')v=low*.12*Math.sin(Math.PI*u)**2+high*.035*pulse(t,.002,65);
+      else if(id==='briarpot')v=(low*.4+high*.12)*(pulse(t,.003,90)+.55*pulse(t,.042,90));
       else v=high*.32*click+body*.6*pulse(t,.01,65);
     }else if(id==='shield')v=hit?(body*3.4+low*.75+Math.sin(t*2*Math.PI*180)*.6)*tail+high*.28*snap:low*Math.sin(Math.PI*u)*.65+high*.13*Math.exp(-t*55);
     else if(id==='boomerang')v=hit?(low*.65+body*2)*tail+Math.sin(t*2*Math.PI*620)*.12*Math.exp(-t*70):(low*.8+high*.10)*Math.sin(Math.PI*u)**2*(.45+.55*Math.sin(t*2*Math.PI*22)**2);
     else if(id==='badger')v=hit?(body*3+low*.5)*tail:Math.sin(phase*1.8)*.35*tail+body*2*Math.sin(Math.PI*u);
     else if(id==='harpoon')v=hit?(low*.85+body*2.4)*tail+Math.sin(t*2*Math.PI*(470-210*u))*.25*tail:(high*.22+low*.6)*Math.sin(Math.PI*u)**2;
     else if(id==='hammer')v=hit?(body*4+Math.sin(phase)*.85+low*.3)*tail+high*.3*snap:low*Math.sin(Math.PI*u)**2*.9;
+    // Small corona crackles and a short body pulse stay comfortable at four casts per second.
+    else if(id==='arcstaff')v=hit?(body*.9+low*.18)*pulse(t,.002,32)+high*.04*pulse(t,.006,65):(high*.28+low*.20)*pulse(t,.002,32)*(.48+.52*Math.sin(t*Math.PI*(90+take*5))**8)+Math.sin(phase)*.18*pulse(t,.003,27)+low*.15*pulse(t,.027,70);
+    // Dry seeds rattle inside the pot; impact splits husk and thorns without a blast tail.
+    else if(id==='briarpot')v=hit?(low-body)*.75*pulse(t,.002,35)+high*.20*(pulse(t,.006,85)+.55*pulse(t,.039,75)+.25*pulse(t,.079,85))+body*1.6*pulse(t,.003,24):(low*.45+high*.10)*(pulse(t,.002,85)+.65*pulse(t,.035,95)+.42*pulse(t,.075,80))+Math.sin(t*2*Math.PI*(540+take*11))*.065*pulse(t,.006,100);
     // Rifle: a brief dry crack and barrel pressure; the target contact is a separate dull knock.
     else if(id==='rifle')v=hit?(body*2.6+low*.65)*pulse(t,.001,38)+high*.10*pulse(t,.003,140):high*.75*pulse(t,0,230)+low*1.4*pulse(t,0,67)+Math.sin(t*2*Math.PI*(132-50*u))*.38*pulse(t,0,55)+low*.18*pulse(t,.045,95);
     // Shotgun: wider low-end blast and several close pellet contacts, without a tonal bell.

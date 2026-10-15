@@ -1,8 +1,8 @@
 import * as T from './vendor/three.module.js';
-import{enemySurface}from'./enemy-surfaces.js?v=210';
+import{enemySurface}from'./enemy-surfaces.js?v=211';
 // Strength, settle time, lean and torsion: a bullet pricks, a bolt drives, a
 // blade turns the body, and slower magic releases pressure over a longer beat.
-const REACTIONS={rifle:[.065,.16,.35,0],shotgun:[.19,.26,.85,.10],crossbow:[.12,.22,.60,0],shuriken:[.075,.18,.40,.55],fire:[.14,.26,.65,.08],dark:[.11,.32,.45,-.35],shade:[.085,.24,.40,-.25],shadowblade:[.13,.24,.65,.85],grimoire:[.16,.34,.70,-.45],harpoon:[.12,.23,.65,.10],boomerang:[.095,.18,.50,.15],sporelantern:[.055,.20,.30,.10],miasmalantern:[.075,.28,.40,-.15],hammer:[.19,.30,.75,0],shield:[.19,.30,.75,0]};
+const REACTIONS={rifle:[.065,.16,.35,0],shotgun:[.19,.26,.85,.10],crossbow:[.12,.22,.60,0],shuriken:[.075,.18,.40,.55],fire:[.14,.26,.65,.08],dark:[.11,.32,.45,-.35],shade:[.085,.24,.40,-.25],shadowblade:[.13,.24,.65,.85],grimoire:[.16,.34,.70,-.45],harpoon:[.12,.23,.65,.10],boomerang:[.095,.18,.50,.15],sporelantern:[.055,.20,.30,.10],miasmalantern:[.075,.28,.40,-.15],hammer:[.19,.30,.75,0],shield:[.19,.30,.75,0],arcstaff:[.045,.13,.22,.12],briarpot:[.095,.21,.46,-.08]};
 // One brief warm contact tint per shared surface, never a material per monster.
 const contactMaterials=new WeakMap(),contactColor=new T.Color(0xd6b9a4);
 function contactMaterial(base){

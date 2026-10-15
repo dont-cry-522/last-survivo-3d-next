@@ -6,9 +6,9 @@ const player=(weaponId,level=3)=>({weaponId,heroId:Object.entries(HERO_LOADOUTS)
 const close=(actual,expected)=>assert(Math.abs(actual-expected)<1e-10,`${actual} != ${expected}`);
 const routes=p=>forestGrowthChoices(p,()=>0).filter(c=>c.category==='weapon');
 
-test('all 26 route cards expose their own actionable play text before and after selection',()=>{
- const ids=Object.keys(WEAPON_PATHS);assert.equal(ids.length,26);assert.deepEqual(Object.keys(WEAPON_PATH_PLAYS).sort(),ids.sort());
- assert.equal(new Set(Object.values(WEAPON_PATH_PLAYS)).size,26);
+test('all 30 route cards expose their own actionable play text before and after selection',()=>{
+ const ids=Object.keys(WEAPON_PATHS);assert.equal(ids.length,30);assert.deepEqual(Object.keys(WEAPON_PATH_PLAYS).sort(),ids.sort());
+ assert.equal(new Set(Object.values(WEAPON_PATH_PLAYS)).size,30);
  for(const weapon of Object.keys(WEAPONS)){
   const p=player(weapon),choices=routes(p);assert.equal(choices.length,2);
   for(const choice of choices){assert.equal(choice.play,WEAPON_PATH_PLAYS[choice.pathId]);assert(choice.play.length>10);assert.notEqual(choice.play,choice.text);}

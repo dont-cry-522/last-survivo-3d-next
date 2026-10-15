@@ -2,9 +2,13 @@
 // these short silhouettes never schedule damage, alter hit tests, or draw range rings.
 const look=(weapon,name,summary,phases)=>Object.freeze({weapon,name,summary,phases:Object.freeze(phases)});
 // These effects describe an area on the floor, even when the triggering shot hit a head.
-const groundRoutes=new Set(['miasmalantern_lure','miasmalantern_venom','sporelantern_still','sporelantern_roam','fire_blast','dark_gravity','grimoire_wide','grimoire_echo','boomerang_snare']);
+const groundRoutes=new Set(['briarpot_burst','briarpot_snare','miasmalantern_lure','miasmalantern_venom','sporelantern_still','sporelantern_roam','fire_blast','dark_gravity','grimoire_wide','grimoire_echo','boomerang_snare']);
 const contactHeights={shotgun_fan:.65,shotgun_slug:.86,fire_burn:.48,shade_blight:.5,harpoon_reef:.84,harpoon_tow:.20,boomerang_pincer:.4};
 export const WEAPON_ROUTE_LOOKS=Object.freeze({
+ arcstaff_chain:look('arcstaff','连枝电网','主电弧确认命中处，短紫金电痕分成两枝',['hit']),
+ arcstaff_focus:look('arcstaff','聚流雷芯','主命中点留下紧凑金紫针芯，实际聚流越强越凝实',['hit']),
+ briarpot_burst:look('briarpot','裂壳荆爆','落点荆壳向两侧裂开，短刺随碎壳弹出',['hit']),
+ briarpot_snare:look('briarpot','伏芽猎场','落地显出低矮土色芽芯，触发时荆芽抬升外裂',['trap']),
  miasmalantern_lure:look('miasmalantern','幻瘴','替身自然绽放时，低位紫瓣向外舒展，余雾留在原地',['bloom']),
  miasmalantern_venom:look('miasmalantern','蚀影','蜕影后的追击毒雾球带紫色卷气，破裂时散开短暂蚀雾',['cast','hit']),
  sporelantern_still:look('sporelantern','沉瘴','落地毒囊裂出低矮孢芽，成熟后出现暖金色菌核',['hit']),
@@ -71,6 +75,34 @@ export function weaponRouteEffect(vfx,w,phase,x,z,angle=0,detail={}){
  const chip=(shape,color,forward,side,y,size,speed,up=.7,priority=0)=>particle(shape,color,forward,side,y,{life:.25,size,velocity:velocity(speed,side*2,up),gravity:4,spin:6,priority});
 
  switch(id){
+ case'arcstaff_chain':
+  line([-.12,0,1],[.05,0,1],0xe8d7ad,.026,.13,1,.74);
+  for(const side of[-1,1])line([.05,0,1],[.20,side*.18*level,1+side*.09],side<0?0xa28bbb:0xd2c0ec,.018,.16,0,.60);
+  break;
+ case'arcstaff_focus':{
+  const focus=Math.max(0,Math.min(1,Number.isFinite(detail.focus)?detail.focus:0));
+  line([-.10,0,1],[.13+focus*.09,0,1],0x9c83bb,.033+focus*.009,.16,0,.48+focus*.12);
+  line([-.06,0,1],[.10+focus*.08,0,1],0xefddb1,.012+focus*.005,.12,1,.67+focus*.12);
+  break;
+ }
+ case'briarpot_burst':{
+  const y=vfx.groundHeight?.(x,z)||0;
+  for(const side of[-1,1]){
+   const shell=particle('claw',side<0?0x92734e:0xc8a86e,0,side*.13,y+.14,{life:.28,size:[.32,.18*level,1],motion:'erupt',velocity:velocity(.08,side*.7,.65),gravity:4,spin:4,priority:side<0?1:0,opacity:.65});
+   orient(shell,-.65,a,side*.55);
+   chip('crystal',0x8c9c61,.02,side*.09,y+.18,[.027,.17*level,.025],.35,1.1);
+  }
+  break;
+ }
+ case'briarpot_snare':{
+  const snap=detail.stage==='snap',y=vfx.groundHeight?.(x,z)||0;
+  particle('ember',snap?0xb79560:0x796447,0,0,y+.09,{life:snap?.25:.40,size:[.10,.065,.08],velocity:[0,snap?.35:0,0],gravity:snap?3:0,opacity:.72,priority:1});
+  for(const side of[-1,1]){
+   const bud=particle('crystal',side<0?0x667b46:0x9cab6d,0,side*(snap?.17:.07),y+(snap?.20:.12),{life:snap?.30:.42,size:[.045,(snap?.31:.16)*level,.032],velocity:velocity(0,snap?side*.55:0,snap?.6:.05),gravity:snap?3:0,opacity:snap?.72:.63});
+   orient(bud,0,a,side*(snap?.65:.25));
+  }
+  break;
+ }
  case'miasmalantern_lure':{
   const r=Math.max(.3,detail.radius||1.7);
   for(const side of[-1,1])curl(side<0?0x5c3475:0xa184bc,0,side*.08,.11,r*.33,r*.29,{life:.34,roll:side*.7,opacity:.46,priority:1});

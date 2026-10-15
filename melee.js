@@ -1,4 +1,4 @@
-import{GUARDIAN_DASH}from'./guardian-motion.js?v=210';
+import{GUARDIAN_DASH}from'./guardian-motion.js?v=211';
 export function inMeleeArc(origin,target,angle,range,arc=Math.PI/3){
  const x=target.x-origin.x,z=target.z-origin.z,d=Math.hypot(x,z);
  return d<=range+(target.size||0)*.4&&Math.abs(Math.atan2(Math.sin(Math.atan2(x,z)-angle),Math.cos(Math.atan2(x,z)-angle)))<=arc;

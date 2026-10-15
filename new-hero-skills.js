@@ -19,8 +19,8 @@ export class NewHeroSkills {
   for(const id of ['landing','wake'])if(this.rank(id)&&this.ready(id,6))this.pending.push({kind:id,delay:duration});
   if(this.rank('briar')){const traps=this.fields.filter(q=>q.kind==='briar');if(traps.length>=2)this.fields.splice(this.fields.indexOf(traps[0]),1);this.fields.push({kind:'briar',x:p.x,z:p.z,life:8,arm:.45,pulse:0,hits:new Set()});s.fx('briarSet',p.x,p.z);}
  }
- hit(e){const s=this.owner,r=this.rank('brine');if(!s.api.active()||!r||!e.alive)return;
-  let m=this.marks.get(e);if(!m||s.now-m.time>3)m={count:0,time:s.now};m.time=s.now;m.count++;m.pulse=.35;this.marks.set(e,m);
+ hit(e,brineWeight=1){const s=this.owner,r=this.rank('brine');if(!s.api.active()||!r||!e.alive)return;
+  let m=this.marks.get(e);if(!m||s.now-m.time>3)m={count:0,time:s.now};m.time=s.now;m.count+=brineWeight;m.pulse=.35;this.marks.set(e,m);
   s.fx('brineMark',e.x,e.z,{count:m.count});if(m.count>=3&&this.ready('brine',1)){m.count=0;s.hit(e,16+10*r);s.fx('brine',e.x,e.z);}
  }
  petHit(e){const s=this.owner,pet=s.api.companion?.(),r=this.rank('bond');if(!s.api.active()||!r||!e.alive||!pet?.alive||!(e.lingyaMark>pet.now)||!this.ready('bond',1.5))return;const linked=(this.snared.get(e)||0)>s.now;s.hit(e,(12+8*r)*(linked?1.25:1));s.fx('bond',e.x,e.z,{linked});}

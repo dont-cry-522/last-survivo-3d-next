@@ -2,6 +2,7 @@ import{test}from'node:test';import assert from'node:assert/strict';
 import{EXTRA_SKILLS}from'../skill-catalog.js';
 import{HeroSkills}from'../hero-skills.js';
 import{chooseUpgrades,takeUpgrade,UPGRADES,seeded,weaponFor}from'../rules.js';
+import{ARCSTAFF}from'../wild-weapons.js';
 function rig(hero='scout'){
  const p={heroId:hero,x:0,z:0,hp:50,maxHp:120,upgrades:{}},foes=[],events=[];let active=true;
  const api={player:()=>p,foes:()=>foes.filter(e=>e.alive),active:()=>active,blocked:()=>false,damage:(e,n)=>{e.hp-=n;if(e.hp<=0)e.alive=false;},knock:(e,n)=>{e.z+=n;},fx:e=>events.push(e)};
@@ -11,7 +12,7 @@ function rig(hero='scout'){
 test('each hero gains three exclusive, capped skills in a mixed random skill pool',()=>{
  assert.equal(EXTRA_SKILLS.length,24);assert.equal(new Set(EXTRA_SKILLS.map(s=>s.id)).size,24);
  for(const hero of ['scout','silver','wraith','tide','lingya','wuling','mirage']){
-  const own=EXTRA_SKILLS.filter(s=>s.hero===hero&&!s.weapon);assert.equal(own.length,3);
+  const own=EXTRA_SKILLS.filter(s=>s.hero===hero&&(!s.weapon||s.weapon===weaponFor(hero,0).id));assert.equal(own.length,3);
   const p={heroId:hero,weaponId:weaponFor(hero,0).id,level:2,upgrades:{}};
   const seen=new Set(),random=seeded(621);for(let i=0;i<50;i++)for(const s of chooseUpgrades(p,random))seen.add(s.id);assert(own.every(s=>seen.has(s.id)));
   for(const s of EXTRA_SKILLS){assert(UPGRADES.some(u=>u.id===s.id));if(s.hero!==hero||s.weapon&&s.weapon!==p.weaponId)assert.equal(takeUpgrade(p,s.id),false);else{for(let i=0;i<3;i++)assert(takeUpgrade(p,s.id));assert.equal(takeUpgrade(p,s.id),false);}}
@@ -34,3 +35,14 @@ test('new melee finishers release ordered short waves, respect walls and never f
 test('dive fields wait until emergence, freeze while paused and reset between expeditions',()=>{const r=rig('tide');r.p.upgrades.wake=1;r.skills.onDodge(.38);r.p.z=4;const e=r.foe(0,5);r.advance(.2);assert.equal(e.hp,1000);r.advance(.2);assert.equal(e.hp,984);r.skills.onDodge(.38);r.advance(.5);assert.equal(e.hp,984);r.pause();const now=r.skills.now;r.advance(5);assert.equal(r.skills.now,now);r.skills.reset();assert.equal(r.skills.newHeroes.pending.length,0);assert.equal(r.skills.newHeroes.fields.length,0);});
 test('brine tracks separate enemies, wake only damages once per target and briars spare boss roots',()=>{const r=rig('tide');r.p.upgrades.brine=1;const e=r.foe(0,2),b=r.foe(1,2);for(let i=0;i<2;i++)r.skills.onHit(e);r.skills.onHit(b);assert.equal(e.hp,1000);r.skills.onHit(e);assert.equal(e.hp,974);r.p.upgrades.wake=1;r.skills.onDodge(.3);r.advance(.5);const hp=e.hp;assert.equal(hp,958);r.advance(1);assert.equal(e.hp,hp);const l=rig('lingya');l.p.upgrades.briar=1;const boss=l.foe(0,0);boss.boss=true;l.skills.onDodge(.48);l.advance(.3);assert.equal(boss.hp,1000);l.advance(.2);assert.equal(boss.hp,980);assert(!boss.stagger);assert.equal(boss.slow,2);});
 test('partner combo requires live pet and fresh mark, every fourth stone hit heals only nearby living pets',()=>{const r=rig('lingya'),pet={alive:true,x:0,z:1,hp:40,maxHp:90,now:1};r.api.companion=()=>pet;r.p.upgrades.bond=1;r.p.upgrades.care=1;const e=r.foe(0,2);r.skills.newHeroes.petHit(e);assert.equal(e.hp,1000);e.lingyaMark=3;r.skills.newHeroes.petHit(e);assert.equal(e.hp,980);r.skills.newHeroes.petHit(e);assert.equal(e.hp,980);for(let i=0;i<4;i++)r.skills.newHeroes.slingHit();assert.equal(pet.hp,50);pet.alive=false;for(let i=0;i<4;i++)r.skills.newHeroes.slingHit();assert.equal(pet.hp,50);pet.alive=true;pet.x=20;for(let i=0;i<4;i++)r.skills.newHeroes.slingHit();assert.equal(pet.hp,50);});
+
+test('conductor needs six primary hits for salt while spear and wake keep their original weights',()=>{
+ const r=rig('tide'),e=r.foe(0,3);r.p.upgrades.brine=3;
+ for(let i=0;i<5;i++)r.skills.onHit(e,ARCSTAFF.brineWeight);assert.equal(e.hp,1000);
+ r.skills.onHit(e,ARCSTAFF.brineWeight);assert.equal(e.hp,954);
+ for(let i=0;i<12;i++)r.skills.onHit(e,ARCSTAFF.brineWeight);assert.equal(e.hp,954,'rapid contacts cannot bypass 1s cooldown');
+ r.advance(3.1);for(let i=0;i<4;i++)r.skills.onHit(e,ARCSTAFF.brineWeight);assert.equal(e.hp,954);
+ r.skills.newHeroes.hit(e);assert.equal(e.hp,908,'one wake plus four arcs completes three marks');
+ r.advance(3.1);for(let i=0;i<2;i++)r.skills.onHit(e);assert.equal(e.hp,908);r.skills.onHit(e);assert.equal(e.hp,862);
+ r.skills.reset();assert.equal(r.skills.newHeroes.marks.size,0);
+});

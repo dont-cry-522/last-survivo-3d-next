@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {runtimeImport} from './runtime-import.js';
 import * as T from '../vendor/three.module.js';
 import {combatSampleKinds,prepareCombatSamples} from '../combat-prewarm.js';
-import {MAP_ROSTERS} from '../map-enemies.js?v=210';
-import {BOSS_ROUTES} from '../boss-expedition.js?v=210';
-import {AIR_ROSTERS,makeAirborne} from '../airborne-enemies.js?v=210';
-import {actor} from '../world.js?v=210';
-import {SkillVFX} from '../skill-vfx.js?v=210';
+const {MAP_ROSTERS}=await runtimeImport('combat-prewarm.js','map-enemies.js');
+const {BOSS_ROUTES}=await runtimeImport('combat-prewarm.js','boss-expedition.js');
+const {AIR_ROSTERS,makeAirborne}=await runtimeImport('combat-prewarm.js','airborne-enemies.js');
+const {actor}=await runtimeImport('combat-prewarm.js','world.js');
+const {SkillVFX}=await runtimeImport('main.js','skill-vfx.js');
 
 const player=Object.freeze({x:9,y:2,z:-7,angle:.4});
 function fixture(){const scene=new T.Scene(),existing=new T.Group(),vfx=new SkillVFX(scene);scene.add(existing);return{scene,existing,vfx,player,yieldWork:async()=>{}};}

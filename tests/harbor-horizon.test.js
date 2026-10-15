@@ -1,9 +1,10 @@
 import{test}from'node:test';
 import assert from'node:assert/strict';
+import{runtimeImport}from'./runtime-import.js';
 import * as T from'../vendor/three.module.js';
 import{installDistantLandscape}from'../environment-lighting.js';
 import{installHarborHorizon,harborBayCut}from'../harbor-horizon.js';
-import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=210';
+const {groundWindTime,animateAdventureGroundDetail}=await runtimeImport('harbor-horizon.js','adventure-ground-detail.js');
 import{biomeAt}from'../confluence.js';
 import{buildWorld}from'../world.js';
 

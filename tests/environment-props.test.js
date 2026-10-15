@@ -1,12 +1,13 @@
 import test from'node:test';
 import assert from'node:assert/strict';
+import{runtimeImport}from'./runtime-import.js';
 import * as T from'../vendor/three.module.js';
 import{polishEnvironmentModels,prepareBatchedSurface,batchedSurfaceMaterial}from'../environment-props.js';
-import{placeTemplate}from'../biome-places.js?v=210';
-import{installEnvironmentClusters}from'../environment-clusters.js?v=210';
-import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=210';
+const {placeTemplate}=await runtimeImport('main.js','biome-places.js');
+const {installEnvironmentClusters}=await runtimeImport('main.js','environment-clusters.js');
+const {groundWindTime,animateAdventureGroundDetail}=await runtimeImport('environment-props.js','adventure-ground-detail.js');
 import{buildWorld}from'../world.js';
-import{boulderRockGeometry}from'../biome-scenery.js?v=210';
+const {boulderRockGeometry}=await runtimeImport('environment-props.js','biome-scenery.js');
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 
 test('batched grain follows the piece axis and curved rope length without changing original geometry',()=>{

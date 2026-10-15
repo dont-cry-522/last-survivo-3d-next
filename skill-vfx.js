@@ -1,8 +1,8 @@
-import{meleeSwing}from'./weapon-performance.js?v=210';
+import{meleeSwing}from'./weapon-performance.js?v=211';
 import * as T from './vendor/three.module.js';
-import {flatGround,fitGroundSurface,disposeGroundSurface} from './ground-cues.js?v=210';
-import{shadowCrescentGeometry}from'./shadow-weapons.js?v=210';
-import{spellShapes,streakTexture,crestTexture}from'./spell-shapes.js?v=210';
+import {flatGround,fitGroundSurface,disposeGroundSurface} from './ground-cues.js?v=211';
+import{shadowCrescentGeometry}from'./shadow-weapons.js?v=211';
+import{spellShapes,streakTexture,crestTexture}from'./spell-shapes.js?v=211';
 
 // Three bowed tongues share one draw and one texture. A ground-level viewer
 // never sees the whole flame disappear edge-on, as with a single flat card.
@@ -44,6 +44,22 @@ function rippleTexture(){
  c.putImageData(image,0,0);return new T.CanvasTexture(canvas);
 }
 
+// A rooted, bent thorn with a short hooked branch, shared by every pod burst.
+// Vertex tint keeps its base darker than its tip even in the unlit VFX pool.
+function briarGeometry(){
+ const positions=[],colors=[],indices=[],root=new T.Color(0x53633d),tip=new T.Color(0xcbbd87),color=new T.Color();
+ for(const branch of [false,true]){
+  const start=positions.length/3,rows=branch?4:7;
+  for(let row=0;row<=rows;row++){
+   const t=row/rows,r=(branch?.25:.48)*Math.pow(1-t,.8),cx=branch?.12+.65*t:.26*t*t,cy=branch?.44+.23*t-.10*t*t:t;
+   color.copy(root).lerp(tip,branch?.45+t*.45:t*.85);
+   for(let side=0;side<6;side++){const a=side*Math.PI/3;positions.push(cx+Math.cos(a)*r,cy,Math.sin(a)*r);colors.push(color.r,color.g,color.b);}
+  }
+  for(let row=0;row<rows;row++)for(let side=0;side<6;side++){const a=start+row*6+side,b=start+row*6+(side+1)%6;indices.push(a,b,a+6,b,b+6,a+6);}
+ }
+ const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
+}
+
 // Optional final contact argument: {x,y,z,normal,direction,compact}. Direction
 // points into the target; normal points out. Missing fields keep the legacy yaw/height.
 function contactFrame(x,z,angle,contact,y){
@@ -68,7 +84,7 @@ export class SkillVFX{
   this.groundHeight=groundHeight;
   this.scene=scene;this.limit=mobile?110:190;this.active=[];this.pool=[];this.materials=new Map();
   this.crestTexture=crestTexture();this.rippleTexture=rippleTexture();
-  this.flameTexture=flameTexture();this.shadowTexture=shadowTexture();this.vaporTexture=vaporTexture();this.streakTexture=streakTexture();this.geometry={...spellShapes(),ripple:new T.PlaneGeometry(2,2),ribbon:new T.PlaneGeometry(1,1),droplet:new T.SphereGeometry(1,10,6),stone:new T.DodecahedronGeometry(1,0),waterArc:new T.RingGeometry(.89,1,24,1,Math.PI*.12,Math.PI*.76),ember:new T.IcosahedronGeometry(1,0),crystal:new T.ConeGeometry(1,2,5),flame:flameGeometry(),veil:new T.PlaneGeometry(2,2),vapor:new T.PlaneGeometry(2,2),smoke:new T.SphereGeometry(1,7,5),ray:new T.BoxGeometry(1,1,1)};
+  this.flameTexture=flameTexture();this.shadowTexture=shadowTexture();this.vaporTexture=vaporTexture();this.streakTexture=streakTexture();this.geometry={...spellShapes(),thorn:briarGeometry(),ripple:new T.PlaneGeometry(2,2),ribbon:new T.PlaneGeometry(1,1),droplet:new T.SphereGeometry(1,10,6),stone:new T.DodecahedronGeometry(1,0),waterArc:new T.RingGeometry(.89,1,24,1,Math.PI*.12,Math.PI*.76),ember:new T.IcosahedronGeometry(1,0),crystal:new T.ConeGeometry(1,2,5),flame:flameGeometry(),veil:new T.PlaneGeometry(2,2),vapor:new T.PlaneGeometry(2,2),smoke:new T.SphereGeometry(1,7,5),ray:new T.BoxGeometry(1,1,1)};
  }
  particle(shape,color,x,y,z,{life=.4,size=[.1,.1,.1],velocity=[0,0,0],opacity=.9,additive=true,grow=false,gravity=0,spin=0,orbit=null,priority=0,motion='',roll=0,delay=0,endColor=null}={}){
   if(this.active.length>=this.limit){let victim=-1,lowest=priority;for(let i=0;i<this.active.length;i++)if(this.active[i].priority<lowest){victim=i;lowest=this.active[i].priority;if(lowest===0)break;}if(victim<0)return null;const old=this.active.splice(victim,1)[0];this.scene.remove(old.mesh);this.pool.push(old.mesh);}
@@ -77,7 +93,7 @@ export class SkillVFX{
   // These are open sheets: a second transparent back-face pass cannot add volume.
   // Reset on every checkout, because the same mesh may next become a closed shard.
   mesh.material.forceSinglePass=['flame','veil','vapor','crest','sweep','claw','waterArc','ribbon','ripple'].includes(shape);
-  const map=shape==='ripple'?this.rippleTexture:shape==='flame'?this.flameTexture:shape==='veil'?this.shadowTexture:shape==='vapor'?this.vaporTexture:shape==='crest'?this.crestTexture:['sweep','claw','ribbon'].includes(shape)?this.streakTexture:null;if(mesh.material.map!==map){mesh.material.map=map;mesh.material.needsUpdate=true;}const vertexColors=shape==='shard';if(mesh.material.vertexColors!==vertexColors){mesh.material.vertexColors=vertexColors;mesh.material.needsUpdate=true;}
+  const map=shape==='ripple'?this.rippleTexture:shape==='flame'?this.flameTexture:shape==='veil'?this.shadowTexture:shape==='vapor'?this.vaporTexture:shape==='crest'?this.crestTexture:['sweep','claw','ribbon'].includes(shape)?this.streakTexture:null;if(mesh.material.map!==map){mesh.material.map=map;mesh.material.needsUpdate=true;}const vertexColors=shape==='shard'||shape==='thorn';if(mesh.material.vertexColors!==vertexColors){mesh.material.vertexColors=vertexColors;mesh.material.needsUpdate=true;}
   mesh.position.set(x,y,z);mesh.rotation.set(['veil','vapor','waterArc','ripple'].includes(shape)?-Math.PI/2:0,shape==='flame'?Math.PI/4:0,0);mesh.scale.set(...size);mesh.visible=delay<=0;mesh.frustumCulled=false;this.scene.add(mesh);
   const p={mesh,shape,life,max:life,size,velocity,opacity:shape==='flame'?opacity*.76:opacity,grow,gravity,spin,orbit,priority,motion,roll,delay,fromColor:endColor===null?null:mesh.material.color.clone(),endColor:endColor===null?null:new T.Color(endColor)};this.active.push(p);this.animate(p,0);return mesh;
  }
@@ -164,6 +180,25 @@ export class SkillVFX{
   }
  }
  segment(a,b,color,width,life=.15,additive=width<.04,priority=0,opacity=.9,animation={}){const delta=new T.Vector3().subVectors(b,a),mid=new T.Vector3().addVectors(a,b).multiplyScalar(.5),m=this.particle('ray',color,mid.x,mid.y,mid.z,{life,size:[width,delta.length(),width],additive,priority,opacity,...animation});if(m)m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),delta.normalize());}
+ arcLink(a,b,{hit=false,focus=0,secondary=false}={}){
+  const start=new T.Vector3(a.x,a.y,a.z),end=new T.Vector3(b.x,b.y,b.z),length=start.distanceTo(end);
+  if(length<.001)return;
+  const direction=end.clone().sub(start).normalize(),side=new T.Vector3().crossVectors(direction,new T.Vector3(0,1,0));if(side.lengthSq()<.001)side.set(1,0,0);side.normalize();
+  const up=new T.Vector3().crossVectors(side,direction),count=secondary?4:6;let last=start;
+  for(let i=1;i<=count;i++){const next=start.clone().lerp(end,i/count);if(i<count)next.addScaledVector(side,(Math.random()-.5)*.19).addScaledVector(up,(Math.random()-.5)*.10);
+   this.segment(last,next,0x8f76d0,.045+focus*.012,.15,true,0,.20,{motion:'discharge'});
+   this.segment(last,next,i%2?0xddd2ff:0xf1dfb2,.014+focus*.004,.12,true,1,.88,{motion:'discharge'});last=next;
+  }
+  if(hit)for(let i=0;i<3;i++){const angle=i*2.39996;this.particle('crystal',i?0xc6b2f5:0xf4e2ad,end.x,end.y,end.z,{life:.16,size:[.018,.09,.018],velocity:[Math.sin(angle)*1.5,.35,Math.cos(angle)*1.5],spin:5,motion:'discharge'});}
+ }
+ briarBurst(x,y,z,r,trap=false){
+  // Uneven thorn fans describe the actual area, without an opaque disk/ring.
+  for(let i=0;i<9;i++){const a=i*2.39996,d=r*(.45+(i%3)*.20),px=x+Math.sin(a)*d,pz=z+Math.cos(a)*d;
+   const thorn=this.groundParticle('thorn',trap?0xb3caa0:0xd2cb9c,px,.01,pz,{life:.43,size:[.24,.48+(i%3)*.13,.24],motion:'erupt',additive:false,endColor:0x657a50});if(thorn){thorn.rotation.y=a;thorn.rotation.z=-Math.sin(a)*.25;thorn.rotation.x=Math.cos(a)*.25;}
+   this.particle('ember',i%2?0xd7b77c:0x79905b,x,y+.18,z,{life:.42,size:[.035,.05,.025],velocity:[Math.sin(a)*d*2,1.2+i%3*.4,Math.cos(a)*d*2],gravity:6,spin:7,additive:false});
+  }
+  this.particle('vapor',0xc1ab7f,x,y+.07,z,{life:.28,size:[r*.65,.25,1],opacity:.23,additive:false});
+ }
  lightning(ax,az,bx,bz,vertical=false){
   this.groundParticle('veil',0x90c8ff,bx,.08,bz,{life:.18,size:[.65,.48,1],opacity:.24,priority:1});
   const start=new T.Vector3(ax,vertical?6:1.1,az),end=new T.Vector3(bx,1,bz);let last=start;

@@ -1,5 +1,5 @@
-import{NewHeroSkills}from'./new-hero-skills.js?v=210';
-import{segmentDistance}from'./rules.js?v=210';
+import{NewHeroSkills}from'./new-hero-skills.js?v=211';
+import{segmentDistance}from'./rules.js?v=211';
 // Gameplay records are bounded and independent from the recycled visual particles.
 export class HeroSkills{
  constructor(api){this.api=api;this.reset();}
@@ -27,8 +27,8 @@ export class HeroSkills{
    for(const delay of [.25,.65])this.pending.push({kind:'echo',x,z,delay,damage:14+7*this.rank('echo')});
   }
  }
- onHit(e){
-  this.newHeroes.hit(e);
+ onHit(e,brineWeight=1){
+  this.newHeroes.hit(e,brineWeight);
   if(!this.api.active()||!this.rank('pursuit')||!e.alive||this.now<(this.cool.pursuit||0))return;
   if(!this.mark||this.mark.enemy!==e||this.now-this.mark.time>2.5)this.mark={enemy:e,count:0,time:this.now};
   this.mark.count++;this.mark.time=this.now;

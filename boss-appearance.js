@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,tint,joint,smooth,stepLeg} from './creature-forms.js?v=210';
+import {form,surface,tube,oval,tint,joint,smooth,stepLeg} from './creature-forms.js?v=211';
 
-import {creatureGait,gaitDistance,gaitStride} from './creature-gait.js?v=210';
+import {creatureGait,gaitDistance,gaitStride} from './creature-gait.js?v=211';
 
 // These are the original spawn bounds used by projectile targeting. Appearance
 // and anticipation may change; the collision body and attack clock do not.

@@ -1,12 +1,15 @@
-import{SCYTHE}from'./scythe-combat.js?v=210';
-import{REGIONAL_ENEMIES}from'./map-enemies.js?v=210';
-import{EXTRA_SKILLS,EXTRA_BY_ID}from'./skill-catalog.js?v=210';
-import{POISON}from'./poison-config.js?v=210';
-import{MIRAGE}from'./mirage-config.js?v=210';
+import{SCYTHE}from'./scythe-combat.js?v=211';
+import{REGIONAL_ENEMIES}from'./map-enemies.js?v=211';
+import{EXTRA_SKILLS,EXTRA_BY_ID}from'./skill-catalog.js?v=211';
+import{POISON}from'./poison-config.js?v=211';
+import{MIRAGE}from'./mirage-config.js?v=211';
+import{ARCSTAFF,BRIARPOT}from'./wild-weapons.js?v=211';
 export const MAPS={confluence:{name:'五境大远征',subtitle:'林地、雪山、裂谷、遗城与海港无缝相连，沿古道挑战五境守卫',ground:0x536a48,fog:0x526b61,leaf:0x427657,accent:0xdaca96,slow:'地形'},coast:{name:'幽潮遗港',subtitle:'穿过曲折水湾与岛地，走栈桥或退潮浅滩，打捞货箱、点亮古灯塔',ground:0x586e70,fog:0x344f5c,leaf:0x508582,accent:0x8cdde0,slow:'潮湿滩地'},sand:{name:'风蚀遗城',subtitle:'绕开沙暴流沙，风息挖掘古匣、开启遗城机关',ground:0xafa080,fog:0x928a77,leaf:0x938363,accent:0xe6ca87,slow:'流沙'},forest:{name:'翡翠幽林',subtitle:'穿过古木与遗迹，追寻林心的回声',ground:0x284b3b,fog:0x173d39,leaf:0x287456,accent:0xecc988,slow:'泥地'},snow:{name:'霜月峡谷',subtitle:'冰晶照亮雪路，寒风掩藏猎手',ground:0x96b7bd,fog:0x769daa,leaf:0x456e7d,accent:0x9ae9ff,slow:'深雪'},ash:{name:'赤烬荒原',subtitle:'越过熔岩裂隙，唤醒沉睡的守卫',ground:0x5c4544,fog:0x382e3c,leaf:0x69545d,accent:0xffa25d,slow:'灰烬'}};
 // Legacy boomerang ID now identifies the slingshot; save and route keys remain compatible.
 export const WEAPONS={miasmalantern:{id:'miasmalantern',name:'蜃花灯',rate:MIRAGE.rate,damage:MIRAGE.impact,count:1,speed:MIRAGE.speed,range:MIRAGE.range,color:MIRAGE.color,needleDamage:MIRAGE.needleDps,needleDuration:MIRAGE.needleDuration,burstRadius:MIRAGE.burstRadius,splashDamage:MIRAGE.splashDamage,poisonScale:1,lureRank:0,venomRank:0},sporelantern:{id:'sporelantern',name:'孢灯',rate:POISON.rate,damage:POISON.impact,count:1,speed:POISON.speed,range:POISON.range,color:POISON.color,cloudDamage:POISON.dps,cloudRadius:POISON.radius,cloudDuration:POISON.duration,cloudMax:POISON.maxClouds,stillRank:0,roamRank:0},boomerang:{id:'boomerang',name:'芽铃弹弓',rate:1.5,damage:30,count:1,speed:28,range:11,color:0xe2d2aa,petDamage:30,petCooldown:2.35},harpoon:{id:'harpoon',name:'潮汐长叉',rate:1.6,damage:36,count:1,speed:1,range:3.8,color:0x8ad9da,melee:true,width:.48,pull:.85,slow:.6},rifle:{id:'rifle',name:'游侠连发枪',rate:3,damage:12,count:1,speed:27,range:14,color:0xffdc91},shotgun:{id:'shotgun',name:'碎岩霰弹枪',rate:1,damage:10,count:5,speed:25,range:8,color:0xffbe69},fire:{id:'fire',name:'烬火法杖',rate:.9,damage:30,count:1,speed:14,range:11,color:0xff743b},crossbow:{id:'crossbow',name:'夜翎短弩',rate:2.05,damage:20,count:1,speed:35,range:16,color:0xd8edff},shuriken:{id:'shuriken',name:'月刃飞镖',rate:1.4,damage:13,count:3,speed:22,range:12,color:0x95fff0},dark:{id:'dark',name:'夜幕法杖',rate:1,damage:26,count:1,speed:12,range:10,color:0xc5a2ff},shade:{id:'shade',name:'牵影咒',rate:1.6,damage:18,count:1,speed:20,range:8,color:0xf4f3ee},shadowblade:{id:'shadowblade',name:'断魂战镰',rate:SCYTHE.rate,damage:SCYTHE.damage,count:1,speed:1,range:SCYTHE.range,arc:SCYTHE.arc,melee:true,color:0xc6c8c6},grimoire:{id:'grimoire',name:'悬影魔典',rate:.8,damage:34,count:1,speed:1,range:10,color:0xe7e4db}};
-export const HERO_LOADOUTS={scout:['rifle','shotgun','fire'],silver:['crossbow','shuriken','dark'],wraith:['shade','shadowblade','grimoire'],tide:['harpoon'],lingya:['boomerang'],wuling:['sporelantern'],mirage:['miasmalantern']};
+WEAPONS.arcstaff={id:'arcstaff',name:'潮鸣导雷杖',rate:ARCSTAFF.rate,damage:ARCSTAFF.damage,count:1,speed:1,range:ARCSTAFF.range,color:0xcbb8ff,chainCount:2,chainRange:ARCSTAFF.jump};
+WEAPONS.briarpot={id:'briarpot',name:'荆果投壶',rate:BRIARPOT.rate,damage:BRIARPOT.damage,count:1,speed:12,range:BRIARPOT.range,color:0xd6b77a,slow:BRIARPOT.slow,petDamage:30,petCooldown:2.35};
+export const HERO_LOADOUTS={scout:['rifle','shotgun','fire'],silver:['crossbow','shuriken','dark'],wraith:['shade','shadowblade','grimoire'],tide:['harpoon','arcstaff'],lingya:['boomerang','briarpot'],wuling:['sporelantern'],mirage:['miasmalantern']};
 export function weaponFor(hero,index){const ids=Object.hasOwn(HERO_LOADOUTS,hero)?HERO_LOADOUTS[hero]:HERO_LOADOUTS.scout;return WEAPONS[ids[index]||ids[0]];}
 export function registerCrossbowHit(player,targetId,now){const mark=player.crossbowMark;if(!mark||mark.target!==targetId||now-mark.time>2.5)player.crossbowMark={target:targetId,time:now,hits:1};else{mark.time=now;mark.hits++;if(mark.hits===3){mark.hits=0;return true;}}return false;}
 export const CROSSBOW_HUNT={distance:3,window:4,burst:[0,2.2,2.4,2.6],slow:1.2,dodgeRefund:.6};
@@ -36,6 +39,10 @@ UPGRADES.push(...EXTRA_SKILLS.map(s=>({...s,text:s.describe(1),category:'skill'}
 const heroSpell=(hero,id,weapon)=>EXTRA_BY_ID[id]?EXTRA_BY_ID[id].hero===(hero||'scout')&&(!EXTRA_BY_ID[id].weapon||EXTRA_BY_ID[id].weapon===weapon):['tide','lingya'].includes(hero)?['power','haste','vitality','stride','magnet'].includes(id):hero==='wraith'?!['fire','ice','storm'].includes(id):!['veil','chain','rift'].includes(id);
 const route=(weapon,name,icon,steps)=>({weapon,name,icon,steps});
 export const WEAPON_PATHS={
+ arcstaff_chain:route('arcstaff','连枝电网','ϟ',['最多连到 3 名敌人，跳电距离 3.3 米；主伤害 -10%，跳电为主伤害的 60%，不重复命中、不穿障碍','最多连到 4 名敌人，跳电距离 3.6 米；所有目标仍须在 9.5 米射程内','最多连到 5 名敌人，跳电距离 3.9 米；保留伤害取舍与遮挡限制']),
+ arcstaff_focus:route('arcstaff','聚流雷芯','◆',['取消跳电；连续命中同一目标 1.25 秒后逐渐达到 +55% 伤害；换目标、挥空或中断超过 0.55 秒重置','保留单体跟踪；满聚流伤害 +80%','保留单体跟踪；满聚流伤害 +105%；潜潮和暂停清空聚流']),
+ briarpot_burst:route('briarpot','裂壳荆爆','✹',['爆开半径 2.4 米，伤害 +12%；落地 0.55 秒后爆开','爆开半径 2.7 米，伤害 +24%','爆开半径 3 米，伤害 +36%；荆刺受地形遮挡']),
+ briarpot_snare:route('briarpot','伏芽猎场','♧',['落地 0.55 秒后待敌触发，最长留置 3 秒；伤害 -15%，减速 1.4 秒，普通怪停步 0.3 秒；同一怪每 2 秒至多被荆果打断一次','最长留置 3.5 秒，减速 1.8 秒，普通怪停步 0.4 秒；保留 2 秒打断间隔','最长留置 4 秒，减速 2.2 秒，普通怪停步 0.5 秒；保留 2 秒打断间隔，首领只减速；最多 6 颗，超出替换最早一颗']),
  miasmalantern_lure:route('miasmalantern','幻瘴','❧',[`替身持续至 ${MIRAGE.lureDuration} 秒，承受伤害降低 ${Math.round((1-MIRAGE.lureDamageTaken)*100)}%；生命仍为释放时的当前生命`,`保留一阶；自然绽爆半径 ${MIRAGE.lureBloomRadius} 米，毒雾半径 ${MIRAGE.lureCloudRadius} 米，每秒 ${MIRAGE.lureCloudDps} 伤害、${MIRAGE.lureCloudDuration} 秒`,`保留二阶；自然绽爆伤害 +${Math.round((MIRAGE.lureFinalBloom-1)*100)}%，毒雾伤害 +${Math.round((MIRAGE.lureFinalDps-1)*100)}%；绽爆与毒雾短暂减速，替身被杀仍无绽爆`]),
  miasmalantern_venom:route('miasmalantern','蚀影','⋄',[`附毒提高至每秒 ${MIRAGE.venomDps[1]} 伤害，重复命中刷新而不叠层`,`附毒每秒 ${MIRAGE.venomDps[2]} 伤害；遁形结束后 ${MIRAGE.pursuitDuration} 秒内，命中的附毒再增加 ${MIRAGE.pursuitDps} 每秒伤害`,`附毒每秒 ${MIRAGE.venomDps[3]} 伤害；保留显形附毒强化，并在该 ${MIRAGE.pursuitDuration} 秒窗口内攻速再提高 ${Math.round((MIRAGE.pursuitRate-1)*100)}%`]),
  sporelantern_still:route('sporelantern','沉瘴','♧',[`毒雾半径缩至 ${POISON.radius*POISON.stillRadius} 米，持续延长至 ${POISON.duration+POISON.stillDuration} 秒；适合定点守区`,`保留小范围长持续；主毒区留置 ${POISON.matureTime} 秒逐渐成熟，毒雾伤害最高 +${POISON.matureBonus*100}%`,`成熟后凝出半径 ${POISON.coreRadius} 米的毒核，核心伤害再提高 ${Math.round((POISON.coreMultiplier-1)*100)}%；与同区毒雾取高，不叠加`]),
@@ -64,6 +71,10 @@ export const WEAPON_PATHS={
  grimoire_echo:route('grimoire','复诵禁咒','◈',['裂口延迟再次爆发，造成 40% 伤害','再次爆发造成 55% 伤害','再次爆发造成 70% 伤害'])
 };
 export const WEAPON_PATH_PLAYS={
+ arcstaff_chain:'跟住前排目标，把旁边敌人串入电网；隔着树石不会跳电。',
+ arcstaff_focus:'取消连锁换取单体聚流，边走边跟住同一目标；断线就重新蓄势。',
+ briarpot_burst:'把荆果抛在追兵前方，利用飞行与蓄势时间预判它们的位置。',
+ briarpot_snare:'提前往退路投放伏芽，再引怪经过；伙伴追击爆开标记的目标。',
  miasmalantern_lure:'留替身引怪，等它自然绽放；被打碎不会绽爆。',
  miasmalantern_venom:'蜕影后集中追击，把附毒留给高血量目标。',
  sporelantern_still:'围着固定毒区走位；搬运会失去成熟度。',
@@ -109,8 +120,10 @@ export function forestGrowthChoices(p,random=Math.random,{preferOwned=false}={})
 }
 export function chooseUpgrades(p,random=Math.random){const pool=UPGRADES.filter(u=>heroSpell(p.heroId,u.id,p.weaponId)&&(p.upgrades[u.id]||0)<u.max).map(u=>{
  const rank=(p.upgrades[u.id]||0)+1;let text=u.text;
- if(u.id==='haste'&&p.heroId==='lingya')text='拉带发射频率 +15%，石弹飞行速度和射程不变';
- if(u.id==='haste'&&p.heroId==='tide')text='穿刺速度 +15%，牵引节奏加快';
+ if(u.id==='haste'&&p.weaponId==='briarpot')text='抛投频率 +15%，不缩短落地蓄势时间';
+ if(u.id==='haste'&&p.heroId==='lingya'&&p.weaponId!=='briarpot')text='拉带发射频率 +15%，石弹飞行速度和射程不变';
+ if(u.id==='haste'&&p.weaponId==='arcstaff')text='放电频率 +15%，不缩短聚流所需时间';
+ if(u.id==='haste'&&p.heroId==='tide'&&p.weaponId!=='arcstaff')text='穿刺速度 +15%，牵引节奏加快';
  if(u.id==='haste'&&p.heroId==='mirage')text='毒针发射频率 +15%；附毒刷新不叠层，不加快替身绽爆';
  if(u.id==='haste'&&p.heroId==='wuling')text=`抛投频率 +15%；不增加毒雾每秒伤害，最多保留 ${POISON.maxClouds} 片主毒区`;
  if(u.id==='fire')text=`每 5.5 秒落下陨火，造成 ${35*rank} 伤害，爆炸半径 3.5`;
@@ -148,10 +161,14 @@ export function takeUpgrade(p,id){
  const u=UPGRADES.find(u=>u.id===id);if(!u||!heroSpell(p.heroId,id,p.weaponId)||(p.upgrades[id]||0)>=u.max)return false;p.upgrades[id]=(p.upgrades[id]||0)+1;if(id==='vitality'){p.maxHp+=24;p.hp=Math.min(p.maxHp,p.hp+24);}return true;
 }
 export function weaponStats(p){
- const base=Object.hasOwn(WEAPONS,p.weaponId)?WEAPONS[p.weaponId]:WEAPONS.crossbow,w={...base,hitRadius:({miasmalantern:MIRAGE.hitRadius,sporelantern:POISON.impactRadius,boomerang:.12,harpoon:.1,rifle:.06,shotgun:.07,crossbow:.09,shuriken:.22,fire:.32,dark:.28,shade:.18,shadowblade:.32,grimoire:0})[base.id],pierce:['shuriken','shadowblade'].includes(base.id)?2:1,spread:({shotgun:.20,shuriken:.19,shadowblade:.22})[base.id]||.12,radius:base.id==='fire'?2.5:base.id==='dark'?2:base.id==='grimoire'?1.7:0,bounces:0,burn:0,returning:false,gravity:0,echo:0,markDamage:base.id==='shade'?24:0,markRadius:1.8};
+ const base=Object.hasOwn(WEAPONS,p.weaponId)?WEAPONS[p.weaponId]:WEAPONS.crossbow,w={...base,hitRadius:({arcstaff:ARCSTAFF.radius,briarpot:.1,miasmalantern:MIRAGE.hitRadius,sporelantern:POISON.impactRadius,boomerang:.12,harpoon:.1,rifle:.06,shotgun:.07,crossbow:.09,shuriken:.22,fire:.32,dark:.28,shade:.18,shadowblade:.32,grimoire:0})[base.id],pierce:['shuriken','shadowblade'].includes(base.id)?2:1,spread:({shotgun:.20,shuriken:.19,shadowblade:.22})[base.id]||.12,radius:base.id==='briarpot'?BRIARPOT.radius:base.id==='fire'?2.5:base.id==='dark'?2:base.id==='grimoire'?1.7:0,bounces:0,burn:0,returning:false,gravity:0,echo:0,markDamage:base.id==='shade'?24:0,markRadius:1.8};
  const id=p.weaponPath?.id,path=WEAPON_PATHS[id],r=path?.weapon===base.id?Math.min(3,Math.max(0,p.weaponPath.rank)):0;
  w.pathId=r?id:null;w.pathRank=r;
  if(r)switch(id){
+ case'arcstaff_chain':w.chainCount=2+r;w.chainRange=ARCSTAFF.jump+.3*r;w.damage*=.9;break;
+ case'arcstaff_focus':w.chainCount=1;break;
+ case'briarpot_burst':w.radius=BRIARPOT.radius+.3*r;w.damage*=1+.12*r;break;
+ case'briarpot_snare':w.trapLife=2.5+.5*r;w.slow=1+.4*r;w.stagger=.2+.1*r;w.damage*=.85;break;
  case'miasmalantern_lure':w.lureRank=r;break;
  case'miasmalantern_venom':w.venomRank=r;w.needleDamage=MIRAGE.venomDps[r];break;
  case'sporelantern_still':w.stillRank=r;w.cloudRadius*=POISON.stillRadius;w.cloudDuration+=POISON.stillDuration;break;
@@ -182,6 +199,8 @@ export function weaponStats(p){
  w.damage*=1+.18*(p.upgrades?.power||0);if(w.id==='miasmalantern'){w.poisonScale=1+.18*(p.upgrades?.power||0);w.needleDamage*=w.poisonScale;w.splashDamage*=w.poisonScale;}if(w.cloudDamage!==undefined)w.cloudDamage*=1+.18*(p.upgrades?.power||0);if(w.petDamage)w.petDamage*=1+.18*(p.upgrades?.power||0);w.rate*=1+.15*(p.upgrades?.haste||0);if(p.huntBoon==='rush'&&p.huntRush>0){w.damage*=1.25;if(w.petDamage)w.petDamage*=1.25;}return w;
 }
 export function weaponReachText(w){
+ if(w.id==='arcstaff')return '导雷距离 '+w.range+' 米 · 最多 '+w.chainCount+' 个目标 · 跳电 '+Number(w.chainRange.toFixed(1))+' 米 · 松手停火、遇障碍断流';
+ if(w.id==='briarpot')return '抛投距离 '+w.range+' 米 · 荆爆半径 '+Number(w.radius.toFixed(1))+' 米 · 落地蓄势 0.55 秒 · 最多 6 颗 · 爆开为伙伴标记一名目标';
  const n=v=>Number(v.toFixed(1));if(w.id==='miasmalantern')return `毒团射程 ${n(w.range)} 米 · 扩散半径 ${n(w.burstRadius)} 米 · 附毒每秒 ${n(w.needleDamage)} 伤害、${MIRAGE.needleDuration} 秒 · 刷新不叠层 · 闪避起点留下诱敌替身`;if(w.id==='sporelantern')return `抛投距离 ${n(w.range)} 米 · 毒雾半径 ${n(w.cloudRadius)} 米 · 每秒 ${n(w.cloudDamage)} 伤害，持续 ${n(w.cloudDuration)} 秒 · 最多 ${w.cloudMax} 片`;if(w.id==='boomerang')return '直射 '+n(w.range)+' 米 · 拉带发射石弹，命中标记目标 · 伙伴自主扑击';if(w.id==='harpoon')return '穿刺距离 '+n(w.range)+' 米 · 窄线贯穿 · 第三击回潮牵引';
  if(w.id==='shadowblade')return '近战距离 '+n(w.range)+' 米 · 横斩→反斩→重镰 · 扇面 '+Math.round(w.arc*360/Math.PI)+'°';
  const reach=w.id==='grimoire'?'施法距离':w.returning?'去程距离':'射程';

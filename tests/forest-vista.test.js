@@ -1,7 +1,8 @@
 import test from'node:test';
 import * as T from'../vendor/three.module.js';
-import{surfaceUniforms}from'../surface-textures.js?v=210';
-import{wornStoneBlock}from'../environment-props.js?v=210';
+import{runtimeImport}from'./runtime-import.js';
+const {surfaceUniforms}=await runtimeImport('environment-props.js','surface-textures.js');
+const {wornStoneBlock}=await runtimeImport('forest-vista.js','environment-props.js');
 import assert from'node:assert/strict';
 import{buildWorld,clearAt}from'../world.js';
 import{installForestVista}from'../forest-vista.js';

@@ -1,7 +1,8 @@
 import{test}from'node:test';import assert from'node:assert/strict';import * as T from'../vendor/three.module.js';
-import{buildWorld,clearAt,animateWorld}from'../world.js';import{sceneryAllowed}from'../biome-scenery.js';
+import{buildWorld,clearAt,animateWorld}from'../world.js';
+import{runtimeImport}from'./runtime-import.js';
 import{bridgeContains,updateTide}from'../coast.js';import{waterDepth}from'../water.js';
-import{naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}from'../biome-scenery.js?v=210';
+const {sceneryAllowed,naturalRockGeometry,boulderRockGeometry,finishRock,installGroundSurface,environmentDetailTexture}=await runtimeImport('world.js','biome-scenery.js');
 globalThis.document={createElement:()=>({width:256,height:256,getContext:()=>({fillRect(){}})})};
 function dispose(w){w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});}
 test('jointed rocks retain heights, inward footprints, broad faces and shared material budgets',()=>{

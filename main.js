@@ -1,94 +1,95 @@
-import{bossZoneEffect}from'./boss-effects.js?v=210';
-import{setCreatureTime}from'./creature-forms.js?v=210';
-import{enemyCastFlight as castEnemyFlight}from'./enemy-cast-vfx.js?v=210';
-import{installClimateLandforms}from'./climate-landforms.js?v=210';
-import{installHarborLife}from'./harbor-life.js?v=210';
-import {createLoadingScreen} from './loading-screen.js?v=210';
-import {warmScene} from './render-prewarm.js?v=210';
-import {prepareCombatSamples} from './combat-prewarm.js?v=210';
-import {loadTreeTextures} from './tree-scenery.js?v=210';
-import {loadFernTextures} from './fern-surfaces.js?v=210';
-import{bodiesClear}from'./actor-collision.js?v=210';
-import{BOSS_ROUTES,BOSS_ROUNDS,BOSS_BREAK,createBossRun,advanceBossRun}from'./boss-expedition.js?v=210';
-import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=210';
-import{shotInterval,shotgunVolley,shotgunHit,SHOTGUN_PUSH}from'./gun-handling.js?v=210';
-import{beginScythe,scytheHits,scytheDamage,scythePrimary,finishScytheSweep,scytheRestRemaining,SCYTHE}from'./scythe-combat.js?v=210';
-import{AIR_ENEMIES,AIR_ROSTERS,airWaveEligible,makeAirborne,tickAirborne}from'./airborne-enemies.js?v=210';
-import{MOBILITY,resetMobility,airborne,bodyHeight,attackReachesPlayer,beginJump,tickMobility,restoreMobilityPose,applyMobilityPose}from'./adventure-mobility.js?v=210';
-import{installAdventureCampfire,updateAdventureCampfire}from'./adventure-campfire.js?v=210';
-import{loadSurfaceTextures}from'./surface-textures.js?v=210';
-import{createOverheadQuery,mobilityCeiling as queryMobilityCeiling,needsMobilityCeiling}from'./adventure-overheads.js?v=210';
-import{installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail}from'./adventure-ground-detail.js?v=210';
-import{AdventureCamera}from'./adventure-camera.js?v=210';
-import{FirstPersonView}from'./first-person-view.js?v=210';
-import{AdventureAtmosphere}from'./adventure-atmosphere.js?v=210';
-import{aimPoint,groundAim,launchVelocity,segmentHitsBody,bodyContact,segmentBodyEntry,segmentGroundEntry}from'./adventure-combat.js?v=210';
-import{CinematicRenderer}from'./cinematic-renderer.js?v=210';
-import{EnvironmentImpacts,waterCrossing}from'./environment-impact.js?v=210';
-import{lobbyLandscape,entryLandscapeYaw}from'./lobby-landscape.js?v=210';
-import{installForestHabitats}from'./forest-habitats.js?v=210';
-import{installExplorationRoutes}from'./exploration-routes.js?v=210';
-import{installBiomePlaces}from'./biome-places.js?v=210';
-import{installEnvironmentClusters}from'./environment-clusters.js?v=210';
-import{installEnvironmentGrounding}from'./environment-grounding.js?v=210';
-import{installForestTerrain}from'./forest-terrain.js?v=210';
-import{installForestFloorRelief}from'./forest-floor-relief.js?v=210';
-import{installExplorationLandmarks}from'./exploration-landmarks.js?v=210';
-import{installExplorationComposition}from'./exploration-composition.js?v=210';
-import{installForestVista}from'./forest-vista.js?v=210';
-import{installWorldLightShafts,updateWorldLightShafts,installForestMist}from'./world-light-shafts.js?v=210';
-import{mapBrief}from'./expedition-brief.js?v=210';
-import{polishEnvironmentModels}from'./environment-props.js?v=210';
-import{EnvironmentLighting,installDistantLandscape}from'./environment-lighting.js?v=210';
-import{MirageCombat}from'./mirage-combat.js?v=210';
-import{MirageVFX}from'./mirage-vfx.js?v=210';
-import{mirageSound}from'./mirage-audio.js?v=210';
-import{PoisonCombat}from'./poison-combat.js?v=210';
-import{PoisonVFX}from'./poison-vfx.js?v=210';
-import{poisonSound}from'./poison-audio.js?v=210';
-import {HeroPreview} from './hero-preview.js?v=210';
-import {knownMapPoints,mapWaypoint,waypointHint,drawMapObstacles} from './map-navigation.js?v=210';
-import {createExploration,EXPLORATION_SIZE} from './map-exploration.js?v=210';
-import{REGIONS,biomeAt,biomeWeights,biomeColor,CONFLUENCE_TEXT}from'./confluence.js?v=210';
-import{observePlayer}from'./target-awareness.js?v=210';
-import{TERRAIN_TIPS,onIce,iceMotion,damageTerrain,updateTactics,terrainMesh}from'./map-tactics.js?v=210';
-import{advanceRoaming,roamingHint,courierDirection,campRewardChoices,campRewardPool,roamingReward}from'./roaming-events.js?v=210';
-import{discoveryInfo,discoveryVariants,discoveryThreatened,advanceDiscovery,discoveryHint,animateDiscoveries}from'./map-discoveries.js?v=210';
-import{recordEnemyHit,EnemyDeaths}from'./enemy-feedback.js?v=210';
-import{sandWeather}from'./sand-weather.js?v=210';
-import{HERO_DODGES,HERO_ABILITY_TEXT,dodgeTravel}from'./hero-dodge.js?v=210';
-import{LINGYA_HOP_DURATION,lingyaHopScale,planLingyaHop,steerLingyaHop}from'./lingya-motion.js?v=210';
-import{BeastCompanion,PET_TIMING,sideHopTravel}from'./beast-companion.js?v=210';
-import{makeBadger,animateBadger}from'./beast-model.js?v=210';
-import{updateTide,harpoonHit,tideDashTravel,HARPOON_ATTACKS}from'./coast.js?v=210';
-import{tickBoss}from'./boss-combat.js?v=210';
-import{inMeleeArc,meleeDamageScale}from'./melee.js?v=210';
-import{discoverSite}from'./site-discovery.js?v=210';
-import{MAP_EVENTS,createMapEvent,acceptForestTrial,advanceMapEvent,eventProgress}from'./map-events.js?v=210';
-import{MAP_HALF as DEFAULT_HALF}from'./map-layout.js?v=210';
-import{terrainAt,updateWaterLighting}from'./water.js?v=210';
-import{crossedSwimPhase}from'./swim-motion.js?v=210';
-import{FIELD_SUPPLIES,equipFieldSupply,fieldSupplyEvent,fieldSupplyLabel,RELICS,relicChoices,equipRelic,relicEvent,incomingRelicDamage,readJournal,writeJournal,recordDiscovery,recordVictory}from'./expedition.js?v=210';
-import{EXPEDITION_BOSS_TIME,encounterPhase,enemyGrowth,encounterRole,HUNT_SQUAD,huntFormation,nextHuntFormation,enemyRecovery,HUNT_BOONS,takeHuntBoon,enemyApproach,separation,attackSlotAvailable}from'./encounters.js?v=210';
-import{setupMobileDisplay}from'./mobile-display.js?v=210';
-import{weaponCuePhases,mirageShotDelay}from'./weapon-performance.js?v=210';
-import{ENEMY_VOICES}from'./enemy-audio.js?v=210';
-import{ENEMY_MOTION,gaitPace,advanceEnemyLocomotion}from'./enemy-motion.js?v=210';
-import{MAP_ROSTERS,REGIONAL_ENEMIES,regionalEnemy}from'./map-enemies.js?v=210';
-import{HeroSkills}from'./hero-skills.js?v=210';
-import{EXTRA_BY_ID,skillPairState,skillPairHint}from'./skill-catalog.js?v=210';
-import{SCOUT_ROLL_DURATION,rollTravel}from'./dodge-motion.js?v=210';
-import{adventureDodgePose}from'./adventure-dodge.js?v=210';
-import{renderPixelRatio,RenderBudget}from'./render-budget.js?v=210';
-import{groundCue,disposeCue,fitGroundCue,fitGroundSurface,disposeGroundSurface}from'./ground-cues.js?v=210';
-import{weaponRouteEffect,WEAPON_ROUTE_LOOKS}from'./weapon-route-vfx.js?v=210';
-import{SkillVFX}from'./skill-vfx.js?v=210';
-import{loadHeroAssets,disposeHero}from'./skinned-hero.js?v=210';
-import{GameAudio,SFX_STYLES}from'./audio.js?v=210';
-import{ENEMY_GUIDE,CIRCLE_GUIDE}from'./battle-guide.js?v=210';
+import{ARCSTAFF,BRIARPOT,traceArcStaff,arcFocusMultiplier,wildWeaponBlock,briarTargetPoint,BriarPods,briarStagger}from'./wild-weapons.js?v=211';
+import{bossZoneEffect}from'./boss-effects.js?v=211';
+import{setCreatureTime}from'./creature-forms.js?v=211';
+import{enemyCastFlight as castEnemyFlight}from'./enemy-cast-vfx.js?v=211';
+import{installClimateLandforms}from'./climate-landforms.js?v=211';
+import{installHarborLife}from'./harbor-life.js?v=211';
+import {createLoadingScreen} from './loading-screen.js?v=211';
+import {warmScene} from './render-prewarm.js?v=211';
+import {prepareCombatSamples} from './combat-prewarm.js?v=211';
+import {loadTreeTextures} from './tree-scenery.js?v=211';
+import {loadFernTextures} from './fern-surfaces.js?v=211';
+import{bodiesClear}from'./actor-collision.js?v=211';
+import{BOSS_ROUTES,BOSS_ROUNDS,BOSS_BREAK,createBossRun,advanceBossRun}from'./boss-expedition.js?v=211';
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=211';
+import{shotInterval,shotgunVolley,shotgunHit,SHOTGUN_PUSH}from'./gun-handling.js?v=211';
+import{beginScythe,scytheHits,scytheDamage,scythePrimary,finishScytheSweep,scytheRestRemaining,SCYTHE}from'./scythe-combat.js?v=211';
+import{AIR_ENEMIES,AIR_ROSTERS,airWaveEligible,makeAirborne,tickAirborne}from'./airborne-enemies.js?v=211';
+import{MOBILITY,resetMobility,airborne,bodyHeight,attackReachesPlayer,beginJump,tickMobility,restoreMobilityPose,applyMobilityPose}from'./adventure-mobility.js?v=211';
+import{installAdventureCampfire,updateAdventureCampfire}from'./adventure-campfire.js?v=211';
+import{loadSurfaceTextures}from'./surface-textures.js?v=211';
+import{createOverheadQuery,mobilityCeiling as queryMobilityCeiling,needsMobilityCeiling}from'./adventure-overheads.js?v=211';
+import{installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail}from'./adventure-ground-detail.js?v=211';
+import{AdventureCamera}from'./adventure-camera.js?v=211';
+import{FirstPersonView}from'./first-person-view.js?v=211';
+import{AdventureAtmosphere}from'./adventure-atmosphere.js?v=211';
+import{aimPoint,groundAim,launchVelocity,segmentHitsBody,bodyContact,segmentBodyEntry,segmentGroundEntry}from'./adventure-combat.js?v=211';
+import{CinematicRenderer}from'./cinematic-renderer.js?v=211';
+import{EnvironmentImpacts,waterCrossing}from'./environment-impact.js?v=211';
+import{lobbyLandscape,entryLandscapeYaw}from'./lobby-landscape.js?v=211';
+import{installForestHabitats}from'./forest-habitats.js?v=211';
+import{installExplorationRoutes}from'./exploration-routes.js?v=211';
+import{installBiomePlaces}from'./biome-places.js?v=211';
+import{installEnvironmentClusters}from'./environment-clusters.js?v=211';
+import{installEnvironmentGrounding}from'./environment-grounding.js?v=211';
+import{installForestTerrain}from'./forest-terrain.js?v=211';
+import{installForestFloorRelief}from'./forest-floor-relief.js?v=211';
+import{installExplorationLandmarks}from'./exploration-landmarks.js?v=211';
+import{installExplorationComposition}from'./exploration-composition.js?v=211';
+import{installForestVista}from'./forest-vista.js?v=211';
+import{installWorldLightShafts,updateWorldLightShafts,installForestMist}from'./world-light-shafts.js?v=211';
+import{mapBrief}from'./expedition-brief.js?v=211';
+import{polishEnvironmentModels}from'./environment-props.js?v=211';
+import{EnvironmentLighting,installDistantLandscape}from'./environment-lighting.js?v=211';
+import{MirageCombat}from'./mirage-combat.js?v=211';
+import{MirageVFX}from'./mirage-vfx.js?v=211';
+import{mirageSound}from'./mirage-audio.js?v=211';
+import{PoisonCombat}from'./poison-combat.js?v=211';
+import{PoisonVFX}from'./poison-vfx.js?v=211';
+import{poisonSound}from'./poison-audio.js?v=211';
+import {HeroPreview} from './hero-preview.js?v=211';
+import {knownMapPoints,mapWaypoint,waypointHint,drawMapObstacles} from './map-navigation.js?v=211';
+import {createExploration,EXPLORATION_SIZE} from './map-exploration.js?v=211';
+import{REGIONS,biomeAt,biomeWeights,biomeColor,CONFLUENCE_TEXT}from'./confluence.js?v=211';
+import{observePlayer}from'./target-awareness.js?v=211';
+import{TERRAIN_TIPS,onIce,iceMotion,damageTerrain,updateTactics,terrainMesh}from'./map-tactics.js?v=211';
+import{advanceRoaming,roamingHint,courierDirection,campRewardChoices,campRewardPool,roamingReward}from'./roaming-events.js?v=211';
+import{discoveryInfo,discoveryVariants,discoveryThreatened,advanceDiscovery,discoveryHint,animateDiscoveries}from'./map-discoveries.js?v=211';
+import{recordEnemyHit,EnemyDeaths}from'./enemy-feedback.js?v=211';
+import{sandWeather}from'./sand-weather.js?v=211';
+import{HERO_DODGES,HERO_ABILITY_TEXT,dodgeTravel}from'./hero-dodge.js?v=211';
+import{LINGYA_HOP_DURATION,lingyaHopScale,planLingyaHop,steerLingyaHop}from'./lingya-motion.js?v=211';
+import{BeastCompanion,PET_TIMING,sideHopTravel}from'./beast-companion.js?v=211';
+import{makeBadger,animateBadger}from'./beast-model.js?v=211';
+import{updateTide,harpoonHit,tideDashTravel,HARPOON_ATTACKS}from'./coast.js?v=211';
+import{tickBoss}from'./boss-combat.js?v=211';
+import{inMeleeArc,meleeDamageScale}from'./melee.js?v=211';
+import{discoverSite}from'./site-discovery.js?v=211';
+import{MAP_EVENTS,createMapEvent,acceptForestTrial,advanceMapEvent,eventProgress}from'./map-events.js?v=211';
+import{MAP_HALF as DEFAULT_HALF}from'./map-layout.js?v=211';
+import{terrainAt,updateWaterLighting}from'./water.js?v=211';
+import{crossedSwimPhase}from'./swim-motion.js?v=211';
+import{FIELD_SUPPLIES,equipFieldSupply,fieldSupplyEvent,fieldSupplyLabel,RELICS,relicChoices,equipRelic,relicEvent,incomingRelicDamage,readJournal,writeJournal,recordDiscovery,recordVictory}from'./expedition.js?v=211';
+import{EXPEDITION_BOSS_TIME,encounterPhase,enemyGrowth,encounterRole,HUNT_SQUAD,huntFormation,nextHuntFormation,enemyRecovery,HUNT_BOONS,takeHuntBoon,enemyApproach,separation,attackSlotAvailable}from'./encounters.js?v=211';
+import{setupMobileDisplay}from'./mobile-display.js?v=211';
+import{weaponCuePhases,mirageShotDelay}from'./weapon-performance.js?v=211';
+import{ENEMY_VOICES}from'./enemy-audio.js?v=211';
+import{ENEMY_MOTION,gaitPace,advanceEnemyLocomotion}from'./enemy-motion.js?v=211';
+import{MAP_ROSTERS,REGIONAL_ENEMIES,regionalEnemy}from'./map-enemies.js?v=211';
+import{HeroSkills}from'./hero-skills.js?v=211';
+import{EXTRA_BY_ID,skillPairState,skillPairHint}from'./skill-catalog.js?v=211';
+import{SCOUT_ROLL_DURATION,rollTravel}from'./dodge-motion.js?v=211';
+import{adventureDodgePose}from'./adventure-dodge.js?v=211';
+import{renderPixelRatio,RenderBudget}from'./render-budget.js?v=211';
+import{groundCue,disposeCue,fitGroundCue,fitGroundSurface,disposeGroundSurface}from'./ground-cues.js?v=211';
+import{weaponRouteEffect,WEAPON_ROUTE_LOOKS}from'./weapon-route-vfx.js?v=211';
+import{SkillVFX}from'./skill-vfx.js?v=211';
+import{loadHeroAssets,disposeHero}from'./skinned-hero.js?v=211';
+import{GameAudio,SFX_STYLES}from'./audio.js?v=211';
+import{ENEMY_GUIDE,CIRCLE_GUIDE}from'./battle-guide.js?v=211';
 import * as T from './vendor/three.module.js';
-import{MAPS,WEAPONS,ENEMIES,HERO_LOADOUTS,heroHealth,weaponFor,experienceNeeded,grantExperience,chooseUpgrades,takeUpgrade,weaponStats,weaponReachText,WEAPON_PATHS,WEAPON_PATH_PLAYS,harpoonEdgeMultiplier,segmentDistance,crossbowImpact,advanceCrossbowHunt,CROSSBOW_HUNT,forestGrowthChoices,registerShadowHit,UPGRADES}from'./rules.js?v=210';
-import{actor,animateActor,animateWorld,buildWorld,clearAt,moveActor,followTerrain,supportHeight,mesh,mat}from'./world.js?v=210';
+import{MAPS,WEAPONS,ENEMIES,HERO_LOADOUTS,heroHealth,weaponFor,experienceNeeded,grantExperience,chooseUpgrades,takeUpgrade,weaponStats,weaponReachText,WEAPON_PATHS,WEAPON_PATH_PLAYS,harpoonEdgeMultiplier,segmentDistance,crossbowImpact,advanceCrossbowHunt,CROSSBOW_HUNT,forestGrowthChoices,registerShadowHit,UPGRADES}from'./rules.js?v=211';
+import{actor,animateActor,animateWorld,buildWorld,clearAt,moveActor,followTerrain,supportHeight,mesh,mat}from'./world.js?v=211';
 const $=s=>document.querySelector(s),touch=matchMedia('(pointer:coarse)').matches;
 const loadingScreen=createLoadingScreen();
 let preparing=true,sceneryTime=0;
@@ -143,6 +144,15 @@ const sound=new GameAudio();
 const heroSkills=new HeroSkills({companion:()=>companion,player:()=>player,active:()=>state==='playing',aim:()=>aimInput.hasAim?aimInput.angle:hero.rotation.y,foes:()=>enemies.filter(e=>e.alive).concat(boss?.alive?[boss]:[]),blocked:(ax,az,bx,bz)=>Math.abs(bx)>mapHalf()-1||Math.abs(bz)>mapHalf()-1||world.obstacles.some(o=>segmentDistance(o.x,o.z,ax,az,bx,bz)<o.r+.1),damage:hurtEnemy,knock:(e,amount)=>{const d=Math.hypot(e.x-player.x,e.z-player.z)||1;moveActor(world,e,(e.x-player.x)/d*amount,(e.z-player.z)/d*amount,e.size*.6);e.mesh.position.set(e.x,e.y||0,e.z);e.stagger=Math.max(e.stagger||0,.18);},fx:e=>{vfx.skill(e);sound.skill(e.kind);}});
 const poison=new PoisonCombat({groundHeight:groundAt,player:()=>player,active:()=>state==='playing',foes:()=>[...enemies,...(boss?.alive?[boss]:[])],blocked:(ax,az,bx,bz)=>world.obstacles.some(o=>segmentDistance(o.x,o.z,ax,az,bx,bz)<o.r+.05),damage:hurtEnemy,release:pod=>{applyFieldShot(pod.w,pod.angle);hero.updateMatrixWorld(true);const hand=hero.userData.support?.hand;const p=hand?.getWorldPosition(new T.Vector3());return p&&clearAt(world,p.x,p.z,.1)?p:player;},impactTerrain:(x,z,r,n)=>{for(const o of world.breakables||[])if(o.state==='standing'&&Math.hypot(o.x-x,o.z-z)<r+o.r){const y=groundAt(x,z)+.45;environmentImpacts.hit({id:'sporelantern'},environmentImpacts.contact(o,{x,y,z},{x:o.x,y,z:o.z},.1));terrainHit(o,n);}},fx:e=>{poisonVFX.event(e);if(e.kind==='poisonLand')environmentImpacts.ground({id:'sporelantern'},world,e.x,e.z);if(e.w&&(e.kind==='poisonLand'&&e.w.stillRank||e.kind==='poisonMove'&&e.w.pathId==='sporelantern_roam'))weaponRouteEffect(vfx,e.w,'hit',e.x,e.z,e.angle||0,{radius:e.r});if(e.kind==='poisonThrow')sound.shot('sporelantern');else poisonSound(sound,e.kind);}});
 const mirage=new MirageCombat({groundHeight:groundAt,player:()=>player,active:()=>state==='playing',foes:()=>[...enemies,...(boss?.alive?[boss]:[])],blocked:(ax,az,bx,bz)=>world.obstacles.some(o=>segmentDistance(o.x,o.z,ax,az,bx,bz)<o.r+.05),damage:hurtEnemy,fx:e=>{mirageVFX.event(e);mirageSound(sound,e.kind);if(e.kind==='mirageBloom'&&e.w)weaponRouteEffect(vfx,e.w,'bloom',e.x,e.z,e.angle||0,{radius:e.r});if(e.kind==='mirageBurst'&&e.w)weaponRouteEffect(vfx,e.w,'hit',e.x,e.z,e.angle||0,{radius:e.r,empowered:!!e.w.miragePursuit});}});
+const briarPods=new BriarPods({active:()=>state==='playing',world:()=>world,foes:()=>[...enemies,...(boss?.alive?[boss]:[])],
+ create:p=>{p.mesh=mesh('IcosahedronGeometry',[.15,1],0xb99867,p.x,p.y,p.z);p.mesh.name='SM_Weapon_BriarSeed_Flight';p.mesh.visible=false;scene.add(p.mesh);},
+ release:p=>{const origin=weaponLaunchPoint('briarpot'),duration=.65+Math.min(p.w.range,Math.hypot(p.target.x-origin.x,p.target.z-origin.z))*.035;Object.assign(p,{x:origin.x,y:origin.y,z:origin.z,vx:(p.target.x-origin.x)/duration,vz:(p.target.z-origin.z)/duration,vy:(p.target.y-origin.y+.5*BRIARPOT.gravity*duration*duration)/duration});p.mesh.visible=true;sound.shot('briarpot');applyFieldShot(p.w,p.angle);},
+ move:p=>{p.mesh.position.set(p.x,p.y,p.z);p.mesh.rotation.set(p.flight*6,p.flight*3,.2);},
+ blocked:(p,block)=>environmentImpacts.hit(p.w,{...block.roof.point,normal:block.roof.normal,object:block.roof.object}),
+ land:p=>{p.mesh.position.set(p.x,p.y,p.z);p.mesh.scale.set(1.5,.75,1.5);weaponRouteEffect(vfx,p.w,'trap',p.x,p.z,p.angle,{stage:'set'});environmentImpacts.ground(p.w,world,p.x,p.z);},
+ wait:p=>{const growth=Math.min(1,p.age/BRIARPOT.arm);p.mesh.scale.set(1.5+growth*.35,.75+growth*.6,1.5+growth*.35);},
+ burst:burstBriar,remove:p=>p.mesh?.removeFromParent()});
+
 for(const [value,profile]of Object.entries(SFX_STYLES))$('#sfx-style').add(new Option(profile.label,value));
 function syncAudioUI(){const active=sound.ctx?.state==='running';$('#sound').textContent=sound.muted?'声音：关':active?'声音：开':'开启声音';$('#sound').setAttribute('aria-pressed',String(!sound.muted));$('#music-volume').value=Math.round(sound.musicVolume*100);$('#sfx-volume').value=Math.round(sound.sfxVolume*100);$('#music-value').textContent=Math.round(sound.musicVolume*100)+'%';$('#sfx-value').textContent=Math.round(sound.sfxVolume*100)+'%';$('#sfx-style').value=sound.sfxStyle;$('#sfx-style-note').textContent=sound.effectProfile.description;}
 async function unlockAudio(){const ok=await sound.init();syncAudioUI();if(!ok)toast(touch?'声音尚未开启，请在暂停 → 设置中重试':'声音尚未开启，请点右上角“开启声音”重试');}
@@ -204,13 +214,13 @@ function companionFX(kind,x,z,detail={}){
  const snap=kind==='trapSnap';if(snap||kind==='trapSet')sound.companion(snap?'trapSnap':'trapSet',x-player.x,z-player.z);
  weaponRouteEffect(vfx,{id:'boomerang',pathId:'boomerang_snare',pathRank:detail.rank||1},'trap',x,z,0,{stage:snap?'snap':kind==='trapSet'?'set':'idle',radius:1.5+.15*(detail.rank||1)});
 }
-function createCompanion(){if(heroId!=='lingya')return;document.body.classList.add('has-companion');companionMesh=makeBadger();scene.add(companionMesh);companion=new BeastCompanion({player:()=>player,stats:()=>weaponStats(player),active:()=>state==='playing',foes:()=>[...enemies,...(boss?.alive?[boss]:[])],visible:visibleEnemy,clear:(ax,az,bx,bz)=>!world.obstacles.some(o=>segmentDistance(o.x,o.z,ax,az,bx,bz)<o.r+.12),move:(p,dx,dz)=>{const slow=terrainAt(world,p.x,p.z,'wolf').speed,ox=p.x,oz=p.z;moveActor(world,p,dx*slow,dz*slow,.30);if(Math.hypot(p.x-ox,p.z-oz)<.001)for(const turn of[.85,-.85,1.35,-1.35]){const x=dx*Math.cos(turn)+dz*Math.sin(turn),z=dz*Math.cos(turn)-dx*Math.sin(turn);if(clearAt(world,p.x+x,p.z+z,.31)){moveActor(world,p,x*slow,z*slow,.30);break;}}},home:()=>{for(const r of[1.2,2,3,4])for(let i=0;i<12;i++){const a=i*Math.PI/6,x=player.x+Math.sin(a)*r,z=player.z+Math.cos(a)*r;if(clearAt(world,x,z,.32)&&!world.patches.some(q=>q.kind==='vent'&&Math.hypot(q.x-x,q.z-z)<q.r+.5)&&![...enemies,...(boss?.alive?[boss]:[])].some(e=>e.alive&&Math.hypot(e.x-x,e.z-z)<e.size+1)&&!zones.some(q=>q.kind!=='meteor'&&q.life>0&&Math.hypot(q.x-x,q.z-z)<q.r+.5))return{x,z};}return null;},damage:hurtEnemy,onHit:e=>{heroSkills.newHeroes.petHit(e);weaponRouteEffect(vfx,weaponStats(player),'pet',e.x,e.z,companion.angle,{empowered:e.lingyaMark>companion.now,targetSize:e.size});},fx:companionFX});companion.y=groundAt(companion.x,companion.z);companionMesh.position.set(companion.x,companion.y,companion.z);}
+function createCompanion(){if(heroId!=='lingya')return;document.body.classList.add('has-companion');companionMesh=makeBadger();scene.add(companionMesh);companion=new BeastCompanion({player:()=>player,stats:()=>weaponStats(player),active:()=>state==='playing',foes:()=>[...enemies,...(boss?.alive?[boss]:[])],visible:visibleEnemy,clear:(ax,az,bx,bz)=>!world.obstacles.some(o=>segmentDistance(o.x,o.z,ax,az,bx,bz)<o.r+.12),move:(p,dx,dz)=>{const slow=terrainAt(world,p.x,p.z,'wolf').speed,ox=p.x,oz=p.z;moveActor(world,p,dx*slow,dz*slow,.30);if(Math.hypot(p.x-ox,p.z-oz)<.001)for(const turn of[.85,-.85,1.35,-1.35]){const x=dx*Math.cos(turn)+dz*Math.sin(turn),z=dz*Math.cos(turn)-dx*Math.sin(turn);if(clearAt(world,p.x+x,p.z+z,.31)){moveActor(world,p,x*slow,z*slow,.30);if(Math.hypot(p.x-ox,p.z-oz)>.001)break;}}},home:()=>{for(const r of[1.2,2,3,4])for(let i=0;i<12;i++){const a=i*Math.PI/6,x=player.x+Math.sin(a)*r,z=player.z+Math.cos(a)*r;if(clearAt(world,x,z,.32)&&!world.patches.some(q=>q.kind==='vent'&&Math.hypot(q.x-x,q.z-z)<q.r+.5)&&![...enemies,...(boss?.alive?[boss]:[])].some(e=>e.alive&&Math.hypot(e.x-x,e.z-z)<e.size+1)&&!zones.some(q=>q.kind!=='meteor'&&q.life>0&&Math.hypot(q.x-x,q.z-z)<q.r+.5))return{x,z};}return null;},damage:hurtEnemy,onHit:e=>{heroSkills.newHeroes.petHit(e);weaponRouteEffect(vfx,weaponStats(player),'pet',e.x,e.z,companion.angle,{empowered:e.lingyaMark>companion.now,targetSize:e.size});},fx:companionFX});companion.y=groundAt(companion.x,companion.z);companionMesh.position.set(companion.x,companion.y,companion.z);}
 function updateCompanion(dt){if(!companion)return;companion.update(dt);companion.y=groundAt(companion.x,companion.z);companionMesh.position.set(companion.x,companion.y,companion.z);companionMesh.userData.waterDepth=terrainAt(world,companion.x,companion.z).depth;companionMesh.rotation.y=companion.angle;companionMesh.visible=companion.alive?!(companion.hurt>0&&Math.floor(companion.hurt*25)%2):companion.elapsed<1.2;companionMesh.userData.hurt=companion.hurt;animateBadger(companionMesh,time,companion.speed||0,companion.state,Math.min(1,companion.elapsed/(PET_TIMING[companion.state]||1)),companion.turnRate||0);
  const d=companionMesh.userData;if(companion.alive){for(const leg of d.legs){if(d.waterBlend<.1&&leg.soundSwing&&!leg.swinging&&companion.speed>.2&&!['wind','pounce','recover'].includes(companion.state))sound.companion('step',companion.x-player.x,companion.z-player.z);leg.soundSwing=leg.swinging;}
  if(d.waterDepth>.4&&d.waterBlend>.5&&crossedSwimPhase(d.lastWaterPhase,d.swimPhase)&&Math.hypot(companion.x-player.x,companion.z-player.z)<14)vfx.water(companion.x,companion.z,companion.angle,.30);d.lastWaterPhase=d.swimPhase;
  const cycle=Math.floor((d.idleClock||0)/8.6),phase=(d.idleClock||0)%8.6;if(d.waterBlend<.1&&companion.state==='sniff'&&phase>.5&&phase<1.7&&d.soundSniff!==cycle){d.soundSniff=cycle;sound.companion('sniff',companion.x-player.x,companion.z-player.z);}}
 }
-function clearObjects(){environmentImpacts.clear();cinema.setUnderwater(0);setCreatureTime(0);disposeGroundSurface(contactShadow);bossRun=createBossRun();hitConfirmUntil=0;mirage.reset();mirageVFX.clear();poison.reset();poisonVFX.clear();enemyDeaths.clear();if(companionMesh)scene.remove(companionMesh);companion=companionMesh=null;document.body.classList.remove('has-companion');$('#companion-status').hidden=true;relicBurst=false;heroSkills.reset();vfx.clear();fields=[];riftStrikes=[];for(const list of [enemies,bullets,orbs,effects,zones])for(const o of list){scene.remove(o.mesh);disposeCue(o.mesh);if(o.kind==='line'){o.mesh.geometry.dispose();o.mesh.material.dispose();}}if(boss)scene.remove(boss.mesh);enemies=[];bullets=[];orbs=[];effects=[];zones=[];boss=null;}
+function clearObjects(){briarPods.clear();if(player)player.arcFocus=null;environmentImpacts.clear();cinema.setUnderwater(0);setCreatureTime(0);disposeGroundSurface(contactShadow);bossRun=createBossRun();hitConfirmUntil=0;mirage.reset();mirageVFX.clear();poison.reset();poisonVFX.clear();enemyDeaths.clear();if(companionMesh)scene.remove(companionMesh);companion=companionMesh=null;document.body.classList.remove('has-companion');$('#companion-status').hidden=true;relicBurst=false;heroSkills.reset();vfx.clear();fields=[];riftStrikes=[];for(const list of [enemies,bullets,orbs,effects,zones])for(const o of list){scene.remove(o.mesh);disposeCue(o.mesh);if(o.kind==='line'){o.mesh.geometry.dispose();o.mesh.material.dispose();}}if(boss)scene.remove(boss.mesh);enemies=[];bullets=[];orbs=[];effects=[];zones=[];boss=null;}
 function mapHalf(){return world?.half||DEFAULT_HALF;}
 function localBiome(x=player.x,z=player.z){return world?.regions?biomeAt(x,z):mapId;}
 // Bounded to the existing loadouts. Preview actors never participate in combat;
@@ -286,7 +296,7 @@ async function buildPrepared(from=18,to=58){
  let completed=0;
  for(const stage of buildSteps()){loadingScreen.setLoadingProgress(stage,from+(to-from)*++completed/20);await yieldPreparation();}
 }
-function renderChoices(){renderJournalSummary();$('#selected-map-name').textContent=document.querySelector('[data-map='+mapId+']').textContent.replace(/^\d+\s*/, '').split(' · ')[0];$('#preview-map-name').textContent=$('#selected-map-name').textContent;$('#hero-preview').setAttribute('aria-label',document.querySelector('[data-hero='+heroId+']').childNodes[0].textContent+'的全身与武器');$('#hero-preview-description').textContent={scout:'林叶旧铜 · 灵活翻滚',silver:'白发霜羽 · 瞬移穿行',wraith:({shade:'无面旅人 · 张指牵影',shadowblade:'幽魂刺客 · 近战三连',grimoire:'亡魂法师 · 悬书裂隙'}[weaponFor(heroId,weaponIndex).id]),tide:'潮纹卷袖 · 潜潮伏击',lingya:'双辫轻装 · 弹弓合猎',wuling:'菌褶孢灯 · 牵瘴转场',mirage:'镜瓣长发 · 蜕影诱敌'}[heroId];$('#map-description').textContent=MAPS[mapId].subtitle;const brief=mapBrief(mapId);$('#map-boss-name').textContent=brief.name;$('#map-boss-arrival').textContent=brief.arrival;$('#map-boss-threat').textContent=brief.threat;$('#map-win-condition').textContent=brief.goal;for(const b of document.querySelectorAll('[data-hero]'))b.classList.toggle('selected',b.dataset.hero===heroId);for(const b of document.querySelectorAll('[data-map]'))b.classList.toggle('selected',b.dataset.map===mapId);const box=$('#weapons');box.replaceChildren();for(let i=0;i<HERO_LOADOUTS[heroId].length;i++){const w=weaponFor(heroId,i),b=document.createElement('button');b.textContent=w.name;b.classList.toggle('selected',i===weaponIndex);b.onclick=()=>{if(preparing||weaponIndex===i)return;weaponIndex=i;renderChoices();replaceMenuHero();};box.append(b);}const selectedWeapon=weaponFor(heroId,weaponIndex),selected=selectedWeapon.id,identity={miasmalantern:'提灯蓄势放出大颗慢速毒团，击中、触碰障碍或到达射程尽头时破裂扩散，为周围敌人附毒；重复命中刷新而不叠层，障碍会挡住扩散。蜕影在原地留下当前生命的替身，自身遁形 0.85 秒，期间免伤且不能攻击；替身优先诱敌，撑满时间才绽放并留下小片毒雾，被击碎不会爆发。幻瘴强化诱敌布局，蚀影强化重新现身后的反击。',sporelantern:'投出毒囊，在落点留下固定毒雾，最多三片、重叠只取最强伤害；牵瘴步经过第一片主毒雾时将其搬到实际落点，保留剩余寿命。沉瘴在原地成熟，搬运会重置浓度；游瘴靠搬运留下毒带与宽毒幕。',boomerang:'握住木叉、拉开弹带发射石弹，命中为伙伴标记目标；獾兽会在附近游走、嗅探，优先扑击瞄准目标，超出活动范围再归队。普通移动和燕步不会打断伙伴作战，落后超过 18 米才优先归队；主动换位则会命令伙伴撤回。按住方向时优先向该方向燕步，途中可小幅转向；不按方向时向 4—9 米内的伙伴换位，伙伴侧向撤回起点。距离或通路不合适时使用普通燕步，冷却 3.6 秒。伙伴有独立生命，倒地 12 秒后复活。',harpoon:'基础生命 140，出手后 0.3 秒正面减伤 20%；直刺→近身横扫→回钩牵引，第三击牵引普通怪物并减速，保留安全身位；潜潮持续最多 2 秒，期间无敌、可移动但不能攻击，再按闪避或重新按攻击提前浮出；冷却 6.5 秒。',rifle:'细长高速枪弹，快速连续射击；疾速机括改为三连点射与短复位，松开攻击立即停火，重新按住接续当前节拍。',shotgun:'一枪多颗短弹，近距离扇面散射；同枪至少三颗弹丸在距枪口 3.5 米内命中同一普通敌人，整枪结算后推开最多 1.1 米并短暂停顿 0.18 秒。首领和独头重弹不触发震退。',fire:'较大的火球，较慢飞行并留下火焰，命中爆燃。',crossbow:'快速直射，连续命中同一目标的第三箭强化。追猎机括靠步行蓄势强化三连；破甲重矢靠绕位排线、穿透敌群。',shuriken:'投出三枚旋转月刃，可穿过敌人。',dark:'较大的暗紫法球，缓慢飞行、命中散开暗雾。',shade:'无面旅人形态：墨黑布衣、窄白衣缘与无面魂痕。张指牵引幽影裂隙，释放影脉；三次命中引爆刻印，并非近身拳法。',shadowblade:'幽魂刺客形态：完整暗色短披肩、黑刃白锋与随刃尾影。挥动断魂战镰近战横斩、反斩，再接重镰；第三击减速，战镰始终握在手中。横月收割靠第三斩同时命中多敌缩短影步冷却；断魂重镰靠两次出手间隔至少 1.2 秒强化最近命中的目标，空挥也消耗。专属成长：冥镰刻痕、影步斩、残月收割。',grimoire:'亡魂法师形态：暗色开衩长袍、黑封白页魔典与下摆浮影。在瞄准方向撕开延迟裂口，不发射子弹。'};$('#weapon-preview').textContent=identity[selected]+weaponReachText(weaponStats({weaponId:selected}))+(' · 基础频率 '+selectedWeapon.rate+' 次/秒 · ')+(selectedWeapon.count>1?'每次 '+selectedWeapon.count+' 发 · ':'')+'成长路线：'+Object.values(WEAPON_PATHS).filter(p=>p.weapon===selected).map(p=>p.name).join(' / ')+' · 3 级起二选一'+({mirage:' · 专属技能：残蛊 / 诱葬 / 蜃衣',wuling:' · 专属技能：余毒未尽 / 败叶传染 / 苔衣护身',tide:' · 专属技能：破浪锋 / 盐蚀印记 / 潜潮余流',lingya:' · 专属技能：同猎追击 / 燕返藤绊 / 护伴弹'}[heroId]||'');$('.menu-caption span').textContent=heroId==='mirage'?'雾苓·蜃影 / VIOLET MIRAGE':heroId==='wuling'?'雾苓 / FOREST HERBALIST':heroId==='lingya'?'铃芽 / BEAST KEEPER':heroId==='tide'?'潮行者 / TIDE HUNTER':heroId==='wraith'?'影裔 · '+({shade:'无面旅人',shadowblade:'幽魂刺客',grimoire:'亡魂法师'}[selected]):heroId==='silver'?'霜影 / SILVER VEIL':'游侠 / WOODLAND RANGER';}
+function renderChoices(){renderJournalSummary();$('#selected-map-name').textContent=document.querySelector('[data-map='+mapId+']').textContent.replace(/^\d+\s*/, '').split(' · ')[0];$('#preview-map-name').textContent=$('#selected-map-name').textContent;$('#hero-preview').setAttribute('aria-label',document.querySelector('[data-hero='+heroId+']').childNodes[0].textContent+'的全身与武器');$('#hero-preview-description').textContent={scout:'林叶旧铜 · 灵活翻滚',silver:'白发霜羽 · 瞬移穿行',wraith:({shade:'无面旅人 · 张指牵影',shadowblade:'幽魂刺客 · 近战三连',grimoire:'亡魂法师 · 悬书裂隙'}[weaponFor(heroId,weaponIndex).id]),tide:weaponFor(heroId,weaponIndex).id==='arcstaff'?'潮铜分枝 · 导雷潜行':'潮纹卷袖 · 潜潮伏击',lingya:weaponFor(heroId,weaponIndex).id==='briarpot'?'陶壶荆果 · 伏芽合猎':'双辫轻装 · 弹弓合猎',wuling:'菌褶孢灯 · 牵瘴转场',mirage:'镜瓣长发 · 蜕影诱敌'}[heroId];$('#map-description').textContent=MAPS[mapId].subtitle;const brief=mapBrief(mapId);$('#map-boss-name').textContent=brief.name;$('#map-boss-arrival').textContent=brief.arrival;$('#map-boss-threat').textContent=brief.threat;$('#map-win-condition').textContent=brief.goal;for(const b of document.querySelectorAll('[data-hero]'))b.classList.toggle('selected',b.dataset.hero===heroId);for(const b of document.querySelectorAll('[data-map]'))b.classList.toggle('selected',b.dataset.map===mapId);const box=$('#weapons');box.replaceChildren();for(let i=0;i<HERO_LOADOUTS[heroId].length;i++){const w=weaponFor(heroId,i),b=document.createElement('button');b.textContent=w.name;b.classList.toggle('selected',i===weaponIndex);b.onclick=()=>{if(preparing||weaponIndex===i)return;weaponIndex=i;renderChoices();replaceMenuHero();};box.append(b);}const selectedWeapon=weaponFor(heroId,weaponIndex),selected=selectedWeapon.id,identity={arcstaff:'按住攻击，将电弧导向准星，每秒 4 次；命中后跳向附近一名敌人，跳电不触发额外技能连锁。连枝电网扩大目标数量，聚流雷芯取消跳电、持续跟住同一目标增伤；潜潮仍用闪避键。',briarpot:'低手轻抬投壶，将荆果抛出弧线，可越过矮障碍。落地 0.55 秒后爆开荆刺并减速，爆开为伙伴标记最近一名敌人；裂壳荆爆扩大范围，伏芽猎场让种子待敌触发。燕步与宠物保持原有操作。',miasmalantern:'提灯蓄势放出大颗慢速毒团，击中、触碰障碍或到达射程尽头时破裂扩散，为周围敌人附毒；重复命中刷新而不叠层，障碍会挡住扩散。蜕影在原地留下当前生命的替身，自身遁形 0.85 秒，期间免伤且不能攻击；替身优先诱敌，撑满时间才绽放并留下小片毒雾，被击碎不会爆发。幻瘴强化诱敌布局，蚀影强化重新现身后的反击。',sporelantern:'投出毒囊，在落点留下固定毒雾，最多三片、重叠只取最强伤害；牵瘴步经过第一片主毒雾时将其搬到实际落点，保留剩余寿命。沉瘴在原地成熟，搬运会重置浓度；游瘴靠搬运留下毒带与宽毒幕。',boomerang:'握住木叉、拉开弹带发射石弹，命中为伙伴标记目标；獾兽会在附近游走、嗅探，优先扑击瞄准目标，超出活动范围再归队。普通移动和燕步不会打断伙伴作战，落后超过 18 米才优先归队；主动换位则会命令伙伴撤回。按住方向时优先向该方向燕步，途中可小幅转向；不按方向时向 4—9 米内的伙伴换位，伙伴侧向撤回起点。距离或通路不合适时使用普通燕步，冷却 3.6 秒。伙伴有独立生命，倒地 12 秒后复活。',harpoon:'基础生命 140，出手后 0.3 秒正面减伤 20%；直刺→近身横扫→回钩牵引，第三击牵引普通怪物并减速，保留安全身位；潜潮持续最多 2 秒，期间无敌、可移动但不能攻击，再按闪避或重新按攻击提前浮出；冷却 6.5 秒。',rifle:'细长高速枪弹，快速连续射击；疾速机括改为三连点射与短复位，松开攻击立即停火，重新按住接续当前节拍。',shotgun:'一枪多颗短弹，近距离扇面散射；同枪至少三颗弹丸在距枪口 3.5 米内命中同一普通敌人，整枪结算后推开最多 1.1 米并短暂停顿 0.18 秒。首领和独头重弹不触发震退。',fire:'较大的火球，较慢飞行并留下火焰，命中爆燃。',crossbow:'快速直射，连续命中同一目标的第三箭强化。追猎机括靠步行蓄势强化三连；破甲重矢靠绕位排线、穿透敌群。',shuriken:'投出三枚旋转月刃，可穿过敌人。',dark:'较大的暗紫法球，缓慢飞行、命中散开暗雾。',shade:'无面旅人形态：墨黑布衣、窄白衣缘与无面魂痕。张指牵引幽影裂隙，释放影脉；三次命中引爆刻印，并非近身拳法。',shadowblade:'幽魂刺客形态：完整暗色短披肩、黑刃白锋与随刃尾影。挥动断魂战镰近战横斩、反斩，再接重镰；第三击减速，战镰始终握在手中。横月收割靠第三斩同时命中多敌缩短影步冷却；断魂重镰靠两次出手间隔至少 1.2 秒强化最近命中的目标，空挥也消耗。专属成长：冥镰刻痕、影步斩、残月收割。',grimoire:'亡魂法师形态：暗色开衩长袍、黑封白页魔典与下摆浮影。在瞄准方向撕开延迟裂口，不发射子弹。'};$('#weapon-preview').textContent=identity[selected]+weaponReachText(weaponStats({weaponId:selected}))+(' · 基础频率 '+selectedWeapon.rate+' 次/秒 · ')+(selectedWeapon.count>1?'每次 '+selectedWeapon.count+' 发 · ':'')+'成长路线：'+Object.values(WEAPON_PATHS).filter(p=>p.weapon===selected).map(p=>p.name).join(' / ')+' · 3 级起二选一'+({mirage:' · 专属技能：残蛊 / 诱葬 / 蜃衣',wuling:' · 专属技能：余毒未尽 / 败叶传染 / 苔衣护身',tide:selected==='arcstaff'?' · 专属技能：盐蚀印记 / 潜潮余流':' · 专属技能：破浪锋 / 盐蚀印记 / 潜潮余流',lingya:' · 专属技能：同猎追击 / 燕返藤绊 / 护伴弹'}[heroId]||'');$('.menu-caption span').textContent=heroId==='mirage'?'雾苓·蜃影 / VIOLET MIRAGE':heroId==='wuling'?'雾苓 / FOREST HERBALIST':heroId==='lingya'?'铃芽 / BEAST KEEPER':heroId==='tide'?'潮行者 / TIDE HUNTER':heroId==='wraith'?'影裔 · '+({shade:'无面旅人',shadowblade:'幽魂刺客',grimoire:'亡魂法师'}[selected]):heroId==='silver'?'霜影 / SILVER VEIL':'游侠 / WOODLAND RANGER';}
 function setMapVisibility(mode){
  if(!['explore','visible'].includes(mode)||state!=='menu')return;
  mapVisibility=mode;
@@ -408,7 +418,7 @@ function resolveRelic(event,x,z,angle=0,range=0){
  const previous=relicBurst;relicBurst=event.kind==='ember'||previous;
  try{for(const e of foes){if(event.kind==='storm')lightning(x,z,e.x,e.z);if(event.slow)e.slow=Math.max(e.slow||0,event.slow);hurtEnemy(e,event.damage);if(state!=='playing')break;}}finally{relicBurst=previous;}
 }
-function finish(win){if(state!=='playing')return;environmentImpacts.clear();cinema.setUnderwater(0);state=win?'won':'lost';player.fieldSupply=null;player.campRewards=[];player.melee=null;player.scytheStepUntil=0;resetMobility(player,groundAt(player.x,player.z));restoreMobilityPose(hero);hero.position.y=player.y;adventureCamera._ready=false;sound.stopWeapons();sound.stopCreatures();mirage.reset();mirageVFX.clear();hero.userData.mirageConceal=0;if(heroId==='mirage'){hero.userData.mirageFade=0;for(const surface of hero.userData.mirageSurfaces||[]){surface.mesh.material.opacity=surface.opacity;surface.mesh.material.depthWrite=surface.depthWrite;surface.mesh.castShadow=surface.castShadow;}for(const b of bullets)scene.remove(b.mesh);bullets=[];}poison.reset();poisonVFX.clear();if(['wuling','mirage'].includes(heroId)){sound.stopWeapons();vfx.clear();}keys.clear();releaseStick();clearAttack();const first=win&&recordVictory(journal,mapId,player.weaponId);if(first)saveJournal();
+function finish(win){if(state!=='playing')return;briarPods.clear();player.arcFocus=null;environmentImpacts.clear();cinema.setUnderwater(0);state=win?'won':'lost';player.fieldSupply=null;player.campRewards=[];player.melee=null;player.scytheStepUntil=0;resetMobility(player,groundAt(player.x,player.z));restoreMobilityPose(hero);hero.position.y=player.y;adventureCamera._ready=false;sound.stopWeapons();sound.stopCreatures();mirage.reset();mirageVFX.clear();hero.userData.mirageConceal=0;if(heroId==='mirage'){hero.userData.mirageFade=0;for(const surface of hero.userData.mirageSurfaces||[]){surface.mesh.material.opacity=surface.opacity;surface.mesh.material.depthWrite=surface.depthWrite;surface.mesh.castShadow=surface.castShadow;}for(const b of bullets)scene.remove(b.mesh);bullets=[];}poison.reset();poisonVFX.clear();if(['wuling','mirage'].includes(heroId)){sound.stopWeapons();vfx.clear();}keys.clear();releaseStick();clearAttack();const first=win&&recordVictory(journal,mapId,player.weaponId);if(first)saveJournal();
  showRunResult(win,first);
 }
 function showRunResult(win,first=false){
@@ -503,9 +513,27 @@ function weaponLaunchPoint(id){
 function shoot(dt){companion?.order(aimInput.angle,false);const w=mirage.modifyShot(weaponStats(player)),angle=aimInput.angle,targets=enemies.filter(visibleEnemy);if(boss&&visibleEnemy(boss))targets.push(boss);let nearest=null,d=w.range;
  if(w.id==='dark'&&player.weaponPath?.id==='dark_seek')for(const e of targets){const n=Math.hypot(e.x-player.x,e.z-player.z),direction=Math.atan2(e.x-player.x,e.z-player.z),diff=Math.atan2(Math.sin(direction-angle),Math.cos(direction-angle));if(n<d&&Math.abs(diff)<.26){nearest=e;d=n;}}
  const relicShot=relicEvent(player,'shot',time);if(relicShot?.kind==='power'){w.damage*=relicShot.multiplier;impactChips(player.x,player.z,0xffe3a3,2);}
- if(!['boomerang','miasmalantern','sporelantern','shadowblade','harpoon'].includes(w.id))applyFieldShot(w,angle);if(state!=='playing')return;
+ if(!['briarpot','boomerang','miasmalantern','sporelantern','shadowblade','harpoon'].includes(w.id))applyFieldShot(w,angle);if(state!=='playing')return;
  player.aimAngle=angle;player.attack=shotInterval(player,w);player.aimTime=player.attack+.16;hero.userData.shoot=w.id==='grimoire'?.32:w.id==='shade'?.20:.16;hero.userData.reloadPhase=0;hero.userData.reloadDuration=player.attack;hero.userData.shotSerial=(hero.userData.shotSerial||0)+1;player.weaponCue=0;
- if(['harpoon','boomerang','miasmalantern'].includes(w.id))hero.userData.attackAngle=angle;
+ if(['arcstaff','briarpot','harpoon','boomerang','miasmalantern'].includes(w.id))hero.userData.attackAngle=angle;
+ if(w.id==='arcstaff'){
+  const origin=weaponLaunchPoint(w.id),result=traceArcStaff(origin,weaponAim(w),w,[...enemies,...(boss?.alive?[boss]:[])],world),primary=result.hits[0]?.enemy,multiplier=arcFocusMultiplier(player,w,primary,time);
+  sound.shot(w.id);
+  if(!primary){vfx.arcLink(origin,result.end);if(result.block?.obstacle){const o=result.block.obstacle;environmentImpacts.hit(w,environmentImpacts.contact(o,origin,result.end,w.hitRadius));if(o.tactic&&o.state==='standing')terrainHit(o,w.damage);}else if(result.block?.ground)environmentImpacts.ground(w,world,result.end.x,result.end.z);else if(result.block?.roof)environmentImpacts.hit(w,{...result.block.roof.point,normal:result.block.roof.normal,object:result.block.roof.object});}
+  for(const [i,h]of result.hits.entries()){
+   if(state!=='playing')break;if(!h.enemy.alive)continue;
+   vfx.arcLink(h.from,h.to,{hit:true,focus:i?0:multiplier-1,secondary:i>0});
+   hurtEnemy(h.enemy,w.damage*h.scale*(i?1:multiplier),true,{kind:w.id,angle,secondary:i>0});
+   if(state!=='playing')break;if(i===0){weaponRouteEffect(vfx,w,'hit',h.to.x,h.to.z,angle,{focus:multiplier-1,contact:closeContact({...h.to})});heroSkills.onHit(h.enemy,ARCSTAFF.brineWeight);sound.impact(w.id,false,0,h.enemy.x-player.x,h.enemy.z-player.z);}
+  }
+  if(state==='playing'){heroSkills.onShot(angle,dt);resolveRelic(relicShot,player.x,player.z,angle,w.range);}return;
+ }
+ if(w.id==='briarpot'){
+  const target=attackMode==='auto'&&autoTargetLock?{x:autoTargetLock.x,y:groundAt(autoTargetLock.x,autoTargetLock.z)+.1,z:autoTargetLock.z}:groundAim(adventureCamera.getRay(),player,w.range,adventureCamera.yaw,world.groundHeightAt);
+  const d=Math.hypot(target.x-player.x,target.z-player.z);if(d>w.range){target.x=player.x+(target.x-player.x)*w.range/d;target.z=player.z+(target.z-player.z)*w.range/d;}target.y=groundAt(target.x,target.z)+.1;
+  const p=briarPods.cast(weaponLaunchPoint(w.id),target,w);p.target=target;p.angle=angle;
+  heroSkills.onShot(angle,dt);resolveRelic(relicShot,player.x,player.z,angle,w.range);return;
+ }
  if(w.id==='sporelantern'){
   let distance=attackMode==='manual'?Math.hypot(groundAim(adventureCamera.getRay(),player,w.range,adventureCamera.yaw,world.groundHeightAt).x-player.x,groundAim(adventureCamera.getRay(),player,w.range,adventureCamera.yaw,world.groundHeightAt).z-player.z):w.range;for(const e of targets){const len=Math.hypot(e.x-player.x,e.z-player.z),a=Math.atan2(e.x-player.x,e.z-player.z);if(len<distance&&Math.abs(Math.atan2(Math.sin(a-angle),Math.cos(a-angle)))<.25)distance=len;}
   let safe=0;for(let d=.12;d<=distance+.12;d+=.12){const reach=Math.min(d,distance),x=player.x+Math.sin(angle)*reach,z=player.z+Math.cos(angle)*reach;if(!clearAt(world,x,z,.12))break;safe=reach;}
@@ -535,6 +563,13 @@ function shoot(dt){companion?.order(aimInput.angle,false);const w=mirage.modifyS
  bullets.push({volley,aimPoint:{...focus},spatial,height:shotOrigin.y,vy:spatial?velocity.vy:0,releaseDelay:w.id==='miasmalantern'?mirageShotDelay(w.rate):w.id==='boomerang'?Math.min(.55,.9/w.rate)*.24:0,w,mesh:m,x:shotOrigin.x,z:shotOrigin.z,vx,vz,speed:w.speed,life:range/w.speed,damage:w.damage,kind:w.id,id:w.id,pathId:w.pathId,pathRank:w.pathRank,visualHits,hitRadius:w.hitRadius,hits:new Set(),pierce:w.pierce,maxPierce:w.pierce,target:nearest,radius:w.radius,bounces:w.bounces,burn:w.burn,gravity:w.gravity,markDamage:w.markDamage,markRadius:w.markRadius,returnable:w.returning,returning:false,elapsed:0,turnAt:range/w.speed,trail:0});}
  if(w.id==='miasmalantern')mirageSound(sound,'mirageCharge');
  if(!['boomerang','miasmalantern'].includes(w.id)){vfx.muzzle(w,shotOrigin.x,shotOrigin.z,velocity.angle,shotOrigin.y,true);weaponRouteEffect(vfx,w,'cast',shotOrigin.x,shotOrigin.z,velocity.angle);sound.shot(w.id);}heroSkills.onShot(angle,dt);resolveRelic(relicShot,player.x,player.z,angle,w.range);
+}
+function burstBriar(p){
+ const source={x:p.x,y:p.y+.35,z:p.z},w=p.w,foes=[...enemies,...(boss?.alive?[boss]:[])].filter(e=>e.alive&&Math.hypot(e.x-p.x,(e.y||0)+Math.min(.7,(e.height||1.4)*.5)-source.y,e.z-p.z)<w.radius+(e.size||.5)*.35&&!wildWeaponBlock(source,briarTargetPoint(e),world).blocked).sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z));
+ for(const o of [...(world.breakables||[])])if(o.state==='standing'&&Math.hypot(o.x-p.x,o.z-p.z)<p.w.radius+o.r){const a={x:p.x,y:p.y+.35,z:p.z},b={x:o.x,y:(o.y||0)+Math.min(.8,(o.height||1.6)*.5),z:o.z},block=wildWeaponBlock(a,b,world);if(!block.blocked||block.obstacle===o)terrainHit(o,p.w.damage);}
+ vfx.briarBurst(p.x,p.y,p.z,w.radius,!!w.trapLife);weaponRouteEffect(vfx,w,w.trapLife?'trap':'hit',p.x,p.z,p.angle,{radius:w.radius,stage:'snap'});environmentImpacts.ground(w,world,p.x,p.z);sound.impact('briarpot',true,0,p.x-player.x,p.z-player.z);
+ if(foes.length){companion?.marked(foes[0]);heroSkills.newHeroes.slingHit();}
+ for(const e of foes){if(state!=='playing')break;hurtEnemy(e,w.damage,true,{kind:'briarpot',angle:p.angle});if(e.alive){e.slow=Math.max(e.slow||0,w.slow);if(e!==boss)briarStagger(e,w,time);}if(state==='playing')heroSkills.onHit(e);}
 }
 function updateMelee(){const strike=player.melee;if(!strike||strike.hitAt>time)return;player.melee=null;applyFieldShot(strike.w,strike.angle);if(state!=='playing')return;if(strike.scythe){resolveScythe(strike);return;}player.lastHarpoon=strike;meleeTerrain(strike.angle,strike.w.range,strike.w.damage,.65);resolveHarpoon(strike);}
 function resolveScythe(strike){
@@ -613,6 +648,7 @@ function dash(){
   if(plan.cooperative){companion.cover(player.x,player.z);introduce('ability:lingya','换位掩护','方向可微调，伙伴侧向撤回。');}
  }
  if(['tide','mirage'].includes(heroId))for(const e of [...enemies,...(boss?.alive?[boss]:[])])if(e.alive)observePlayer(e,player);
+ player.arcFocus=null;briarPods.cancelHeld();
  player.dashFacing=hero.rotation.y;player.waterDash=!(groundClearance(player)>.05)&&['scout','wuling'].includes(heroId)&&terrainAt(world,player.x,player.z).depth>.42;
  player.dash=(HERO_DODGES[heroId]?.cooldown||2.3)/(1+.12*(player.upgrades.stride||0));player.inv=heroId==='tide'?2:.32;
  player.dashTime=HERO_DODGES[heroId]?.duration||(heroId==='scout'?SCOUT_ROLL_DURATION:.24);player.diveCancelArmed=!aimInput.held;player.diveWantsExit=false;
@@ -853,7 +889,8 @@ function update(dt){const rollStart=['scout','wuling','mirage'].includes(heroId)
  player.vx=movedX/Math.max(dt,.001);player.vz=movedZ/Math.max(dt,.001);if(moving>.1)player.angle=Math.atan2(dx,dz);
  if(advanceCrossbowHunt(player,Math.hypot(movedX,movedZ),time,moving>.1&&player.dashTime===0&&!airborne(player))){sound.mechanism('crossbow',1);vfx.muzzle(weaponStats(player),player.x,player.z,hero.rotation.y,(player.y||0)+.9);}
  const rolling=['scout','wuling','mirage'].includes(heroId)&&player.dashTime>0;
- const autoTarget=attackMode==='auto'?closestAutoTarget(weaponStats(player).range*(heroId==='tide'?HARPOON_ATTACKS[(player.harpoonCount||0)%3].reach:1)):null;if(attackMode==='auto'){aimInput.hasAim=!!autoTarget;if(autoTarget)aimInput.angle=Math.atan2(autoTarget.x-player.x,autoTarget.z-player.z);}
+ briarPods.update(dt);if(state!=='playing')return;
+ const autoTarget=attackMode==='auto'?closestAutoTarget(weaponStats(player).range*(player.weaponId==='harpoon'?HARPOON_ATTACKS[(player.harpoonCount||0)%3].reach:1)):null;if(attackMode==='auto'){aimInput.hasAim=!!autoTarget;if(autoTarget)aimInput.angle=Math.atan2(autoTarget.x-player.x,autoTarget.z-player.z);}
  const desired=heroId==='lingya'&&player.dashTime>0?player.dashFacing:rolling?player.dashAngle:player.melee?player.melee.angle:aimInput.hasAim?aimInput.angle:player.aimTime>0?player.aimAngle:player.angle;
  const difference=Math.atan2(Math.sin(desired-hero.rotation.y),Math.cos(desired-hero.rotation.y)),turn=T.MathUtils.clamp(difference*(1-Math.exp(-dt*14)),-12*dt,12*dt);
  world.exploration.reveal(player.x,player.z);if(world.waypoint&&Math.hypot(world.waypoint.x-player.x,world.waypoint.z-player.z)<3){world.waypoint=null;toast('已抵达标记地点');}hero.rotation.y+=turn;hero.position.set(player.x,player.y||0,player.z);
@@ -942,7 +979,7 @@ function updateCompanionHUD(){const box=$('#companion-status');box.hidden=!compa
 
 }
 function showCompanionDetails(){if(!companion||state!=='playing')return;companion.syncHealth();pause();const p=companion,w=weaponStats(player);
- dialog('獾兽伙伴 · Lv.'+p.level,'近战伙伴 · '+companionStateText()+'<br>基础生命 150，随主人每级增加 8 点，「坚韧之心」每阶再增加 20 点；攻击随磨砺锋芒与同心夹击成长。<br>附近近战怪会攻击伙伴，敌方范围攻击和地火也会伤害它。它不阻挡移动，不会替主人免除同一范围攻击。4 秒未受伤、距主人 6 米内且附近 4 米无敌人、不在出招时，每秒恢复 3.5% 最大生命。<br>倒地后 12 秒自动在主人附近安全位置满血复活，获得 2 秒保护；没有安全位置时继续等待。暂停、查看说明和选择升级期间不计时。<br>普通移动与燕步不会召回正在战斗的伙伴；超过 18 米才优先归队。主动换位会命令伙伴撤到你的起点。',[['继续远征',resume]]);
+ dialog('獾兽伙伴 · Lv.'+p.level,'近战伙伴 · '+companionStateText()+'<br>基础生命 150，随主人每级增加 8 点，「坚韧之心」每阶再增加 20 点；'+(w.id==='briarpot'?'攻击随磨砺锋芒成长；荆果爆开标记最近的一名目标，便于伙伴追击。':'攻击随磨砺锋芒与同心夹击成长。')+'<br>附近近战怪会攻击伙伴，敌方范围攻击和地火也会伤害它。它不阻挡移动，不会替主人免除同一范围攻击。4 秒未受伤、距主人 6 米内且附近 4 米无敌人、不在出招时，每秒恢复 3.5% 最大生命。<br>倒地后 12 秒自动在主人附近安全位置满血复活，获得 2 秒保护；没有安全位置时继续等待。暂停、查看说明和选择升级期间不计时。<br>普通移动与燕步不会召回正在战斗的伙伴；超过 18 米才优先归队。主动换位会命令伙伴撤到你的起点。',[['继续远征',resume]]);
  $('#dialog-content>p').insertAdjacentHTML('beforebegin','<div class="companion-detail-stats"><span>生命<b>'+Math.ceil(p.hp)+' / '+p.maxHp+'</b></span><span>扑击伤害<b>'+Number(w.petDamage.toFixed(1))+'</b></span><span>扑击后休息<b>'+w.petCooldown.toFixed(2)+' 秒</b></span><span>自动复活<b>12 秒 · 满血</b></span></div>');
 }
 $('#companion-status').addEventListener('click',showCompanionDetails);
@@ -968,7 +1005,7 @@ $('#map').onclick=()=>showExplorationMap();
 
 function pairingText(){const q=skillPairState(player);return q?q.ids.map(id=>(player.upgrades[id]>0?'✓ ':'○ ')+EXTRA_BY_ID[id].name).join(' ＋ ')+'<br><b>'+q.name+' · '+(q.active?'已成型':'尚缺 '+q.missing.map(id=>EXTRA_BY_ID[id].name).join('、'))+'</b><br>'+q.text+'<br><br>成长建议：'+q.support:'';}
 $('#skills').addEventListener('click',e=>{if(e.target.closest('[data-field-supply]')&&state==='playing'&&player.fieldSupply){pause();const f=FIELD_SUPPLIES[player.fieldSupply.id];dialog(f.name,f.text+'<br>'+fieldSupplyLabel(player)+'。仅本局有效；找到新的备战会替换当前备战。',[['继续远征',resume]]);return;}if(e.target.closest('[data-camp-pending]')&&state==='playing'){nextUpgradeAt=0;const result=showCampReward();if(state==='playing')toast(result==='full'?'当前生命与成长均已满 · 战利品保留到受伤后领取':'战利品已保留 · 离开敌人和危险区域后领取');return;}if(e.target.closest('[data-path-detail]')&&state==='playing'&&player.weaponPath){pause();const path=WEAPON_PATHS[player.weaponPath.id],look=WEAPON_ROUTE_LOOKS[player.weaponPath.id];dialog(path.name+' · '+player.weaponPath.rank+'阶',path.steps[player.weaponPath.rank-1]+'<br><br>打法：'+WEAPON_PATH_PLAYS[player.weaponPath.id]+'<br><br>招式表现：'+look.summary+'。',[['继续远征',resume]]);return;}if(e.target.closest('[data-hunt-detail]')&&state==='playing'){pause();const boon=HUNT_BOONS[player.huntBoon];dialog(boon.name,boon.text+'<br>仅本局生效。',[['继续远征',resume]]);return;}if(e.target.closest('[data-pair-detail]')&&state==='playing'){pause();dialog('技能搭配',pairingText(),[['继续远征',resume]]);return;}if(e.target.closest('[data-ability-detail]')&&state==='playing'){pause();dialog(HERO_DODGES[heroId].name+' · 角色能力',HERO_ABILITY_TEXT[heroId],[['继续远征',resume]]);return;}if(e.target.closest('[data-companion-detail]')&&state==='playing'){showCompanionDetails();return;}if(e.target.closest('[data-relic-detail]')&&state==='playing'&&player.relic){pause();const r=RELICS[player.relic.id];dialog(r.name+' · '+r.style,r.text+'<br>仅本局生效。',[['继续远征',resume]]);return;}const id=e.target.closest('[data-skill]')?.dataset.skill,u=UPGRADES.find(u=>u.id===id);if(!u||!['playing','paused'].includes(state))return;const wasPlaying=state==='playing';if(wasPlaying)pause();const rank=player.upgrades[id]||1;dialog(u.name+' · '+rank+'级',(EXTRA_BY_ID[id]?.describe(rank)||u.text)+(skillPairHint(player,id)?'<br><br>'+pairingText():''),[[wasPlaying?'继续远征':'返回暂停',wasPlaying?resume:showPauseDialog]]);});
-function clearAttack(){clearMobilityInput();autoTargetLock=null;aimInput.held=false;aimInput.hasAim=false;releaseAimStick();const id=lookPointer.id;lookPointer.id=null;releasePointer(canvas,id);resetMouseLook();}
+function clearAttack(){if(player)player.arcFocus=null;clearMobilityInput();autoTargetLock=null;aimInput.held=false;aimInput.hasAim=false;releaseAimStick();const id=lookPointer.id;lookPointer.id=null;releasePointer(canvas,id);resetMouseLook();}
 function refreshMouseAim(){adventureCamera.getRay(aimRay);const point=groundAim(aimRay,player,weaponStats(player).range,adventureCamera.yaw,world.groundHeightAt);aimInput.angle=Math.atan2(point.x-player.x,point.z-player.z);aimInput.hasAim=true;}
 window.addEventListener('keydown',e=>{if(preparing)return;if(e.target instanceof HTMLElement&&e.target.closest('input,select,textarea,[contenteditable="true"]'))return;const k=e.key.toLowerCase();if(k===' '&&state!=='playing')return;if(['arrowup','arrowdown','arrowleft','arrowright',' ','escape'].includes(k))e.preventDefault();if(k==='escape'){if(!e.repeat&&performance.now()-mouseReleasedAt>200){pause();if(state==='playing')requestMouseLook(e);}return;}if(k==='v'&&!e.repeat){e.preventDefault();setView(adventureCamera.mode==='first'?'third':'first');requestMouseLook(e);return;}if(k==='m'&&!e.repeat){e.preventDefault();if($('#overview-canvas')&&state==='paused')resume();else showExplorationMap();return;}if(k===' '){if(!e.repeat)jump();return;}if(k==='shift'){if(!e.repeat)dash();return;}if(k==='control')e.preventDefault();if(state==='playing')keys.add(k);});window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 window.addEventListener('mousemove',e=>{
@@ -1114,4 +1151,4 @@ function frame(now){
  if(!active&&now-last<1000/30-.5){requestAnimationFrame(frame);return;}
  const frameSeconds=(now-last)/1000,dt=Math.max(0,Math.min(.04,frameSeconds));last=now;if(renderWidth!==innerWidth||renderHeight!==innerHeight||renderDpr!==devicePixelRatio){resizeRendering();renderBudget.reset();}else if(renderBudget.sample(frameSeconds,active))resizeRendering();if(active){shadowClock+=dt;const shadowInterval=state==='menu'||touch||renderBudget.quality<.8?1/20:1/30;if(shadowClock>=shadowInterval){renderer.shadowMap.needsUpdate=true;shadowClock%=shadowInterval;}}if(state==='playing'||state==='menu'){sceneryTime+=dt;animateWorld(world,sceneryTime,player.x,player.z);}sound.update(dt,{map:world.activeBiome||localBiome(),seamless:!!world.regions,mode:state,boss:!!boss?.alive,pressure:state==='playing'?Math.max(world.roaming?.some(s=>s.state==='running')?.5:0,localBiome()==='sand'&&world.sandstorm?.active ? .42 : localBiome()==='coast'&&world.tide?.high ? .30 : 0,battlePhase.mood,Math.min(1,enemies.filter(e=>e.alive&&Math.hypot(e.x-player.x,e.z-player.z)<12).length/12)):0});if(state==='playing'){update(dt);updateEffects(dt);}else if(state==='menu'){if(companionMesh){companionMesh.rotation.y=heroPreview.landscapeYaw-.2;animateBadger(companionMesh,now/1000,0);}animateActor(hero,now/1000,0);hero.rotation.y=heroPreview.landscapeYaw+heroPreview.yaw+Math.sin(now/3000)*.07;world.light.intensity=9+Math.sin(now/100)*1.5;}for(let i=0;i<world.motes.length;i++){const m=world.motes[i];m.position.y+=Math.sin(now/1200+i)*dt*.15;m.scale.setScalar(.5+Math.sin(now/550+i)*.3);}updateAdventureCampfire(world,sceneryTime);animateAdventureGroundDetail(sceneryTime);
  if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0){$('#toast').style.opacity=0;syncMobileNotices();}}if(state==='playing'){if(encounterTime>0){encounterTime-=dt;if(encounterTime<=0){$('#encounter').hidden=true;currentIntroduction=null;nextIntroductionAt=time+(touch?35:20);syncMobileNotices();}}else showNextIntroduction();}shake=Math.max(0,shake-dt);if(active){environmentLighting.update(mapId,world.regions?biomeWeights(player.x,player.z):null,dt,state==='menu'?0:time);updateWaterLighting(mapId,environmentLighting);updateWorldLightShafts(world,sceneryTime,environmentLighting);if(world.forestMist)world.forestMist.visible=renderBudget.quality>=.8;}updateCamera(dt);uiTime+=dt;if(uiTime>.1&&state!=='menu'){uiTime=0;updateHUD();}contactShadow.position.set(player.x,(player.groundHeight||0)+.018,player.z);if(adventureCamera.mode!=='first')fitGroundSurface(contactShadow,world.groundHeightAt,{centerHeight:true});contactShadow.visible=(player.waterDepth||0)<.08;contactShadow.material.opacity=(heroId==='wraith'?.24:.52)*(heroId==='tide'?1-(viewDodge()?.weight||0):heroId==='mirage'?1-(hero.userData.mirageFade||0):1);firstPerson.update(time,active?dt:0,{moving:player.dashTime>0||airborne(player)?0:Math.min(1,Math.hypot(player.vx||0,player.vz||0)/6.5),strafe:player.dashTime>0?0:(-(player.vx||0)*Math.cos(adventureCamera.yaw)+(player.vz||0)*Math.sin(adventureCamera.yaw))/6.5,yaw:adventureCamera.yaw,pitch:adventureCamera.pitch,attack:hero.userData.shoot,dodgePose:viewDodge(),visible:state!=='menu'&&adventureCamera.mode==='first'});if(state==='playing'&&dt>0)vfx.trackMelee(player.dashTime>0?null:adventureCamera.mode==='first'?firstPerson.model:hero.userData.gun,player.weaponId,hero.userData.shotSerial,hero.userData.attackAge,hero.userData.reloadDuration);else if(state!=='paused')vfx.meleeEdge=null;atmosphere.update(sceneryTime,camera,{world,mapId:world.activeBiome||localBiome(),visible:state!=='menu',skyColor:hemisphere.color,fogColor:scene.fog.color,sunColor:sun.color,sunDirection:environmentLighting.direction,sunStrength:Math.min(1,sun.intensity/3.25),skyStrength:.55+.45*environmentLighting.day});$('#crosshair').hidden=state!=='playing';$('#crosshair').classList.toggle('confirmed',time<hitConfirmUntil);if(state!=='playing'&&document.pointerLockElement===canvas)document.exitPointerLock();syncViewUI();cinema.render(renderWorld,renderBudget.quality);requestAnimationFrame(frame);}requestAnimationFrame(frame);
-window.game3d={surfaceReady,get environmentLighting(){return environmentLighting;},get adventureCamera(){return adventureCamera;},get firstPerson(){return firstPerson;},get atmosphere(){return atmosphere;},setView,get cinema(){return cinema;},get environmentImpacts(){return environmentImpacts;},get mirage(){return mirage;},get mirageVFX(){return mirageVFX;},get poison(){return poison;},get poisonVFX(){return poisonVFX;},get companion(){return companion;},get companionMesh(){return companionMesh;},get encounter(){return{...battlePhase,hunt:hunt?{cycle:hunt.cycle,name:hunt.name,remaining:hunt.members.filter(e=>e.alive).length,rewarded:hunt.rewarded}:null};},get orbs(){return orbs;},get heroSkills(){return heroSkills;},get renderQuality(){return renderBudget.quality;},get audio(){return sound;},get hero(){return hero;},get state(){return state;},get player(){return player;},get enemies(){return enemies;},get boss(){return boss;},get bossRun(){return {...bossRun};},get world(){return world;},get time(){return time;},get renderer(){return renderer;},get camera(){return camera;},get controls(){return aimInput;},get vfx(){return vfx;},get bullets(){return bullets;},get fields(){return fields;},get riftStrikes(){return riftStrikes;},get zones(){return zones;},start,prepareStart,pause,resume,menu,dash,jump,spawn,spawnBoss,step(dt){if(state==='playing')update(dt);},grant(n){collectExperience(n);upgrade();},damage:hitPlayer,hurtEnemy,select(hero,map,index){heroId=Object.hasOwn(HERO_LOADOUTS,hero)?hero:'silver';mapId=Object.hasOwn(MAPS,map)?map:'forest';weaponIndex=Number.isInteger(index)&&index>=0&&index<HERO_LOADOUTS[heroId].length?index:0;renderChoices();build();}};
+window.game3d={surfaceReady,get environmentLighting(){return environmentLighting;},get adventureCamera(){return adventureCamera;},get firstPerson(){return firstPerson;},get atmosphere(){return atmosphere;},setView,get cinema(){return cinema;},get environmentImpacts(){return environmentImpacts;},get mirage(){return mirage;},get mirageVFX(){return mirageVFX;},get briarPods(){return briarPods;},get poison(){return poison;},get poisonVFX(){return poisonVFX;},get companion(){return companion;},get companionMesh(){return companionMesh;},get encounter(){return{...battlePhase,hunt:hunt?{cycle:hunt.cycle,name:hunt.name,remaining:hunt.members.filter(e=>e.alive).length,rewarded:hunt.rewarded}:null};},get orbs(){return orbs;},get heroSkills(){return heroSkills;},get renderQuality(){return renderBudget.quality;},get audio(){return sound;},get hero(){return hero;},get state(){return state;},get player(){return player;},get enemies(){return enemies;},get boss(){return boss;},get bossRun(){return {...bossRun};},get world(){return world;},get time(){return time;},get renderer(){return renderer;},get camera(){return camera;},get controls(){return aimInput;},get vfx(){return vfx;},get bullets(){return bullets;},get fields(){return fields;},get riftStrikes(){return riftStrikes;},get zones(){return zones;},start,prepareStart,pause,resume,menu,dash,jump,spawn,spawnBoss,step(dt){if(state==='playing')update(dt);},grant(n){collectExperience(n);upgrade();},damage:hitPlayer,hurtEnemy,select(hero,map,index){heroId=Object.hasOwn(HERO_LOADOUTS,hero)?hero:'silver';mapId=Object.hasOwn(MAPS,map)?map:'forest';weaponIndex=Number.isInteger(index)&&index>=0&&index<HERO_LOADOUTS[heroId].length?index:0;renderChoices();build();}};

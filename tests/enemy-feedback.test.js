@@ -30,7 +30,7 @@ test('death poses expire, obey their cap, and leave shared materials and scene o
  deaths.update(.3);assert.equal(deaths.items.length,0);assert.equal(scene.children.length,0);const mesh=target();scene.add(mesh);deaths.add({mesh,role:'wolf'});deaths.clear();assert.equal(scene.children.length,0);
 });
 
-test('all thirteen weapon reactions have readable distinct weight and recovery without altering collisions',()=>{
+test('all weapon reactions have readable distinct weight and recovery without altering collisions',()=>{
  const signatures=new Set();
  for(const kind of Object.keys(WEAPONS)){
   const mesh=target(),rig=mesh.userData.rig;recordEnemyHit(mesh,{kind,damage:20,maxHp:100,targetKind:'mushroom'});
@@ -38,7 +38,7 @@ test('all thirteen weapon reactions have readable distinct weight and recovery w
   for(let n=0;n<60;n++){restoreEnemyHit(mesh);animateEnemyHit(mesh,1/60);assert.equal(mesh.position.length(),0);assert(rig.position.length()<=.24);assert(rig.rotation.toArray().slice(0,3).every(Number.isFinite));}
   assert(rig.position.length()<1e-9);assert(rig.quaternion.angleTo(new T.Quaternion())<1e-8);
  }
- assert.equal(signatures.size,13);
+ assert.equal(signatures.size,Object.keys(WEAPONS).length);
  const flesh=target(),shell=target(),rock=target();
  for(const[mesh,targetKind]of[[flesh,'mushroom'],[shell,'tidecrab'],[rock,'sandguard']])recordEnemyHit(mesh,{kind:'harpoon',targetKind,damage:20,maxHp:100});
  assert(flesh.userData.hitReaction.strength>shell.userData.hitReaction.strength);assert(shell.userData.hitReaction.strength>rock.userData.hitReaction.strength);

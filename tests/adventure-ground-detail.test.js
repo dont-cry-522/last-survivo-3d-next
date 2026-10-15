@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {runtimeImport} from './runtime-import.js';
 import * as T from '../vendor/three.module.js';
 import {buildWorld} from '../world.js';
 import {waterDepth} from '../water.js';
@@ -8,8 +9,8 @@ import {segmentDistance} from '../rules.js';
 import {installForestHabitats,forestHabitatAt} from '../forest-habitats.js';
 import {polishEnvironmentModels} from '../environment-props.js';
 import {installForestVista} from '../forest-vista.js';
-import {installBiomePlaces} from '../biome-places.js?v=210';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=210';
+const {installBiomePlaces}=await runtimeImport('main.js','biome-places.js');
+const {installEnvironmentClusters}=await runtimeImport('main.js','environment-clusters.js');
 import {installExplorationRoutes} from '../exploration-routes.js';
 import {installExplorationLandmarks} from '../exploration-landmarks.js';
 import {installExplorationComposition} from '../exploration-composition.js';
@@ -17,8 +18,8 @@ import {installForestTerrain} from '../forest-terrain.js';
 import {installClimateLandforms} from '../climate-landforms.js';
 import {installHarborLife} from '../harbor-life.js';
 import {installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
-import {naturalRockGeometry} from '../biome-scenery.js?v=210';
-import {surfaceUniforms} from '../surface-textures.js?v=210';
+const {naturalRockGeometry}=await runtimeImport('adventure-ground-detail.js','biome-scenery.js');
+const {surfaceUniforms}=await runtimeImport('adventure-ground-detail.js','surface-textures.js');
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const maps=['forest','snow','ash','sand','coast','confluence'];

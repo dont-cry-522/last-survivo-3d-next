@@ -1,10 +1,10 @@
-import{BIOME_THEMES,instrumentSample,scoreBiome,biomeThreat}from'./biome-music.js?v=210';
-import{companionSample}from'./companion-audio.js?v=210';
-import{weaponSample,weaponTakeCount}from'./weapon-audio.js?v=210';
-import{enemySurface}from'./enemy-surfaces.js?v=210';
-import{creatureSample,creatureFoleySample,creatureSpatial,ENEMY_VOICES,CREATURE_FOLEY}from'./enemy-audio.js?v=210';
-import{RecordedMusic}from'./recorded-music.js?v=210';
-import{RecordedEffects}from'./recorded-effects.js?v=210';
+import{BIOME_THEMES,instrumentSample,scoreBiome,biomeThreat}from'./biome-music.js?v=211';
+import{companionSample}from'./companion-audio.js?v=211';
+import{weaponSample,weaponTakeCount}from'./weapon-audio.js?v=211';
+import{enemySurface}from'./enemy-surfaces.js?v=211';
+import{creatureSample,creatureFoleySample,creatureSpatial,ENEMY_VOICES,CREATURE_FOLEY}from'./enemy-audio.js?v=211';
+import{RecordedMusic}from'./recorded-music.js?v=211';
+import{RecordedEffects}from'./recorded-effects.js?v=211';
 // Local licensed recordings, with the original procedural score as a loading/offline fallback.
 const midi=n=>440*2**((n-69)/12);
 // Sound preferences only: attack timing, damage and music keep their existing behavior.
@@ -140,8 +140,8 @@ export class GameAudio{
   contact(id,kind,dx=0,dz=0){
     // Called only for direct confirmed damage. One layer per volley/sweep and
     // fewer than eight active effects leave room for the main weapon impact.
-    if(!kind||!['rifle','shotgun','crossbow','shuriken','fire','dark','shade','shadowblade','grimoire','harpoon','boomerang','sporelantern','miasmalantern','hammer','shield'].includes(id)||this.weaponSources.size>=8||!this.allow('body-contact',.14))return false;
-    const p=contactSpatial(dx,dz),physical=['rifle','shotgun','crossbow','shuriken','shadowblade','harpoon','boomerang','hammer','shield'].includes(id);
+    if(!kind||!['rifle','shotgun','crossbow','shuriken','fire','dark','shade','shadowblade','grimoire','harpoon','boomerang','sporelantern','miasmalantern','hammer','shield','arcstaff','briarpot'].includes(id)||this.weaponSources.size>=8||!this.allow('body-contact',.14))return false;
+    const p=contactSpatial(dx,dz),physical=['rifle','shotgun','crossbow','shuriken','shadowblade','harpoon','boomerang','hammer','shield','briarpot'].includes(id);
     return this.weapon('surface:'+enemySurface(kind),'impact',0,p.gain*(physical?.30:.16),p.pan);
   }
   terrain(texture,dx=0,dz=0,strong=false){if(!this.allow('terrain-'+texture,.18))return;const p=contactSpatial(dx,dz);this.weapon('material:'+texture,'impact',0,p.gain*(strong?.48:.30),p.pan);}

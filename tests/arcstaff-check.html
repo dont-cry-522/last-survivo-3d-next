@@ -1,0 +1,196 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>潮鸣导雷杖与荆果投壶实战检查</title>
+<style>body{margin:12px;background:#14262c;color:#e6f0e9;font:14px system-ui}button{padding:10px;margin:0 6px 6px 0;background:#254943;color:inherit;border:1px solid #709582;border-radius:6px}iframe{border:0;display:block;margin-top:12px}#view{overflow:auto}pre{white-space:pre-wrap}summary{cursor:pointer}</style>
+<button id="desktop" disabled>检查电脑双视角</button><button id="landscape" disabled>检查手机横屏双视角</button><button id="portrait" disabled>检查手机竖屏双视角</button>
+<button id="balance" disabled>数值对照 · 36 组 × 12 秒</button><button id="pet-regression" disabled>伙伴绕行回归 · 3 项</button>
+<div><select id="preview-size" aria-label="预览尺寸"><option value="desktop">电脑预览</option><option value="landscape">手机横屏预览</option><option value="portrait">手机竖屏预览</option></select><button id="preview-arc-first" disabled>导雷杖第一人称预览</button><button id="preview-arc-third" disabled>导雷杖第三人称预览</button><button id="preview-briar-first" disabled>投壶第一人称爆发预览</button><button id="preview-briar-third" disabled>投壶第三人称爆发预览</button></div>
+<p id="status">加载真实游戏中；使用隔离存档和固定帧。手机检查为尺寸与触控分支模拟。</p><details open><summary>失败诊断</summary><pre id="diagnostic">尚无失败。</pre></details><details open><summary>检查结果</summary><pre id="report"></pre></details><details open><summary>数值对照报告（独立于原检查）</summary><pre id="balance-report">尚未运行。</pre></details><details open><summary>伙伴绕行报告（真实移动回调与实体碰撞）</summary><pre id="pet-report">尚未运行。</pre></details><div id="view"></div>
+<script type="module">
+const $=s=>document.querySelector(s),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),assert=(ok,message)=>{if(!ok)throw Error(message);},near=(actual,expected,message)=>assert(Math.abs(actual-expected)<1e-6,`${message}: ${actual} ≠ ${expected}`);
+const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text(),version=html.match(/main\.js\?v=([^"']+)/)?.[1]||'',suffix=version?'?v='+version:'';
+const {HERO_LOADOUTS,WEAPON_PATHS,weaponStats,takeUpgrade,chooseUpgrades}=await import('../rules.js'+suffix);
+const dimensions={desktop:{width:1440,height:900,mobile:false},landscape:{width:844,height:390,mobile:true},portrait:{width:390,height:844,mobile:true}},results=[],errors=[];
+let frame,win,g,now=0,targets=[],events=[],initial=null,mode='third';
+const publish=()=>{$('#report').textContent=JSON.stringify(window.arcstaffReport={version,results,errors},null,2);};
+const buttons=disabled=>document.querySelectorAll('button').forEach(b=>b.disabled=disabled);
+const point=p=>p?{x:p.x,y:p.y??p.height,z:p.z}:null,damage=e=>100000-e.hp;
+const focus=()=>g.player.arcFocus?{target:targets.indexOf(g.player.arcFocus.target),time:g.player.arcFocus.time,started:g.player.arcFocus.started}:null;
+const snapshot=()=>({state:g.state,time:g.time,serial:g.hero.userData.shotSerial||0,held:g.controls.held,focus:focus(),targets:targets.map(e=>({...point(e),alive:e.alive,hp:e.hp})),bullets:g.bullets.length,weaponSources:g.audio.weaponSources.size,events});
+function step(){g.step(1/60);g.vfx.update(1/60);}
+function advance(seconds){for(let i=0;i<Math.ceil(seconds*60);i++)step();}
+function render(){win.qaFrame(now+=1000/60);}
+async function load(size){
+ if(g){errors.push(...win.qaErrors);g.audio.stopMusic();g.audio.stopWeapons();g.audio.stopCreatures();g.cinema?.dispose();g.renderer.dispose();g.renderer.forceContextLoss();}frame?.remove();
+ frame=document.createElement('iframe');frame.title='潮鸣导雷杖真实游戏验证';frame.style.width=size.width+'px';frame.style.height=size.height+'px';$('#view').append(frame);
+ const boot=`<base href="../"><script>
+ window.qaErrors=[];addEventListener('error',e=>qaErrors.push(e.message));addEventListener('unhandledrejection',e=>qaErrors.push(String(e.reason)));
+ let seed=211;window.qaSeed=()=>seed=211;Math.random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};
+ window.requestAnimationFrame=cb=>{window.qaFrame=cb;return 0};
+ const data=new Map();Object.defineProperty(window,'localStorage',{value:{getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,String(v)),removeItem:k=>data.delete(k)}});
+ const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${size.mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
+ <\/script>`;
+ frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
+ for(let i=0;i<1200&&!win.game3d;i++)await sleep(50);assert(win.game3d,'游戏加载超时');g=win.game3d;await g.surfaceReady;
+ if(size.mobile){const style=win.document.createElement('style');style.textContent=css.replaceAll(/\(pointer:\s*coarse\)/g,'(min-width:0px)');win.document.head.append(style);}
+ for(let i=0;i<1200&&win.document.querySelector('#start').disabled;i++)await sleep(50);assert(!win.document.querySelector('#start').disabled,'模型预热超时');
+ now=win.performance.now();render();assert(win.document.body.classList.contains('touch')===size.mobile,'操作分支与尺寸不符');
+ for(const kind of ['shot','impact','contact','weapon']){const original=g.audio[kind].bind(g.audio);g.audio[kind]=(...args)=>{const event={kind,id:args[0],phase:args[1],time:g.time};events.push(event);const played=original(...args);event.played=played===true;return played;};}
+ assert(HERO_LOADOUTS.tide[1]==='arcstaff','导雷杖没有位于潮行者第二套装备');
+}
+async function audioReady(){assert(await g.audio.init(),'浏览器尚未允许音效');await g.audio.materialEffects.prepare();g.audio.musicVolume=0;g.audio.sfxVolume=.12;g.audio.muted=false;g.audio.applyVolumes(true);}
+function setup(route=null,rank=0,weapon='arcstaff'){
+ if(g.state!=='menu')g.menu();win.qaSeed();if(g.player.weaponId!==weapon){const [hero,loadout]=Object.entries(HERO_LOADOUTS).find(([,ids])=>ids.includes(weapon));g.select(hero,'forest',loadout.indexOf(weapon));}win.document.querySelector('[data-attack-mode=manual]').click();g.start();win.document.querySelector('#dialog').close();assert(g.player.weaponId===weapon,'实际角色装备与检查目标不符');
+ Object.assign(g.world,{patches:[],ponds:[],ice:[],fords:[],bridges:[],sites:[],roaming:[],discoveries:[],breakables:[],groundHeightAt:()=>0});g.world.overhead.firstHit=()=>null;
+ // Block ambient spawn probes at the perimeter while attacks remain in the clear centre.
+ g.world.obstacles=Array.from({length:32},(_,i)=>({x:Math.sin(i*Math.PI/16)*23,z:Math.cos(i*Math.PI/16)*23,r:8,height:8}));
+ Object.assign(g.player,{x:0,y:0,z:0,groundHeight:0,attack:999,inv:999,pending:0,level:1});g.hero.position.set(0,0,0);g.hero.rotation.y=0;
+ g.adventureCamera.yaw=0;g.adventureCamera.pitch=-.08;g.adventureCamera._ready=false;g.setView(mode);Object.assign(g.controls,{angle:0,held:false,hasAim:true});
+ if(g.companion){g.companion.alive=false;g.companion.state='down';g.companion.reviveLeft=999;}
+ if(route)for(let i=0;i<rank;i++){g.player.level=[3,5,8][i];assert(takeUpgrade(g.player,'path:'+route),'无法合法领取 '+route+' 第 '+(i+1)+' 阶');}
+ targets=[];events=[];initial={mode,route,rank,stats:weaponStats(g.player),input:'真实 game3d.step 与 controls.held 按住/松开'};render();return weaponStats(g.player);
+}
+function spawn(x=0,z=3.6){const e=g.spawn('golem',x,z);assert(e,'受击目标生成失败');Object.assign(e,{x,y:0,z,hp:100000,maxHp:100000,speed:0,cool:999,damage:0,xp:0,height:6,size:.5,radius:.45});e.mesh.position.set(x,0,z);targets.push(e);return e;}
+function aim(e){const distance=Math.hypot(e.x-g.player.x,e.z-g.player.z),angle=Math.atan2(e.x-g.player.x,e.z-g.player.z);g.hero.rotation.y=angle;g.controls.angle=angle;g.controls.hasAim=true;g.adventureCamera.yaw=angle+(mode==='third'?Math.asin(g.adventureCamera.shoulderOffset/distance):0);g.adventureCamera._ready=false;g.setView(mode);g.controls.hasAim=true;render();initial.camera=point(g.camera.position);initial.direction=point(g.adventureCamera.getRay().direction);}
+function fire(){const before=g.hero.userData.shotSerial||0;g.player.attack=0;g.controls.held=true;step();g.controls.held=false;g.player.attack=999;assert(g.hero.userData.shotSerial===before+1,'一次手动输入未准确产生一次攻击');}
+async function clearState(label){assert(!g.controls.held,label+'未清除持续输入');assert(!g.player.arcFocus,label+'遗留聚焦目标');assert(!g.bullets.length,label+'遗留弹体');for(let i=0;i<25&&(g.audio.weaponSources.size||g.audio.creatureSources.size);i++)await sleep(10);assert(!g.audio.weaponSources.size&&!g.audio.creatureSources.size,label+'停止后 250 毫秒仍遗留声音播放源');}
+async function cleanup(){g.menu();g.audio.stopMusic();g.audio.stopWeapons();g.audio.stopCreatures();await clearState('离场');assert(!g.briarPods?.pods.length,'离场遗留荆棘投囊');assert(!g.riftStrikes.length&&!g.fields.length,'离场遗留法场');assert(!win.qaErrors.length,win.qaErrors.join('\n'));}
+async function baseHit(){setup();const primary=spawn(),secondary=spawn(1.8,4.4),spare=spawn(-1.8,4.6);aim(primary);fire();near(damage(primary),9,'主目标伤害');near(damage(secondary),5.4,'最近副目标伤害');near(damage(spare),0,'基础攻击超过一个副目标');assert(primary.mesh.userData.hitReaction,'主目标没有受击反馈');assert(events.some(e=>e.kind==='weapon'&&e.id==='arcstaff'&&e.phase==='shot'&&e.played),'导雷出手声音未创建真实播放源');assert(events.some(e=>e.kind==='contact'&&e.id==='arcstaff'),'命中没有导雷接触反馈');const result=snapshot();advance(.8);assert(g.hero.userData.shotSerial===1,'松手仍继续攻击');await cleanup();return result;}
+async function emptyShot(){setup();fire();assert(!events.some(e=>e.kind==='contact'),'空射产生肉体接触');assert(!g.player.arcFocus,'空射保留聚焦');assert(!g.bullets.length,'瞬时导雷留下追踪弹体');advance(.8);assert(g.hero.userData.shotSerial===1,'空射松手后仍继续攻击');const result=snapshot();await cleanup();return result;}
+async function blocked(chain){setup();const primary=spawn(),secondary=spawn(2.1,3.6);aim(primary);g.world.obstacles.push(chain?{x:1.05,y:0,z:3.6,r:.35,height:8}:{x:0,y:0,z:1.9,r:1,height:8});fire();near(damage(primary),chain?9:0,'障碍前主目标伤害');near(damage(secondary),0,'电弧穿过实体障碍');const result=snapshot();await cleanup();return result;}
+async function outOfRange(){setup();const primary=spawn(0,8.5),secondary=spawn(2.5,10.5);aim(primary);fire();near(damage(primary),9,'射程内主目标伤害');near(damage(secondary),0,'跳电超过出手点总射程');const result=snapshot();await cleanup();return result;}
+async function chainRoute(rank){setup('arcstaff_chain',rank);const primary=spawn(),chain=[primary,spawn(1.35,3.8),spawn(2.7,4),spawn(4.05,4.2),spawn(5.4,4.4),spawn(6.75,4.6)];aim(primary);fire();for(let i=0;i<chain.length;i++)near(damage(chain[i]),i===0?8.1:i<=rank+1?4.86:0,'连枝路线 '+rank+' 阶目标 '+(i+1));const result=snapshot();await cleanup();return result;}
+async function focusRamp(rank){setup('arcstaff_focus',rank);const primary=spawn(),neighbor=spawn(1.8,4.4);aim(primary);g.player.attack=0;g.controls.held=true;const hits=[];for(let i=0;i<180&&hits.length<8;i++){const before=primary.hp;step();if(primary.hp!==before)hits.push({time:g.time,damage:before-primary.hp});}g.controls.held=false;assert(hits.length===8,'持续按住未产生八次导雷');near(hits[0].damage,9,'聚焦首击伤害');const cap=[.55,.8,1.05][rank-1];for(const hit of hits)near(hit.damage,9*(1+cap*Math.min(1,(hit.time-hits[0].time)/1.25)),'持续聚焦伤害');near(hits.at(-1).damage,9*(1+cap),'聚焦上限');near(damage(neighbor),0,'聚焦路线仍产生副跳');const serial=g.hero.userData.shotSerial;advance(.8);assert(g.hero.userData.shotSerial===serial,'松手仍有排队导雷');const result={hits,...snapshot()};await cleanup();return result;}
+async function focusReset(kind){setup('arcstaff_focus',3);const primary=spawn(),other=spawn(-2.5,4);aim(primary);fire();advance(.25);fire();assert(g.player.arcFocus?.started<g.player.arcFocus?.time,'聚焦没有累积');let target=primary;
+ if(kind==='target'){target=other;aim(other);}else if(kind==='gap')advance(.6);else if(kind==='miss'){g.adventureCamera.yaw=Math.PI;g.adventureCamera._ready=false;g.setView(mode);g.controls.angle=Math.PI;render();fire();assert(!g.player.arcFocus,'未命中没有清除聚焦');aim(primary);}
+ const hp=target.hp;fire();near(hp-target.hp,9,'聚焦 '+kind+' 后首击未复位');assert(g.player.arcFocus?.target===target,'聚焦未切换到真实对象');const result=snapshot();await cleanup();return result;}
+async function lifecycle(kind){setup('arcstaff_focus',3);const target=spawn();aim(target);fire();assert(g.player.arcFocus,'清理前未创建聚焦');g.controls.held=true;const serial=g.hero.userData.shotSerial,time=g.time;
+ if(kind==='pause'){g.pause();await clearState('暂停');advance(.7);assert(g.time===time&&g.hero.userData.shotSerial===serial,'暂停推进了战斗');g.resume();advance(.7);assert(g.hero.userData.shotSerial===serial,'恢复后无输入仍继续导雷');}
+ else if(kind==='death'){g.player.inv=0;assert(g.damage(10000,0,-2),'致命伤害未生效');assert(g.state==='lost','未进入失败状态');await clearState('死亡');advance(.7);assert(g.hero.userData.shotSerial===serial,'死亡后仍继续导雷');}
+ else if(kind==='menu'){g.menu();await clearState('菜单');}
+ else if(kind==='dash'){g.dash();assert(g.player.dashTime>0,'闪避未启动');assert(!g.player.arcFocus,'闪避遗留聚焦');g.controls.held=false;advance(.7);assert(g.hero.userData.shotSerial===serial,'闪避后松手仍继续导雷');}
+ else{g.menu();g.start();await clearState('重开');assert(!g.hero.userData.shotSerial,'新对局继承攻击序号');assert(g.player.weaponId==='arcstaff','重开丢失选择的武器');}
+ const result=snapshot();await cleanup();return result;
+}
+async function experienceOnce(){setup();const primary=spawn(),secondary=spawn(1.8,4.4);primary.hp=1;primary.xp=7;secondary.hp=1;secondary.xp=11;aim(primary);fire();assert(!primary.alive&&!secondary.alive,'致命电弧没有击倒两个目标');assert(g.orbs.length===2,'击倒没有各自产生一次经验球');for(const orb of g.orbs)orb.attract=true;advance(.8);near(g.player.xp,18,'击倒经验');assert(!g.orbs.length,'经验球没有正确回收');fire();advance(.6);near(g.player.xp,18,'重复攻击死目标产生额外经验');const result=snapshot();await cleanup();return result;}
+async function legalRoutes(){const details=[];for(const route of ['arcstaff_chain','arcstaff_focus']){setup();const sibling=route==='arcstaff_chain'?'arcstaff_focus':'arcstaff_chain';assert(WEAPON_PATHS[route]?.weapon==='arcstaff','路线武器归属错误');for(let rank=0;rank<3;rank++){g.player.level=[2,4,7][rank];assert(!takeUpgrade(g.player,'path:'+route),'提前领取路线');g.player.level=[3,5,8][rank];assert(takeUpgrade(g.player,'path:'+route),'无法按 3/5/8 领取路线');assert(g.player.weaponPath.rank===rank+1,'路线阶数不符');assert(!takeUpgrade(g.player,'path:'+sibling),'允许混选另一条路线');details.push({route,level:g.player.level,rank:g.player.weaponPath.rank,stats:weaponStats(g.player)});}assert(!takeUpgrade(g.player,'path:'+route),'路线突破三阶');assert(!chooseUpgrades(g.player).some(c=>c.category==='weapon'),'满阶继续提供路线');await cleanup();}return details;}
+async function grips(){setup();const target=spawn();aim(target);render();assert(g.firstPerson.root.visible,'第一人称持械未显示');fire();let gap=0;for(let i=0;i<45;i++){render();const v=g.firstPerson;for(const hand of v.hands)assert([...hand.position.toArray(),...hand.quaternion.toArray(),...hand.scale.toArray()].every(Number.isFinite),'手掌变换出现非数值');assert(v.weapon.matrixWorld.elements.every(Number.isFinite),'导雷杖变换出现非数值');const palm=v.hands[0].localToWorld(v.hands[0].position.clone().set(0,.045,-.023)),anchor=v.weapon.localToWorld(v.grip.clone());gap=Math.max(gap,palm.distanceTo(anchor));}assert(gap<1e-6,'手掌脱离导雷杖握点');near(damage(target),9,'第一人称持械真实命中');const result={gap,...snapshot()};await cleanup();return result;}
+function aimGround(target){aim(target);const distance=Math.hypot(target.x-g.player.x,target.z-g.player.z),offset=mode==='third'?g.adventureCamera.shoulderOffset:0;g.adventureCamera.pitch=Math.atan2(-g.adventureCamera._target.y,Math.sqrt(distance*distance-offset*offset));g.adventureCamera._ready=false;g.setView(mode);g.controls.hasAim=true;render();}
+const podState=p=>({state:p.state,x:p.x,y:p.y,z:p.z,delay:p.delay,arm:p.arm,life:p.life,flight:p.flight});
+async function briarSmoke(miss=false){
+ const stats=setup(null,0,'briarpot');assert(HERO_LOADOUTS.lingya[1]==='briarpot','投囊没有位于铃芽第二套装备');assert(g.briarPods,'投囊运行时未接入真实游戏');assert(g.companion,'铃芽投囊丢失伙伴');near(stats.petDamage,30,'投囊伙伴基础伤害');near(stats.petCooldown,2.35,'投囊伙伴基础冷却');assert(!win.document.querySelector('#companion-status').hidden,'投囊没有显示伙伴面板');
+ g.player.level=8;assert(takeUpgrade(g.player,'care'),'投囊不能合法领取伙伴照护');const careBefore=g.heroSkills.newHeroes.careHits;
+ const primary=miss?null:spawn(0,6),secondary=miss?null:spawn(1.1,6);for(const e of targets)e.height=1.5;aimGround(primary||{x:0,z:6});fire();assert(g.briarPods.pods.length===1,'手动投掷没有创建一个真实投囊');const pod=g.briarPods.pods[0],states=[podState(pod)];assert(pod.state==='held','投囊没有经历离手等待');if(primary)near(damage(primary),0,'按下即造成伤害');
+ advance(.3);states.push(podState(pod));assert(pod.state==='flight'&&pod.y>.12,'投囊没有形成空中抛物线');assert([pod.x,pod.y,pod.z,pod.vx,pod.vy,pod.vz].every(Number.isFinite),'投囊轨迹出现非数值');if(primary)near(damage(primary),0,'空中投囊提前造成伤害');
+ for(let i=0;i<180&&pod.state==='flight';i++)step();assert(pod.state==='armed','投囊没有落地蓄发');states.push(podState(pod));if(primary)near(damage(primary),0,'投囊落地未等待即造成伤害');const frozen=JSON.stringify(podState(pod)),time=g.time;g.pause();advance(.7);assert(g.time===time&&JSON.stringify(podState(pod))===frozen,'暂停未冻结落地投囊');assert(g.briarPods.pods.includes(pod),'暂停清除了已落地投囊');g.resume();advance(.7);
+ assert(!g.briarPods.pods.length,'爆发后投囊未回收');if(primary){near(damage(primary),stats.damage,'投囊主目标一次爆发伤害');near(damage(secondary),stats.damage,'投囊范围爆发伤害');assert(primary.lingyaMark>0&&!(secondary.lingyaMark>0),'一次爆发未仅标记最近目标');assert(g.heroSkills.newHeroes.careHits===careBefore+1,'一次爆发多次累计照护');}else{assert(!events.some(e=>e.kind==='contact'),'空投爆发产生肉体接触');assert(g.heroSkills.newHeroes.careHits===careBefore,'空投累计命中照护');}
+ const result={states,...snapshot()};await cleanup();return result;
+}
+async function briarCleanup(kind){setup(null,0,'briarpot');aimGround({x:0,z:6});fire();advance(.3);assert(g.briarPods.pods[0]?.state==='flight','清理前投囊未离手');if(kind==='death'){g.player.inv=0;g.damage(10000,0,-2);assert(g.state==='lost','投囊清理前死亡未生效');}else{g.menu();if(kind==='restart')g.start();}assert(!g.briarPods.pods.length,kind+'遗留飞行投囊');await clearState(kind);const result=snapshot();await cleanup();return result;}
+async function briarGrips(){setup(null,0,'briarpot');aimGround({x:0,z:6});fire();let gap=0;for(let i=0;i<55;i++){render();const v=g.firstPerson;assert([...v.weapon.matrixWorld.elements,...v.hands.flatMap(h=>[...h.position.toArray(),...h.quaternion.toArray()])].every(Number.isFinite),'投囊持械或手掌变换出现非数值');const palm=v.hands[0].localToWorld(v.hands[0].position.clone().set(0,.045,-.023)),anchor=v.weapon.localToWorld(v.grip.clone());gap=Math.max(gap,palm.distanceTo(anchor));}assert(gap<1e-6,'手掌脱离投囊握点');const result={gap,...snapshot()};await cleanup();return result;}
+async function legacySmoke(weapon){setup(null,0,weapon);const target=spawn(0,2.7);aim(target);fire();advance(1.45);assert(damage(target)>0,weapon+' 的真实攻击未命中');assert(g.hero.userData.shotSerial===1,weapon+' 松手后仍继续攻击');assert(events.some(e=>e.kind==='contact'&&e.id===weapon),weapon+' 未保留接触反馈');assert(events.some(e=>e.kind==='weapon'&&e.id===weapon&&e.phase==='shot'&&e.played),weapon+' 出手声音未创建播放源');const result=snapshot();await cleanup();return result;}
+async function preview(weapon,view){buttons(true);try{await load(dimensions[$('#preview-size').value]);await audioReady();mode=view;setup(null,0,weapon);const target=g.spawn('golem',0,weapon==='arcstaff'?4:6);assert(target,'预览目标生成失败');Object.assign(target,{hp:100000,maxHp:100000,speed:0,cool:999,damage:0,xp:0});targets.push(target);const other=g.spawn('golem',target.x+1.8,target.z+.6);if(other){Object.assign(other,{hp:100000,maxHp:100000,speed:0,cool:999,damage:0,xp:0});targets.push(other);}if(weapon==='briarpot'){aimGround(target);fire();for(let i=0;i<240&&g.briarPods.pods.length;i++)step();assert(!g.briarPods.pods.length,'预览投囊未完成爆发');advance(4/60);}else{aim(target);const distance=Math.hypot(target.x-g.player.x,target.z-g.player.z),offset=mode==='third'?g.adventureCamera.shoulderOffset:0;g.adventureCamera.pitch=Math.atan2((target.y||0)+target.height*.55-g.adventureCamera._target.y,Math.sqrt(distance*distance-offset*offset));g.adventureCamera._ready=false;g.setView(mode);render();fire();}render();window.weaponPreview={weapon,view,size:$('#preview-size').value,...snapshot()};$('#status').textContent=(weapon==='arcstaff'?'导雷命中瞬间':'投壶爆发后约 0.08 秒')+'已固定；真实游戏效果保留，可截图。';for(const details of document.querySelectorAll('details'))details.open=false;$('#view').scrollIntoView({block:'start'});}catch(error){$('#status').textContent='预览失败：'+error.message;}finally{buttons(false);}}
+const balanceRound=n=>Math.round(n*10000)/10000;
+async function balanceCase(weapon,route,scenario,{petStart=[-1.2,0]}={}){
+ setup(route,route?3:0,weapon);
+ const skill=g.player.heroId==='tide'?'brine':'bond';
+ if(route){assert(takeUpgrade(g.player,'haste'),'攻速预算领取失败');for(let i=0;i<3;i++)assert(takeUpgrade(g.player,skill),'专属技能预算领取失败');}
+ const stats=weaponStats(g.player),pet=g.companion;
+ if(pet){Object.assign(pet,{alive:true,state:'sniff',reviveLeft:0,x:petStart[0],y:0,z:petStart[1],cool:.6,decisionAt:.9,inv:999,target:null,command:null});pet.syncHealth();pet.hp=pet.maxHp;g.companionMesh.position.set(pet.x,pet.y,pet.z);}
+ g.audio.muted=true;g.audio.stopWeapons();g.audio.stopCreatures();
+ const layout=scenario==='three'?[[0,2.7],[-1.2,3.1],[1.2,3.1]]:[[0,2.7]],hits=[],attacks=[],tracks=[],restore=[];
+ let source='weapon',measuring=false,start=0,previousSerial=g.hero.userData.shotSerial||0;
+ targets=layout.map(([x,z],index)=>{
+  const e=g.spawn('mushroom',x,z);assert(e,'数值目标生成失败');Object.assign(e,{x,y:0,z,hp:100000,maxHp:100000,speed:0,cool:999,damage:0,xp:0});e.mesh.position.set(x,0,z);
+  let hp=e.hp;Object.defineProperty(e,'hp',{configurable:true,get:()=>hp,set:value=>{if(measuring&&value<hp)hits.push({time:g.time-start,target:index,damage:hp-value,source});hp=value;}});return e;
+ });
+ const observeDamage=(api,label)=>{const original=api.damage;api.damage=function(...args){const prior=source;source=typeof label==='function'?label():label;try{return original.apply(this,args);}finally{source=prior;}};restore.push(()=>api.damage=original);};
+ observeDamage(g.heroSkills.api,'heroSkill');if(pet)observeDamage(pet.api,()=>pet.state==='pounce'?'pet':'petTrap');
+ const updateAim=()=>{const target=targets[0],dx=target.x-g.player.x,dz=target.z-g.player.z;g.adventureCamera.yaw=Math.atan2(dx,dz);g.adventureCamera.pitch=Math.atan2(target.y+target.height*.55-g.camera.position.y,Math.hypot(dx,dz));g.adventureCamera._ready=false;g.controls.held=true;};
+ win.document.querySelector('[data-attack-mode=auto]').click();updateAim();g.hero.rotation.y=g.adventureCamera.yaw;g.player.attack=0;
+ const petInitial=pet?{enabled:true,hp:pet.hp,position:point(pet),damage:stats.petDamage,cooldown:stats.petCooldown}:{enabled:false};
+ const petTrace=[];let petMinOwnerDistance=Infinity,ownerMaxDisplacement=0,previousPet=pet?point(pet):null;
+ const tracePet=(frame=0)=>{if(!pet)return;const dx=pet.x-previousPet.x,dz=pet.z-previousPet.z,length2=dx*dx+dz*dz,t=length2?Math.max(0,Math.min(1,((g.player.x-previousPet.x)*dx+(g.player.z-previousPet.z)*dz)/length2)):0;
+  petMinOwnerDistance=Math.min(petMinOwnerDistance,Math.hypot(previousPet.x+t*dx-g.player.x,previousPet.z+t*dz-g.player.z));ownerMaxDisplacement=Math.max(ownerMaxDisplacement,Math.hypot(g.player.x,g.player.z));previousPet=point(pet);
+  if(frame%60===0||petTrace.at(-1)?.state!==pet.state)petTrace.push({time:balanceRound(g.time-start),state:pet.state,active:pet.api.active(),alive:pet.alive,x:balanceRound(pet.x),z:balanceRound(pet.z),target:targets.indexOf(pet.target),targetDistance:pet.target?balanceRound(Math.hypot(pet.target.x-pet.x,pet.target.z-pet.z)):null,nearestDistance:balanceRound(Math.min(...targets.map(e=>Math.hypot(e.x-pet.x,e.z-pet.z)))),cool:balanceRound(pet.cool),stuck:balanceRound(pet.stuck),struck:!!pet.struck});};
+ const targetBodies=targets.map(e=>({kind:e.kind,height:e.height,size:e.size,radius:e.radius??e.size*.7,position:point(e)}));
+ start=g.time;measuring=true;tracePet();
+ try{
+  for(let frame=0;frame<720;frame++){
+   const t=frame/60;
+   targets.forEach((e,i)=>{e.x=scenario==='moving'?1.4*Math.sin(t*Math.PI*2/3):layout[i][0];e.z=layout[i][1];e.y=0;e.cool=999;e.mesh.position.set(e.x,0,e.z);});
+   updateAim();step();
+   tracePet(frame+1);
+   g.firstPerson.update(g.time,1/60,{moving:0,strafe:0,yaw:g.adventureCamera.yaw,pitch:g.adventureCamera.pitch,attack:g.hero.userData.shoot,visible:true});
+   assert(g.state==='playing','数值对照期间意外离开战斗');assert(g.enemies.filter(e=>e.alive).every(e=>targets.includes(e)),'环境增援混入数值目标');
+   const elapsed=g.time-start,serial=g.hero.userData.shotSerial||0;
+   if(serial!==previousSerial){
+    assert(serial===previousSerial+1,'单帧出现不可归属的多次攻击');previousSerial=serial;
+    const record={number:attacks.length+1,start:balanceRound(elapsed)},entity=weapon==='harpoon'?g.player.melee:weapon==='boomerang'?g.bullets.at(-1):weapon==='briarpot'?g.briarPods.pods.at(-1):null;
+    if(weapon==='arcstaff')record.release=record.start;
+    if(entity)tracks.push({record,entity});attacks.push(record);
+   }
+   for(const {record,entity:e}of tracks){
+    if(record.release===undefined&&(weapon==='harpoon'?g.player.melee!==e:weapon==='boomerang'?e.releaseDelay<=0:e.state!=='held'))record.release=balanceRound(elapsed);
+    if(weapon==='briarpot'){
+     record.maxHeight=balanceRound(Math.max(record.maxHeight||0,e.y));
+     if(e.state==='armed'&&record.land===undefined)record.land=balanceRound(elapsed);
+     if(e.state==='done'&&record.end===undefined)record.end=balanceRound(elapsed);
+    }else if(weapon==='boomerang'&&(e.life<=0||e.pierce<=0)&&record.end===undefined)record.end=balanceRound(elapsed);
+   }
+   if(frame%120===119)await sleep(0);
+  }
+  const elapsed=g.time-start,sum=(list)=>list.reduce((n,h)=>n+h.damage,0),weaponHits=hits.filter(h=>h.source==='weapon'),times=[0,...new Set(weaponHits.map(h=>h.time)),elapsed],totals=Object.fromEntries(['weapon','pet','petTrap','heroSkill'].map(kind=>[kind,balanceRound(sum(hits.filter(h=>h.source===kind)))]));
+  const first=list=>list.length?balanceRound(list[0].time):null,intervals=attacks.slice(1).map((a,i)=>a.start-attacks[i].start),delays=attacks.filter(a=>a.release!==undefined).map(a=>a.release-a.start),average=list=>list.length?balanceRound(list.reduce((a,b)=>a+b,0)/list.length):null;
+  const result={weapon,hero:g.player.heroId,build:route||'base',rank:route?3:0,scenario,duration:balanceRound(elapsed),level:g.player.level,upgradeBudget:route?7:0,upgrades:{...g.player.upgrades},stats,pet:{...petInitial,...(pet?{minOwnerDistance:balanceRound(petMinOwnerDistance),ownerMaxDisplacement:balanceRound(ownerMaxDisplacement),trace:petTrace,hitTimeline:hits.filter(h=>h.source==='pet').map(h=>({...h,time:balanceRound(h.time)})),moveCallback:pet.api.move.toString()}:{})},targetBodies,
+   delivery:({harpoon:'近战前摇后扫判',arcstaff:'瞬时射线与跳电',boomerang:'离手前摇后直线石弹',briarpot:'离手前摇、抛物线、落地蓄发'})[weapon],damage:totals,totalDamage:balanceRound(sum(hits)),dps:balanceRound(sum(hits)/elapsed),weaponDps:balanceRound(sum(weaponHits)/elapsed),firstHit:first(hits),firstWeaponHit:first(weaponHits),attackCount:attacks.length,meanAttackInterval:average(intervals),meanWindup:average(delays),meanFlight:average(attacks.filter(a=>a.release!==undefined&&(a.land??a.end)!==undefined).map(a=>(a.land??a.end)-a.release)),longestWeaponDamageGap:balanceRound(Math.max(...times.slice(1).map((t,i)=>t-times[i]))),
+   targets:targets.map((e,i)=>{const local=hits.filter(h=>h.target===i);return{index:i,damage:balanceRound(100000-e.hp),firstHit:first(local),firstWeaponHit:first(local.filter(h=>h.source==='weapon')),hitCount:local.length,damageBySource:Object.fromEntries(Object.keys(totals).map(kind=>[kind,balanceRound(sum(local.filter(h=>h.source===kind)))]))};}),
+   pendingAtCutoff:{melee:!!g.player.melee,bullets:g.bullets.length,pods:g.briarPods.pods.map(p=>({state:p.state,arm:p.arm,life:p.life}))},attackTimeline:attacks,warnings:weaponHits.length?[]:['12秒内主武器未命中；检查运动与弹道，不作为有效站桩DPS。']};
+  assert(Math.abs(result.totalDamage-targets.reduce((n,e)=>n+100000-e.hp,0))<.001,'伤害观察与实际生命不一致');return result;
+ }finally{measuring=false;for(const undo of restore)undo();g.controls.held=false;g.player.attack=999;await cleanup();}
+}
+async function runBalance(){
+ buttons(true);const report={version,startedAt:new Date().toISOString(),status:'running',method:{simulation:'真实 game3d.step，60Hz，持续攻击12秒；不预热攻击、不补算截止后的伤害',aim:'第一人称自动瞄准真实目标碰撞体中部，随横移跟踪；投壶仍瞄准出手时地面落点，不添加提前量',budget:{base:'等级1，零升级、零技能',routeIII:'等级8，路线3阶 + 疾风节拍1 + 潮行者盐蚀印记3 / 铃芽同猎追击3，共7次升级'},pet:'两种铃芽武器均启用 (-1.2,0) 无遮挡侧面起点、满生命、0.6秒起手冷却的真实伙伴；petTrap为弹弓路线藤绊，heroSkill为盐蚀/同猎追加；trace记录真实状态、距离与咬击',targets:'真实蘑菇碰撞体，有限1/3目标，生命100000、零攻击、零经验；中心距2.7米，相邻目标偏移±1.2米/前方0.4米；移动目标横移±1.4米、周期3秒',limits:'固定目标走位，不评价牵引/减速/生存收益；零技能与三阶各自同预算比较，非无敌人上限或damage×rate理论值；12秒截止仍在前摇/飞行/待发的攻击单列'},rows:[],errors:[]};
+ const history=window.weaponBalanceHistory||=[];report.previousRuns=history.map(r=>({startedAt:r.startedAt,source:r.source,rows:r.rows.map(({weapon,build,scenario,dps,weaponDps,firstWeaponHit,attackCount})=>({weapon,build,scenario,dps,weaponDps,firstWeaponHit,attackCount}))}));history.push(report);
+ const publishBalance=()=>{$('#balance-report').textContent=JSON.stringify(window.weaponBalanceReport=report,null,2);};publishBalance();
+ try{
+  const [wild,skills]=await Promise.all(['wild-weapons.js','new-hero-skills.js'].map(file=>fetch('../'+file,{cache:'no-store'}).then(r=>r.text())));
+  report.source={weaponConstants:wild.match(/export const (?:ARCSTAFF|BRIARPOT)=[^\n]+/g),saltHit:skills.slice(skills.indexOf('\n hit('),skills.indexOf('\n petHit(')).trim()};
+  await load(dimensions.desktop);mode='first';
+  for(const weapon of ['harpoon','arcstaff','boomerang','briarpot'])for(const route of [null,...Object.keys(WEAPON_PATHS).filter(id=>WEAPON_PATHS[id].weapon===weapon)])for(const scenario of ['single','three','moving']){
+   $('#status').textContent='数值对照 '+(report.rows.length+1)+'/36 · '+weapon+' / '+(route||'基础')+' / '+scenario;await sleep(0);
+   try{report.rows.push(await balanceCase(weapon,route,scenario));}catch(error){report.errors.push({weapon,route,scenario,message:error.message});}
+   publishBalance();
+  }
+  report.errors.push(...win.qaErrors);report.status=report.errors.length?'failed':'complete';
+ }catch(error){report.errors.push(error.message);report.status='failed';}finally{report.finishedAt=new Date().toISOString();publishBalance();buttons(false);$('#status').textContent='数值对照完成：'+report.rows.length+'/36组，'+report.errors.length+'项错误；原检查结果保持独立。';}
+}
+$('#balance').onclick=runBalance;
+async function runPetRegression(){
+ buttons(true);const report={version,status:'running',method:'真实 game3d.step 与 createCompanion 移动回调；主人固定 (0,0)，伙伴初始 (-0.9,-0.7)，静止蘑菇 (0,2.7)，保留实体碰撞；12秒内须咬中且沿途不穿过主人（中心间距≥0.748米）',rows:[],errors:[]},publishPet=()=>$('#pet-report').textContent=JSON.stringify(window.petCollisionReport=report,null,2);publishPet();
+ try{await load(dimensions.desktop);mode='first';for(const [weapon,route]of [['boomerang',null],['boomerang','boomerang_pincer'],['briarpot',null]]){
+  $('#status').textContent='伙伴绕行回归 '+(report.rows.length+1)+'/3 · '+weapon+' / '+(route||'基础');await sleep(0);
+  try{const detail=await balanceCase(weapon,route,'single',{petStart:[-.9,-.7]}),failures=[];if(!(detail.damage.pet>0))failures.push('伙伴未咬中');if(detail.pet.minOwnerDistance<.748)failures.push('伙伴穿过主人实体');if(detail.pet.ownerMaxDisplacement>1e-6)failures.push('主人发生移动');report.rows.push({weapon,route,pass:!failures.length,failures,detail});}catch(error){report.rows.push({weapon,route,pass:false,error:error.message});}publishPet();
+ }report.errors.push(...win.qaErrors);report.status=report.rows.every(row=>row.pass)&&!report.errors.length?'complete':'failed';}catch(error){report.errors.push(error.message);report.status='failed';}finally{publishPet();buttons(false);$('#status').textContent='伙伴绕行回归：'+report.rows.filter(row=>row.pass).length+'/3 项通过；原61项与36组数值报告保持独立。';}
+}
+$('#pet-regression').onclick=runPetRegression;
+async function check(name,fn){$('#status').textContent='检查 '+name;await sleep(0);try{results.push({name,pass:true,detail:await fn()});}catch(error){const detail={initial,final:g?snapshot():null};results.push({name,pass:false,error:error.message,...detail});$('#diagnostic').textContent=JSON.stringify({name,error:error.message,...detail},null,2);try{await cleanup();}catch(cleanupError){errors.push(cleanupError.message);}}publish();}
+async function run(id){
+ buttons(true);results.length=0;errors.length=0;$('#diagnostic').textContent='尚无失败。';publish();
+ try{await load(dimensions[id]);await audioReady();for(mode of ['third','first']){
+  const label=id+' / '+(mode==='first'?'第一人称':'第三人称');
+  await check(label+' / 主射线与单次副跳',baseHit);await check(label+' / 空射与松手',emptyShot);await check(label+' / 实体阻挡直射',()=>blocked(false));await check(label+' / 实体阻挡副跳',()=>blocked(true));await check(label+' / 总射程限制',outOfRange);
+  for(const rank of [1,2,3]){await check(label+' / 连枝 '+rank+' 阶',()=>chainRoute(rank));await check(label+' / 聚焦 '+rank+' 阶持续输入',()=>focusRamp(rank));}
+  for(const kind of ['target','miss','gap'])await check(label+' / 聚焦复位 '+kind,()=>focusReset(kind));
+  for(const kind of ['pause','death','menu','restart','dash'])await check(label+' / 清理 '+kind,()=>lifecycle(kind));
+  await check(label+' / 经验只结算一次',experienceOnce);
+  for(const weapon of ['harpoon','boomerang','fire','crossbow'])await check(label+' / 旧武器 '+weapon,()=>legacySmoke(weapon));
+  await check(label+' / 投囊弹道、落地、暂停与伙伴',()=>briarSmoke());await check(label+' / 投囊空投',()=>briarSmoke(true));
+  for(const kind of ['death','menu','restart'])await check(label+' / 投囊清理 '+kind,()=>briarCleanup(kind));
+  if(mode==='first'){await check(label+' / 导雷杖连续持械有限值与握点',grips);await check(label+' / 投囊连续持械有限值与握点',briarGrips);}
+ }await check(id+' / 两路线 3/5/8 门槛与排他',legalRoutes);}catch(error){results.push({name:'初始化',pass:false,error:error.message});}
+ errors.push(...(win?.qaErrors||[]));publish();buttons(false);$('#status').textContent=results.every(r=>r.pass)&&!errors.length?'全部 '+results.length+' 项检查通过；手机仅为尺寸与触控分支模拟。':'检查完成，有失败项目；请查看报告。';
+}
+for(const id of Object.keys(dimensions))$('#'+id).onclick=()=>run(id);
+for(const [prefix,weapon]of [['arc','arcstaff'],['briar','briarpot']])for(const view of ['first','third'])$('#preview-'+prefix+'-'+view).onclick=()=>preview(weapon,view);
+try{await load(dimensions.desktop);buttons(false);$('#status').textContent='准备完成。点击尺寸按钮检查主射线、副跳、两条路线、持械、经验与离场清理。';}catch(error){$('#status').textContent='加载失败：'+error.message;}
+</script></html>

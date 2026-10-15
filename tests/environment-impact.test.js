@@ -43,7 +43,7 @@ test('bounded marks fade on simulation time, recycle the same buffers and clear 
 test('weapon water profiles differ, overlap bursts are bounded, and ripples expand then expire',()=>{
  const scene=new T.Scene(),vfx=new SkillVFX(scene),fx=new EnvironmentImpacts(scene,vfx);
  try{
-  assert.equal(Object.keys(ENVIRONMENT_IMPACTS).length,11);assert.equal(impactProfile({id:'harpoon'}),null);
+  assert.equal(Object.keys(ENVIRONMENT_IMPACTS).length,13);assert.equal(impactProfile({id:'harpoon'}),null);
   assert(impactProfile({id:'shotgun',pathId:'shotgun_slug'}).ripple>impactProfile({id:'shotgun'}).ripple);
   assert(impactProfile({id:'crossbow'}).splash>impactProfile({id:'shuriken'}).splash);
   assert(fx.water({id:'fire'},{x:0,y:.075,z:0}));assert.equal(vfx.active.length,9);assert(vfx.active.some(p=>p.shape==='vapor'));

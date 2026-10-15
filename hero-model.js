@@ -1,7 +1,7 @@
-import {shadowFocus} from './shadow-gear.js?v=210';
-import{weaponGesture,shotStarted,crossbowMechanism}from'./weapon-performance.js?v=210';
-import{miasmaLantern}from'./mirage-appearance.js?v=210';
-import{weaponInlay,nameWeapon,recessedBarrelGeometry}from'./weapon-identity.js?v=210';
+import {shadowFocus} from './shadow-gear.js?v=211';
+import{weaponGesture,shotStarted,crossbowMechanism}from'./weapon-performance.js?v=211';
+import{miasmaLantern}from'./mirage-appearance.js?v=211';
+import{weaponInlay,nameWeapon,recessedBarrelGeometry}from'./weapon-identity.js?v=211';
 import * as T from './vendor/three.module.js';
 // Shared smooth geometry: detail is concentrated on the two heroes, not multiplied across the forest.
 const geometries=new Map(),materials=new Map();
@@ -135,7 +135,29 @@ export function makeHero(kind,weapon){
     ell(elbow,dark,[0,-.287,.012],[.075,.087,.065]);block(elbow,trim,[0,-.28,.069],[.071,.036,.012],.6);
   }
   const gun=joint(d.rightElbow,[0,-.287,.025]);d.weapon=gun;
-  if(weapon==='fire'||weapon==='dark'){
+  if(weapon==='briarpot'){
+    gun.name='SM_Weapon_Briarpot';
+    const bowl=part(gun,'LatheGeometry',[[[0,-.15],[.075,-.15],[.105,-.12],[.145,-.045],[.14,.045],[.112,.12],[.112,.14],[.087,.14],[.087,.12],[.112,.04],[.115,-.035],[.075,-.10],[0,-.10]].map(p=>new T.Vector2(...p)),20],0xb2784d);bowl.name='SM_Briarpot_CeramicBowl';bowl.userData.identityDetail=true;
+    woodFinish(weaponLine(gun,'SM_Briarpot_BranchHandle',[[-.10,.09,0],[-.185,.18,0],[-.235,.105,0],[-.19,-.01,0],[-.135,-.025,0]],.017,0x5a5638));
+    const rim=part(gun,'TorusGeometry',[.10,.012,6,20],0x738056,[0,.135,0]);rim.rotation.x=Math.PI/2;rim.name='SM_Briarpot_GlazedRim';
+    const paths=[];for(const side of[-1,1])paths.push([[side*.063,-.13,.055],[side*.119,-.07,.075],[side*.13,.025,.06],[side*.10,.085,.045]],[[side*.11,-.035,.094],[side*.055,-.09,.113],[0,-.11,.105]]);
+    weaponInlay(gun,'SM_Briarpot_WovenRootCradle',paths,0x75664b,.006,0);
+    weaponInlay(gun,'SM_Briarpot_LeafGlaze',[[[-.052,.010,.139],[0,.058,.143],[.052,.010,.139]],[[0,-.052,.141],[0,.058,.143]]],0xe3c795,.003,0);
+    const seed=joint(gun,[0,.105,.018]);seed.name='SM_Briarpot_LoadedSeed';gun.userData.briarSeed=seed;
+    const fruit=part(seed,'IcosahedronGeometry',[.066,1],0x849256,[0,0,0],[1,.90,1]);fruit.name='SM_Briarpot_ThornFruit';
+    for(const side of[-1,1]){const thorn=part(seed,'ConeGeometry',[.012,.052,5],0xd2c394,[side*.052,.025,0]);thorn.rotation.z=side*-.95;thorn.name='SM_Briarpot_SeedThorn_'+side;}
+  }else if(weapon==='arcstaff'){
+    gun.name='SM_Weapon_Arcstaff';
+    woodFinish(weaponLine(gun,'SM_Arcstaff_CrookedWood',[[0,-.31,.045],[0,-.12,.045],[0,.18,.045],[-.045,.36,.045],[.035,.53,.045],[.05,.62,.045]],.027,0x65503b));
+    const wrap=[];for(let i=0;i<=40;i++){const a=i/40*Math.PI*14;wrap.push([Math.sin(a)*.029,-.18+i/40*.33,.045+Math.cos(a)*.029]);}
+    weaponInlay(gun,'SM_Arcstaff_LeatherGrip',[wrap],0x393b32,.0045,0);
+    for(const y of[-.20,.17]){const band=tube(gun,0xb68b54,[0,y,.045],[.032,.023,.032],.68);band.name='SM_Arcstaff_CopperBinding_'+y;}
+    const socket=tube(gun,0xb68b54,[.05,.595,.045],[.039,.085,.036],.68);socket.name='SM_Arcstaff_ForkSocket';
+    for(const side of[-1,1])forgedProng(weaponLine(gun,'SM_Arcstaff_CopperFork_'+side,[[.05,.60,.045],[.05+side*.105,.68,.045],[.05+side*.13,.80,.045],[.05+side*.075,.89,.045]],.017,0xb68b54,.68));
+    const core=part(gun,'OctahedronGeometry',[.07,0],0xb89ce4,[.05,.71,.045],[.80,1.75,.66],.18,.32);core.name='SM_Arcstaff_ConductorCrystal';core.userData.identityDetail=true;
+    const tip=part(gun,'OctahedronGeometry',[.027,0],0xf1d69b,[.05,.828,.045],[.72,.82,.72],.50,.22);tip.name='SM_Arcstaff_DischargeTip';tip.userData.identityDetail=true;
+    weaponInlay(gun,'SM_Arcstaff_CopperCircuit',[[[-.018,.19,.067],[-.06,.35,.067],[.018,.53,.068],[.05,.62,.068]],[[.05,.64,.095],[.05,.70,.095],[.05,.77,.08]]],0xc5a16b,.003,.62);
+  }else if(weapon==='fire'||weapon==='dark'){
     const fire=weapon==='fire',accent=fire?0xff954f:0xa995cf,metal=fire?0x96724a:0x9ba9ba;
     gun.name='SM_Weapon_'+(fire?'EmberwoodStaff':'NightfallStaff');
     staffShaft(gun,fire);for(const y of [-.23,.1,.52]){const collar=part(gun,'LatheGeometry',[[[.027,-.03],[.033,-.03],[.036,-.023],[.034,-.015],[.034,.015],[.036,.023],[.033,.03],[.027,.03]].map(p=>new T.Vector2(...p)),16],metal,[0,y,.045],undefined,.65);collar.name='SM_Staff_'+(fire?'Copper':'Silver')+'_Ferrule_'+y;collar.userData.identityDetail=true;}
@@ -201,7 +223,7 @@ export function makeHero(kind,weapon){
     if(weapon==='rifle'){tube(gun,dark,[0,.193,.21],[.045,.14,.045]).rotation.x=Math.PI/2;woodFinish(weaponHull(gun,'SM_Firearm_RiflePalmForeend',[[0,.002,.19,.062,.060],[0,.002,.24,.10,.085],[0,-.002,.34,.098,.086],[0,.001,.45,.069,.062]],0x6f5036));}
     if(weapon==='shotgun'){barrel(.032,.43,[.075,.068,.47],'Side');const pump=joint(gun,[0,0,0]),rings=[[0,.020,.269,.108,.060]];for(let i=0;i<5;i++){const z=.278+i*.0255;rings.push([0,.0175,z,.140,.085],[0,.0175,z+.012,.140,.085],[0,.019,z+.020,.119,.067]);}rings.push([0,.022,.402,.106,.056]);woodFinish(weaponHull(pump,'SM_Firearm_ShotgunGroovedPump',rings,0x8c6e48));gun.userData.pump=pump;}
   }
-  nameWeapon(gun,silver?'silver':'scout',weapon);
+  nameWeapon(gun,kind,weapon);
   return g;
 }
 const stringUp=new T.Vector3(0,1,0),stringStart=new T.Vector3(),stringEnd=new T.Vector3();
@@ -222,10 +244,12 @@ export function animateHero(g,t,speed,attack){
   for(const [side,sign]of [['left',1],['right',-1]]){const f=Math.sin(phase+(sign<0?Math.PI:0));d[side+'Leg'].rotation.x=f*.6*run;d[side+'Knee'].rotation.x=Math.max(0,-f)*.95*run+.06;}
   d.torso.rotation.x=.035+run*.08;d.torso.rotation.y=-step*.08*run;
   d.leftArm.rotation.x=-step*.36*run-.1;d.leftElbow.rotation.x=-.24-Math.max(0,step)*.3*run;
-  const staff=['fire','dark','miasmalantern'].includes(d.weaponId);d.rightArm.rotation.x=staff?-.12-aim*.3:-.4-aim*.32;d.rightElbow.rotation.x=staff?-.35:-.65-aim*.15;
+  const staff=['fire','dark','arcstaff','miasmalantern'].includes(d.weaponId);d.rightArm.rotation.x=staff?-.12-aim*.3:-.4-aim*.32;d.rightElbow.rotation.x=staff?-.35:-.65-aim*.15;
   d.weapon.rotation.x=staff?.18:-(d.rightArm.rotation.x+d.rightElbow.rotation.x)-.12*(1-aim);
   const k=motion.kick,s=motion.sweep;d.rig.position.z=-k*(d.weaponId==='shotgun'?.10:.035);
   d.rightArm.rotation.y=d.weaponId==='shuriken'?-.7*s:d.weaponId==='dark'?.5*s:0;d.rightArm.rotation.x-=k*(staff?.45:.15);d.rightElbow.rotation.x-=k*(d.weaponId==='shuriken'?.4:.15);d.leftArm.rotation.x-=staff?.4*s:motion.draw*.3;
+  if(d.weaponId==='arcstaff'){d.rig.position.z=-k*.006;d.torso.rotation.y-=.36*aim;d.head.rotation.y=.27*aim;d.rightArm.rotation.x=-.12-aim*.3-.025*k;d.rightElbow.rotation.x=-.35-.018*k;d.weapon.rotation.x=-.15-.025*k;d.weapon.rotation.z=-.52;d.leftArm.rotation.x=-.68-.12*aim-.018*k;d.leftElbow.rotation.x=-.55;}
+  if(d.weaponId==='briarpot'){const bend=.58*motion.gather+.10*s;d.rig.position.y-=.035*motion.gather+.006*s;d.torso.rotation.x+=.10*motion.gather+.13*k;for(const side of['left','right']){d[side+'Leg'].rotation.x-=bend*.48;d[side+'Knee'].rotation.x+=bend;}d.rightArm.rotation.x=-.24+.18*motion.gather-.32*k;d.rightElbow.rotation.x=-.55-.22*k;d.weapon.rotation.x=.08+.28*k-.16*motion.gather;d.leftArm.rotation.x=-.30-.26*k;d.leftElbow.rotation.x=-.75;d.weapon.userData.briarSeed.visible=motion.seedHeld;}
   if(d.weapon.userData.pump)d.weapon.userData.pump.position.z=-.23*motion.draw;
   if(d.weaponId==='crossbow')poseCrossbow(d.weapon,d.reloadPhase??1);
   d.cape.rotation.x=.07+run*.34+Math.sin(t*5)*.045;d.cape.rotation.z=step*.045*run;

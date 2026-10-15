@@ -46,7 +46,7 @@ export function fieldSupplyEvent(p,event){
 }
 export function fieldSupplyLabel(p){const supply=p.fieldSupply,info=supply&&FIELD_SUPPLIES[supply.id];return info&&supply.charges>0?info.name+' · 剩余 '+supply.charges+' 次'+(supply.id==='forest'&&p.hp>=p.maxHp?' · 满血保留':''):'';}
 export const JOURNAL_KEY='forest-echoes-next-expedition-v1';
-const maps=['forest','snow','ash','sand','coast','confluence'],weapons=['boomerang','harpoon','hammer','rifle','shotgun','fire','crossbow','shuriken','dark','shade','shadowblade','grimoire','sporelantern','miasmalantern'];
+const maps=['forest','snow','ash','sand','coast','confluence'],weapons=['arcstaff','briarpot','boomerang','harpoon','hammer','rifle','shotgun','fire','crossbow','shuriken','dark','shade','shadowblade','grimoire','sporelantern','miasmalantern'];
 const validWins=new Set(maps.flatMap(m=>weapons.map(w=>m+':'+w)));
 export function readJournal(storage){
  try{const j=JSON.parse(storage.getItem(JOURNAL_KEY));return{relics:[...new Set((Array.isArray(j?.relics)?j.relics:[]).filter(id=>Object.hasOwn(RELICS,id)))],wins:[...new Set((Array.isArray(j?.wins)?j.wins:[]).filter(id=>validWins.has(id)))]};}catch{return{relics:[],wins:[]};}

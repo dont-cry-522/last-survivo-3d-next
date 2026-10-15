@@ -68,3 +68,9 @@ test('carried recovery survives full-health kills and is spent only when it can 
  assert.equal(fieldSupplyEvent(p,'kill'),null);p.hp=90;
  assert.equal(fieldSupplyEvent(p,'kill').amount,4);assert.equal(fieldSupplyEvent(p,'kill').amount,4);assert.equal(p.hp,98);assert.equal(p.fieldSupply,null);
 });
+
+test('new tide and keeper weapons persist victories without replacing old records',()=>{
+ const journal={relics:[],wins:['forest:harpoon','snow:boomerang']};
+ for(const weapon of ['arcstaff','briarpot'])for(const map of ['forest','snow','ash','sand','coast','confluence']){assert(recordVictory(journal,map,weapon));assert(!recordVictory(journal,map,weapon));}
+ const storage={getItem:()=>JSON.stringify(journal)};assert.deepEqual(readJournal(storage),journal);
+});

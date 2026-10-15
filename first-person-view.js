@@ -1,12 +1,12 @@
-import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=210';
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=211';
 import * as T from './vendor/three.module.js';
-import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=210';
-import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=210';
-import {sporePod} from './wuling-appearance.js?v=210';
+import {GRIP_POINTS,SCYTHE_SUPPORT,BRIARPOT_SUPPORT} from './weapon-grips.js?v=211';
+import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=211';
+import {sporePod} from './wuling-appearance.js?v=211';
 import {poseSlingshot} from './slingshot-model.js';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,weaponDuration,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=210';
+import {weaponGesture,weaponDuration,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=211';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
@@ -21,6 +21,8 @@ const PROFILES={
  crossbow:{type:'bow',width:.87,height:1,depth:.55,x:.30,y:-.46,pitch:.08,support:[0,-.05,.18]},
  fire:{type:'staff',width:.64,height:1.36,depth:.40,x:.64,y:-.25,pitch:.04},
  dark:{type:'staff',width:.64,height:1.36,depth:.40,x:.64,y:-.25,pitch:.04},
+ arcstaff:{type:'staff',width:.64,height:1.20,depth:.38,x:.42,y:-.33,pitch:-.10},
+ briarpot:{type:'pot',width:.72,height:.63,depth:.30,x:.30,y:-.51,pitch:.12,support:BRIARPOT_SUPPORT},
  shuriken:{type:'throw',width:.58,height:.85,depth:.44,x:.56,y:-.57,pitch:.60},
  boomerang:{type:'sling',width:.68,height:.94,depth:.55,x:.34,y:-.49,pitch:.04,support:[0,.22,-.07]},
  shadowblade:{type:'scythe',width:.60,height:1.16,depth:.70,x:.42,y:-.80,pitch:.12,support:SCYTHE_SUPPORT},
@@ -67,6 +69,9 @@ function handGeometry(palette,fingerless,grip='handle'){
    }else if(!open&&['shaft','guide'].includes(grip)){
     if(finger===4)points=[[-.028,-.013,0],[-.039,.008,-.018],[-.028,.036,-.038],[-.014,.035,-.041]];
     else{const x=(-1.5+finger)*.0165,drop=finger*.003,guide=grip==='guide'?.004:0;points=[[x,.028,0],[x,.057-drop,-.004],[x,.059-drop+guide,-.027],[x,.034-drop+guide,-.043]];}
+   }else if(!open&&grip==='conduct'){
+    if(finger===4)points=[[-.028,-.013,0],[-.042,.010,-.012],[-.044,.029,-.026],[-.036,.039,-.035]];
+    else{const x=(-1.5+finger)*.0165,l=[.052,.060,.055,.042][finger],spread=(finger-1.5)*.006;points=[[x,.028,0],[x+spread*.4,.028+l*.4,-.002],[x+spread,.028+l*.8,-.008],[x+spread,.028+l,-.014]];}
    }else if(!open&&['cast','read'].includes(grip)){
     if(finger===4)points=[[-.028,-.013,0],[-.044,.010,-.012],[-.047,.029,-.026],[-.037,.039,-.035]];
     else{const x=(-1.5+finger)*.0165,l=[.045,.055,.050,.036][finger],splay=(finger-1.5)*.003;points=[[x,.028,0],[x+splay,.028+l*.50,-.009],[x+splay,.028+l*.85,-.023],[x+splay*.8,.028+l*(grip==='read'?.95:.65),-.031]];}
@@ -200,6 +205,8 @@ export class FirstPersonView {
    batch.line([[.06,.07,.055],[.06,.07,.115]],.004,0xb6a078);
    this.addDetail(batch,this.model,'machined-fittings');
    for(const [source,node]of this.parts)if(node.isMesh&&node.material.isMeshStandardMaterial&&!source.userData.identityDetail&&!source.material.userData.identityFinish){const hex=source.material.color.getHex(),wood=[0x5c4a3e,0x624f3d,0x8c6e48].includes(hex);node.material.roughness=wood?.76:.34;node.material.metalness=wood?0:.68;}
+  }else if(id==='arcstaff'){
+   for(const [source,node]of this.parts)if(source.name==='SM_Arcstaff_ConductorCrystal'||source.name==='SM_Arcstaff_DischargeTip')this.charged.push({material:node.material,base:source.material.emissiveIntensity,power:.26});
   }else if(['fire','dark'].includes(id)){
    const batch=detailBatch(),wrap=[];
    for(let i=0;i<=48;i++){const a=i/48*Math.PI*12;wrap.push([Math.sin(a)*.031,-.18+i/48*.32,.045+Math.cos(a)*.031]);}
@@ -264,11 +271,11 @@ export class FirstPersonView {
   if(weaponId==='harpoon')this.center.set(...GRIP_POINTS.harpoon);
   this.model.position.copy(this.center).negate();
   this.grip=new T.Vector3(...(this.profile.grip||GRIP_POINTS[weaponId]||[0,0,0])).sub(this.center);this.root.add(this.weapon);
-  const inferred=['shade','shadowblade','grimoire'].includes(weaponId)?'wraith':weaponId==='miasmalantern'?'mirage':weaponId==='sporelantern'?'wuling':weaponId==='boomerang'?'lingya':weaponId==='harpoon'?'tide':['crossbow','shuriken','dark'].includes(weaponId)?'silver':'scout';
+  const inferred=['shade','shadowblade','grimoire'].includes(weaponId)?'wraith':weaponId==='miasmalantern'?'mirage':weaponId==='sporelantern'?'wuling':['boomerang','briarpot'].includes(weaponId)?'lingya':['harpoon','arcstaff'].includes(weaponId)?'tide':['crossbow','shuriken','dark'].includes(weaponId)?'silver':'scout';
   this.kind=hero.userData.kind||inferred;const palette=PALETTES[this.kind]||PALETTES.scout;
   const fingerless=['scout','lingya','tide','wuling'].includes(this.kind),lamp=this.profile.type==='lamp';
-  const type=this.profile.type,rightGrip=lamp?'hook':['gun','bow'].includes(type)?'trigger':['staff','scythe','thrust'].includes(type)?'shaft':type==='throw'?'pinch':type==='book'?'read':type==='palm'?'cast':'handle';
-  const hand=handGeometry(palette,fingerless,rightGrip),supportGrip=weaponId==='boomerang'?'pinch':weaponId==='sporelantern'?'cup':lamp?'handle':type==='gun'||type==='bow'||type==='scythe'||type==='thrust'?'guide':type==='book'?'read':type==='staff'?'cast':null;
+  const type=this.profile.type,rightGrip=lamp||type==='pot'?'hook':['gun','bow'].includes(type)?'trigger':['staff','scythe','thrust'].includes(type)?'shaft':type==='throw'?'pinch':type==='book'?'read':type==='palm'?'cast':'handle';
+  const hand=handGeometry(palette,fingerless,rightGrip),supportGrip=weaponId==='boomerang'?'pinch':weaponId==='sporelantern'||type==='pot'?'cup':weaponId==='arcstaff'?'conduct':lamp?'handle':type==='gun'||type==='bow'||type==='scythe'||type==='thrust'?'guide':type==='book'?'read':type==='staff'?'cast':null;
   const supportHand=supportGrip?handGeometry(palette,fingerless,supportGrip):hand,sleeve=sleeveGeometry(palette,this.kind);this.ownedGeometry.push(hand,sleeve);if(supportHand!==hand)this.ownedGeometry.push(supportHand);
   const cloth=new T.MeshStandardMaterial({vertexColors:true,roughness:.9,fog:false}),glove=new T.MeshStandardMaterial({vertexColors:true,roughness:.67,metalness:.015,fog:false});this.materials.set(cloth,cloth);this.materials.set(glove,glove);
   if(this.kind==='wraith'){finishShadowTone(cloth);finishShadowTone(glove);}
@@ -346,9 +353,10 @@ export class FirstPersonView {
   const profile=this.profile,id=this.weaponId,data=this.hero.userData,depth=.82,halfH=Math.tan(T.MathUtils.degToRad(this.camera.fov||50)/2)*depth,halfW=halfH*(this.camera.aspect||1);
   const scale=Math.min(halfW*profile.width/Math.max(.001,this.dimensions.x),halfH*profile.height/Math.max(.001,this.dimensions.y),profile.depth/Math.max(.001,this.dimensions.z),id==='harpoon'?.65:id==='shade'?1.8:2.4);
   const fired=attack>this.previousAttack+.025;this.previousAttack=attack;this.attackAge=fired?0:this.attackAge+step;
-  const age=Number.isFinite(data.attackAge)?data.attackAge:this.attackAge,period=data.reloadDuration||WEAPON_RECOVERY[id]||attackDuration,cycle=Number.isFinite(data.reloadPhase)?data.reloadPhase:Math.min(1,age/period),gestureAge=(id==='boomerang'||id==='sporelantern')&&data.shotSerial?cycle*period:age,motion=weaponGesture(id,gestureAge,cycle,period),kick=motion.kick,sweep=motion.sweep,draw=motion.draw;
+  const age=Number.isFinite(data.attackAge)?data.attackAge:this.attackAge,period=data.reloadDuration||WEAPON_RECOVERY[id]||attackDuration,cycle=Number.isFinite(data.reloadPhase)?data.reloadPhase:Math.min(1,age/period),gestureAge=['boomerang','sporelantern','briarpot'].includes(id)&&data.shotSerial?cycle*period:age,motion=weaponGesture(id,gestureAge,cycle,period),kick=motion.kick,sweep=motion.sweep,draw=motion.draw;
   this.motion=motion;
   if(id==='boomerang')poseSlingshot(this.model,gestureAge,period);
+  if(id==='briarpot')this.model.getObjectByName('SM_Briarpot_LoadedSeed').visible=motion.seedHeld;
   // Only the existing crystal/lantern core brightens; no extra light or screen-sized halo.
   for(const charged of this.charged)charged.material.emissiveIntensity=charged.base+charged.power*Math.min(1,motion.gather+kick*.60);
   // Third-person string posing begins only in the aiming layer. Before that, its
@@ -376,6 +384,11 @@ export class FirstPersonView {
   }else if(id==='boomerang'){
    // The fork stays braced. The pouch and pulling hand supply the large motion.
    this.weapon.position.set(-.012*draw,.014*draw-.010*kick,.015*kick);this.weapon.rotation.x+=.018*kick;this.weapon.rotation.z=-.025*draw+.018*kick;
+  }else if(id==='arcstaff'){
+   this.weapon.rotation.x-=.025*kick;this.weapon.rotateZ(.52+.012*kick);this.weapon.position.set(this.camera.aspect<.8?-.025:.015,-.025,-.008*kick);
+  }else if(profile.type==='pot'){
+   this.weapon.position.set(-.055*motion.gather+.015*kick,.11*kick-.075*motion.gather,-.17*kick+.075*motion.gather);
+   this.weapon.rotation.x+=.30*kick-.18*motion.gather;this.weapon.rotation.z=-.06*sweep;
   }else if(profile.type==='throw'){
    const flick=id==='shuriken';
    this.weapon.position.set(-.075*sweep,(flick?.025:.055)*kick,-(flick?.14:.11)*kick);
@@ -430,18 +443,21 @@ export class FirstPersonView {
    if(i&&id==='boomerang')point.set(0,.22,-.07-.30*motion.handPull).sub(this.center);
    point.applyMatrix4(this.weapon.matrix);
    if(i&&!support)point.set(-halfW*.48-this.root.position.x,-halfH*.72-this.root.position.y+kick*.045,.11-kick*.06);
+   if(i&&id==='arcstaff')point.set(-halfW*.35-this.root.position.x,-halfH*.46-this.root.position.y+.006*kick,.04-.008*kick);
    if(i&&id==='sporelantern')point.add(this.wrist.set(-.035*motion.gather+.065*kick,.045*motion.gather+.095*kick-.025*sweep,.065*motion.gather-.135*kick));
    if(i&&id==='miasmalantern')point.add(this.wrist.set(.075*motion.gather+.035*kick,.055*motion.gather+.020*kick,-.025*motion.gather-.045*kick));
    if(i&&profile.type==='palm')point.add(this.wrist.set(.025*motion.gather+.018*kick,halfH*.05+.020*motion.gather+.014*kick,-.014*motion.gather-.030*kick));
    hand.rotation.set(i?(support?-.30:-.45):-.18,i?-.20:.12,i?(support?-.38:.18):-.38);
    if(profile.type==='book')hand.rotation.set(-.75,i?-.20:.20,i?.55:-.55);
    if(profile.type==='lamp'&&!i)hand.rotation.set(-.12,0,-.92);
+   if(profile.type==='pot')hand.rotation.set(i?-1.25:-.12,i?-.20:0,i?-.20:-.92);
    if(i&&id==='sporelantern')hand.rotation.set(-.60-.22*motion.gather+.36*kick,-.20+.22*kick,.18-.13*kick);
    if(i&&id==='miasmalantern')hand.rotation.set(-.45-.18*motion.gather,-.20-.15*motion.gather,.18-.16*kick);
    if(i&&id==='boomerang')hand.rotation.set(-.55+.10*motion.open,-.28,.48-.12*motion.open);
    if(profile.type==='palm'&&!i)hand.rotation.set(-.96-.10*motion.gather+.15*kick,.12-.10*motion.gather,-.10+.10*kick);
    if(profile.type==='palm'&&i)hand.rotation.set(-.94-.08*motion.gather+.10*kick,-.22,.20-.08*motion.gather);
    if(profile.type==='staff'&&i)hand.rotation.set(-.52-(id==='fire'?.12:.22)*motion.gather,-.20+(id==='fire'?.12:-.14)*kick,.18+(id==='fire'?-.10:.10)*kick);
+   if(id==='arcstaff'&&i)hand.rotation.set(-.92,-.28+.025*kick,.25-.018*kick);
    if(profile.type==='book')hand.rotation.x-=.045*motion.sweep;
    if(profile.type!=='palm'&&profile.type!=='scythe'&&profile.type!=='thrust'&&(!i||support)){
     // The grip frame follows the held object, not just its position. Both palms
@@ -458,6 +474,7 @@ export class FirstPersonView {
    if(profile.type==='palm')hand.morphTargetInfluences[0]=i?.79-.10*motion.gather+.07*kick:.84-.12*motion.gather+.09*kick;
    if(hand.morphTargetInfluences.length>1)hand.morphTargetInfluences[1]=kick*.85;
    if(profile.type==='staff'&&i)hand.morphTargetInfluences[0]=id==='fire'?.62+.30*kick-.14*motion.gather:.50+.17*kick-.23*motion.gather;
+   if(id==='arcstaff'&&i)hand.morphTargetInfluences[0]=.08+.025*kick;
    if(profile.type==='book')hand.morphTargetInfluences[0]=i?.56+.08*motion.sweep:.34+.07*motion.gather;
    // The arms remain after a thrown weapon leaves the hand; only the source weapon is hidden.
    hand.visible=arm.visible=true;

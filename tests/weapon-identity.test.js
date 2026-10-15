@@ -14,9 +14,9 @@ const make=(kind,id)=>kind==='wraith'?shadowFocus(id):id==='harpoon'?makeHarpoon
 // the envelopes used by the viewmodel framing, not combat collision dimensions.
 // The slingshot is upright; the reforged harpoon has a wider fork/socket but
 // retains the same full length and original hand contact positions.
-const limits={rifle:[.1225,.426,1.069],shotgun:[.177,.379,1.069],fire:[.3723,1.6126,.23],crossbow:[.918,.3651,.775],shuriken:[.4669,.1559,.7401],dark:[.3723,1.6126,.23],shade:[.0819,.1533,.0208],shadowblade:[1.1151,1.4063,.1055],grimoire:[.4577,.0829,.2901],harpoon:[.372,.1141,2.5386],boomerang:[.366,.540,.429],sporelantern:[.2615,.5691,.2672],miasmalantern:[.2229,.5051,.2596]};
+const limits={rifle:[.1225,.426,1.069],shotgun:[.177,.379,1.069],fire:[.3723,1.6126,.23],crossbow:[.918,.3651,.775],shuriken:[.4669,.1559,.7401],dark:[.3723,1.6126,.23],shade:[.0819,.1533,.0208],shadowblade:[1.1151,1.4063,.1055],grimoire:[.4577,.0829,.2901],harpoon:[.372,.1141,2.5386],boomerang:[.366,.540,.429],sporelantern:[.2615,.5691,.2672],miasmalantern:[.2229,.5051,.2596],arcstaff:[.291,1.205,.101],briarpot:[.400,.350,.291]};
 
-test('all thirteen named weapons keep their declared framing and a bounded identity structure',()=>{
+test('all fifteen named weapons keep their declared framing and a bounded identity structure',()=>{
  let count=0;
  for(const [kind,ids]of Object.entries(HERO_LOADOUTS))for(const id of ids){
   count++;const g=make(kind,id);assert.deepEqual(g.userData.weaponIdentity,{hero:kind,weapon:id});
@@ -25,7 +25,7 @@ test('all thirteen named weapons keep their declared framing and a bounded ident
   let identity=0,meshes=0,triangles=0;
   g.traverse(o=>{if(!o.isMesh)return;meshes++;if(o.userData.identityDetail)identity++;triangles+=(o.geometry.index?.count||o.geometry.attributes.position.count)/3;assert([...o.geometry.attributes.position.array,...o.geometry.attributes.normal.array].every(Number.isFinite));});
   assert(identity>0,id+' has no identifiable structure');assert(meshes<=24,id+' adds a forest of ornaments');assert(triangles<5000,id+' exceeds the held-weapon mesh budget');
- }assert.equal(count,13);
+ }assert.equal(count,15);
 });
 
 test('spore and mirage lanterns keep their real moving cores but use different functional shades',()=>{

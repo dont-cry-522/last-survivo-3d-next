@@ -1,8 +1,8 @@
-import{SCYTHE}from'./scythe-combat.js?v=207';
-import{REGIONAL_ENEMIES}from'./map-enemies.js?v=207';
-import{EXTRA_SKILLS,EXTRA_BY_ID}from'./skill-catalog.js?v=207';
-import{POISON}from'./poison-config.js?v=207';
-import{MIRAGE}from'./mirage-config.js?v=207';
+import{SCYTHE}from'./scythe-combat.js?v=208';
+import{REGIONAL_ENEMIES}from'./map-enemies.js?v=208';
+import{EXTRA_SKILLS,EXTRA_BY_ID}from'./skill-catalog.js?v=208';
+import{POISON}from'./poison-config.js?v=208';
+import{MIRAGE}from'./mirage-config.js?v=208';
 export const MAPS={confluence:{name:'五境大远征',subtitle:'林地、雪山、裂谷、遗城与海港无缝相连，沿古道挑战五境守卫',ground:0x536a48,fog:0x526b61,leaf:0x427657,accent:0xdaca96,slow:'地形'},coast:{name:'幽潮遗港',subtitle:'穿过曲折水湾与岛地，走栈桥或退潮浅滩，打捞货箱、点亮古灯塔',ground:0x586e70,fog:0x344f5c,leaf:0x508582,accent:0x8cdde0,slow:'潮湿滩地'},sand:{name:'风蚀遗城',subtitle:'绕开沙暴流沙，风息挖掘古匣、开启遗城机关',ground:0xafa080,fog:0x928a77,leaf:0x938363,accent:0xe6ca87,slow:'流沙'},forest:{name:'翡翠幽林',subtitle:'穿过古木与遗迹，追寻林心的回声',ground:0x284b3b,fog:0x173d39,leaf:0x287456,accent:0xecc988,slow:'泥地'},snow:{name:'霜月峡谷',subtitle:'冰晶照亮雪路，寒风掩藏猎手',ground:0x96b7bd,fog:0x769daa,leaf:0x456e7d,accent:0x9ae9ff,slow:'深雪'},ash:{name:'赤烬荒原',subtitle:'越过熔岩裂隙，唤醒沉睡的守卫',ground:0x5c4544,fog:0x382e3c,leaf:0x69545d,accent:0xffa25d,slow:'灰烬'}};
 // Legacy boomerang ID now identifies the slingshot; save and route keys remain compatible.
 export const WEAPONS={miasmalantern:{id:'miasmalantern',name:'蜃花灯',rate:MIRAGE.rate,damage:MIRAGE.impact,count:1,speed:MIRAGE.speed,range:MIRAGE.range,color:MIRAGE.color,needleDamage:MIRAGE.needleDps,needleDuration:MIRAGE.needleDuration,burstRadius:MIRAGE.burstRadius,splashDamage:MIRAGE.splashDamage,poisonScale:1,lureRank:0,venomRank:0},sporelantern:{id:'sporelantern',name:'孢灯',rate:POISON.rate,damage:POISON.impact,count:1,speed:POISON.speed,range:POISON.range,color:POISON.color,cloudDamage:POISON.dps,cloudRadius:POISON.radius,cloudDuration:POISON.duration,cloudMax:POISON.maxClouds,stillRank:0,roamRank:0},boomerang:{id:'boomerang',name:'芽铃弹弓',rate:1.5,damage:30,count:1,speed:28,range:11,color:0xe2d2aa,petDamage:30,petCooldown:2.35},harpoon:{id:'harpoon',name:'潮汐长叉',rate:1.6,damage:36,count:1,speed:1,range:3.8,color:0x8ad9da,melee:true,width:.48,pull:.85,slow:.6},rifle:{id:'rifle',name:'游侠连发枪',rate:3,damage:12,count:1,speed:27,range:14,color:0xffdc91},shotgun:{id:'shotgun',name:'碎岩霰弹枪',rate:1,damage:10,count:5,speed:25,range:8,color:0xffbe69},fire:{id:'fire',name:'烬火法杖',rate:.9,damage:30,count:1,speed:14,range:11,color:0xff743b},crossbow:{id:'crossbow',name:'夜翎短弩',rate:2.05,damage:20,count:1,speed:35,range:16,color:0xd8edff},shuriken:{id:'shuriken',name:'月刃飞镖',rate:1.4,damage:13,count:3,speed:22,range:12,color:0x95fff0},dark:{id:'dark',name:'夜幕法杖',rate:1,damage:26,count:1,speed:12,range:10,color:0xc5a2ff},shade:{id:'shade',name:'牵影咒',rate:1.6,damage:18,count:1,speed:20,range:8,color:0xf4f3ee},shadowblade:{id:'shadowblade',name:'断魂战镰',rate:SCYTHE.rate,damage:SCYTHE.damage,count:1,speed:1,range:SCYTHE.range,arc:SCYTHE.arc,melee:true,color:0xc6c8c6},grimoire:{id:'grimoire',name:'悬影魔典',rate:.8,damage:34,count:1,speed:1,range:10,color:0xe7e4db}};
@@ -45,9 +45,9 @@ export const WEAPON_PATHS={
  harpoon_reef:route('harpoon','破礁长锋','➤',['伤害 +18%，距离 +0.25 米，宽度 +0.08 米；前刺和第三刺以远端 35% 命中时再增伤 20%','伤害 +36%，距离 +0.5 米，宽度 +0.16 米；远端刺击再增伤 25%','伤害 +54%，距离 +0.75 米，宽度 +0.24 米；远端刺击再增伤 30%']),
  harpoon_tow:route('harpoon','回潮牵引','≈',['第三击牵引 1.3 米、减速 1.1 秒，伤害 +8%','第三击牵引 1.7 米、减速 1.5 秒，伤害 +16%','第三击牵引 2.1 米、减速 1.9 秒，伤害 +24%；首领只减速']),
  rifle_pierce:route('rifle','贯穿弹道','➤',['贯穿 2 个目标，伤害 +8%，射速 -10%','贯穿 3 个目标，伤害 +16%','贯穿 4 个目标，伤害 +24%']),
- rifle_rapid:route('rifle','疾速机括','»',['射速 +20%，单发伤害 -8%','射速 +40%，弹速 +10%','射速 +60%，弹速 +15%']),
- shotgun_fan:route('shotgun','散射风暴','⋔',['每次 7 弹丸，扇面变宽，单丸伤害 -20%，射程 -15%','每次 8 弹丸','每次 9 弹丸']),
- shotgun_slug:route('shotgun','独头重弹','◆',['合为 1 发重弹：55 伤害，贯穿 2 个目标，射程 +45%，射速 -15%','重弹 62 伤害，贯穿 3 个目标','重弹 69 伤害，贯穿 4 个目标']),
+ rifle_rapid:route('rifle','疾速机括','»',['三连点射后短复位，平均射速 +20%，单发伤害 -8%；松手立即停火，再按接续节拍','保留三连点射与短复位；平均射速 +40%，弹速 +10%，单发仍 -8%','保留三连点射与短复位；平均射速 +60%，弹速 +15%，单发仍 -8%']),
+ shotgun_fan:route('shotgun','散射风暴','⋔',['每次 7 弹丸，扇面变宽，单丸伤害 -20%，射程 -15%；同枪近距三丸命中可震退普通敌人一次','每次 8 弹丸；保留近距集中命中震退','每次 9 弹丸；保留近距集中命中震退']),
+ shotgun_slug:route('shotgun','独头重弹','◆',['合为 1 发重弹：55 伤害，贯穿 2 个目标，射程 +45%，射速 -15%；不触发多丸震退','重弹 62 伤害，贯穿 3 个目标；仍无多丸震退','重弹 69 伤害，贯穿 4 个目标；仍无多丸震退']),
  fire_burn:route('fire','余烬灼烧','♨',['命中点燃 3 秒，每秒 7 伤害，直接伤害 -10%','灼烧每秒 10 伤害','灼烧每秒 13 伤害；重复命中刷新，不叠层']),
  fire_blast:route('fire','熔核爆破','✹',['爆炸半径 3，伤害 +12%，射速 -10%','爆炸半径 3.5，伤害 +24%','爆炸半径 4，伤害 +36%']),
  crossbow_pierce:route('crossbow','破甲重矢','➤',['伤害 +22%，贯穿 2 个目标，射速 -12%；同箭每穿过一名敌人，后续命中伤害再加 25%（最多 +75%），绕位把敌人引成一线','伤害 +36%，贯穿 3 个目标；第二 / 三名承受 125% / 150% 箭伤，仍受障碍阻挡','伤害 +50%，贯穿 4 个目标；同箭后排最高承受 175% 箭伤，射速仍 -12%']),
@@ -73,9 +73,9 @@ export const WEAPON_PATH_PLAYS={
  harpoon_reef:'保持长叉尖端距离，用前刺和第三刺打远端。',
  harpoon_tow:'第三击回拉并减速，把敌人拖离队伍再处理。',
  rifle_pierce:'侧移把怪物排成一线，一发处理前后排。',
- rifle_rapid:'集中跟枪压制单体，留意更频繁的开火节奏。',
- shotgun_fan:'近距离迎接宽面怪群；边缘弹丸容易落空。',
- shotgun_slug:'拉开距离瞄准直线，以慢射速换一发重击。',
+ rifle_rapid:'跟枪打完三连，趁短复位侧移；松手停火，重新按住不会跳过复位。',
+ shotgun_fan:'靠近让同枪三丸集中命中，震退普通敌人后撤步；散射边缘与远距离不易触发。',
+ shotgun_slug:'拉开距离瞄准直线，以慢射速换一发重击；独头不触发多丸震退。',
  fire_burn:'给追兵点燃后换位，利用持续灼烧收尾。',
  fire_blast:'让怪物聚拢，再把熔核送进它们中间。',
  crossbow_pierce:'把后排排进箭路，同箭越往后伤害越高。',

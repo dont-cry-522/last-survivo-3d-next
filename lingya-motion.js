@@ -1,4 +1,4 @@
-import{HERO_DODGES,heroDodgePose}from'./hero-dodge.js?v=207';
+import{HERO_DODGES,heroDodgePose}from'./hero-dodge.js?v=208';
 export const LINGYA_HOP_DURATION=HERO_DODGES.lingya.duration;
 export const LINGYA_HOP_DISTANCE=6.2;
 const clamp=x=>Math.max(0,Math.min(1,x));

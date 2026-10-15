@@ -5,6 +5,7 @@
 <p id="status">加载中。使用隔离存档、固定帧和加高的静止受击目标；检查真实攻击流程与声音播放源。手机尺寸为模拟。</p><details open><summary>失败诊断</summary><pre id="diagnostic">尚无失败。</pre></details><details open><summary>检查结果</summary><pre id="report"></pre></details><div id="view"></div>
 <script type="module">
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),assert=(value,message)=>{if(!value)throw Error(message);};
+const gunButton=document.createElement('button');gunButton.id='gun-handling';gunButton.disabled=true;gunButton.textContent='检查三连发与霰弹近身推开';$('#grips').after(gunButton);
 const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text(),version=html.match(/main\.js\?v=([^"']+)/)?.[1]||'',suffix=version?'?v='+version:'';
 const {HERO_LOADOUTS,WEAPON_PATHS,weaponStats,takeUpgrade}=await import('../rules.js'+suffix),{enemySurface}=await import('../enemy-surfaces.js'+suffix);
 const dimensions={desktop:{width:1440,height:900,mobile:false},landscape:{width:844,height:390,mobile:true},portrait:{width:390,height:844,mobile:true}};
@@ -15,9 +16,12 @@ const buttons=disabled=>{for(const button of document.querySelectorAll('button')
 function render(){win.qaFrame(now+=1000/60);}
 const point=p=>p?{x:p.x,y:p.y??p.height,z:p.z}:null;
 function step(){
- const before=[...g.bullets];g.step(1/60);g.vfx.update(1/60);
+ const before=[...g.bullets],gunBefore={serial:g.hero.userData.shotSerial||0,hp:activeTarget?.hp,stagger:activeTarget?.stagger||0};g.step(1/60);g.vfx.update(1/60);
  if(activeTarget?.mesh.userData.hitReaction&&events.some(e=>e.kind==='contact'&&e.id===g.player.weaponId))reaction??={...activeTarget.mesh.userData.hitReaction};
  if(g.player.weaponId==='miasmalantern'&&trace.length<75){const bullets=[...new Set([...before,...g.bullets])];trace.push({time:+g.time.toFixed(4),player:point(g.player),target:point(activeTarget),hp:activeTarget?.hp,bullets:bullets.map(b=>({position:{x:b.x,y:b.height,z:b.z},velocity:{x:b.vx,y:b.vy,z:b.vz},life:b.life,releaseDelay:b.releaseDelay,aim:b.aimPoint,removed:!g.bullets.includes(b)}))});}
+ if(initial?.input&&trace.length<60&&(gunBefore.serial!==(g.hero.userData.shotSerial||0)||gunBefore.hp!==activeTarget?.hp||(activeTarget?.stagger||0)>gunBefore.stagger)){
+  const bullets=[...new Set([...before,...g.bullets])];trace.push({time:g.time,serial:g.hero.userData.shotSerial,held:g.controls.held,cooldown:g.player.attack,player:point(g.player),target:activeTarget?{...point(activeTarget),id:activeTarget.id,alive:activeTarget.alive,listed:g.enemies.includes(activeTarget)||g.boss===activeTarget,hp:activeTarget.hp,stagger:activeTarget.stagger||0}:null,camera:point(g.camera.position),direction:point(g.adventureCamera.getRay().direction),bullets:bullets.map(b=>({position:{x:b.x,y:b.height,z:b.z},velocity:{x:b.vx,y:b.vy,z:b.vz},aim:b.aimPoint,origin:b.volley?{x:b.volley.x,y:b.volley.y,z:b.volley.z}:null,hits:[...b.hits],nearHits:b.volley?.hits.get(activeTarget)||0,removed:!g.bullets.includes(b)}))});
+ }
 }
 function advance(seconds){for(let i=0;i<Math.ceil(seconds*60);i++)step();}
 async function load(size){
@@ -118,6 +122,100 @@ async function run(id){
 async function preview(){
  buttons(true);try{await audioReady();setup(cases.find(c=>c.id==='harpoon'));spawn('golem');g.setView('first');g.adventureCamera.yaw=0;g.adventureCamera.pitch=-.08;render();fire();advance(.18);g.pause();render();$('#status').textContent='长叉命中后姿态已冻结。';}catch(error){$('#status').textContent=error.message;}finally{buttons(false);}
 }
+function gunSetup(id,route=null,rank=1){
+ setup(cases.find(c=>c.id===id));
+ if(route)for(let i=0;i<rank;i++){g.player.level=[3,5,8][i];assert(takeUpgrade(g.player,'path:'+route),'无法领取枪械路线 '+route+' '+(i+1));}
+ initial={weapon:id,route,rank:route?rank:0,stats:weaponStats(g.player),input:'真实 game3d.step，控制器 held 输入'};
+ return weaponStats(g.player);
+}
+const gunShots=()=>events.filter(e=>e.kind==='shot'&&e.id===g.player.weaponId);
+async function rifleCadence(route=null,rank=1){
+ const stats=gunSetup('rifle',route,rank),times=[],cooldowns=[];g.player.attack=0;g.controls.held=true;
+ for(let i=0;i<600&&times.length<7;i++){const serial=g.hero.userData.shotSerial||0;step();if(g.hero.userData.shotSerial!==serial){times.push(g.time);cooldowns.push(g.player.attack);}}
+ g.controls.held=false;assert(times.length===7,'持续输入未发出七枪');
+ const pattern=route==='rifle_rapid'?[.5,.5,2]:[1,1,1],gaps=times.slice(1).map((t,i)=>t-times[i]);
+ for(let i=0;i<cooldowns.length;i++)assert(Math.abs(cooldowns[i]-pattern[i%3]/stats.rate)<1e-8,'真实射后冷却与三连节拍不符 '+JSON.stringify(cooldowns));
+ for(let i=0;i<gaps.length;i++)assert(Math.abs(gaps[i]-pattern[i%3]/stats.rate)<=1/60+1e-8,'实际连续射击间隔超出一帧容差');
+ if(route==='rifle_rapid')for(const i of [0,3])assert(Math.abs(times[i+3]-times[i]-3/stats.rate)<=3/60+1e-8,'三枪周期改变了平均射速');
+ const result={route,rank,rate:stats.rate,times,cooldowns,gaps,expectedCycle:3/stats.rate};await cleanup();return result;
+}
+async function rifleInterruption(kind){
+ const stats=gunSetup('rifle','rifle_rapid');g.player.attack=0;g.controls.held=true;step();assert(gunShots().length===1,'首次输入没有一枪');
+ const serial=g.hero.userData.shotSerial,burst=g.player.rifleBurst,cooldown=g.player.attack,time=g.time;
+ if(kind==='pause'){
+  g.pause();advance(1);assert(g.time===time&&g.player.attack===cooldown,'暂停仍推进射击冷却');assert(g.hero.userData.shotSerial===serial,'暂停时仍发射');g.resume();advance(1);
+ }else if(kind==='dodge'){
+  g.dash();assert(g.player.dashTime>0,'真实闪避未启动');
+  while(g.player.dashTime>1/60+1e-8){step();assert(g.hero.userData.shotSerial===serial,'闪避过程中发射枪弹');}
+  g.controls.held=false;advance(1);
+ }else{g.controls.held=false;advance(1);}
+ assert(g.hero.userData.shotSerial===serial,'松手后仍执行排队攻击');assert(g.player.rifleBurst===burst,'中断意外重置三连序号');
+ g.controls.held=true;step();g.controls.held=false;assert(g.hero.userData.shotSerial===serial+1,'重新按住没有准确恢复一枪');assert(Math.abs(g.player.attack-.5/stats.rate)<1e-8,'恢复后的第二枪节拍错误');
+ const result={kind,shots:gunShots().map(e=>e.time),burstBefore:burst,burstAfter:g.player.rifleBurst,remaining:g.player.attack};await cleanup();return result;
+}
+async function rifleTargetLoss(){
+ const stats=gunSetup('rifle','rifle_rapid');const target=spawn();win.document.querySelector('[data-attack-mode=auto]').click();g.player.attack=0;
+ for(let i=0;i<120&&!gunShots().length;i++)step();assert(gunShots().length===1,'自动瞄准没有发出第一枪');
+ const position={x:target.x,z:target.z},serial=g.hero.userData.shotSerial;target.x=0;target.z=-stats.range-2;target.mesh.position.set(target.x,target.y||0,target.z);advance(1);assert(g.hero.userData.shotSerial===serial,'失去目标后仍执行三连队列');
+ Object.assign(target,position);target.mesh.position.set(target.x,target.y||0,target.z);assert(target.alive&&g.enemies.includes(target),'移回视野的目标已脱离真实敌人列表');for(let i=0;i<120&&g.hero.userData.shotSerial===serial;i++)step();
+ assert(g.hero.userData.shotSerial===serial+1,'重新取得目标未恢复射击');assert(Math.abs(g.player.attack-.5/stats.rate)<1e-8,'失去目标后序号未保持');
+ const result={shots:gunShots().map(e=>e.time),burst:g.player.rifleBurst};await cleanup();return result;
+}
+async function rifleRestart(){
+ gunSetup('rifle','rifle_rapid');g.player.attack=0;g.controls.held=true;for(let i=0;i<60&&gunShots().length<2;i++)step();assert(g.player.rifleBurst===2,'复位检查未推进至第三枪前');
+ const stats=gunSetup('rifle','rifle_rapid');assert(!g.player.rifleBurst,'新对局继承三连序号');g.player.attack=0;g.controls.held=true;step();g.controls.held=false;
+ assert(g.player.rifleBurst===1&&Math.abs(g.player.attack-.5/stats.rate)<1e-8,'新对局首枪没有恢复短间隔');const result={burst:g.player.rifleBurst,cooldown:g.player.attack};await cleanup();return result;
+}
+async function shotgunPush({route=null,boss=false,wall=false,thinWall=false,body=false,distance=2.7,narrow=false}={}){
+ const stats=gunSetup('shotgun',route);let target;
+ if(boss){g.spawnBoss();target=g.boss;assert(target,'真实首领生成失败');Object.assign(target,{x:0,y:0,z:distance,hp:100000,maxHp:100000,height:6,cool:999,wind:0});target.mesh.position.set(0,0,distance);activeTarget=target;}
+ else target=spawn('golem',distance);
+ if(narrow)target.radius=.10;
+ if(thinWall)target.size=.5;
+ if(distance>4)target.radius=1.4;
+ // The third-person camera sits half a metre over the shoulder. Aim its actual
+ // centre ray through the target; yaw=0 only grazes narrow targets at x=0.
+ const dx=target.x-g.player.x,dz=target.z-g.player.z;
+ g.adventureCamera.yaw=Math.atan2(dx,dz)+Math.asin(g.adventureCamera.shoulderOffset/Math.hypot(dx,dz));g.adventureCamera._ready=false;g.setView('third');
+ initial.target={...point(target),radius:target.radius??target.size*.7};initial.cameraYaw=g.adventureCamera.yaw;
+ const start={x:target.x,z:target.z},radius=boss?1.6:target.size*.6;
+ let blocker=null;
+ if(wall){blocker={x:target.x,z:target.z+(thinWall?.62:radius+.8),r:thinWall?.12:.6,height:8};g.world.obstacles.push(blocker);}
+ if(body){blocker=g.spawn('golem',target.x,target.z+1.5);assert(blocker,'推开路径上的真实敌人生成失败');Object.assign(blocker,{hp:100000,maxHp:100000,speed:0,cool:999,damage:0,xp:0,height:6,size:1});}
+ let maxStagger=0,maxDisplacement=0;const path=[];
+ g.player.attack=0;g.controls.held=true;
+ const frames=narrow?150:45;
+ for(let i=0;i<frames;i++){
+  step();if(!narrow)g.controls.held=false;
+  const displacement=Math.hypot(target.x-start.x,target.z-start.z);maxStagger=Math.max(maxStagger,target.stagger||0);maxDisplacement=Math.max(maxDisplacement,displacement);
+  if(path.length===0||Math.abs(displacement-path.at(-1).distance)>1e-6)path.push({time:g.time,distance:displacement,stagger:target.stagger||0,hp:target.hp});
+  if(blocker)assert(Math.hypot(target.x-blocker.x,target.z-blocker.z)>=radius+(wall?blocker.r:blocker.size*.6)-.002,'推开穿入墙体或另一个角色');
+ }
+ g.controls.held=false;assert(target.hp<100000,'测试枪弹未命中目标');
+ if(distance>4)assert(100000-target.hp>=stats.damage*3-1e-6,'远距检查不足三丸命中，无法验证距离限制');
+ const expectedPush=!boss&&route!=='shotgun_slug'&&distance<=3.5&&!narrow;
+ if(expectedPush){assert(maxStagger>.16&&maxStagger<=.18001,'近身三丸命中没有 0.18 秒硬直');assert(maxDisplacement<=1.10001,'同枪重复推开超过 1.1 米');if(!wall&&!body)assert(Math.abs(maxDisplacement-1.1)<1e-6,'空地推开未达到 1.1 米');assert((target.stagger||0)===0,'短硬直没有消退');}
+ else assert(maxDisplacement<1e-8&&maxStagger===0,'不满足条件的射击触发了推开或硬直');
+ if(narrow){assert(gunShots().length===3,'窄目标跨枪检查没有完成三枪');assert(Math.abs(100000-target.hp-stats.damage*3)<1e-6,'跨枪检查必须每枪仅命中一丸');}
+ const result={route,boss,wall,thinWall,body,distance,narrow,shots:gunShots().length,damage:100000-target.hp,pelletDamage:stats.damage,maxDisplacement,maxStagger,path};await cleanup();return result;
+}
+async function runGunHandling(){
+ buttons(true);results.length=0;errors.length=0;$('#diagnostic').textContent='尚无失败。';publish();
+ try{
+  await load(dimensions.desktop);await audioReady();
+  await check('基础连发枪保持原节拍',()=>rifleCadence());
+  for(const rank of [1,3])await check('疾速机括 '+rank+' 阶持续三连与复位',()=>rifleCadence('rifle_rapid',rank));
+  for(const kind of ['release','pause','dodge'])await check('疾速机括中断不排队 / '+kind,()=>rifleInterruption(kind));
+  await check('疾速机括自动瞄准失去目标不排队',rifleTargetLoss);await check('疾速机括重开清除三连进度',rifleRestart);
+  for(const [name,options]of[
+   ['基础霰弹近身一枪只推一次',{}],['散射风暴近身一枪只推一次',{route:'shotgun_fan'}],['独头重弹不触发',{route:'shotgun_slug'}],
+   ['首领靠墙不触发',{boss:true,wall:true}],['普通敌人墙边推开受限',{wall:true}],['小体型敌人不穿薄障碍',{wall:true,thinWall:true,distance:1.7}],['普通敌人推开不穿另一个角色',{body:true}],
+   ['远处三丸命中不触发',{distance:6}],['不同枪的少量命中不累积',{narrow:true}]
+  ])await check(name,()=>shotgunPush(options));
+ }catch(error){results.push({name:'枪械检查初始化',pass:false,error:error.message});}
+ errors.push(...(win?.qaErrors||[]));publish();buttons(false);$('#status').textContent=results.every(r=>r.pass)&&!errors.length?'双枪 '+results.length+' 组真实实战检查全部通过。':'双枪检查有失败，请查看诊断。';
+}
+gunButton.onclick=runGunHandling;
 for(const id of Object.keys(dimensions))$('#'+id).onclick=()=>run(id);$('#preview').onclick=preview;$('#grips').onclick=runGrips;
 $('#mirage').onclick=async()=>{buttons(true);results.length=0;errors.length=0;$('#diagnostic').textContent='尚无失败。';try{await audioReady();const c=cases.find(c=>c.id==='miasmalantern');for(const material of [2,0])await check('蜃花灯 / '+materials[material].join(' / '),()=>attackCase(c,{material}));}catch(error){errors.push(error.message);}finally{errors.push(...win.qaErrors);publish();buttons(false);$('#status').textContent=results.every(r=>r.pass)&&!errors.length?'蜃花灯两类目标均通过。':'诊断完成，请查看失败诊断。';}};
 try{await load(dimensions.desktop);buttons(false);$('#status').textContent='准备完成。每组包含 13 次命中、13 次挥空、26 条一阶路线，以及离场资源回收检查。';}catch(error){$('#status').textContent='加载失败：'+error.message;}

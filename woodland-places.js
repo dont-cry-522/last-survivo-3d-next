@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {naturalRockGeometry} from './biome-scenery.js?v=207';
+import {naturalRockGeometry} from './biome-scenery.js?v=208';
 
 // Authored in local space: the route runs along Z, with |x| < 3.1 kept clear.
 // The installer owns placement, batching, materials, colliders and disposal.

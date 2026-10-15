@@ -1,8 +1,8 @@
-import{meleeSwing}from'./weapon-performance.js?v=207';
+import{meleeSwing}from'./weapon-performance.js?v=208';
 import * as T from './vendor/three.module.js';
-import {flatGround,fitGroundSurface,disposeGroundSurface} from './ground-cues.js?v=207';
-import{shadowCrescentGeometry}from'./shadow-weapons.js?v=207';
-import{spellShapes,streakTexture,crestTexture}from'./spell-shapes.js?v=207';
+import {flatGround,fitGroundSurface,disposeGroundSurface} from './ground-cues.js?v=208';
+import{shadowCrescentGeometry}from'./shadow-weapons.js?v=208';
+import{spellShapes,streakTexture,crestTexture}from'./spell-shapes.js?v=208';
 
 // Three bowed tongues share one draw and one texture. A ground-level viewer
 // never sees the whole flame disappear edge-on, as with a single flat card.

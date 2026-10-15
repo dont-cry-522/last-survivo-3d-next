@@ -7,10 +7,11 @@ import {installForestVista} from '../forest-vista.js';
 import {installForestHabitats} from '../forest-habitats.js';
 import {installExplorationRoutes} from '../exploration-routes.js';
 import {polishEnvironmentModels} from '../environment-props.js';
-import {installBiomePlaces} from '../biome-places.js?v=207';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=207';
+import {installBiomePlaces} from '../biome-places.js?v=208';
+import {installEnvironmentClusters} from '../environment-clusters.js?v=208';
 import {installEnvironmentGrounding} from '../environment-grounding.js';
 import {installAdventureGroundDetail,installHabitatDetail} from '../adventure-ground-detail.js';
+import {biomeWeights} from '../confluence.js';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const cleanup=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
@@ -202,23 +203,84 @@ test('neutral floor channels preserve even glossy base roughness without applyin
  world.ground.geometry.dispose();assert.strictEqual(world.ground.material,source);assert.equal(source.roughness,.12);
 });
 
-test('real forest and joined maps add floor transitions only to forest, with one sample and exact old contact channels',()=>{
+test('five place floors stay local, preserve old forest tracks and contact channels, and share one ground sample',()=>{
  for(const id of ['forest','snow','ash','sand','coast','confluence']){
   const world=buildWorld(id,522);polishEnvironmentModels(world);installForestHabitats(world,id);installBiomePlaces(world,id);installEnvironmentClusters(world,id);installExplorationRoutes(world);
   const positions=world.ground.geometry.attributes.position.array.slice(),source=world.ground.material,children=world.group.children.length,layout=JSON.stringify(world.obstacles.map(o=>[o.x,o.z,o.r,o.height]));
+  const ground=world.ground.clone();ground.geometry=world.ground.geometry.clone();
+  const baseline=installEnvironmentGrounding({...world,ground,biomePlaces:[]}),original=baseline.texture.image.data;
   const state=installEnvironmentGrounding(world),b=channel(state,2),a=channel(state,3),forest=id==='forest'||id==='confluence';
-  assert.equal(state.forestPixels>0,forest);assert.equal(b.some(v=>v>200),forest);assert.equal(a.some(v=>v<110),forest);assert.equal(a.some(v=>v>150),forest);
-  if(!forest){assert(b.every(v=>v===0));assert(a.every(v=>v===128));}
-  if(id==='confluence'){
-   const region=world.forestHabitats.region,extent=world.half+8,pixel=2*extent/512;
-   for(let z=0;z<512;z++)for(let x=0;x<512;x++)if(!region.contains((x+.5)*pixel-extent,(z+.5)*pixel-extent)){
-    assert.equal(b[z*512+x],0);assert.equal(a[z*512+x],128,'non-forest region acquired duff or wet mud');
+  assert.equal(state.forestPixels>0,forest);assert.equal(b.some(v=>v>200),forest);
+  assert.deepEqual(channel(state,0),channel(baseline,0));assert.deepEqual(channel(state,1),channel(baseline,1));
+  assert.equal(state.placeFloors.length,world.biomePlaces.length);assert(state.placeFloors.every(p=>p.pixels>80&&p.wearPixels>35&&p.sedimentPixels>25),'place has no usable entrance or shoulder transition');
+  const extent=world.half+8,pixel=2*extent/512;let changed=0;
+  for(let row=0;row<512;row++)for(let col=0;col<512;col++){
+   const i=row*512+col,k=i*4;
+   if(original[k+2]){assert.equal(b[i],original[k+2],'an existing forest track was rewritten');assert.equal(a[i],original[k+3],'the old track shoulder was recolored');}
+   if(b[i]===original[k+2]&&a[i]===original[k+3])continue;
+   changed++;const x=(col+.5)*pixel-extent,z=(row+.5)*pixel-extent;
+   assert(world.biomePlaces.some(p=>{
+    const c=Math.cos(p.angle),s=Math.sin(p.angle),dx=x-p.x,dz=z-p.z,u=c*dx-s*dz,v=s*dx+c*dz,region=world.regions?.find(r=>r.id===p.biome);
+    return Math.abs(u)<=8.7&&Math.abs(v)<=11.5&&(!region||region.contains(x,z)&&biomeWeights(x,z)[p.biome]>.58);
+   }),'place deposit escaped its footprint or climate boundary');
+  }
+  assert(changed>100&&changed<512*512*.035,'place wear vanished or became a map-wide carpet');
+  if(!forest){
+   assert(b.some(v=>v>90));assert.equal(a.some(v=>v<110),id==='coast');assert.equal(a.some(v=>v>150),id!=='coast');
+  }else{
+   for(let i=0;i<a.length;i++)if(original[i*4+3]<128){
+    const x=(i%512+.5)*pixel-extent,z=(Math.floor(i/512)+.5)*pixel-extent;
+    if(!world.regions||world.forestHabitats.region.contains(x,z))assert.equal(a[i],original[i*4+3],'damp forest bank was overwritten');
    }
   }
   const shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};state.material.onBeforeCompile(shader);
   assert.equal(shader.fragmentShader.match(/texture2D\(sceneryContact/g).length,1);assert(shader.fragmentShader.includes('forestDamp*.21'));assert(shader.fragmentShader.indexOf('roughnessFactor+forestDuff')>shader.fragmentShader.indexOf('roughnessFactor-soilWet'),'base material overwrote the wet-bank roughness');
   assert.equal(world.group.children.length,children);assert.deepEqual(world.ground.geometry.attributes.position.array,positions);assert.equal(JSON.stringify(world.obstacles.map(o=>[o.x,o.z,o.r,o.height])),layout);
-  const first=state.texture.image.data.slice();world.ground.geometry.dispose();assert.strictEqual(world.ground.material,source);
+  const first=state.texture.image.data.slice();ground.geometry.dispose();assert(baseline.disposed);world.ground.geometry.dispose();assert.strictEqual(world.ground.material,source);
   const next=installEnvironmentGrounding(world);assert.deepEqual(next.texture.image.data,first);assert.notStrictEqual(next.texture,state.texture);cleanup(world);assert(next.disposed);
  }
+});
+
+test('place wear has different physical patterns, is deterministic and ignores hidden reward locations',()=>{
+ const states=[];
+ const make=biome=>{
+  const ground=new T.Mesh(new T.PlaneGeometry(64,64),new T.MeshStandardMaterial());ground.userData.ownedGeometry=true;
+  return{half:24,ground,biomePlaces:[{biome,index:0,x:0,z:0,angle:0,focus:{x:5,z:1},entrance:{x:0,z:-9},exit:{x:0,z:9}}]};
+ };
+ for(const biome of ['forest','snow','ash','sand','coast']){
+  const world=make(biome),first=installEnvironmentGrounding(world),duplicate=make(biome);
+  duplicate.sites=[{x:-17,z:14,discovered:false,trail:{visible:false}},{x:18,z:-16,discovered:false}];
+  const next=installEnvironmentGrounding(duplicate);assert.deepEqual(next.texture.image.data,first.texture.image.data,'hidden rewards affected permanent place wear');
+  assert.equal(sample(first,world,0,-14,2),0);assert.equal(sample(first,world,0,-14,3),128);
+  assert(sample(first,world,0,-9,2)>25,'entry has no visible wear');
+  assert.equal(channel(first,0).some(v=>v),false);assert.equal(channel(first,1).some(v=>v),false);
+  states.push({biome,world,state:first,hash:createHash('sha256').update(first.texture.image.data).digest('hex')});duplicate.ground.geometry.dispose();
+ }
+ assert.equal(new Set(states.map(s=>s.hash)).size,5,'biomes use the same mask pattern');
+ const snow=states.find(s=>s.biome==='snow'),sand=states.find(s=>s.biome==='sand'),coast=states.find(s=>s.biome==='coast');
+ const avg=(entry,x,c)=>[-5,-3,-1,1,3,5].reduce((sum,z)=>sum+sample(entry.state,entry.world,x,z,c),0)/6;
+ for(const z of [-7,7])for(const side of [-1,1]){
+  const runner=Math.max(...[.5,.7,.9].map(x=>sample(snow.state,snow.world,x*side,z,2)));
+  assert(runner>sample(snow.state,snow.world,0,z,2)*1.3,'snow runners became a broad central stripe');
+ }
+ assert(avg(sand,2.2,3)>avg(sand,-2.2,3)+8,'wind-blown sand lost its asymmetric shoulder');
+ assert(avg(coast,2.2,3)<115,'harbor shoulder has no damp transition');
+ for(const {world}of states)world.ground.geometry.dispose();
+});
+
+test('a place beside a joined climate boundary fades before reaching the neighboring biome',()=>{
+ const make=()=>{
+  const ground=new T.Mesh(new T.PlaneGeometry(296,296),new T.MeshStandardMaterial());ground.userData.ownedGeometry=true;
+  return{half:140,ground,biomePlaces:[{biome:'forest',x:-60,z:-15,angle:0,focus:{x:-55,z:-14}}]};
+ };
+ const plain=make(),joined=make();joined.regions=[{id:'forest',contains:(x,z)=>biomeWeights(x,z).forest>=.5}];
+ const before=installEnvironmentGrounding(plain).texture.image.data,after=installEnvironmentGrounding(joined).texture.image.data,pixel=296/512;let faded=0,unchanged=0,excluded=0;
+ for(let row=0;row<512;row++)for(let col=0;col<512;col++){
+  const k=(row*512+col)*4;if(!before[k+2]&&before[k+3]===128)continue;
+  const weight=biomeWeights((col+.5)*pixel-148,(row+.5)*pixel-148).forest;
+  if(weight<=.58){assert.equal(after[k+2],0);assert.equal(after[k+3],128);excluded++;}
+  else if(weight>=.88){assert.equal(after[k+2],before[k+2]);assert.equal(after[k+3],before[k+3]);unchanged++;}
+  else if(before[k+2]>30){assert(after[k+2]<=before[k+2]);if(after[k+2]<before[k+2])faded++;}
+ }
+ assert(faded>10&&unchanged>20&&excluded>20,'boundary fixture did not exercise all three climate zones');plain.ground.geometry.dispose();joined.ground.geometry.dispose();
 });

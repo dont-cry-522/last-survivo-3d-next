@@ -1,5 +1,6 @@
 import * as T from './vendor/three.module.js';
-import {forestHabitatAt} from './forest-habitats.js?v=207';
+import {forestHabitatAt} from './forest-habitats.js?v=208';
+import {biomeWeights} from './confluence.js?v=208';
 
 function bakeForestFloor(world,data,size,extent){
  const habitat=world.forestHabitats;if(!habitat)return 0;
@@ -82,6 +83,59 @@ function blendForestRoots(world,data,size,pixel,extent){
  }
 }
 
+// Local use leaves a broken path through each existing place, with loose
+// material collecting at its shoulders. Never follow a site or reward guide.
+// Run after root blending so R/G and every existing forest track stay exact.
+function bakePlaceFloors(world,data,size,pixel,extent){
+ const records=[],smooth=T.MathUtils.smoothstep;
+ for(const place of world.biomePlaces||[]){
+  const {biome,x,z,angle=0}=place;if(!['forest','snow','ash','sand','coast'].includes(biome)||!Number.isFinite(x+z+angle))continue;
+  const c=Math.cos(angle),s=Math.sin(angle),region=world.regions?.find(r=>r.id===biome),phase=(place.variant||0)*2.1;
+  const record={biome,index:place.index,x,z,angle,entrance:place.entrance,exit:place.exit,pixels:0,wearPixels:0,sedimentPixels:0};
+  const reach=13,minX=Math.max(0,Math.floor((x-reach+extent)/pixel)),maxX=Math.min(size-1,Math.ceil((x+reach+extent)/pixel)),minZ=Math.max(0,Math.floor((z-reach+extent)/pixel)),maxZ=Math.min(size-1,Math.ceil((z+reach+extent)/pixel));
+  const fx=place.focus?c*(place.focus.x-x)-s*(place.focus.z-z):0,fz=place.focus?s*(place.focus.x-x)+c*(place.focus.z-z):0;
+  for(let row=minZ;row<=maxZ;row++)for(let col=minX;col<=maxX;col++){
+   const wx=(col+.5)*pixel-extent,wz=(row+.5)*pixel-extent,dx=wx-x,dz=wz-z,u=c*dx-s*dz,v=s*dx+c*dz,k=(row*size+col)*4;
+   if(Math.abs(u)>8.7||Math.abs(v)>11.5||region&&!region.contains(wx,wz))continue;
+   const border=world.regions?smooth(biomeWeights(wx,wz)[biome]||0,.58,.88):1;if(!border)continue;
+   // A visible guide, a road shoulder or damp forest bank already owns this
+   // pixel. Do not recolor it, erase it or change the roots blended against it.
+   if(data[k+2]||biome==='forest'&&data[k+3]<128)continue;
+   const patch=.5+.5*Math.sin(u*1.21+v*.63+phase)*Math.sin(v*.91-u*.36),grain=.72+.28*patch;
+   const end=1-smooth(Math.abs(v),8.2,11.5),axis=.35*Math.sin(v*.43+phase)+.16*Math.sin(v*.91),d=Math.abs(u-axis);
+   const lane=(1-smooth(d,.35,1.55+.22*Math.sin(v*.7)))*end;
+   // Only the near, open side of the focus receives a short lateral scuff.
+   // A trunk, kiln or wreck focus itself can be solid and is never a waypoint.
+   const side=Math.sign(fx),toward=side*u,branch=(1-smooth(Math.abs(v-fz+.18*Math.sin(u*1.4)),.28,1.16))*smooth(toward,.35,1.25)*(1-smooth(toward,2.8,3.9))*end;
+   const shoulder=(1-smooth(Math.abs(d-(2.05+.24*Math.sin(v*.58+phase))),.18,1.18))*end;
+   const edge=(1-smooth(Math.abs(u),6.9,8.7))*(1-smooth(Math.abs(v),6.2,8.5));
+   const sheltered=smooth(Math.abs(u),3.1,4.7)*edge*(.48+.52*patch);
+   let wear=0,deposit=0;
+   if(biome==='forest'){
+    wear=Math.max(lane*.63,branch*.48)*grain;deposit=Math.max(shoulder*.42,sheltered*.32)*grain;
+   }else if(biome==='snow'){
+    // Two broad, interrupted runner depressions read at the joined map's
+    // coarser texel size; a faint packed bed keeps them from looking painted.
+    const runner=(1-smooth(Math.abs(d-.68),.13,.60))*end*(.34+.66*patch);
+    wear=Math.max(runner*.74,lane*.24,branch*.40);deposit=Math.max(shoulder*.52,sheltered*.44)*grain;
+   }else if(biome==='ash'){
+    wear=Math.max(lane*.69,branch*.62)*(.55+.45*patch);deposit=Math.max(shoulder*.24,sheltered*.40)*grain;
+   }else if(biome==='sand'){
+    // Wind deposits a wider tongue on one side; the broken darker centre is
+    // compacted mineral ground, not another continuous paved road.
+    wear=Math.max(lane*.54,branch*.58)*grain;deposit=Math.max(shoulder*(u>axis?.56:.22),sheltered*.56)*grain;
+   }else{
+    wear=Math.max(lane*.61,branch*.52)*grain;deposit=-Math.max(shoulder*.42,sheltered*.50)*grain;
+   }
+   const beforeA=data[k+3],b=Math.round(255*wear*border),a=Math.round(128+127*deposit*border);
+   data[k+2]=b;data[k+3]=deposit<0?Math.min(beforeA,a):Math.max(beforeA,a);
+   if(b||data[k+3]!==beforeA){record.pixels++;if(b)record.wearPixels++;if(data[k+3]!==beforeA)record.sedimentPixels++;}
+  }
+  records.push(record);
+ }
+ return records;
+}
+
 // Static contact staining joins the existing ground pass. R retains the scenery
 // shadow; G softens forest plant roots; B/A join paths, duff and wet banks.
 // This is a bounded build-time mask, not screen-space or real-time AO.
@@ -97,7 +151,7 @@ export function installEnvironmentGrounding(world){
   if(plants.length>=4096)break;
   if(p.biome==='forest'&&['tuft','fern','shrub'].includes(p.kind)&&Number.isFinite(p.x+p.z))plants.push(p);
  }
- if(!sources.length&&!plants.length&&!world.forestHabitats)return null;
+ if(!sources.length&&!plants.length&&!world.forestHabitats&&!world.biomePlaces?.length)return null;
  const size=512,extent=world.half+8,pixel=2*extent/size,data=new Uint8Array(size*size*4);
  for(let i=3;i<data.length;i+=4)data[i]=128;
  for(const o of sources){
@@ -129,6 +183,7 @@ export function installEnvironmentGrounding(world){
  }
  const forestPixels=bakeForestFloor(world,data,size,extent);
  if(plants.length)blendForestRoots(world,data,size,pixel,extent);
+ const placeFloors=bakePlaceFloors(world,data,size,pixel,extent);
  const texture=new T.DataTexture(data,size,size,T.RGBAFormat);texture.name='TX_Scenery_GroundContact_A';
  texture.magFilter=T.LinearFilter;texture.minFilter=T.LinearMipmapLinearFilter;texture.generateMipmaps=true;texture.needsUpdate=true;
  // Ground materials are shared by the original world builders. Keep their
@@ -146,9 +201,20 @@ export function installEnvironmentGrounding(world){
    float forestTrack=smoothstep(.25,.87,groundContacts.b);
    float forestFloor=(groundContacts.a-(128.0/255.0))*(255.0/127.0);
    float forestDuff=max(0.0,forestFloor),forestDamp=max(0.0,-forestFloor);
-   diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.13,.84,.67)+vec3(.010,.008,.004),forestTrack*.58);
-   diffuseColor.rgb*=mix(vec3(1.0),vec3(1.05,.83,.64),forestDuff*.52);
-   diffuseColor.rgb*=mix(vec3(1.0),vec3(.67,.73,.69),forestDamp*.65);
+   vec3 floorWearTone=vec3(1.13,.84,.67),floorDepositTone=vec3(1.05,.83,.64),floorDampTone=vec3(.67,.73,.69);
+   ${source.userData.groundSurface?`// Climate-specific compaction and deposits share the existing mask sample.
+   // Forest defaults remain the same; joined-map climate colors blend softly.
+   floorWearTone=mix(floorWearTone,vec3(.76,.86,.93),soilSnow);
+   floorWearTone=mix(floorWearTone,vec3(.65,.67,.65),soilAsh);
+   floorWearTone=mix(floorWearTone,vec3(.87,.80,.68),soilSand);
+   floorWearTone=mix(floorWearTone,vec3(.63,.77,.75),soilCoast);
+   floorDepositTone=mix(floorDepositTone,vec3(1.12,1.11,1.08),soilSnow);
+   floorDepositTone=mix(floorDepositTone,vec3(1.15,1.12,1.06),soilAsh);
+   floorDepositTone=mix(floorDepositTone,vec3(1.13,1.08,.98),soilSand);
+   floorDampTone=mix(floorDampTone,vec3(.64,.79,.79),soilCoast);`:''}
+   diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*floorWearTone+vec3(.010,.008,.004),forestTrack*.58);
+   diffuseColor.rgb*=mix(vec3(1.0),floorDepositTone,forestDuff*.52);
+   diffuseColor.rgb*=mix(vec3(1.0),floorDampTone,forestDamp*.65);
    diffuseColor.rgb*=1.0-groundContact*.22;
    ${source.userData.groundSurface?`// The outer contact fringe deposits the local ground material; the inner
    // contact remains darker. Reuse the existing mask and terrain samples so
@@ -174,8 +240,8 @@ export function installEnvironmentGrounding(world){
   shader.fragmentShader=shader.fragmentShader.replace('#include <metalnessmap_fragment>','if(max(forestTrack,max(forestDuff,forestDamp))>0.0){\nroughnessFactor=clamp(roughnessFactor+forestDuff*.07-forestTrack*.025-forestDamp*.21,.66,1.0);\n}\n#include <metalnessmap_fragment>');
   shader.fragmentShader=shader.fragmentShader.replace('#include <aomap_fragment>','#include <aomap_fragment>\nreflectedLight.indirectDiffuse*=1.0-groundContact*.16;\nreflectedLight.indirectDiffuse*=1.0-groundContacts.g*.06;');
  };
- material.customProgramCacheKey=()=>baseKey+'|scenery-ground-contact-biome-deposit';ground.material=material;
- const state={texture,material,sources:sources.length,plants:plants.length,forestPixels,disposed:false};world.environmentGrounding=state;
+ material.customProgramCacheKey=()=>baseKey+'|scenery-ground-contact-place-floor';ground.material=material;
+ const state={texture,material,sources:sources.length,plants:plants.length,forestPixels,placeFloors,disposed:false};world.environmentGrounding=state;
  const release=()=>{if(state.disposed)return;state.disposed=true;texture.dispose();material.dispose();ground.material=source;ground.geometry.removeEventListener('dispose',release);};
  ground.geometry.addEventListener('dispose',release);
  return state;

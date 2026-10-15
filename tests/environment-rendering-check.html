@@ -8,6 +8,8 @@ const pixelButton=document.createElement('button');pixelButton.id='pixels';pixel
 const pixelCaptures=document.createElement('div');pixelCaptures.id='pixel-captures';$('#capture').after(pixelCaptures);
 const motionButton=document.createElement('button');motionButton.id='creature-motion';motionButton.disabled=true;motionButton.textContent='实战怪物追击与首领检查';$('#first-view').after(motionButton);
 const creatureButton=document.createElement('button');creatureButton.id='creature-near';creatureButton.disabled=true;creatureButton.textContent='近看当前地图怪物';$('#first-view').after(creatureButton);
+const placeControls=document.createElement('span');placeControls.innerHTML='<select id="place-index" aria-label="景点编号"><option value="0">第 0 处景点</option><option value="1">第 1 处景点</option></select> <select id="place-size" aria-label="入口预览尺寸"><option value="desktop">普通横屏 1180×720</option><option value="mobile">手机横屏 844×390</option></select> <button id="place-entry" disabled>从景点入口看进去</button>';$('#first-view').after(placeControls);
+const placeCheckButton=document.createElement('button');placeCheckButton.id='place-check';placeCheckButton.disabled=true;placeCheckButton.textContent='批量检查五图双景点与手机入口';placeControls.after(placeCheckButton);
 const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text();let frame,g,win,now=0;const results=[],errors=[];
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
@@ -143,6 +145,56 @@ $('#run').onclick=async()=>{
 async function preview(battle=false,mobile=false){await load(mobile,mobile?844:1180,mobile?390:720);select($('#map').value,'silver',battle);$('#status').textContent='固定帧画面预览 · '+$('#map').selectedOptions[0].text+' · '+JSON.stringify({view:g.world.lobbyView,heroYaw:g.hero.rotation.y,cameraYaw:Math.atan2(win.qaCamera.position.x-g.hero.position.x,win.qaCamera.position.z-g.hero.position.z)});}
 $('#capture-button').onclick=()=>{step();const image=$('#capture');image.src=g.renderer.domElement.toDataURL('image/png');image.hidden=false;const link=document.createElement('a');link.href=image.src;link.download='forest-echoes-environment.png';link.click();};
 $('#first-view').onclick=async()=>{await preview(true);g.setView('first');step(60);$('#status').textContent='第一人称实景 · '+JSON.stringify(reportFrame());};
+function placeGroundMetrics(place){
+ const state=g.world.environmentGrounding,image=state?.texture.image;if(!image?.data)return null;
+ const {data,width:size}=image,extent=g.world.half+8,pixel=2*extent/size;
+ const sample=p=>{const x=Math.max(0,Math.min(size-1,Math.floor((p.x+extent)/pixel))),z=Math.max(0,Math.min(size-1,Math.floor((p.z+extent)/pixel))),k=(z*size+x)*4;return{x:+p.x.toFixed(3),z:+p.z.toFixed(3),rgba:[...data.slice(k,k+4)]};};
+ const local={pixels:0,wearPixels:0,depositPixels:0,wearMax:0,depositMin:255,depositMax:0};let rgHash=2166136261;
+ for(let z=0;z<size;z++)for(let x=0;x<size;x++){
+  const k=(z*size+x)*4;rgHash=Math.imul((rgHash^data[k])>>>0,16777619);rgHash=Math.imul((rgHash^data[k+1])>>>0,16777619);
+  if(Math.hypot((x+.5)*pixel-extent-place.x,(z+.5)*pixel-extent-place.z)>13)continue;
+  local.pixels++;local.wearPixels+=data[k+2]>0;local.depositPixels+=data[k+3]!==128;local.wearMax=Math.max(local.wearMax,data[k+2]);local.depositMin=Math.min(local.depositMin,data[k+3]);local.depositMax=Math.max(local.depositMax,data[k+3]);
+ }
+ return{size,pixelSize:pixel,rgHash:(rgHash>>>0).toString(16),forestPixels:state.forestPixels,placeFloor:state.placeFloors?.find(p=>p.biome===place.biome&&p.index===place.index)??null,local,samples:[place.entrance,{x:(place.entrance.x+place.x)/2,z:(place.entrance.z+place.z)/2},place,{x:(place.exit.x+place.x)/2,z:(place.exit.z+place.z)/2},place.exit].map(sample)};
+}
+function placeEntrance(map,index){
+  select(map,'silver',true);
+  const place=g.world.biomePlaces?.find(p=>p.index===index&&(map==='confluence'||p.biome===map));assert(place,'当前地图没有第 '+index+' 处景点');
+  const entry=place.entrance;Object.assign(g.player,{x:entry.x,z:entry.z,vx:0,vz:0,attack:9999,inv:9999});g.hero.position.set(entry.x,g.world.groundHeightAt?.(entry.x,entry.z)||0,entry.z);
+  g.adventureCamera.yaw=Math.atan2(place.x-entry.x,place.z-entry.z);g.adventureCamera.pitch=-.16;g.adventureCamera._ready=false;g.setView('first');step(12);
+  const report={seed:522,map,biome:place.biome,index:place.index,name:place.name,position:{x:g.player.x,y:g.player.y,z:g.player.z},entrance:entry,center:{x:place.x,z:place.z},yaw:g.adventureCamera.yaw,pitch:g.adventureCamera.pitch,time:g.time,width:win.innerWidth,height:win.innerHeight,mask:placeGroundMetrics(place),render:reportFrame()};
+  window.placeEntranceReport=report;return report;
+}
+$('#place-entry').onclick=async()=>{
+ const button=$('#place-entry');button.disabled=true;$('#status').textContent='准备固定种子的景点入口机位';
+ try{
+  const map=$('#map').value,index=Number($('#place-index').value),mobile=$('#place-size').value==='mobile';await load(mobile,mobile?844:1180,mobile?390:720);
+  const report=placeEntrance(map,index);$('#report').textContent=JSON.stringify(report,null,2);$('#status').textContent='景点入口第一人称 · '+report.name+' · 固定种子 522 · '+win.innerWidth+'×'+win.innerHeight;
+ }catch(error){$('#status').textContent='入口预览失败：'+error.message;}finally{button.disabled=false;}
+};
+placeCheckButton.onclick=async()=>{
+ for(const b of document.querySelectorAll('button'))b.disabled=true;results.length=0;errors.length=0;publish();
+ try{
+  for(const mobile of [false,true]){
+   await load(mobile,mobile?844:1180,mobile?390:720);
+   for(const map of ['forest','snow','ash','sand','coast']){
+    for(const index of [0,1])await check((mobile?'手机横屏':'普通横屏')+' / '+map+' / 景点 '+index,()=>{
+     // Geometry uploads are lazy: two different entrance frusta can expose
+     // different shared meshes. Compare a rebuilt copy of this exact view.
+     const baseline=placeEntrance(map,index),owned=new Set(),released=new Set();g.world.group.traverse(o=>{if(o.userData.ownedGeometry)owned.add(o.geometry);});
+     for(const geometry of owned)geometry.addEventListener('dispose',()=>released.add(geometry));
+     const detail=placeEntrance(map,index);assert(detail.mask,'地面蒙版缺失');assert(detail.render.calls>0,'没有实际渲染场景');assert(detail.render.pixels<=(mobile?1800000:3200000),'入口画面超过像素预算');
+     detail.rebuild={baseline:baseline.render,repeated:detail.render,ownedGeometries:owned.size,releasedGeometries:released.size,geometryDelta:detail.render.geometries-baseline.render.geometries,textureDelta:detail.render.textures-baseline.render.textures};
+     assert([...owned].every(geometry=>released.has(geometry)),'重建没有释放上一场景的自有几何 '+JSON.stringify(detail.rebuild));
+     assert(detail.render.geometries<=baseline.render.geometries+2,'相同机位重建几何资源增长 '+JSON.stringify(detail.rebuild));assert(detail.render.textures<=baseline.render.textures,'相同机位重建纹理资源增长 '+JSON.stringify(detail.rebuild));
+     return detail;
+    });
+   }
+  }
+ }catch(error){results.push({name:'景点批量初始化',pass:false,error:error.message});}
+ errors.push(...(win?.qaErrors||[]));window.placeEntranceChecks={results:[...results],errors:[...errors]};publish();for(const b of document.querySelectorAll('button'))b.disabled=false;
+ $('#status').textContent=results.length===20&&results.every(r=>r.pass)&&!errors.length?'五图双景点 × 两种横屏，共 20 组入口检查通过。':'景点入口检查存在失败，请查看报告。';
+};
 $('#creature-near').onclick=()=>{
  if(g.state!=='playing'){if(g.state==='paused')g.resume();else g.start();}
  g.player.inv=9999;g.player.attack=9999;

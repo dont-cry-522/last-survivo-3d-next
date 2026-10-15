@@ -11,7 +11,7 @@
 <button id="portrait" disabled>手机竖屏预览</button><button id="landscape" disabled>手机横屏预览</button>
 <p id="status" role="status">正在载入测试资源…</p><div id="view"></div><pre id="report">尚未运行。</pre>
 <script type="module">
-import {ENEMY_GUIDE} from '../battle-guide.js?v=207';
+import {ENEMY_GUIDE} from '../battle-guide.js?v=208';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),assert=(ok,message)=>{if(!ok)throw Error(message);};
 const records=[],storage=new Map(),errors=[];let frame,win,g,shots=[],html,css,frameClock=0;
 window.mobileControlsReport={checks:records};

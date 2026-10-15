@@ -1,8 +1,8 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries,toCreasedNormals}from'./vendor/BufferGeometryUtils.js';
-import{batchedSurfaceMaterial,prepareBatchedSurface}from'./environment-props.js?v=207';
-import{naturalRockGeometry}from'./biome-scenery.js?v=207';
-import{waterDepth}from'./water.js?v=207';
+import{batchedSurfaceMaterial,prepareBatchedSurface}from'./environment-props.js?v=208';
+import{naturalRockGeometry}from'./biome-scenery.js?v=208';
+import{waterDepth}from'./water.js?v=208';
 
 const finishes=Object.fromEntries(['wood','stone'].map(kind=>{
  const source=new T.MeshStandardMaterial({vertexColors:true,roughness:.94});

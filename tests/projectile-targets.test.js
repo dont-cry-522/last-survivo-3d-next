@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {segmentHitsBody,segmentBodyEntry,bodyContact,launchVelocity} from '../adventure-combat.js';
 import {segmentDistance,crossbowImpact,registerShadowHit} from '../rules.js';
+import {shotgunVolley,shotgunHit,SHOTGUN_PUSH} from '../gun-handling.js';
 
 // Execute the production projectile/meteor/spell phase, replacing only its
 // render/audio/world adapters. The reference changes target-list construction
@@ -24,7 +25,7 @@ function context(enemies,bullets,boss=null){
  const c={enemies,bullets,boss,zones:[],dt:.1,time:1,state:'playing',listCopies:0,hits:[],snapshots:[],currentBullet:null,
   player:{x:0,y:0,z:0,weaponId:'crossbow',upgrades:{},spell:{fire:0,ice:0,storm:0}},world:{obstacles:[],overhead:{firstHit:()=>null},groundHeightAt:()=>0},
   vfx:effects(),sound:effects(),scene:effects(),environmentImpacts:effects(),heroSkills:effects(),mirage:{hidden:false},companion:null,ENEMY_VOICES:{},
-  segmentHitsBody,segmentBodyEntry,bodyContact,launchVelocity,segmentDistance,crossbowImpact,registerShadowHit,
+  segmentHitsBody,segmentBodyEntry,bodyContact,launchVelocity,segmentDistance,crossbowImpact,registerShadowHit,shotgunHit,SHOTGUN_PUSH,
   closeContact:x=>x,segmentGroundEntry:()=>null,mapHalf:()=>100,clearAt:()=>true,groundAt:()=>0,visibleWeaponRange:(_,range)=>range,weaponRouteEffect:noop,inflictStatus:noop,
   updateCompanion:noop,disposeCue:noop,addGravity:noop,moveActor:noop,lightning:noop,burst:noop,terrainHit:noop,bossZoneEffect:noop,
   enemySound:noop,hitPlayer:noop,attackReachesPlayer:()=>false,addZone:noop
@@ -88,4 +89,29 @@ test('80 projectiles against 60 enemies avoid repeated combined target-list copi
   if(!withBoss)assert.equal(after.snapshots[0],after.enemies);
   t.diagnostic(`${withBoss?'boss present':'no boss'}: combined target-list copies ${before.listCopies} -> ${after.listCopies}; 80 projectiles / 60 enemies, allocation count only, not FPS`);
  }
+});
+
+test('a final boss kill discards queued shotgun pushes but still cleans spent projectiles',()=>{
+ const target=enemy(1,2),boss=enemy(undefined,2,{x:5,kind:'boss',boss:true,hp:1});
+ const volley=shotgunVolley({id:'shotgun',count:5},{x:0,y:1,z:0});
+ const pellets=Array.from({length:3},(_,i)=>bullet(i,{kind:'shotgun',volley}));
+ const c=context([target],[...pellets,bullet('finish',{x:5})],boss),hurt=c.hurtEnemy,removed=[];
+ c.hurtEnemy=(e,damage)=>{hurt(e,damage);if(e===boss&&!e.alive)c.state='won';};
+ c.moveActor=()=>assert.fail('the queued push ran after the final boss died');
+ c.scene={remove:mesh=>removed.push(mesh)};
+ runCurrent(c);
+ assert.equal(volley.hits.get(target),3,'the test never queued a push');
+ assert.equal(c.state,'won');assert.equal(target.z,2);assert.equal(target.stagger,undefined);
+ assert.equal(c.bullets.length,0);assert.equal(removed.length,4,'ending skipped normal projectile cleanup');
+});
+
+test('the production phase retains per-volley counts across frames and moves after all same-frame hits',()=>{
+ const target=enemy(1,2),volley=shotgunVolley({id:'shotgun',count:5},{x:0,y:1,z:0}),c=context([target],[]),hurt=c.hurtEnemy,hitPositions=[];
+ c.hurtEnemy=(e,damage)=>{hitPositions.push(e.z);hurt(e,damage);};
+ c.moveActor=(_,e,dx,dz)=>{e.x+=dx;e.z+=dz;};
+ const pellets=count=>Array.from({length:count},(_,i)=>bullet(i,{kind:'shotgun',volley}));
+ c.bullets=pellets(2);runCurrent(c);assert.equal(target.z,2);assert.equal(volley.hits.get(target),2);
+ c.bullets=pellets(3);runCurrent(c);assert.deepEqual(hitPositions,[2,2,2,2,2]);
+ assert(Math.abs(target.z-3.1)<1e-10);assert.equal(target.stagger,.18);
+ c.bullets=pellets(2);runCurrent(c);assert.equal(volley.hits.get(target),7);assert(Math.abs(target.z-3.1)<1e-10,'a later frame pushed the same volley again');
 });

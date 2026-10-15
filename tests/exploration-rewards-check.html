@@ -2,7 +2,7 @@
 <title>探索奖励实战检查</title><style>body{margin:12px;background:#13242b;color:#e1e9e4;font:14px system-ui}button,select{padding:10px;background:#254943;color:inherit;border:1px solid #709582;border-radius:6px}iframe{border:0;display:block;margin-top:12px}#view{overflow:auto}pre{white-space:pre-wrap}</style>
 <button id="run" disabled>运行探索奖励检查</button><select id="preview-size" aria-label="预览尺寸"><option value="desktop">电脑 1180×720</option><option value="landscape">手机横屏 844×390</option><option value="portrait">手机竖屏 390×844</option></select><button id="preview" disabled>预览营地奖励</button><p id="status">载入中。本页使用隔离存档、固定帧和真实游戏流程；手机尺寸为模拟。</p><div id="view"></div><pre id="report"></pre>
 <script type="module">
-import{UPGRADES}from'../rules.js?v=209';
+import{UPGRADES}from'../rules.js?v=210';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(value,message)=>{if(!value)throw Error(message);};
 const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text(),results=[],errors=[];
 const biomes=['forest','snow','ash','sand','coast'],charges={forest:3,snow:1,ash:1,sand:3,coast:2};

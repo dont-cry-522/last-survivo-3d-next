@@ -1,7 +1,7 @@
-import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=209';
-import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=209';
+import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=210';
+import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=210';
 import{Vector3,Matrix4,Quaternion}from'./vendor/three.module.js';
-import{creatureGait,gaitDistance,gaitStride}from'./creature-gait.js?v=209';
+import{creatureGait,gaitDistance,gaitStride}from'./creature-gait.js?v=210';
 // Attack timings are shared with the pose driver so the strike matches its hit.
 export const ENEMY_MOTION={
  foamling:{wind:.55,recover:.25,cadence:9,range:2.1},tidecrab:{wind:.7,recover:.35,cadence:10,range:3.1},reefturtle:{wind:1.1,recover:.6,cadence:4,range:4},jellyseer:{wind:.85,recover:.4,cadence:4,range:12},tidestar:{wind:.9,recover:.45,cadence:4,range:11},wreckwarden:{wind:1.25,recover:1.7,cadence:4},

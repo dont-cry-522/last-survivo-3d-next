@@ -7,11 +7,15 @@ import {installForestVista} from '../forest-vista.js';
 import {installForestHabitats} from '../forest-habitats.js';
 import {installExplorationRoutes} from '../exploration-routes.js';
 import {polishEnvironmentModels} from '../environment-props.js';
-import {installBiomePlaces} from '../biome-places.js?v=209';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=209';
+import {installBiomePlaces} from '../biome-places.js?v=210';
+import {installEnvironmentClusters} from '../environment-clusters.js?v=210';
+import {installClimateLandforms} from '../climate-landforms.js';
+import {installHarborLife} from '../harbor-life.js';
+import {installExplorationLandmarks} from '../exploration-landmarks.js';
+import {installExplorationComposition} from '../exploration-composition.js';
 import {installEnvironmentGrounding} from '../environment-grounding.js';
 import {installAdventureGroundDetail,installHabitatDetail} from '../adventure-ground-detail.js';
-import {biomeWeights} from '../confluence.js';
+import {biomeWeights,REGIONS} from '../confluence.js';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const cleanup=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
@@ -85,7 +89,7 @@ test('two live worlds never overwrite each other or dispose shared ground resour
  b.ground.geometry.dispose();assert.equal(other,1);assert.equal(shared,0);
 });
 
-test('plant channel keeps the v153 obstacle mask exact, without darkening duplicate roots or other biomes',()=>{
+test('root channels keep the v153 obstacle mask exact and duplicate roots never accumulate darkness',()=>{
  const roots=[{x:0,z:0,biome:'forest',kind:'tuft',size:1,angle:.4},{x:3,z:-2,biome:'forest',kind:'fern',width:.9,angle:1.2}];
  const make=plants=>{const ground=new T.Mesh(new T.PlaneGeometry(48,48),new T.MeshStandardMaterial());ground.userData.ownedGeometry=true;return{half:16,ground,obstacles:[{x:0,z:0,r:1,place:true},{x:1.8,z:-.7,r:.5,environmentCluster:true}],habitatDetail:{userData:{records:plants}}};};
  const a=make(roots),b=make([...roots,...roots]),c=make(roots.map(p=>({...p,biome:'coast'}))),original=JSON.stringify(a.habitatDetail.userData.records);
@@ -93,31 +97,31 @@ test('plant channel keeps the v153 obstacle mask exact, without darkening duplic
  // Snapshot measured from the committed v153 single-channel mask for these solids.
  assert.equal(createHash('sha256').update(channel(first,0)).digest('hex'),'3e001774b00ce5c12feb797311a6fbde6cebfa4110d459b49b7b05e2ba6c2384');
  assert.deepEqual(channel(first,0),channel(third,0));assert.deepEqual(first.texture.image.data,second.texture.image.data);
- const green=channel(first,1);assert(green.some(v=>v>100));assert(green.some(v=>v>0&&v<30));assert(green.every(v=>v<=220));assert.equal(channel(third,1).some(v=>v>0),false);assert.equal(original,JSON.stringify(a.habitatDetail.userData.records));
+ const green=channel(first,1);assert(green.some(v=>v>100));assert(green.some(v=>v>0&&v<30));assert(green.every(v=>v<=220));assert(channel(third,1).some(v=>v>0));assert.notDeepEqual(channel(first,1),channel(third,1));assert.equal(original,JSON.stringify(a.habitatDetail.userData.records));
  const sample=(state,x,z)=>{const px=Math.floor((x+24)/48*512),py=Math.floor((z+24)/48*512);return state.texture.image.data[(py*512+px)*4+1];};
  assert.equal(sample(first,8,8),0);assert.notEqual(sample(first,.4,.2),sample(first,-.2,.4),'root stain became a rotationally uniform disc');
  for(const w of [a,b,c])w.ground.geometry.dispose();
 });
 
-test('all maps reuse one fixed mask and unchanged plant records, with only forest roots in the joined map',()=>{
+test('all maps ground their actual vegetation and scree in one fixed mask while preserving R/B/A byte for byte',()=>{
  for(const id of ['forest','snow','ash','sand','coast','confluence']){
-  const world=buildWorld(id,522);polishEnvironmentModels(world);installBiomePlaces(world,id);installEnvironmentClusters(world,id);installAdventureGroundDetail(world,id);installHabitatDetail(world,id);
+  const world=buildWorld(id,522);polishEnvironmentModels(world);installForestVista(world,id);installForestHabitats(world,id);installBiomePlaces(world,id);installClimateLandforms(world,id);installHarborLife(world,id);installEnvironmentClusters(world,id);installExplorationRoutes(world);installExplorationLandmarks(world,id);installExplorationComposition(world,id);installAdventureGroundDetail(world,id);installHabitatDetail(world,id);
   const records=[...world.adventureGroundDetail.userData.records,...world.habitatDetail.userData.records],before=JSON.stringify(records),children=world.group.children.length,positions=world.ground.geometry.attributes.position.array.slice();
-  const state=installEnvironmentGrounding(world),expected=records.filter(p=>p.biome==='forest'&&['tuft','fern','shrub'].includes(p.kind)).length;
+  const ground=world.ground.clone();ground.geometry=world.ground.geometry.clone();
+  const bare=installEnvironmentGrounding({...world,ground,adventureGroundDetail:null,habitatDetail:null}),state=installEnvironmentGrounding(world),expected=records.filter(p=>['tuft','fern','shrub','reed','stone'].includes(p.kind)).length;
   assert.equal(state.plants,expected);assert.equal(state.texture.image.data.length,512*512*4);assert.equal(world.group.children.length,children);assert.deepEqual(world.ground.geometry.attributes.position.array,positions);assert.equal(JSON.stringify(records),before);
-  const green=channel(state,1);assert.equal(green.some(v=>v>0),id==='forest'||id==='confluence');
-  assert(green.filter(v=>v>0).length/green.length<.17,'faint forest root transitions spread across the scene');
-  assert(green.filter(v=>v>8).length/green.length<.10,'visible forest root transitions became a scene-wide carpet');
+  for(const c of[0,2,3])assert.deepEqual(channel(state,c),channel(bare,c),'root or scree blending rewrote contact, track or wet-bank data');
+  const green=channel(state,1);assert(green.some(v=>v>0));
+  assert(green.filter(v=>v>0).length/green.length<.17,'faint root transitions spread across the scene');
+  assert(green.filter(v=>v>8).length/green.length<.10,'visible root transitions became a scene-wide carpet');
   assert.strictEqual(installEnvironmentGrounding(world).texture,state.texture);assert.strictEqual(world.ground.material,state.material);
-  if(id==='confluence'){
-   const region=world.regions.find(r=>r.id==='forest'),extent=world.half+8,pixel=2*extent/512;
-   for(let z=0;z<512;z++)for(let x=0;x<512;x++)if(!region.contains((x+.5)*pixel-extent,(z+.5)*pixel-extent))assert.equal(green[z*512+x],0,'root blur crossed the forest biome boundary');
-   for(const p of records.filter(p=>p.biome!=='forest')){
-    if(records.some(q=>q.biome==='forest'&&Math.hypot(p.x-q.x,p.z-q.z)<2))continue;
-    const x=Math.floor((p.x+world.half+8)/(2*(world.half+8))*512),z=Math.floor((p.z+world.half+8)/(2*(world.half+8))*512);assert.equal(green[z*512+x],0,'non-forest roots acquired a green stain');
-   }
+  for(const biome of id==='confluence'?REGIONS.map(r=>r.id):[id]){
+   assert.equal(state.rootCounts[biome],records.filter(p=>p.biome===biome&&['tuft','fern','shrub','reed','stone'].includes(p.kind)).length);
+   const bands=records.filter(p=>p.biome===biome&&p.landscape&&['tuft','fern','shrub','reed','stone'].includes(p.kind));assert(bands.length>10);
+   const pixel=2*(world.half+8)/512,grounded=bands.filter(p=>[-.5,0,.5].some(dx=>[-.5,0,.5].some(dz=>sample(state,world,p.x+dx*pixel,p.z+dz*pixel,1)>3)));
+   assert(grounded.length>bands.length*.75,`${id} ${biome} landscape plants/scree still have no ground contact`);
   }
-  let disposed=0;state.texture.addEventListener('dispose',()=>disposed++);cleanup(world);assert.equal(disposed,1);assert(state.disposed);
+  let disposed=0;state.texture.addEventListener('dispose',()=>disposed++);cleanup(world);ground.geometry.dispose();assert.equal(disposed,1);assert(state.disposed&&bare.disposed);
  }
 });
 
@@ -157,7 +161,7 @@ test('root-bed colour reuses existing fine soil samples and plain materials need
  const plainState=installEnvironmentGrounding(plain),shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};plainState.material.onBeforeCompile(shader);
  assert(shader.fragmentShader.includes('float forestRootGrain=.5;'));assert(!shader.fragmentShader.includes('soilFine'));assert(!shader.fragmentShader.includes('soilPixel'));assert.equal(shader.fragmentShader.match(/texture2D\(sceneryContact/g).length,1);
  const forest=buildWorld('forest',522);installAdventureGroundDetail(forest,'forest');const state=installEnvironmentGrounding(forest),detailed={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};state.material.onBeforeCompile(detailed);
- assert(detailed.fragmentShader.includes('float forestRootLitter'));assert(detailed.fragmentShader.includes('groundContacts.g*forestRootLitter*.13'));
+ assert(detailed.fragmentShader.includes('float forestRootLitter'));assert(detailed.fragmentShader.includes('rootContact*forestRootLitter*.13*soilOrganic*(1.0-soilCoast)'));
  assert(detailed.fragmentShader.indexOf('vec4 soilFine')<detailed.fragmentShader.indexOf('float forestRootGrain'));
  assert.equal(detailed.fragmentShader.match(/texture2D\(sceneryContact/g).length,1);assert(!detailed.fragmentShader.includes('undefined'));
  plain.ground.geometry.dispose();cleanup(forest);
@@ -283,4 +287,56 @@ test('a place beside a joined climate boundary fades before reaching the neighbo
   else if(before[k+2]>30){assert(after[k+2]<=before[k+2]);if(after[k+2]<before[k+2])faded++;}
  }
  assert(faded>10&&unchanged>20&&excluded>20,'boundary fixture did not exercise all three climate zones');plain.ground.geometry.dispose();joined.ground.geometry.dispose();
+});
+
+test('each biome root bed fades at its own boundary and reused filter buffers never carry another biome across',()=>{
+ const groups=REGIONS.map(region=>{
+  let edge,distance=1;
+  for(let z=-120;z<=120;z+=2)for(let x=-120;x<=120;x+=2){const d=biomeWeights(x,z)[region.id]-.5;if(d>0&&d<distance){distance=d;edge={x,z};}}
+  assert(edge,'boundary fixture has no transition point');
+  const kind=['snow','ash'].includes(region.id)?'stone':region.id==='forest'?'shrub':'reed';
+  return[edge,region].map(p=>({x:p.x,z:p.z,biome:region.id,kind,width:1.2,angle:.4}));
+ });
+ const make=(records,joined)=>{
+  const ground=new T.Mesh(new T.PlaneGeometry(296,296),new T.MeshStandardMaterial());ground.userData.ownedGeometry=true;
+  return{half:140,ground,habitatDetail:{userData:{records}},regions:joined?REGIONS.map(r=>({id:r.id,contains:(x,z)=>biomeWeights(x,z)[r.id]>=.5})):null};
+ };
+ const combined=make(groups.flat(),true),merged=installEnvironmentGrounding(combined),expected=new Uint8Array(512*512),pixel=296/512;
+ for(const records of groups){
+  const plain=make(records,false),joined=make(records,true),original=installEnvironmentGrounding(plain),state=installEnvironmentGrounding(joined),raw=channel(original,1),soft=channel(state,1),biome=records[0].biome;
+  let faded=0,excluded=0,unchanged=0;
+  for(let i=0;i<soft.length;i++){
+   expected[i]=Math.max(expected[i],soft[i]);assert(soft[i]<=raw[i],'clipping strengthened a root bed');if(!raw[i])continue;
+   const x=(i%512+.5)*pixel-148,z=(Math.floor(i/512)+.5)*pixel-148,w=biomeWeights(x,z)[biome];
+   if(w<=.5){assert.equal(soft[i],0,biome+' contact crossed its biome boundary');excluded++;}
+   else if(w>=.72){assert.equal(soft[i],raw[i]);unchanged++;}
+   else if(soft[i]<raw[i])faded++;
+  }
+  assert(faded>0&&excluded>0&&unchanged>0,`${biome} did not exercise both the border and interior: ${faded}/${excluded}/${unchanged}`);
+  for(const c of[0,2,3])assert.deepEqual(channel(state,c),channel(original,c));plain.ground.geometry.dispose();joined.ground.geometry.dispose();
+ }
+ assert.deepEqual(channel(merged,1),expected,'a later biome reused old horizontal filter values or added overlapping stains');combined.ground.geometry.dispose();
+});
+
+test('mineral root tones remain local, sand stays warm, and the single ground sample respects worn paths',()=>{
+ const w=buildWorld('confluence',522);w.habitatDetail={userData:{records:REGIONS.map(r=>({...r,biome:r.id,kind:'reed',width:1}))}};
+ const state=installEnvironmentGrounding(w),shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};state.material.onBeforeCompile(shader);
+ const palettes=[...shader.fragmentShader.matchAll(/forestRootTone=mix\(forestRootTone,mix\(vec3\(([^)]+)\),vec3\(([^)]+)\),forestRootGrain\),(soilSnow|soilAsh|soilSand|soilCoast)\);/g)];assert.equal(palettes.length,4);
+ for(const [,a,b,biome]of palettes)for(const color of[a,b]){
+  const [r,g,blue]=color.split(',').map(Number);assert(Math.min(r,g,blue)>=.74&&r*.2126+g*.7152+blue*.0722>.80&&Math.max(r,g,blue)<=1.08,'root palette can create a black or overbright disc');
+  if(biome==='soilSand')assert(r>g&&g>blue,'desert contact borrows forest green');
+  if(biome==='soilSnow')assert(blue>=g&&g>=r,'snow contact lost its cool mineral tint');
+ }
+ assert(shader.fragmentShader.includes('float rootContact=groundContacts.g*(1.0-forestTrack);'));
+ assert(shader.fragmentShader.includes('rootContact*forestRootLitter*.13*soilOrganic*(1.0-soilCoast)'));
+ assert.equal(shader.fragmentShader.match(/texture2D\(sceneryContact/g).length,1);assert.equal((shader.fragmentShader.match(/uniform sampler2D sceneryContact/g)||[]).length,1);
+ cleanup(w);
+ const shaders=[],states=[],worlds=[];
+ for(const biome of['forest','snow','ash','sand','coast']){
+  const world=floorWorld();delete world.forestHabitats;world.habitatDetail={userData:{records:[{x:0,z:0,biome,kind:'reed',width:1}]}};worlds.push(world);
+  const s=installEnvironmentGrounding(world),shader={uniforms:{},vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader};s.material.onBeforeCompile(shader);states.push(s);shaders.push(shader.fragmentShader);
+  assert(!shader.fragmentShader.includes('soilFine')&&!shader.fragmentShader.includes('soilSand'),'plain ground depends on missing terrain shader variables');
+ }
+ assert.equal(new Set(states.map(s=>s.material.customProgramCacheKey())).size,5,'plain climate palettes share an incompatible shader cache key');assert.equal(new Set(shaders).size,5);
+ for(const world of worlds)world.ground.geometry.dispose();
 });

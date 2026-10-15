@@ -95,25 +95,25 @@ test('fern cutouts use alpha-tested green-channel masks and retain the shared in
  module.animateAdventureGroundDetail(12);assert.equal(fern.uniforms.groundWindTime.value,12);module.animateAdventureGroundDetail(NaN);module.animateAdventureGroundDetail(Infinity);assert.equal(fern.uniforms.groundWindTime.value,12);module.animateAdventureGroundDetail(0);assert.equal(fern.uniforms.groundWindTime.value,0);release(h.world);
 });
 
-test('shrub leaves use isolated scan regions on curved midribs, not solid pointed silhouettes',async()=>{
- const module=await fresh(),{TREE_LEAF_UVS}=await import('../tree-scenery.js?v=209'),h=habitat(module),g=h.shrub.geometry,{position:p,uv,color}=g.attributes;
+test('shrub leaves use isolated scan regions on gently curved surfaces, not solid pointed silhouettes',async()=>{
+ const module=await fresh(),{TREE_LEAF_UVS}=await import('../tree-scenery.js?v=210'),h=habitat(module),g=h.shrub.geometry,{position:p,uv,color}=g.attributes;
  assert.equal(g.index.count/3,120);assert.equal(uv.count,p.count);assert([...uv.array].every(v=>Number.isFinite(v)&&v>=0&&v<=1));
  for(let branch=0;branch<3;branch++){
-  const first=branch*46;
+  const first=branch*54;
   for(let j=0;j<10;j++){assert(Math.abs(uv.getX(first+j)-.085)<1e-6);assert(Math.abs(uv.getY(first+j)-.78)<1e-6);}
-  for(let leaf=0;leaf<4;leaf++){
-   const n=first+10+leaf*9,[u,v,w,h]=TREE_LEAF_UVS[(branch*4+leaf)%TREE_LEAF_UVS.length];
-   for(let j=0;j<9;j++){
+  for(let leaf=0;leaf<6;leaf++){
+   const n=first+10+(leaf<2?leaf*6:12+(leaf-2)*8),count=leaf<2?6:8,rows=count/2,[u,v,w,h]=TREE_LEAF_UVS[(branch*6+leaf)%TREE_LEAF_UVS.length];
+   for(let j=0;j<count;j++){
     assert(uv.getX(n+j)>=u-1e-6&&uv.getX(n+j)<=u+w+1e-6&&uv.getY(n+j)>=v-1e-6&&uv.getY(n+j)<=v+h+1e-6,'leaf samples a neighbouring scan');
     assert.equal(color.getX(n+j),color.getY(n+j));assert.equal(color.getY(n+j),color.getZ(n+j),'scan receives an extra green vertex tint');
    }
-   // The scan controls the taper; the supporting surface keeps full width at
-   // both ends, a curved middle, a raised ridge and a visibly drooping tip.
-   const width=row=>Math.hypot(p.getX(n+row*3+2)-p.getX(n+row*3),p.getZ(n+row*3+2)-p.getZ(n+row*3));
-   assert(width(0)>.08&&width(0)<.11);assert(Math.abs(width(0)-width(1))<1e-6);assert(Math.abs(width(1)-width(2))<1e-6);
-   assert(p.getY(n+4)>(p.getY(n+3)+p.getY(n+5))/2+.02,'leaf has no raised midrib');
-   assert(p.getY(n+4)>p.getY(n+1)+.06,'leaf has no curved shoulder');
-   assert(p.getY(n+7)<p.getY(n+1)-.10,'leaf tip does not droop');
+   // The scan controls the outline. The surface keeps its full UV width,
+   // a small shoulder and a gently falling tip, even on the taller plants.
+   const width=row=>Math.hypot(p.getX(n+row*2+1)-p.getX(n+row*2),p.getZ(n+row*2+1)-p.getZ(n+row*2));
+   const y=row=>(p.getY(n+row*2)+p.getY(n+row*2+1))/2;
+   assert(width(0)>.08&&width(0)<.15);for(let row=1;row<rows;row++)assert(Math.abs(width(0)-width(row))<1e-6);
+   assert(y(1)>y(0)+.005,'leaf has no curved shoulder');
+   assert(y(rows-1)<y(0)-.01&&y(rows-1)>y(0)-.03,'leaf tip is flat or excessively drooping');
   }
  }
  release(h.world);
@@ -124,10 +124,13 @@ test('shrub cutouts share one RGBA atlas and retain wind without transparent sor
  assert.strictEqual(m,other.shrub.material);for(const mesh of h.group.children.filter(m=>m.name==='habitat-shrub'))assert.strictEqual(mesh.material,m);
  assert.notStrictEqual(m,h.fern.material);assert.equal(m.name,'M_Shrub_Scanned_A');assert.equal(m.side,T.DoubleSide);assert.equal(m.transparent,false);assert.equal(m.depthWrite,true);assert.equal(m.alphaMap,null);assert.equal(m.alphaTest,.34);assert.equal(texture.colorSpace,T.SRGBColorSpace);
  const {data,width,height}=texture.image,uv=h.shrub.geometry.attributes.uv;
- const sample=i=>{const x=Math.round(uv.getX(i)*(width-1)),v=uv.getY(i),y=Math.round((texture.flipY?1-v:v)*(height-1));return data[(y*width+x)*4+3]/255;};
+ const sample=(u,v)=>{const x=Math.round(u*(width-1)),y=Math.round((texture.flipY?1-v:v)*(height-1));return data[(y*width+x)*4+3]/255;};
  for(let branch=0;branch<3;branch++){
-  const first=branch*46;for(let i=0;i<10;i++)assert(sample(first+i)>m.alphaTest,'stem vanished into the transparent atlas');
-  for(let leaf=0;leaf<4;leaf++){const center=first+10+leaf*9+4;assert(sample(center)>m.alphaTest,'leaf center disappeared');assert(sample(center-1)<m.alphaTest&&sample(center+1)<m.alphaTest,'scan retains opaque rectangular sides');}
+  const first=branch*54;for(let i=0;i<10;i++)assert(sample(uv.getX(first+i),uv.getY(first+i))>m.alphaTest,'stem vanished into the transparent atlas');
+  for(let leaf=0;leaf<6;leaf++){
+   const n=first+10+(leaf<2?leaf*6:12+(leaf-2)*8),count=leaf<2?6:8,left=uv.getX(n),right=uv.getX(n+1),middle=(uv.getY(n)+uv.getY(n+count-1))*.5;
+   assert(sample((left+right)*.5,middle)>m.alphaTest,'interpolated leaf center disappeared');assert(sample(left,middle)<m.alphaTest&&sample(right,middle)<m.alphaTest,'scan retains opaque rectangular sides');
+  }
  }
  const tint=new T.Color();for(let i=0;i<h.shrub.count;i++){h.shrub.getColorAt(i,tint);assert(Math.min(tint.r,tint.g,tint.b)>.83&&Math.max(tint.r,tint.g,tint.b)<.94,'instance tint hides scanned leaf colour');}
  const shader=shaderFor(m);assert.strictEqual(shader.uniforms.groundWindTime,module.groundWindTime);assert(shader.vertexShader.includes('groundFlex*.035'));assert(shader.vertexShader.includes('mat3(modelMatrix*instanceMatrix)'));

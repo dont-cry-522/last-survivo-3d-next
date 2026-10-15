@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {segmentGroundEntry} from './adventure-combat.js?v=209';
+import {segmentGroundEntry} from './adventure-combat.js?v=210';
 
 const clamp=T.MathUtils.clamp,finite=(value,fallback)=>Number.isFinite(value)?value:fallback;
 export const MAX_PITCH=Math.PI/2-.025;

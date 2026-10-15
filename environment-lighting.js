@@ -1,6 +1,6 @@
-import{installHarborHorizon,harborBayLayout,harborBayCut}from'./harbor-horizon.js?v=209';
-import{installForestBackdrop}from'./tree-scenery.js?v=209';
-import{environmentDetailTexture}from'./biome-scenery.js?v=209';
+import{installHarborHorizon,harborBayLayout,harborBayCut}from'./harbor-horizon.js?v=210';
+import{installForestBackdrop}from'./tree-scenery.js?v=210';
+import{environmentDetailTexture}from'./biome-scenery.js?v=210';
 import * as T from './vendor/three.module.js';
 
 // The same three lights serve every climate; transitions do not allocate lights or shadow maps.
@@ -56,7 +56,7 @@ export class EnvironmentLighting{
     this.colors[k].b+=(this.cycleColor.b-tones.forest[k].b)*forest;
    }
    for(const k of scalarKeys){let value=T.MathUtils.lerp(night[k],CLIMATE_LIGHT.forest[k],cycle.day);if(k==='key')value*=cycle.horizon;this.values[k]+=(value-CLIMATE_LIGHT.forest[k])*forest;}
-   this.direction.lerp(cycle.direction,forest).normalize();this.day=1-forest+forest*cycle.day;
+   this.direction.lerp(cycle.direction,forest*cycle.horizon).normalize();this.day=1-forest+forest*cycle.day;
    this.shaftStrength=1-forest+forest*cycle.horizon*T.MathUtils.lerp(.10,1,cycle.day);
   }
   this.hemi.color.lerp(this.colors.sky,a);this.hemi.groundColor.lerp(this.colors.bounce,a);
@@ -101,12 +101,23 @@ ridgeMaterial.onBeforeCompile=shader=>{
   ridgeRelief*=ridgeNear*ridgeFine*(.4+ridgeSteep*.6);
  `);
  shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+  vec3 ridgeSlopeNormal=normal;
   vec3 ridgeDx=dFdx(-vViewPosition),ridgeDy=dFdy(-vViewPosition),ridgeRx=cross(ridgeDy,normal),ridgeRy=cross(normal,ridgeDx);
   float ridgeDet=dot(ridgeDx,ridgeRx);
   normal=normalize(abs(ridgeDet)*normal-sign(ridgeDet)*(dFdx(ridgeRelief)*ridgeRx+dFdy(ridgeRelief)*ridgeRy));
  `);
+ // Broad slope shading uses the real sun/moon direction and unperturbed mesh
+ // normals. Keep it before normal distance fog and fade it out at the foot.
+ shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
+  #if NUM_DIR_LIGHTS > 0
+   float ridgeFacing=smoothstep(.25,.95,dot(ridgeSlopeNormal,directionalLights[0].direction));
+   float ridgeSunStrength=smoothstep(0.0,.8,dot(directionalLights[0].color,vec3(.2126,.7152,.0722)));
+   outgoingLight*=mix(1.0,mix(.58,1.04,ridgeFacing),smoothstep(0.0,.24,ridgeNear)*ridgeSunStrength);
+  #endif
+  #include <opaque_fragment>
+ `);
 };
-ridgeMaterial.customProgramCacheKey=()=> 'landscape-climate-slope-detail';
+ridgeMaterial.customProgramCacheKey=()=> 'landscape-climate-slope-relief';
 // This radial mesh already has an exact spatial index: each angular sector is
 // contiguous in each ring. Tree roots and harbor footings only cast vertically.
 // Keep Three's actual triangle intersection/face data, but avoid scanning the
@@ -147,41 +158,56 @@ export function installDistantLandscape(world,id,biomeAt=()=>id){
   const passAngle=angle-form.pass-ring*.22,pass=1-T.MathUtils.smoothstep(Math.abs(Math.atan2(Math.sin(passAngle),Math.cos(passAngle))),.15,.65);
   const mass=.66+.22*Math.sin(angle*2+phase+.5)+.12*Math.cos(angle*3-phase);
   let rhythm=ring?.61+.19*Math.sin(angle*5+1.6)+.13*Math.sin(angle*11+.3)+.07*Math.cos(angle*19-1.1):.56+.20*Math.sin(angle*7+.8)+.14*Math.sin(angle*13-1)+.10*Math.cos(angle*23+.4);
-  let contour=1,slope=.20*t+.80*t*t,relief=0;
+  let contour=1,slope=.20*t+.80*t*t,relief=0,cut=0,scarp=0;
   const fold=Math.sin(angle*17+phase+t*2.8),gully=.5+.5*Math.sin(angle*29+phase-t*3+Math.sin(angle*7)*.65);
   if(biome==='forest'){
-   rhythm=mass+.08*Math.sin(angle*(ring?7:5)+phase)+.025*Math.cos(angle*13+.4);
-   // Broad wooded shoulders broken by wandering drainage folds, not horizontal bands.
-   slope+=fade*.035;relief=fade*(.045*fold+.023*Math.sin(angle*31-t*5+phase));
+   rhythm=mass+.13*Math.sin(angle*(ring?7:5)+phase)+.035*Math.cos(angle*13+.4);
+   // The shoulder rises in front of the skyline, with broad, shallow valleys.
+   cut=(.5+.5*Math.sin(angle*11+phase+t*.8))**3;
+   slope=.12*t+.88*T.MathUtils.smoothstep(t,0,1);
+   relief=fade*(.065*fold-.14*cut);
   }else if(biome==='snow'){
-   rhythm=mass*(.68+.30*Math.abs(Math.sin(angle*(ring?7:5)+.4)))+.08*Math.sin(angle*13+phase);
-   contour=.94+.22*(.5+.5*Math.sin(angle*11+ring))**2;slope=.07*t+.93*t**1.35;
-   relief=fade*(.065*fold-.060*gully*gully+.023*Math.sin(angle*43+t*4));
+   // Deep drainage cuts run down from the saddles instead of rippling across the slope.
+   cut=(.5+.5*Math.sin(angle*17+phase+t*.7+.35*Math.sin(angle*3)))**5;
+   rhythm=mass*(.48+.52*Math.abs(Math.sin(angle*(ring?7:5)+.4)))+.06*Math.sin(angle*13+phase);
+   contour=.94+.22*(.5+.5*Math.sin(angle*11+ring))**2;
+   slope=.07*t+.93*t**1.12;
+   relief=fade*(.055*fold-.24*cut)-T.MathUtils.smoothstep(t,.6,1)*.07*cut;
   }else if(biome==='ash'){
-   // A few dominant broken volcanic shoulders, with deeper cuts between them.
-   rhythm=mass*(.77+.23*Math.sin(angle*3+phase)**2)+.065*Math.sin(angle*11+.5);
-   contour=.93+.12*Math.sin(angle*9+ring);slope=.12*t+.88*t**1.7;
-   relief=fade*(.07*fold+.032*Math.sin(t*7+angle*5+phase)-.026*gully);
+   // Three broad cones keep straight flanks and a shallow broken summit rim.
+   const cone=.5+.5*Math.sin(angle*3+phase);
+   cut=(.5+.5*Math.sin(angle*15+phase+t*.45))**4;
+   rhythm=mass*(.34+.86*cone**1.5);
+   contour=1-.19*T.MathUtils.smoothstep(cone,.92,1);
+   slope=.08*t+.92*t**1.12;
+   relief=fade*(.04*fold-.12*cut);
   }else if(biome==='sand'){
-   rhythm=mass+.07*Math.sin(angle*5+phase)+.025*Math.cos(angle*9+ring);
-   contour=.83+.17*Math.sin(angle*3+ring*1.8);slope=.3*t+.7*t*t*(3-2*t);
-   relief=fade*(.032*Math.sin(angle*11+t*4+phase)+.015*Math.sin(angle*21-t*3));
+   // Low talus, one exposed escarpment, then a broad table. Its height and
+   // setback change along the ridge so the ledge is not a horizontal stripe.
+   const mesa=T.MathUtils.smoothstep(Math.sin(angle*(ring?4:3)+phase),-.3,.25),setback=.49+.045*Math.sin(angle*5+phase);
+   rhythm=.29+.28*mass+.47*mesa;contour=.90+.10*Math.sin(angle*2+phase);
+   slope=.16*t+.27*T.MathUtils.smoothstep(t,.05,.46)+.57*T.MathUtils.smoothstep(t,setback,setback+.23);
+   cut=(.5+.5*Math.sin(angle*13+phase+t*.5))**4;
+   scarp=T.MathUtils.smoothstep(t,setback-.08,setback+.05)*(1-T.MathUtils.smoothstep(t,setback+.17,setback+.30));
+   relief=fade*(.018*fold-.045*cut);
   }else if(biome==='coast'){
-   // Preserve the low quay-bearing shelf; new relief sits on the upper headlands.
-   if(ring)rhythm=mass+.08*Math.sin(angle*5+phase);
+   // Preserve every vertex of the near quay-bearing shelf. Only the outer
+   // islands gain low straits and separate, flat-shouldered headlands.
+   if(ring)rhythm=mass*(.20+.95*T.MathUtils.smoothstep(.5+.5*Math.sin(angle*4+phase),.13,.85));
    contour=.28+.72*(.5+.5*Math.sin(angle*3+ring))**2;
    const profile=[0,.12,.68,.91,1],q=t*4,k=Math.min(3,Math.floor(q));slope=T.MathUtils.lerp(profile[k],profile[k+1],q-k);
    relief=fade*Math.sin(angle*29+ring*1.3)*.055+T.MathUtils.smoothstep(t,.50,.95)*fade*(.035*fold-.018*gully);
+   if(ring){cut=(.5+.5*Math.sin(angle*13+phase+t*.6))**3;slope=.15*t+.85*T.MathUtils.smoothstep(t,.17,.72);relief=fade*(.05*fold-.12*cut);}
   }
   const opening=biome==='coast'&&!ring?1:1-pass*.82;
   const top=form.height[ring]*p.height*rhythm*contour*opening,y=t===0?-.13:Math.max(.015,top*(slope+relief)),shade=new T.Color(p.ridge),haze=new T.Color(p.fog);
-  if(biome==='forest')shade.lerp(stone,T.MathUtils.smoothstep(t,.40,.98)*(.11+.16*gully)).multiplyScalar(.94+.06*fold);
+  if(biome==='forest')shade.lerp(stone,T.MathUtils.smoothstep(t,.40,.98)*(.11+.16*gully)).multiplyScalar(.94+.06*fold-.10*cut*fade);
   if(biome==='snow'){
-   const snowline=t+.085*Math.sin(angle*11+phase)-.15*gully*gully+.035*fold;
-   shade.lerp(snow,T.MathUtils.smoothstep(snowline,.42,.93)*.85).multiplyScalar(.94+.06*(1-gully));
+   const snowline=t+.085*Math.sin(angle*11+phase)-.10*gully*gully+.035*fold-.065*cut*fade;
+   shade.lerp(snow,T.MathUtils.smoothstep(snowline,.42,.93)*.85).multiplyScalar(.94+.06*(1-gully)-.025*cut*fade);
   }
-  if(biome==='ash')shade.lerp(basalt,(.14+.12*(.5+.5*fold))*T.MathUtils.smoothstep(t,.15,.92)).multiplyScalar(.89+.11*(1-gully));
-  if(biome==='sand')shade.lerp(sand,.13+.12*(.5+.5*Math.sin(angle*7-t*2+phase))).multiplyScalar(.95+.05*Math.sin(angle*11+t*3));
+  if(biome==='ash')shade.lerp(basalt,(.14+.12*(.5+.5*fold))*T.MathUtils.smoothstep(t,.15,.92)).multiplyScalar(.89+.11*(1-gully)-.10*cut*fade);
+  if(biome==='sand')shade.lerp(sand,.13+.12*(.5+.5*Math.sin(angle*7-t*2+phase))+scarp*.12).multiplyScalar(.95+.05*Math.sin(angle*11+t*3)-scarp*.12);
   if(biome==='coast')shade.lerp(cliff,T.MathUtils.smoothstep(t,.32,.82)*(.22+.08*fold)).multiplyScalar(1-.06*gully*T.MathUtils.smoothstep(t,.35,.9));
   // Separate the two silhouettes without washing both in the same fog color;
   // distance fog still supplies the continuous atmospheric transition.

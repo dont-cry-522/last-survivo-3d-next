@@ -13,6 +13,7 @@ const placeControls=document.createElement('span');placeControls.innerHTML='<sel
 if(singleSizeBatch)$('#place-size').value=initialSize;
 const placeCheckButton=document.createElement('button');placeCheckButton.id='place-check';placeCheckButton.disabled=true;placeCheckButton.textContent=singleSizeBatch?'检查当前尺寸 · 20 组':'检查五图与五境双视角 · 40 组';placeControls.after(placeCheckButton);
 const landscapeButton=document.createElement('button');landscapeButton.id='landscape-near';landscapeButton.disabled=true;landscapeButton.textContent='近看地貌植被';placeControls.append(' ',landscapeButton);
+const landscapeFocus=document.createElement('select');landscapeFocus.id='landscape-focus';landscapeFocus.setAttribute('aria-label','地貌植被取景');landscapeFocus.innerHTML='<option value="group">植被组（原机位）</option><option value="roots">近处根部</option>';landscapeButton.before(landscapeFocus,' ');
 const sourceHtml=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text();
 // srcdoc is a rendering fixture, not an offline install/export test. Excluding
 // this module also avoids its runtime URLs resolving against /tests/.
@@ -194,9 +195,9 @@ function placeEntrance(map,index,{biome='auto',camera='first',framing='panorama'
   const report={seed:522,map,requestedBiome:biome,biome:place.biome,activeBiome:g.world.activeBiome||place.biome,index:place.index,name:place.name,camera,framing,position:{x:g.player.x,y:g.player.y,z:g.player.z},cameraPosition:g.camera.position.toArray(),entrance:entry,center:{x:place.x,z:place.z},yaw:g.adventureCamera.yaw,pitch:g.adventureCamera.pitch,time:g.time,width:win.innerWidth,height:win.innerHeight,offlineTested:false,mask:placeGroundMetrics(place),vegetation:vegetationMetrics(place),render:reportFrame(),errors:[...win.qaErrors]};
   window.placeEntranceReport=report;return report;
 }
-function landscapeView(map,biome,camera){
+function landscapeView(map,biome,camera,focus='group'){
  preparePlaceWorld(map);
- const world=g.world,requestedBiome=biome;biome=map==='confluence'?(biome==='auto'?world.activeBiome||'forest':biome):map;
+ const world=g.world,requestedBiome=biome,roots=focus==='roots';biome=map==='confluence'?(biome==='auto'?world.activeBiome||'forest':biome):map;
  const records=(world.habitatDetail?.userData.records||[]).filter(p=>p.biome===biome&&p.landscape),groups=new Map(),preferred={forest:'woodland-edge',snow:'ridge-scree',ash:'flow-scree',sand:'dune-foot',coast:'shore-reeds'}[biome];
  for(const p of records){const key=p.landscape+':'+p.landscapeIndex;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(p);}
  assert(groups.size,'当前区域没有可近看的地貌植被组');
@@ -212,14 +213,14 @@ function landscapeView(map,biome,camera){
  const testCamera=new T.PerspectiveCamera(),trial=new g.adventureCamera.constructor(testCamera,{mode:camera,distance:g.adventureCamera.distance,shoulderOffset:g.adventureCamera.shoulderOffset});let chosen;
  const candidates=[...groups.values()].sort((a,b)=>Number(b[0].landscape===preferred)-Number(a[0].landscape===preferred)||b.length-a.length).flatMap(group=>group.slice(0,6).map(anchor=>({group,anchor})));
  for(const {group,anchor} of candidates){
-  const sample=group.filter(p=>Math.hypot(p.x-anchor.x,p.z-anchor.z)<2.5).slice(0,6),center={x:sample.reduce((n,p)=>n+p.x,0)/sample.length,z:sample.reduce((n,p)=>n+p.z,0)/sample.length};center.y=floor(center.x,center.z)+.55;
+  const sample=roots?[anchor]:group.filter(p=>Math.hypot(p.x-anchor.x,p.z-anchor.z)<2.5).slice(0,6),center={x:sample.reduce((n,p)=>n+p.x,0)/sample.length,z:sample.reduce((n,p)=>n+p.z,0)/sample.length};center.y=floor(center.x,center.z)+(roots?.05:.55);
   const base=Math.atan2(world.spawn.x-center.x,world.spawn.z-center.z);
-  search:for(const distance of camera==='first'?[6,5,7,8]:[1.4,2,3])for(let i=0;i<24;i++){
+  search:for(const distance of camera==='first'?(roots?[2.6,3.2,3.8]:[6,5,7,8]):roots?[1,1.4,2]:[1.4,2,3])for(let i=0;i<24;i++){
    const angle=base+i*Math.PI/12,p={x:center.x+Math.sin(angle)*distance,z:center.z+Math.cos(angle)*distance};p.y=floor(p.x,p.z);if(!clear(p))continue;
    const yaw=Math.atan2(center.x-p.x,center.z-p.z),pitch=Math.atan2(center.y-p.y-eye*(camera==='first'?1:.84),distance);
    trial.yaw=yaw;trial.pitch=pitch;trial.update(0,p,world.obstacles,{eyeHeight:eye,shoulderHeight:eye*.84,groundHeight:world.groundHeightAt,snap:true});
    const viewDistance=testCamera.position.distanceTo(new T.Vector3(center.x,center.y,center.z));
-   if(viewDistance<5||viewDistance>8||!visible(testCamera.position,center))continue;
+   if(viewDistance<(roots&&camera==='first'?2.6:5)||viewDistance>(roots&&camera==='first'?4.5:8)||!visible(testCamera.position,center))continue;
    chosen={group,center,position:p,yaw,pitch};break search;
   }
   if(chosen)break;
@@ -229,7 +230,10 @@ function landscapeView(map,biome,camera){
  Object.assign(g.player,{...position,groundHeight:position.y,vx:0,vy:0,vz:0,waterDepth:0,attack:9999,inv:9999});g.hero.position.set(position.x,position.y,position.z);
  g.adventureCamera.yaw=yaw;g.adventureCamera.pitch=pitch;g.adventureCamera._ready=false;g.setView(camera);step(12);
  const vegetation=vegetationMetrics({biome}),near=vegetationCache.get(world).find(layer=>layer.name==='habitat').items.filter(p=>p.biome===biome&&Math.hypot(p.x-center.x,p.z-center.z)<6).sort((a,b)=>Math.hypot(a.x-center.x,a.z-center.z)-Math.hypot(b.x-center.x,b.z-center.z));
- const report={seed:522,map,requestedBiome,biome,activeBiome:world.activeBiome||biome,camera,landscape:group[0].landscape,landscapeIndex:group[0].landscapeIndex,groupInstances:group.length,position:{x:g.player.x,y:g.player.y,z:g.player.z},cameraPosition:g.camera.position.toArray(),center,viewDistance:g.camera.position.distanceTo(new T.Vector3(center.x,center.y,center.z)),yaw,pitch,width:win.innerWidth,height:win.innerHeight,nearbyActualBounds:near.slice(0,12),vegetation,render:reportFrame(),errors:[...win.qaErrors],offlineTested:false};
+ const report={seed:522,map,requestedBiome,biome,activeBiome:world.activeBiome||biome,camera,focus,landscape:group[0].landscape,landscapeIndex:group[0].landscapeIndex,groupInstances:group.length,position:{x:g.player.x,y:g.player.y,z:g.player.z},cameraPosition:g.camera.position.toArray(),center,viewDistance:g.camera.position.distanceTo(new T.Vector3(center.x,center.y,center.z)),yaw,pitch,width:win.innerWidth,height:win.innerHeight,nearbyActualBounds:near.slice(0,12),vegetation,render:reportFrame(),errors:[...win.qaErrors],offlineTested:false};
+ if(roots){
+  const image=world.environmentGrounding?.texture.image;if(image?.data){const extent=world.half+8,pixel=2*extent/image.width;report.rootMask={size:image.width,pixelSize:pixel,samples:[[0,0],[.75,0],[-.75,0],[0,.75],[0,-.75]].map(([dx,dz])=>{const x=center.x+dx,z=center.z+dz,col=Math.max(0,Math.min(image.width-1,Math.floor((x+extent)/pixel))),row=Math.max(0,Math.min(image.height-1,Math.floor((z+extent)/pixel))),k=(row*image.width+col)*4;return{x,z,rgba:[...image.data.slice(k,k+4)]};})};}
+ }
  window.landscapeViewReport=report;return report;
 }
 landscapeButton.onclick=async()=>{
@@ -237,7 +241,7 @@ landscapeButton.onclick=async()=>{
  try{
   const mobile=$('#place-size').value==='mobile',width=mobile?844:1180,height=mobile?390:720;
   if(!g||loadedSize.mobile!==mobile||loadedSize.width!==width||loadedSize.height!==height)await load(mobile,width,height);
-  const report=landscapeView($('#map').value,$('#place-biome').value,$('#place-camera').value);$('#report').textContent=JSON.stringify(report,null,2);$('#status').textContent='地貌植被近看 · '+report.biome+' / '+report.landscape+' / '+report.camera+' · 实际机位距目标 '+report.viewDistance.toFixed(2)+' 米';
+  const report=landscapeView($('#map').value,$('#place-biome').value,$('#place-camera').value,landscapeFocus.value);$('#report').textContent=JSON.stringify(report,null,2);$('#status').textContent=(report.focus==='roots'?'根部衔接近看':'地貌植被近看')+' · '+report.biome+' / '+report.landscape+' / '+report.camera+' · 实际机位距目标 '+report.viewDistance.toFixed(2)+' 米';
  }catch(error){$('#status').textContent='地貌植被预览失败：'+error.message;$('#report').textContent=JSON.stringify({error:error.message,errors:[...win.qaErrors]},null,2);}finally{landscapeButton.disabled=false;}
 };
 $('#place-entry').onclick=async()=>{

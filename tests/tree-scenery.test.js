@@ -6,7 +6,7 @@ import{readFileSync}from'node:fs';
 import * as T from'../vendor/three.module.js';
 import{addTree,updateTreeDetail,animateTreeCanopy,installForestBackdrop}from'../tree-scenery.js';
 import{buildWorld,animateWorld}from'../world.js';
-import{damageTerrain,updateTactics}from'../map-tactics.js?v=209';
+import{damageTerrain,updateTactics}from'../map-tactics.js?v=210';
 import{installDistantLandscape}from'../environment-lighting.js';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};

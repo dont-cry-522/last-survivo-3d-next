@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
-import {forestHabitatAt} from './forest-habitats.js?v=209';
-import {biomeWeights} from './confluence.js?v=209';
+import {forestHabitatAt} from './forest-habitats.js?v=210';
+import {biomeWeights} from './confluence.js?v=210';
 
 function bakeForestFloor(world,data,size,extent){
  const habitat=world.forestHabitats;if(!habitat)return 0;
@@ -62,24 +62,24 @@ function bakeForestFloor(world,data,size,extent){
  return pixels;
 }
 
-// A one-time separable tent filter joins nearby roots into a faint shared bed.
-// Only G changes: solids, tracks and wet-bank data remain byte-for-byte intact.
-function blendForestRoots(world,data,size,pixel,extent){
- const radius=T.MathUtils.clamp(Math.round(.65/pixel),1,7),weight=(radius+1)**2,horizontal=new Float32Array(size*size);
- const region=world.forestHabitats?.region||world.regions?.find(r=>r.id==='forest');
- for(let z=0;z<size;z++)for(let x=0;x<size;x++){
-  let sum=0;for(let dx=-radius;dx<=radius;dx++){const sx=x+dx;if(sx>=0&&sx<size)sum+=data[(z*size+sx)*4+1]*(radius+1-Math.abs(dx));}
+// One separable tent filter per occupied biome joins nearby roots and scree.
+// Its bounded CPU buffers are reused; only the existing G texture channel changes.
+function blendRoots(data,roots,horizontal,size,pixel,extent,region,bounds){
+ const radius=T.MathUtils.clamp(Math.round(.65/pixel),1,7),weight=(radius+1)**2;
+ const minX=Math.max(0,bounds.minX-radius),maxX=Math.min(size-1,bounds.maxX+radius),minZ=Math.max(0,bounds.minZ-radius),maxZ=Math.min(size-1,bounds.maxZ+radius);
+ for(let z=minZ;z<=maxZ;z++)for(let x=minX;x<=maxX;x++){
+  let sum=0;for(let dx=-radius;dx<=radius;dx++){const sx=x+dx;if(sx>=0&&sx<size)sum+=roots[z*size+sx]*(radius+1-Math.abs(dx));}
   horizontal[z*size+x]=sum/weight;
  }
- for(let z=0;z<size;z++)for(let x=0;x<size;x++){
-  let sum=0;for(let dz=-radius;dz<=radius;dz++){const sz=z+dz;if(sz>=0&&sz<size)sum+=horizontal[sz*size+x]*(radius+1-Math.abs(dz));}
+ for(let z=minZ;z<=maxZ;z++)for(let x=minX;x<=maxX;x++){
+  let sum=0;for(let dz=-radius;dz<=radius;dz++){const sz=z+dz;if(sz>=minZ&&sz<=maxZ)sum+=horizontal[sz*size+x]*(radius+1-Math.abs(dz));}
   if(!sum)continue;
   const k=(z*size+x)*4,wx=(x+.5)*pixel-extent,wz=(z+.5)*pixel-extent;
-  if(region&&!region.contains(wx,wz)){data[k+1]=0;continue;}
-  const grain=.89+.11*Math.sin(wx*3.7+wz*1.9)*Math.sin(wz*2.6-wx*.7),track=1-T.MathUtils.smoothstep(data[k+2]/255,.30,.85);
+  if(region&&!region.contains(wx,wz))continue;
+  const grain=.89+.11*Math.sin(wx*3.7+wz*1.9)*Math.sin(wz*2.6-wx*.7),track=1-T.MathUtils.smoothstep(data[k+2]/255,.30,.85),border=region?.id?T.MathUtils.smoothstep(biomeWeights(wx,wz)[region.id]||0,.50,.72):1;
   // Keep stronger irregular root centres; never sum overlapping plants. The
   // softer low contribution between them follows the scanned floor grain.
-  data[k+1]=Math.round(Math.min(220,Math.max(data[k+1]*.80,sum/weight*1.65))*grain*track);
+  data[k+1]=Math.max(data[k+1],Math.round(Math.min(220,Math.max(roots[z*size+x]*.80,sum/weight*1.65))*grain*track*border));
  }
 }
 
@@ -137,7 +137,7 @@ function bakePlaceFloors(world,data,size,pixel,extent){
 }
 
 // Static contact staining joins the existing ground pass. R retains the scenery
-// shadow; G softens forest plant roots; B/A join paths, duff and wet banks.
+// shadow; G softens local plant/stone contacts; B/A join paths, duff and wet banks.
 // This is a bounded build-time mask, not screen-space or real-time AO.
 export function installEnvironmentGrounding(world){
  const ground=world.ground;
@@ -149,7 +149,7 @@ export function installEnvironmentGrounding(world){
  const plants=[];
  for(const group of [world.adventureGroundDetail,world.habitatDetail])for(const p of group?.userData.records||[]){
   if(plants.length>=4096)break;
-  if(p.biome==='forest'&&['tuft','fern','shrub'].includes(p.kind)&&Number.isFinite(p.x+p.z))plants.push(p);
+  if(['forest','snow','ash','sand','coast'].includes(p.biome)&&['tuft','fern','shrub','reed','stone'].includes(p.kind)&&Number.isFinite(p.x+p.z))plants.push(p);
  }
  if(!sources.length&&!plants.length&&!world.forestHabitats&&!world.biomePlaces?.length)return null;
  const size=512,extent=world.half+8,pixel=2*extent/size,data=new Uint8Array(size*size*4);
@@ -164,31 +164,40 @@ export function installEnvironmentGrounding(world){
    const k=(z*size+x)*4;data[k]=Math.max(data[k],Math.round(255*fade*fade*grain));
   }
  }
- for(const p of plants){
+ const forestPixels=bakeForestFloor(world,data,size,extent),rootCounts={forest:0,snow:0,ash:0,sand:0,coast:0};
+ const roots=plants.length?new Uint8Array(size*size):null,horizontal=plants.length?new Float32Array(size*size):null;
+ for(const biome of Object.keys(rootCounts)){
+  const local=plants.filter(p=>p.biome===biome);rootCounts[biome]=local.length;if(!local.length)continue;
+  roots.fill(0);const region=world.regions?.find(r=>r.id===biome)||(biome==='forest'?world.forestHabitats?.region:null),bounds={minX:size,minZ:size,maxX:-1,maxZ:-1};
+ for(const p of local){
   const width=Number.isFinite(p.width??p.size)?p.width??p.size:1;
-  const radius=T.MathUtils.clamp((p.kind==='tuft'?.62:.90)*width,.38,1.25);
+  const stone=p.kind==='stone',radius=T.MathUtils.clamp((stone?.66:p.kind==='tuft'?.62:p.kind==='reed'?.78:.90)*width,stone?.30:.38,stone?.85:1.25),strength=stone?184:biome==='forest'?220:200;
   const angle=Number.isFinite(p.angle)?p.angle:0,c=Math.cos(angle),s=Math.sin(angle),outer=radius*1.28;
   const minX=Math.max(0,Math.floor((p.x-outer+extent)/pixel)),maxX=Math.min(size-1,Math.ceil((p.x+outer+extent)/pixel));
   const minZ=Math.max(0,Math.floor((p.z-outer+extent)/pixel)),maxZ=Math.min(size-1,Math.ceil((p.z+outer+extent)/pixel));
+  if(minX>maxX||minZ>maxZ)continue;
+  bounds.minX=Math.min(bounds.minX,minX);bounds.maxX=Math.max(bounds.maxX,maxX);bounds.minZ=Math.min(bounds.minZ,minZ);bounds.maxZ=Math.max(bounds.maxZ,maxZ);
   for(let z=minZ;z<=maxZ;z++)for(let x=minX;x<=maxX;x++){
    const wx=(x+.5)*pixel-extent,wz=(z+.5)*pixel-extent,dx=wx-p.x,dz=wz-p.z;
+   if(region&&!region.contains(wx,wz))continue;
    const u=(c*dx-s*dz)/(radius*1.10),v=(s*dx+c*dz)/(radius*.78);
    const edge=1+.12*Math.sin(wx*5.1+wz*2.7)+.07*Math.sin(wz*7.3-wx*3.1);
    const fade=1-T.MathUtils.smoothstep(Math.hypot(u,v)/edge,0,1);
-   const grain=.86+.14*Math.sin(wx*3.7+wz*1.9)**2,k=(z*size+x)*4+1;
+   const grain=.86+.14*Math.sin(wx*3.7+wz*1.9)**2,k=z*size+x;
    // Overlapping roots share the strongest soft stain; dense tufts never add up
    // to a black disc. Slightly elongated, ragged edges avoid isolated circles.
-   data[k]=Math.max(data[k],Math.round(220*fade*fade*grain));
+   roots[k]=Math.max(roots[k],Math.round(strength*fade*fade*grain));
   }
  }
- const forestPixels=bakeForestFloor(world,data,size,extent);
- if(plants.length)blendForestRoots(world,data,size,pixel,extent);
+  if(bounds.maxX>=bounds.minX)blendRoots(data,roots,horizontal,size,pixel,extent,region,bounds);
+ }
  const placeFloors=bakePlaceFloors(world,data,size,pixel,extent);
  const texture=new T.DataTexture(data,size,size,T.RGBAFormat);texture.name='TX_Scenery_GroundContact_A';
  texture.magFilter=T.LinearFilter;texture.minFilter=T.LinearMipmapLinearFilter;texture.generateMipmaps=true;texture.needsUpdate=true;
  // Ground materials are shared by the original world builders. Keep their
  // shader and textures intact, but give this run its own mask and material.
  const source=ground.material,material=source.clone(),compile=source.onBeforeCompile,baseKey=source.customProgramCacheKey();
+ const plainBiome=Object.keys(rootCounts).filter(id=>rootCounts[id]>0),rootClimate=id=>source.userData.groundSurface?'soil'+id[0].toUpperCase()+id.slice(1):plainBiome.length===1&&plainBiome[0]===id?'1.0':'0.0';
  material.onBeforeCompile=(shader,renderer)=>{
   compile.call(material,shader,renderer);
   shader.uniforms.sceneryContact={value:texture};shader.uniforms.sceneryExtent={value:extent};
@@ -232,16 +241,23 @@ export function installEnvironmentGrounding(world){
    diffuseColor.rgb+=vec3(.020,.024,.028)*contactDeposit*soilSnow;
    if(contactDeposit>0.0)roughnessFactor=clamp(roughnessFactor+contactDeposit*(soilSnow*.07+soilSand*.05+soilAsh*.08-soilCoast*.19),.62,1.0);`:''}
    float forestRootGrain=${source.userData.groundSurface?'smoothstep(.28,.70,soilFine.g)*soilGrainDetail':'.5'};
+   float rootContact=groundContacts.g*(1.0-forestTrack);
    vec3 forestRootTone=mix(vec3(.84,.96,.78),vec3(1.04,.91,.76),forestRootGrain);
-   diffuseColor.rgb*=mix(vec3(1.0),forestRootTone,groundContacts.g*.62);
+   // Root and scree contacts borrow the local mineral colour. The same fine
+   // sample breaks their edges; no forest-green or leaf litter is added to sand.
+   forestRootTone=mix(forestRootTone,mix(vec3(.80,.88,.92),vec3(1.02,1.04,1.05),forestRootGrain),${rootClimate('snow')});
+   forestRootTone=mix(forestRootTone,mix(vec3(.88,.84,.80),vec3(1.08,1.02,.94),forestRootGrain),${rootClimate('ash')});
+   forestRootTone=mix(forestRootTone,mix(vec3(.91,.86,.76),vec3(1.05,.97,.83),forestRootGrain),${rootClimate('sand')});
+   forestRootTone=mix(forestRootTone,mix(vec3(.79,.86,.82),vec3(.93,.98,.93),forestRootGrain),${rootClimate('coast')});
+   diffuseColor.rgb*=mix(vec3(1.0),forestRootTone,rootContact*.62);
    ${source.userData.groundSurface?`float forestRootLitter=smoothstep(.14,.50,soilFine.a)*(1.0-smoothstep(.025,.09,soilPixel));
-   diffuseColor.rgb*=mix(vec3(1.0),vec3(1.10,.87,.65),groundContacts.g*forestRootLitter*.13);`:''}
+   diffuseColor.rgb*=mix(vec3(1.0),vec3(1.10,.87,.65),rootContact*forestRootLitter*.13*soilOrganic*(1.0-soilCoast));`:''}
   `);
   shader.fragmentShader=shader.fragmentShader.replace('#include <metalnessmap_fragment>','if(max(forestTrack,max(forestDuff,forestDamp))>0.0){\nroughnessFactor=clamp(roughnessFactor+forestDuff*.07-forestTrack*.025-forestDamp*.21,.66,1.0);\n}\n#include <metalnessmap_fragment>');
-  shader.fragmentShader=shader.fragmentShader.replace('#include <aomap_fragment>','#include <aomap_fragment>\nreflectedLight.indirectDiffuse*=1.0-groundContact*.16;\nreflectedLight.indirectDiffuse*=1.0-groundContacts.g*.06;');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <aomap_fragment>','#include <aomap_fragment>\nreflectedLight.indirectDiffuse*=1.0-groundContact*.16;\nreflectedLight.indirectDiffuse*=1.0-rootContact*.06;');
  };
- material.customProgramCacheKey=()=>baseKey+'|scenery-ground-contact-place-floor';ground.material=material;
- const state={texture,material,sources:sources.length,plants:plants.length,forestPixels,placeFloors,disposed:false};world.environmentGrounding=state;
+ material.customProgramCacheKey=()=>baseKey+'|scenery-ground-contact-biome-roots'+(source.userData.groundSurface?'':'|'+plainBiome.join(','));ground.material=material;
+ const state={texture,material,sources:sources.length,plants:plants.length,rootCounts,forestPixels,placeFloors,disposed:false};world.environmentGrounding=state;
  const release=()=>{if(state.disposed)return;state.disposed=true;texture.dispose();material.dispose();ground.material=source;ground.geometry.removeEventListener('dispose',release);};
  ground.geometry.addEventListener('dispose',release);
  return state;

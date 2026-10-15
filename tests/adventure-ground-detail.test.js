@@ -8,8 +8,8 @@ import {segmentDistance} from '../rules.js';
 import {installForestHabitats,forestHabitatAt} from '../forest-habitats.js';
 import {polishEnvironmentModels} from '../environment-props.js';
 import {installForestVista} from '../forest-vista.js';
-import {installBiomePlaces} from '../biome-places.js?v=209';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=209';
+import {installBiomePlaces} from '../biome-places.js?v=210';
+import {installEnvironmentClusters} from '../environment-clusters.js?v=210';
 import {installExplorationRoutes} from '../exploration-routes.js';
 import {installExplorationLandmarks} from '../exploration-landmarks.js';
 import {installExplorationComposition} from '../exploration-composition.js';
@@ -17,8 +17,8 @@ import {installForestTerrain} from '../forest-terrain.js';
 import {installClimateLandforms} from '../climate-landforms.js';
 import {installHarborLife} from '../harbor-life.js';
 import {installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
-import {naturalRockGeometry} from '../biome-scenery.js?v=209';
-import {surfaceUniforms} from '../surface-textures.js?v=209';
+import {naturalRockGeometry} from '../biome-scenery.js?v=210';
+import {surfaceUniforms} from '../surface-textures.js?v=210';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const maps=['forest','snow','ash','sand','coast','confluence'];
@@ -570,9 +570,11 @@ test('middle landscape foliage has measured uneven height, grounded roots and a 
    else{assert.equal(p.kind,'stone');assert(box.max.y<.3,'hard scree has grown into an uncollidable obstacle');}
    if(p.kind==='shrub'){
     const positions=mesh.geometry.attributes.position;
-    for(let branch=0;branch<3;branch++)for(let leaf=0;leaf<4;leaf++){
-     // Each branch has ten stem vertices, followed by four curved 3x3 leaves.
-     const start=branch*46+10+leaf*9;leafStart.fromBufferAttribute(positions,start+1).applyMatrix4(matrix);leafTip.fromBufferAttribute(positions,start+7).applyMatrix4(matrix);
+    for(let branch=0;branch<3;branch++)for(let leaf=0;leaf<6;leaf++){
+     // Measure the centre line, not the sloping edge of each scanned leaf.
+     const start=branch*54+10+(leaf<2?leaf*6:12+(leaf-2)*8),last=leaf<2?4:6;
+     leafStart.fromBufferAttribute(positions,start).add(leafTip.fromBufferAttribute(positions,start+1)).multiplyScalar(.5).applyMatrix4(matrix);
+     leafTip.fromBufferAttribute(positions,start+last).add(new T.Vector3().fromBufferAttribute(positions,start+last+1)).multiplyScalar(.5).applyMatrix4(matrix);
      assert(Math.abs(leafTip.y-leafStart.y)<Math.hypot(leafTip.x-leafStart.x,leafTip.z-leafStart.z)*.6,'tall shrub leaves become vertically stretched hanging blades');
     }
     for(let j=0;j<positions.count;j++){leafTip.fromBufferAttribute(positions,j).applyMatrix4(matrix);assert(Math.hypot(leafTip.x-p.x,leafTip.z-p.z)+.035<1.15,'wider shrub crown exceeds its reserved wind footprint');}

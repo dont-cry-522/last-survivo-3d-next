@@ -1,13 +1,13 @@
-import {applyFernSurface} from './fern-surfaces.js?v=209';
-import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=209';
-import{sceneryRhythmAt}from'./exploration-composition.js?v=209';
+import {applyFernSurface} from './fern-surfaces.js?v=210';
+import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=210';
+import{sceneryRhythmAt}from'./exploration-composition.js?v=210';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {seeded,segmentDistance} from './rules.js?v=209';
-import {forestHabitatAt} from './forest-habitats.js?v=209';
-import {bridgeContains} from './coast.js?v=209';
-import {naturalRockGeometry} from './biome-scenery.js?v=209';
-import {surfaceUniforms} from './surface-textures.js?v=209';
+import {seeded,segmentDistance} from './rules.js?v=210';
+import {forestHabitatAt} from './forest-habitats.js?v=210';
+import {bridgeContains} from './coast.js?v=210';
+import {naturalRockGeometry} from './biome-scenery.js?v=210';
+import {surfaceUniforms} from './surface-textures.js?v=210';
 
 const profiles={
  forest:{count:1200,grass:.83,height:1,tuft:[0x6e8650,0x87985a],litter:[0x827561,0x66685c]},
@@ -618,24 +618,27 @@ function fernGeometry(){
  }
  const g=new T.BufferGeometry();g.setAttribute('fernProgress',new T.Float32BufferAttribute(progress,1));g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setAttribute('fernStem',new T.Float32BufferAttribute(stalk,1));g.setAttribute('groundFlex',new T.Float32BufferAttribute(flex,1));g.setIndex(ix);g.computeVertexNormals();return g;
 }
-// Each small leaf bends across a raised midrib. The scan supplies the irregular
-// outline, so the geometry does not taper it a second time into a pointed arrow.
+// Eighteen leaves grow in staggered lower, middle and tip sprays instead of
+// leaving three bare shoots. Lower leaves need only two curved segments;
+// the entire plant retains its 120-triangle budget and scanned tapered edges.
 function shrubGeometry(){
  const positions=[],colors=[],uv=[],flex=[],indices=[];
  const vertex=(x,y,z,shade,u=.085,v=.78)=>{const i=positions.length/3;positions.push(x,y,z);colors.push(shade,shade,shade);uv.push(u,v);flex.push(Math.max(0,Math.min(1,y/.65))**2);return i;};
  for(let branch=0;branch<3;branch++){
-  const a=branch*2.399+.20*Math.sin(branch),s=Math.sin(a),c=Math.cos(a),height=.39+(branch%3)*.075,reach=.18+branch*.036,start=positions.length/3;
-  const stem=t=>({x:s*reach*t*t,y:height*t-.035-.055*t*t*t,z:c*reach*t*t});
+  const a=branch*2.399+.20*Math.sin(branch),s=Math.sin(a),c=Math.cos(a),height=[.43,.56,.48][branch],reach=[.30,.18,.32][branch],start=positions.length/3;
+  const stem=t=>({x:s*reach*t*t+c*.025*Math.sin(t*Math.PI),y:height*t-.035-.045*t*t*t,z:c*reach*t*t-s*.025*Math.sin(t*Math.PI)});
   for(let row=0;row<=4;row++){const t=row/4,p=stem(t),w=.008*(1-t*.7);vertex(p.x+c*w,p.y,p.z-s*w,.43+t*.27);vertex(p.x-c*w,p.y,p.z+s*w,.48+t*.27);if(row<4){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}}
-  for(let tier=0;tier<2;tier++)for(const side of[-1,1]){
-   const base=stem(.43+tier*.37+(side===1?.055:0)),angle=a+side*(.9+tier*.3),sx=Math.sin(angle),cz=Math.cos(angle),length=.22-tier*.023,lift=.023+(branch%2)*.007,droop=.018+tier*.006,n=positions.length/3;
-   const [u,v,uw,vh]=TREE_LEAF_UVS[(branch*4+tier*2+(side===1?1:0))%TREE_LEAF_UVS.length];
-   for(const [row,t]of[0,.52,1].entries()){
-    for(const cross of[-1,0,1]){
-     const w=(.052-tier*.007)*cross,fold=Math.sin(t*Math.PI)*(1-Math.abs(cross))*.008;
-     vertex(base.x+sx*length*t+cz*w,base.y+lift*Math.sin(t*Math.PI)-droop*t*t+fold+w*side*.12,base.z+cz*length*t-sx*w,.86+t*.11+cross*.025,u+(cross+1)*.5*uw,v+t*vh);
+  for(let tier=0;tier<3;tier++)for(const side of[-1,1]){
+   const base=stem(.22+tier*.30+(side===1?.045:0)),angle=a+side*(1.20-tier*.14)+branch*.11,sx=Math.sin(angle),cz=Math.cos(angle),length=[.245,.255,.18][tier]*(side===1?.91:1),lift=.020+(branch%2)*.006,droop=.015+tier*.004,n=positions.length/3;
+   const [u,v,uw,vh]=TREE_LEAF_UVS[(branch*6+tier*2+(side===1?1:0))%TREE_LEAF_UVS.length];
+   const segments=tier===0?2:3;
+   for(let row=0;row<=segments;row++){
+    const t=row/segments;
+    for(const cross of[-1,1]){
+     const w=[.066,.072,.046][tier]*cross,twist=w*(side*.10+Math.sin(t*Math.PI)*.08);
+     vertex(base.x+sx*length*t+cz*w,base.y+lift*Math.sin(t*Math.PI)-droop*t*t+twist,base.z+cz*length*t-sx*w,.80+t*.15+tier*.025+cross*.02,u+(cross+1)*.5*uw,v+t*vh);
     }
-    if(row<2){const k=n+row*3;indices.push(k,k+3,k+1,k+1,k+3,k+4,k+1,k+4,k+2,k+2,k+4,k+5);}
+    if(row<segments){const k=n+row*2;indices.push(k,k+2,k+1,k+1,k+2,k+3);}
    }
   }
  }
@@ -644,10 +647,13 @@ function shrubGeometry(){
 function reedGeometry(){
  const p=[],c=[],ix=[],flex=[];
  for(let blade=0;blade<7;blade++){
-  const a=blade*2.399,s=Math.sin(a),z=Math.cos(a),height=.40+(blade%3)*.095,reach=.16+(blade%2)*.12,start=p.length/3;
+  const a=blade*2.399+.16*Math.sin(blade*1.7),s=Math.sin(a),z=Math.cos(a),height=.37+(blade%3)*.10,reach=.19+(blade%3)*.07,start=p.length/3;
+  const root=.035+(blade%3)*.027,rx=s*root,rz=z*root;
   for(let row=0;row<4;row++){
-   const t=row/3,w=Math.sin(Math.PI*t)*.024+.002,bend=reach*t*t;
-   for(const side of[-1,1]){p.push(s*bend+z*w*side,height*t,z*bend-s*w*side);const shade=.55+t*.42;c.push(shade*.98,shade,shade*.84);flex.push(t*t);}
+   // Unequal, outward-curving blades root across a small tuft, rather than
+   // seven rigid spikes converging on one point. Tips taper before bending.
+   const t=row/3,w=row===3?.0006:row===0?.0035:(.013+(blade%2)*.004)*Math.sin(Math.PI*t),bend=reach*t*t,turn=a+t*.32;
+   for(const side of[-1,1]){p.push(rx+s*bend+Math.cos(turn)*w*side,height*(t-.23*t*t*t)+side*w*.20,rz+z*bend-Math.sin(turn)*w*side);const shade=.56+t*.40;c.push(shade*.98,shade,shade*.84);flex.push(t*t);}
    if(row<3){const n=start+row*2;ix.push(n,n+1,n+2,n+1,n+3,n+2);}
   }
  }

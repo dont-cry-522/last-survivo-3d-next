@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=206';
+import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=207';
 
 // Finite templates and three shared finishes (one translucent jelly membrane). No per-enemy geometry/material,
 // bone textures, extra lights or disposable particle resources.
@@ -61,14 +61,14 @@ export function form(parent,key,build,{glow=false,translucent=false}={}){
 export const joint=(parent,x=0,y=0,z=0)=>{const p=new T.Group();p.position.set(x,y,z);parent.add(p);return p;};
 export function face(color,y,z,spread=.12){return[-1,1].flatMap(s=>[oval(0x26312f,s*spread,y,z,.059,.049,.025),oval(color,s*spread,y+.008,z+.019,.027,.027,.012),oval(0xf2edcf,s*spread-.008,y+.018,z+.031,.008,.009,.004,6,4)]);}
 export const smooth=x=>{x=T.MathUtils.clamp(x,0,1);return x*x*(3-2*x);};
-export {footCycle as gait} from './creature-gait.js?v=206';
-import {footCycle as gait} from './creature-gait.js?v=206';
+export {footCycle as gait} from './creature-gait.js?v=207';
+import {footCycle as gait} from './creature-gait.js?v=207';
 const down=new T.Vector3(0,-1,0),target=new T.Vector3(),direction=new T.Vector3(),bend=new T.Vector3(),elbow=new T.Vector3(),segment=new T.Vector3(),inverse=new T.Matrix4(),worldTarget=new T.Vector3(),actorInverse=new T.Matrix4();
 const rootPoint=new T.Vector3(),nominalPoint=new T.Vector3(),rootDelta=new T.Vector3(),nextContact=new T.Vector3();
 // Both articulated rigs use this same contact history. Ordinary swing follows
 // its authored arc; only a released support or unfinished stop needs a short
 // corrective step, with clearance before the next contact is established.
-export function plantFootContact(l,actor,point,{phase,stride,support,swing=0,groundY,lift,air=0,maxStep=.3,canReach}={}){
+export function plantFootContact(l,actor,point,{phase,stride,support,swing=0,groundY,lift,air=0,maxStep=.3,canReach,supportTime=Infinity}={}){
  const time=actor.userData.lastTime;actor.updateWorldMatrix(true,false);actorInverse.copy(actor.matrixWorld).invert();
  rootPoint.setFromMatrixPosition(actor.matrixWorld);nominalPoint.copy(point).applyMatrix4(actor.matrixWorld);
  let s=l.footContact;
@@ -94,7 +94,9 @@ export function plantFootContact(l,actor,point,{phase,stride,support,swing=0,gro
   const displaced=Math.hypot(worldTarget.x-nominalPoint.x,worldTarget.z-nominalPoint.z)/Math.max(.001,actor.scale.x);
   // Release before the moving body exhausts reach: a short-legged fast walker
   // cannot spend the same recovery time as a stationary turning creature.
-  nextContact.copy(worldTarget).addScaledVector(rootDelta,-Math.min(.06,stepTime*.5)/Math.max(.001,dt)).applyMatrix4(actorInverse);
+  // Never predict a planted leg beyond its scheduled toe-off. Doing so forces
+  // an emergency correction on every normal running stride just before lift.
+  nextContact.copy(worldTarget).addScaledVector(rootDelta,-Math.min(.06,stepTime*.5,supportTime)/Math.max(.001,dt)).applyMatrix4(actorInverse);
   if(dt>0&&(displaced>maxStep||(canReach&&(!canReach(point)||!canReach(nextContact)))))s.adjust={from:s.point.clone(),age:-dt,duration:stepTime,settle:false};
  }
  if(stopped&&!wasPlanted&&!s.adjust?.settle)s.adjust={from:s.point.clone(),age:-dt,duration:.18,settle:true};

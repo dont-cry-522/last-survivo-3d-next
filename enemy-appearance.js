@@ -1,8 +1,8 @@
 import * as T from './vendor/three.module.js';
-import {footCycle} from './creature-gait.js?v=206';
-import {plantFootContact} from './creature-forms.js?v=206';
+import {footCycle} from './creature-gait.js?v=207';
+import {plantFootContact} from './creature-forms.js?v=207';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=206';
+import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=207';
 
 // Five finite, shared sets of geometry. Articulation moves groups, never vertices.
 const templates=new Map();
@@ -313,15 +313,16 @@ export function animateEnemyExpression(d,t,stride,gather,drive,impact=0){
 const footDown=new T.Vector3(0,-1,0),footEnd=new T.Vector3(),footTarget=new T.Vector3(),footDirection=new T.Vector3(),footBend=new T.Vector3(),footElbowPoint=new T.Vector3(),footLinkDirection=new T.Vector3(),footInverse=new T.Matrix4(),footRigMatrix=new T.Matrix4(),footFlat=new T.Quaternion(),footFootOffset=new T.Vector3(),footProbe=new T.Vector3();
 let footActor;
 export function prepareCreatureFeet(d){d.rig.updateMatrix();footRigMatrix.copy(d.rig.matrix);if(d.regionalRoot){d.regionalRoot.updateMatrix();footRigMatrix.multiply(d.regionalRoot.matrix);}footInverse.copy(footRigMatrix).invert();footFlat.copy(d.rig.quaternion).invert();footActor=d.rig.parent;}
-export function plantCreatureFoot(l,phase,stride,{air=0,reachZ=0,lift=.09,travel=.15,raise=0,toeRoll=0,support:stance=.64,offset=l.phase}={}){
+export function plantCreatureFoot(l,phase,stride,{air=0,reachZ=0,lift=.09,travel=.15,raise=0,toeRoll=0,support:stance=.64,offset=l.phase,speed}={}){
  const cycle=footCycle(phase+offset,stride,lift,stance),{support,q}=cycle,step=cycle.travel;
  const fit=l.joint.parent.scale.x;
  footTarget.set((l.restX+Math.sign(l.restX)*l.reach)*fit,.006+cycle.lift+air+raise,(l.restZ+reachZ)*fit+step*travel);
  const reachable=point=>{footProbe.copy(point).applyMatrix4(footInverse).add(footFootOffset.set(0,.055+(l.drop||0),l.drop?-.095:0).applyQuaternion(footFlat));footProbe.x-=l.restX;footProbe.y-=l.restY;footProbe.z-=l.restZ;return footProbe.length();};
- const reachLimit=Math.max(l.upperLength+l.lowerLength+.045,reachable(footTarget)+.02);
+ const reachLimit=Math.max(l.upperLength+l.lowerLength+(speed===0?.095:.045),reachable(footTarget)+.02);
  // Lock a supporting toe in the world, including elite scale and turning.
  // A stopped or overextended foot takes a short settling step before replanting.
- if(footActor)plantFootContact(l,footActor,footTarget,{phase:phase+offset,stride,support,swing:q,groundY:.006,lift:lift*stride,air:air+raise,maxStep:travel*.65+.12,canReach:point=>reachable(point)<=reachLimit});
+ const u=((phase+offset)/(Math.PI*2)%1+1)%1,supportTime=speed>0?Math.max(0,stance-u)*2*travel*stride/(speed*stance):Infinity;
+ if(footActor)plantFootContact(l,footActor,footTarget,{phase:phase+offset,stride,support,swing:q,groundY:.006,lift:lift*stride,air:air+raise,maxStep:travel*.65+.12,canReach:point=>reachable(point)<=reachLimit,supportTime});
  else l.planted=support&&air<.001&&raise<.001;
  footTarget.applyMatrix4(footInverse);
  l.paw.quaternion.copy(footFlat);if(toeRoll)l.paw.rotateX(-toeRoll*Math.sin(q*Math.PI)*stride);

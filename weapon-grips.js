@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {crossbowMechanism} from './weapon-performance.js?v=206';
+import {crossbowMechanism} from './weapon-performance.js?v=207';
 
 // Weapon-space contact points: the wrapped handle, not the model's origin.
 export const GRIP_POINTS={shade:[0,0,0],shadowblade:[0,-.035,.02],grimoire:[0,0,0],miasmalantern:[0,.015,0],sporelantern:[0,.015,0],rifle:[0,-.065,.075],shotgun:[0,-.065,.075],crossbow:[0,-.08,.01],fire:[0,0,.045],dark:[0,0,.045],shuriken:[-.07,0,.06],boomerang:[0,-.13,0],harpoon:[0,0,-.08],hammer:[0,.015,0]};

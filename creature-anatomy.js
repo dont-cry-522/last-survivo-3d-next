@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {prepareCreatureSurface} from './creature-surface.js?v=206';
+import {prepareCreatureSurface} from './creature-surface.js?v=207';
 
 // Finite shared geometry, native morph targets and the existing IK. No skinning
 // texture per spawn, new timers, CPU vertex uploads or extra render pass.
@@ -17,12 +17,18 @@ function limbGeometry(source,a,b,kind,back,arm=false){
  // Sample coat at the broad upper muscle, preserving that species' palette.
  let count=0;for(let i=0;i<c.count;i++)if(source.attributes.position.getY(i)>-a*.5){color.r+=c.getX(i);color.g+=c.getY(i);color.b+=c.getZ(i);count++;}
  color.multiplyScalar(1/Math.max(1,count));
- const shape=[[-a*.23,0],[-a*.12,.72],[0,1],[a*.23,back?1.08:.96],[a*.62,.74],[a,.53],[a+b*.23,arm?.75:back?.64:.55],[a+b*.65,arm?.70:.39],[a+b,arm?.56:.27],[a+b+.015,0]];
- const contour=new T.CatmullRomCurve3(shape.map(([y,r])=>new T.Vector3(y,r,0)));
+ const wolf=kind==='wolf';
+ // Keep the existing bend axis and endpoints. Canine muscles vary in depth as
+ // well as width: a narrow forearm/wrist and a fuller thigh above the hock.
+ const shape=wolf?(back?
+  [[-a*.23,0,0],[-a*.12,.74,.92],[0,1.02,1.28],[a*.24,1.06,1.32],[a*.60,.76,1.02],[a*.88,.49,.66],[a,.52,.67],[a+b*.20,.48,.60],[a+b*.63,.29,.40],[a+b,.24,.30],[a+b+.015,0,0]]:
+  [[-a*.23,0,0],[-a*.12,.68,.89],[0,.84,1.12],[a*.24,.88,1.13],[a*.62,.60,.81],[a*.86,.46,.65],[a,.49,.67],[a+b*.20,.36,.48],[a+b*.68,.25,.34],[a+b,.30,.35],[a+b+.015,0,0]]):
+  [[-a*.23,0],[-a*.12,.72],[0,1],[a*.23,back?1.08:.96],[a*.62,.74],[a,.53],[a+b*.23,arm?.75:back?.64:.55],[a+b*.65,arm?.70:.39],[a+b,arm?.56:.27],[a+b+.015,0]];
+ const contour=new T.CatmullRomCurve3(shape.map(([y,r,depth=0])=>new T.Vector3(y,r,depth)));
  for(let j=0;j<=rows;j++){
   const sample=contour.getPoint(j/rows),along=sample.x,radius=width*Math.max(0,sample.y),w=smooth(along,a-a*.20,a+b*.20);
   for(let i=0;i<sides;i++){
-   const angle=i/sides*Math.PI*2,x=Math.cos(angle)*radius,z=Math.sin(angle)*radius,y=-along,dy=y+a;
+   const angle=i/sides*Math.PI*2,x=Math.cos(angle)*radius,z=Math.sin(angle)*(wolf?width*Math.max(0,sample.z):radius),y=-along,dy=y+a;
    p.push(x,y,z);sine.push(0,-z*w,dy*w);cosine.push(0,-dy*w,-z*w);
    const shade=.93+.07*Math.sin(angle+1.1);colors.push(color.r*shade,color.g*shade,color.b*shade);
    if(j){const n=j*sides+i,next=j*sides+(i+1)%sides;ix.push(n-sides,next-sides,n,n,next-sides,next);}
@@ -68,7 +74,7 @@ function bodyFlex(mesh,kind){
   for(let mode=0;mode<2;mode++){
    const deform=(x,y,z,out)=>{
     const height=smooth(y,box.min.y,box.max.y),center=Math.sin(Math.PI*T.MathUtils.clamp((z-box.min.z)/Math.max(.01,size.z),0,1));
-    if(quadruped){const shoulder=Math.exp(-(((z-mid.z-size.z*.20)/(size.z*.27))**2)),side=T.MathUtils.clamp(x/Math.max(.01,size.x*.5),-1,1);out.set(x+(mode===0?side*shoulder*.025*size.x:height*center*.022*size.x),y+(mode===0?center*.022*size.y:side*shoulder*.016*size.y),z+(mode===0?(z-mid.z)*center*.022:side*shoulder*.025*size.z));}
+    if(quadruped){const shoulder=Math.exp(-(((z-mid.z-size.z*.20)/(size.z*.27))**2)),side=T.MathUtils.clamp(x/Math.max(.01,size.x*.5),-1,1);out.set(x+(mode===0?side*shoulder*.025*size.x:height*center*.022*size.x),y+(mode===0?center*(kind==='wolf'?.040:.022*size.y):side*shoulder*.016*size.y),z+(mode===0?(z-mid.z)*center*(kind==='wolf'?-.055:.022):side*shoulder*.025*size.z));}
     else if(soft){const band=Math.sin(Math.PI*height);out.set(x*(1+(mode===0?.045*band:.025*Math.sin(z*5)*band)),y-(mode===0?.04*size.y*band:0),z+(mode===0?0:.035*size.z*band));}
     else{const weight=smooth(height,.15,.8),angle=weight*(mode===0?.032:.045),co=Math.cos(angle),si=Math.sin(angle);out.set(mode===1?x*co+z*si:x,y,mode===1?z*co-x*si:z+weight*(mode===0?.016*size.y:0));}
     return out;
@@ -106,5 +112,5 @@ export function animateCreatureAnatomy(g,t,speed=0){
  const phase=d.walkPhase??d.phase??t*2,stride=d.walkStride??d.stride??Math.min(1,speed/3),stage=d.bossStage;
  const wind=stage==='wind'?smooth(d.windProgress||0,0,1):stage==='strike'?1-smooth(d.strikeProgress||0,0,.32):d.previousAttack>0?smooth(1-d.previousAttack/(d.attackLength||1),0,.7):0;
  const drive=stage==='strike'?Math.sin(Math.PI*(d.strikeProgress||0)):Math.min(1,(d.release||0)*3),soft=a.kind==='snowhare'||a.kind==='mushroom';
- if(a.flex){const values=a.flex.morphTargetInfluences;values[0]=Math.sin(t*(soft?2.2:1.65))*.15*(1-stride)+Math.sin(phase*2-.55)*stride*.42+wind*.55-drive*.35;values[1]=Math.sin(phase-.65)*stride*.65-wind*.25+drive*.22;}
+ if(a.flex){const values=a.flex.morphTargetInfluences;values[0]=Math.sin(t*(soft?2.2:1.65))*.15*(1-stride)+(a.kind==='wolf'&&d.wolfCoil!==undefined?d.wolfCoil*.8:Math.sin(phase*2-.55)*stride*.42)+wind*.55-drive*.35;values[1]=Math.sin(phase-.65)*stride*.65-wind*.25+drive*.22;}
 }

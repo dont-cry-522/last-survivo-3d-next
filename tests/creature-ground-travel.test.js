@@ -35,3 +35,20 @@ test('distance pose never overwrites the AI cadence and agrees across rendering 
   for(const p of samples.slice(1))assert(Math.max(...p.map((v,i)=>Math.abs(v-samples[0][i])))<1e-7,kind+' pose depends on FPS');
  }
 });
+
+test('wolf pursuit completes authored strides instead of inserting emergency steps every cycle',()=>{
+ for(const scale of [1,1.14])for(const fps of [30,60,120])for(const speed of [2.5,4.4,5.94]){
+  const g=actor('wolf'),d=g.userData;g.scale.setScalar(scale);animateActor(g,0,0);
+  let startPhase=0,low=Infinity,high=-Infinity;const contacts=new Set();
+  for(let i=1;i<=fps*4;i++){
+   g.position.z+=speed/fps;const mask=advanceEnemyLocomotion(d,1/fps,speed/fps,true);animateActor(g,i/fps,speed);
+   if(i===fps*2)startPhase=d.visualPhase;
+   if(i>fps*2){
+    for(const l of d.legs){assert(!l.footContact.adjust,'straight pursuit needs an unscheduled correction');assert(l.joint.position.distanceTo(new Vector3(l.restX,l.restY,l.restZ))<.05,'shoulder detaches to cover the stride');}
+    if(mask)contacts.add(mask);low=Math.min(low,d.rig.position.y);high=Math.max(high,d.rig.position.y);
+   }
+  }
+  const hz=(d.visualPhase-startPhase)/(4*Math.PI);
+  if(speed===4.4){assert(hz<2.4,'normal pursuit pedals faster than its support/recovery plan');assert(high-low>.04,'pursuit leaves the chest rigid above the paws');assert(contacts.size>=3,'pursuit remains locked to two mirrored pairs');}
+ }
+});

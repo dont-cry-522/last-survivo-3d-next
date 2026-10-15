@@ -9,18 +9,18 @@
 <section id="filmstrip"><h2>连续走动对照</h2><p>每组先连续行走 1 秒，再按 0.1 秒间隔截取 8 帧；抽帧之间仍以 1/60 秒推进正式动作。相机跟随，地面刻线保持世界坐标，便于观察脚是否滑地。此页只检查模型动作，不模拟寻路或伤害。</p><pre id="filmstrip-report">尚未生成</pre><div id="filmstrip-images"></div></section>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=206';
-import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=206';
-import {setCreatureTime} from '../creature-forms.js?v=206';
-import {MAP_ROSTERS,REGIONAL_ENEMIES} from '../map-enemies.js?v=206';
+import {actor,animateActor} from '../world.js?v=207';
+import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=207';
+import {setCreatureTime} from '../creature-forms.js?v=207';
+import {MAP_ROSTERS,REGIONAL_ENEMIES} from '../map-enemies.js?v=207';
 import {ENEMIES} from '../rules.js';
-import {BOSS_ROUTES,ADDITIONAL_BOSSES} from '../boss-roster.js?v=206';
-import {BOSS_TRAVEL} from '../boss-patterns.js?v=206';
-import {BOSS_STYLES,bossAttackPlan} from '../boss-combat.js?v=206';
-import {recordEnemyHit} from '../enemy-feedback.js?v=206';
-import {enemyCastFlight} from '../enemy-cast-vfx.js?v=206';
-import {SkillVFX} from '../skill-vfx.js?v=206';
-import {ENEMY_MOTION,gaitPace,advanceEnemyLocomotion} from '../enemy-motion.js?v=206';
+import {BOSS_ROUTES,ADDITIONAL_BOSSES} from '../boss-roster.js?v=207';
+import {BOSS_TRAVEL} from '../boss-patterns.js?v=207';
+import {BOSS_STYLES,bossAttackPlan} from '../boss-combat.js?v=207';
+import {recordEnemyHit} from '../enemy-feedback.js?v=207';
+import {enemyCastFlight} from '../enemy-cast-vfx.js?v=207';
+import {SkillVFX} from '../skill-vfx.js?v=207';
+import {ENEMY_MOTION,gaitPace,advanceEnemyLocomotion} from '../enemy-motion.js?v=207';
 let kinds=[];const scene=new T.Scene(),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
 renderer.setSize(1120,460);renderer.setClearColor(0x25382f);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
 document.querySelector('#stage').append(renderer.domElement);scene.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));

@@ -29,13 +29,16 @@ test('forest swimming, recoil and death combine without moving roots, pause drif
   deaths.add({mesh:m,role:kind});deaths.update(.18);assert(pose(m).every(Number.isFinite));const dying=pose(m);deaths.update(0);assert.deepEqual(pose(m),dying,kind+' corpse changed while paused');deaths.update(.32);assert.equal(deaths.items.length,0);assert.equal(scene.children.length,0);
  }
 });
-test('wolf contacts alternate four paws at a walk and diagonal pairs at a run, with no blocked or airborne steps',()=>{
+test('wolf contacts retain four separate beats at a walk and pursuit, with no blocked or airborne steps',()=>{
  const d=actor('wolf').userData;d.walkPhase=0;advanceEnemyLocomotion(d,1/60,0,false);const contacts=[];
  for(let i=0;i<160;i++){d.walkPhase=i;const mask=advanceEnemyLocomotion(d,1/60,.025,true);if(mask)contacts.push(mask);}
  assert(contacts.length>=14&&contacts.length<=20);assert.deepEqual([...new Set(contacts)].sort((a,b)=>a-b),[1,2,4,8],'a slow wolf should not march on paired diagonal legs');
  const runner=actor('wolf').userData,runContacts=[];advanceEnemyLocomotion(runner,1/60,0,false);
  for(let i=0;i<160;i++){const mask=advanceEnemyLocomotion(runner,1/60,4.5/60,true);if(mask)runContacts.push(mask);}
- assert.deepEqual([...new Set(runContacts)].sort((a,b)=>a-b),[6,9]);
+ assert.deepEqual([...new Set(runContacts)].sort((a,b)=>a-b),[1,2,4,8],'pursuit locks paws into diagonal pairs');
+ // The forepair receives weight, then the hind pair drives the next stride;
+ // each side has its own touchdown rather than a simultaneous paired beat.
+ runContacts.forEach((mask,i)=>assert.equal(mask,[8,2,4,1][i%4],'pursuit loses its four-beat contact order'));
  const phase=d.visualPhase;for(let i=0;i<100;i++)assert.equal(advanceEnemyLocomotion(d,1/60,0,true),0);assert.equal(d.visualPhase,phase);
  d.pounce=.5;for(let i=0;i<10;i++)assert.equal(advanceEnemyLocomotion(d,1/60,.15,false),0);assert.equal(d.visualPhase,phase);
  const state=[d.visualPhase,d.contactPhase,d.motionTurn,d.motionLook,d.motionSpeed];d.turnRate=6;d.lookTurn=.7;assert.equal(advanceEnemyLocomotion(d,0,.1,true),0);assert.deepEqual([d.visualPhase,d.contactPhase,d.motionTurn,d.motionLook,d.motionSpeed],state);
@@ -45,13 +48,16 @@ test('mushroom footfall remains in phase with its existing hop without changing 
  assert.equal(contacts,3);d.walkPhase+=Math.PI*2;assert.equal(advanceEnemyLocomotion(d,1/60,0,false),0);
 });
 test('distance gait, turning follow-through and contact count agree across frame rates',()=>{
- const samples=[];for(const fps of[30,60,120]){const m=actor('wolf'),d=m.userData;let contacts=0;d.turnRate=3;d.lookTurn=.5;animateActor(m,0,0,0,0);advanceEnemyLocomotion(d,1/fps,0,false);
+ const samples=[];for(const fps of[30,60,120]){const m=actor('wolf'),d=m.userData,contacts=[0,0,0,0];d.turnRate=3;d.lookTurn=.5;animateActor(m,0,0,0,0);advanceEnemyLocomotion(d,1/fps,0,false);
   // Initialize the filtered turn at the same game-time origin for all samplers.
   d.motionTurn=d.motionLook=0;
-  for(let i=1;i<=fps*2;i++){d.walkPhase=i/fps*12;if(advanceEnemyLocomotion(d,1/fps,2.7/fps,true))contacts++;animateActor(m,i/fps,2.7,0,0);}
+  // A coarse frame can contain two distinct paw contacts in one mask. Count
+  // each bit so grouping contacts cannot hide a missing or duplicated paw.
+  for(let i=1;i<=fps*2;i++){d.walkPhase=i/fps*12;const mask=advanceEnemyLocomotion(d,1/fps,2.7/fps,true);for(let n=0;n<4;n++)if(mask&(1<<n))contacts[n]++;animateActor(m,i/fps,2.7,0,0);}
+  assert.deepEqual(contacts,[4,4,4,4],fps+' FPS misses or duplicates a paw contact');
   samples.push({pose:pose(m),phase:d.visualPhase,contacts});
  }
- for(const s of samples.slice(1)){assert.equal(s.contacts,samples[0].contacts);assert(Math.abs(s.phase-samples[0].phase)<1e-9);assert(Math.max(...s.pose.map((v,i)=>Math.abs(v-samples[0].pose[i])))<1e-8);}
+ for(const s of samples.slice(1)){assert.deepEqual(s.contacts,samples[0].contacts);assert(Math.abs(s.phase-samples[0].phase)<1e-9);assert(Math.max(...s.pose.map((v,i)=>Math.abs(v-samples[0].pose[i])))<1e-8);}
 });
 test('regional relatives can turn without accumulating head, cap or tail offsets',()=>{
  for(const kind of['snowhare','emberling','frostwolf','ashstalker']){const m=actor(kind),d=m.userData;d.turnRate=4;d.lookTurn=.65;

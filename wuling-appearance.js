@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon,lanternCoreMaterial}from'./weapon-identity.js?v=206';
+import{weaponInlay,nameWeapon,lanternCoreMaterial}from'./weapon-identity.js?v=207';
 // Programmatic prototype: existing rig and cloth surfaces, original herb-gatherer accessories.
 export const WULING_PALETTE=Object.freeze({cloak:0x342139,trim:0x927955,copper:0x9d7f4d,leather:0x322730,ivory:0xb6a995,glass:0xe4c484});
 const geometry=new Map(),materials=new Map();

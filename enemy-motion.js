@@ -1,7 +1,7 @@
-import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=206';
-import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=206';
+import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=207';
+import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=207';
 import{Vector3,Matrix4,Quaternion}from'./vendor/three.module.js';
-import{creatureGait,gaitDistance,gaitStride}from'./creature-gait.js?v=206';
+import{creatureGait,gaitDistance,gaitStride}from'./creature-gait.js?v=207';
 // Attack timings are shared with the pose driver so the strike matches its hit.
 export const ENEMY_MOTION={
  foamling:{wind:.55,recover:.25,cadence:9,range:2.1},tidecrab:{wind:.7,recover:.35,cadence:10,range:3.1},reefturtle:{wind:1.1,recover:.6,cadence:4,range:4},jellyseer:{wind:.85,recover:.4,cadence:4,range:12},tidestar:{wind:.9,recover:.45,cadence:4,range:11},wreckwarden:{wind:1.25,recover:1.7,cadence:4},
@@ -19,9 +19,10 @@ export function gaitPace(kind,phase){
  return 1;
 }
 const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
-// At a walk, each paw takes its turn. At a run, the front paws meet the
-// opposite hind paws. Keep the same phase for the pose and ground contacts.
-const wolfFootPhase=(leg,run)=>leg.phase+(leg.back?0:(1-run)*Math.PI*.5);
+// A four-beat walk gathers into a pursuit gallop: the hind pair drives,
+// then the forepair receives the weight. The two sides land a little apart.
+// Share this phase with the footfall caller, not a separate cosmetic clock.
+const wolfFootPhase=(leg,run)=>leg.phase+(leg.back?0:(1-run)*Math.PI*.5)-(leg.restX>0?run*Math.PI*.76:0);
 // Presentation only: e.gait remains the AI's clock. Return one bounded contact
 // mask per frame for the caller's existing footstep sound/ground effects.
 export function advanceEnemyLocomotion(d,dt,distance,walking){
@@ -37,7 +38,7 @@ export function advanceEnemyLocomotion(d,dt,distance,walking){
  // wolf's phase offsets on that frame would throw a forepaw across its stroke.
  if(grounded||!d.motionGait){
   const next=creatureGait(kind,d.motionSpeed);
-  if(kind==='wolf'&&next&&d.motionGait&&d.visualPhase>0)for(const key of ['travel','lift','support','run'])next[key]=d.motionGait[key]+(next[key]-d.motionGait[key])*blend;
+  if(kind==='wolf'&&next&&d.motionGait&&d.visualPhase>0)for(const key of ['travel','lift','support','run'])next[key]=d.motionGait[key]+(next[key]-d.motionGait[key])*(1-Math.exp(-dt*6));
   d.motionGait=next;
  }
  const travel=d.motionGait?.travel||{spitter:.18,shaman:.145}[kind];
@@ -102,17 +103,21 @@ function animateForestEnemy(d,t,stride,phase,gather,drive,impact){
   d.feet?.forEach((foot,i)=>{const step=Math.sin(phase+i*Math.PI);foot.position.y=.12+Math.max(0,-step)*.045*stride+airborne*.035+landing*.065;foot.position.z=.1+step*.08*stride+airborne*.035;foot.rotation.x=step*.18*stride+gather*.12-drive*.14+airborne*.13;});
  }else if(d.kind==='wolf'){
   const run=d.motionGait?.run??1,load=Math.sin(phase-Math.PI*((d.motionGait?.support??.64)-.5));
-  rig.position.set(-load*.009*stride+look*adjust*.018,(load*load*.012-.012)*stride-gather*.09+airborne*.26-landing*.07-brake*.02,-impact*.13-gather*.035+drive*.04-brake*.025);
-  rig.rotation.set(.025*stride+Math.sin(phase*2-.4)*.012*stride-gather*.04+drive*.09+landing*.08+brake*.055,0,-load*.015*stride-turn*.035*stride);
+  const bound=run*stride,coil=Math.sin(phase-.35)*bound,weight=Math.cos(phase*2-.35);
+  // Flexed elbows support the chest; pursuit gets a readable gather/extend
+  // cycle instead of rigid level translation over a rapid diagonal paddle.
+  d.wolfCoil=coil;
+  rig.position.set(-load*.009*stride+look*adjust*.018,-stride*.04-bound*.02+weight*(.006*stride+.026*bound)-gather*.09+airborne*.26-landing*.07-brake*.02,-impact*.13-gather*.035+drive*.04-brake*.025);
+  rig.rotation.set(.025*stride+Math.sin(phase-.2)*.055*bound+Math.sin(phase*2-.4)*.012*stride*(1-run)-gather*.04+drive*.09+landing*.08+brake*.055,0,-load*.015*stride*(1-run*.65)-turn*.055*stride);
   // Stalk below the withers, draw back before biting, then lead with the muzzle.
   // These are local poses only; leap travel and the damage clock stay unchanged.
-  d.head.position.set(0,.87-gather*.035+landing*.015,.49-gather*.025+drive*.045);
-  d.head.rotation.set(.07+.07*stride+lag*.025*stride+gather*.12-drive*.24+landing*.10-brake*.025,Math.sin(t*1.35)*.025*(1-stride)+look*(.34+adjust*.08)-turn*.065,-sway*.018*stride+turn*.025);
+  d.head.position.set(0,.87-weight*.012*bound-gather*.035+landing*.015,.49+coil*.018-gather*.025+drive*.045);
+  d.head.rotation.set(.07+.07*stride-rig.rotation.x*.65+lag*.018*stride+gather*.12-drive*.24+landing*.10-brake*.025,Math.sin(t*1.35)*.025*(1-stride)+look*(.34+adjust*.08)-turn*.065,-sway*.018*stride+turn*.025);
   d.jaw.position.y=-.21-gather*.015-drive*.018-pounce*.012;d.jaw.rotation.x=gather*.24+drive*.17+pounce*.10;
-  d.tail.rotation.set(-.05-gather*.2+airborne*.18+brake*.09,Math.sin(t*1.25-.5)*.025*(1-stride)+Math.sin(phase-.8)*.08*stride-turn*.22,0);
-  if(d.tailTip)d.tailTip.rotation.set(Math.sin(phase-1.1)*.035*stride,Math.sin(t*1.25-1)*.035*(1-stride)+Math.sin(phase-1.4)*.065*stride-turn*.28,0);
+  d.tail.rotation.set(-.05+Math.sin(phase-.7)*.065*bound-gather*.2+airborne*.18+brake*.09,Math.sin(t*1.25-.5)*.025*(1-stride)+Math.sin(phase-.8)*.045*stride-turn*.22,0);
+  if(d.tailTip)d.tailTip.rotation.set(Math.sin(phase-1.1)*.065*bound,Math.sin(t*1.25-1)*.035*(1-stride)+Math.sin(phase-1.4)*.04*stride-turn*.28,0);
   d.ears?.forEach((ear,i)=>ear.rotation.set(-.16-Math.sin(phase-.8+i*.35)*.055*stride-gather*.30+drive*.11,look*.05,(i?1:-1)*.12+breath*.015+turn*.045));
-  prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,phase,stride,{travel:.38,lift:.115,...d.motionGait,offset:wolfFootPhase(leg,run),air:airborne*.26,reachZ:airborne*(leg.back?-.11:.11),toeRoll:.18});
+  prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,phase,stride,{travel:.36,lift:.085,...d.motionGait,speed:d.motionSpeed,offset:wolfFootPhase(leg,run),air:airborne*.26,reachZ:airborne*(leg.back?-.11:.11),toeRoll:leg.back?.32:.42});
  }else if(d.kind==='golem'){
   const weight=Math.sin(phase)*stride;
   rig.position.set(weight*.045,Math.abs(sway)*.014*stride-gather*.09-drive*.08-settle*.025,-impact*.13-gather*.045+drive*.04);

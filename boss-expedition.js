@@ -1,5 +1,5 @@
-import{EXPEDITION_BOSS_TIME}from'./encounters.js?v=206';
-export {BOSS_ROUTES} from './boss-roster.js?v=206';
+import{EXPEDITION_BOSS_TIME}from'./encounters.js?v=207';
+export {BOSS_ROUTES} from './boss-roster.js?v=207';
 export const BOSS_ROUNDS=[{health:2600,pressure:1},{health:3900,pressure:1.12},{health:5600,pressure:1.24}];
 export const BOSS_BREAK=75;
 export function createBossRun(){return{defeated:0,nextAt:EXPEDITION_BOSS_TIME};}

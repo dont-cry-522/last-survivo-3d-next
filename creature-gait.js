@@ -2,7 +2,7 @@
 // travel = half of a support stroke, in actor-local metres; support = stance
 // fraction. The phase and foot solver must use the same pair to avoid sliding.
 const profiles={
- wolf:[.38,.43,.115,.15,2.2,4.5,.58],frostwolf:[.37,.43,.09,.14,2.2,4.5,.58],
+ wolf:[.36,.38,.085,.19,1.8,4.2,.36],frostwolf:[.37,.43,.09,.14,2.2,4.5,.58],
  ashstalker:[.28,.35,.055,.09,2,4.5,.60],emberling:[.27,.31,.09,.12,2,4.5,.61],
  yeti:[.25,.30,.07,.09,1.4,3.8,.64],lavabrute:[.30,.34,.045,.06,1.2,3.8,.68],
  boss:[.45,.45,.16,.16,1.5,4,.70],frostking:[.48,.54,.20,.24,2,4.5,.65],

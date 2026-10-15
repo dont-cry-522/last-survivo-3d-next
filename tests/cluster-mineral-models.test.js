@@ -5,8 +5,8 @@ import * as T from '../vendor/three.module.js';
 import {buildWorld} from '../world.js';
 import {installForestVista} from '../forest-vista.js';
 import {installForestHabitats} from '../forest-habitats.js';
-import {installBiomePlaces} from '../biome-places.js?v=206';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=206';
+import {installBiomePlaces} from '../biome-places.js?v=207';
+import {installEnvironmentClusters} from '../environment-clusters.js?v=207';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const create=id=>{const w=buildWorld(id,7);installForestVista(w,id);installForestHabitats(w,id);installBiomePlaces(w,id);return{w,s:installEnvironmentClusters(w,id)};};

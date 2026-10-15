@@ -7,8 +7,8 @@ import {installForestVista} from '../forest-vista.js';
 import {installForestHabitats} from '../forest-habitats.js';
 import {installExplorationRoutes} from '../exploration-routes.js';
 import {polishEnvironmentModels} from '../environment-props.js';
-import {installBiomePlaces} from '../biome-places.js?v=198';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=198';
+import {installBiomePlaces} from '../biome-places.js?v=199';
+import {installEnvironmentClusters} from '../environment-clusters.js?v=199';
 import {installEnvironmentGrounding} from '../environment-grounding.js';
 import {installAdventureGroundDetail,installHabitatDetail} from '../adventure-ground-detail.js';
 

@@ -1,8 +1,8 @@
-import{SCYTHE}from'./scythe-combat.js?v=198';
-import{REGIONAL_ENEMIES}from'./map-enemies.js?v=198';
-import{EXTRA_SKILLS,EXTRA_BY_ID}from'./skill-catalog.js?v=198';
-import{POISON}from'./poison-config.js?v=198';
-import{MIRAGE}from'./mirage-config.js?v=198';
+import{SCYTHE}from'./scythe-combat.js?v=199';
+import{REGIONAL_ENEMIES}from'./map-enemies.js?v=199';
+import{EXTRA_SKILLS,EXTRA_BY_ID}from'./skill-catalog.js?v=199';
+import{POISON}from'./poison-config.js?v=199';
+import{MIRAGE}from'./mirage-config.js?v=199';
 export const MAPS={confluence:{name:'五境大远征',subtitle:'林地、雪山、裂谷、遗城与海港无缝相连，沿古道挑战五境守卫',ground:0x536a48,fog:0x526b61,leaf:0x427657,accent:0xdaca96,slow:'地形'},coast:{name:'幽潮遗港',subtitle:'穿过曲折水湾与岛地，走栈桥或退潮浅滩，打捞货箱、点亮古灯塔',ground:0x586e70,fog:0x344f5c,leaf:0x508582,accent:0x8cdde0,slow:'潮湿滩地'},sand:{name:'风蚀遗城',subtitle:'绕开沙暴流沙，风息挖掘古匣、开启遗城机关',ground:0xafa080,fog:0x928a77,leaf:0x938363,accent:0xe6ca87,slow:'流沙'},forest:{name:'翡翠幽林',subtitle:'穿过古木与遗迹，追寻林心的回声',ground:0x284b3b,fog:0x173d39,leaf:0x287456,accent:0xecc988,slow:'泥地'},snow:{name:'霜月峡谷',subtitle:'冰晶照亮雪路，寒风掩藏猎手',ground:0x96b7bd,fog:0x769daa,leaf:0x456e7d,accent:0x9ae9ff,slow:'深雪'},ash:{name:'赤烬荒原',subtitle:'越过熔岩裂隙，唤醒沉睡的守卫',ground:0x5c4544,fog:0x382e3c,leaf:0x69545d,accent:0xffa25d,slow:'灰烬'}};
 // Legacy boomerang ID now identifies the slingshot; save and route keys remain compatible.
 export const WEAPONS={miasmalantern:{id:'miasmalantern',name:'蜃花灯',rate:MIRAGE.rate,damage:MIRAGE.impact,count:1,speed:MIRAGE.speed,range:MIRAGE.range,color:MIRAGE.color,needleDamage:MIRAGE.needleDps,needleDuration:MIRAGE.needleDuration,burstRadius:MIRAGE.burstRadius,splashDamage:MIRAGE.splashDamage,poisonScale:1,lureRank:0,venomRank:0},sporelantern:{id:'sporelantern',name:'孢灯',rate:POISON.rate,damage:POISON.impact,count:1,speed:POISON.speed,range:POISON.range,color:POISON.color,cloudDamage:POISON.dps,cloudRadius:POISON.radius,cloudDuration:POISON.duration,cloudMax:POISON.maxClouds,stillRank:0,roamRank:0},boomerang:{id:'boomerang',name:'芽铃弹弓',rate:1.5,damage:30,count:1,speed:28,range:11,color:0xe2d2aa,petDamage:30,petCooldown:2.35},harpoon:{id:'harpoon',name:'潮汐长叉',rate:1.6,damage:36,count:1,speed:1,range:3.8,color:0x8ad9da,melee:true,width:.48,pull:.85,slow:.6},rifle:{id:'rifle',name:'游侠连发枪',rate:3,damage:12,count:1,speed:27,range:14,color:0xffdc91},shotgun:{id:'shotgun',name:'碎岩霰弹枪',rate:1,damage:10,count:5,speed:25,range:8,color:0xffbe69},fire:{id:'fire',name:'烬火法杖',rate:.9,damage:30,count:1,speed:14,range:11,color:0xff743b},crossbow:{id:'crossbow',name:'夜翎短弩',rate:2.05,damage:20,count:1,speed:35,range:16,color:0xd8edff},shuriken:{id:'shuriken',name:'月刃飞镖',rate:1.4,damage:13,count:3,speed:22,range:12,color:0x95fff0},dark:{id:'dark',name:'夜幕法杖',rate:1,damage:26,count:1,speed:12,range:10,color:0xc5a2ff},shade:{id:'shade',name:'牵影咒',rate:1.6,damage:18,count:1,speed:20,range:8,color:0xf4f3ee},shadowblade:{id:'shadowblade',name:'断魂战镰',rate:SCYTHE.rate,damage:SCYTHE.damage,count:1,speed:1,range:SCYTHE.range,arc:SCYTHE.arc,melee:true,color:0xc6c8c6},grimoire:{id:'grimoire',name:'悬影魔典',rate:.8,damage:34,count:1,speed:1,range:10,color:0xe7e4db}};
@@ -58,8 +58,8 @@ export const WEAPON_PATHS={
  dark_seek:route('dark','追魂魔矢','♦',['追踪弹速 +35%，射速 +15%，伤害 -10%','双追踪魔矢，每枚伤害 -30%，射速恢复基础值','双魔矢射速 +15%，每枚伤害 -30%']),
  shade_echo:route('shade','残响弹射','◇',['影脉弹射 1 次','影脉弹射 2 次，伤害 +10%','影脉弹射 3 次，伤害 +20%']),
  shade_blight:route('shade','蚀影刻印','◈',['三次命中引爆刻印，额外 24 伤害','刻印伤害 36，爆炸半径增加','刻印伤害 48，爆炸半径增加']),
- shadowblade_fan:route('shadowblade','横月收割','✧',['近战距离 +0.25 米、斩击半角 +7°、伤害 +8%','距离 +0.5 米、半角 +14°、伤害 +16%','距离 +0.75 米、半角 +21°、伤害 +24%']),
- shadowblade_return:route('shadowblade','断魂重镰','↶',['伤害 +25%，攻速 -10%；强化近身重击','伤害 +50%，攻速 -10%','伤害 +75%，攻速 -10%']),
+ shadowblade_fan:route('shadowblade','横月收割','✧',['距离 +0.25 米、半角 +7°、伤害 +8%；第三斩减速 0.65 秒，同时命中至少两敌缩短影步冷却 0.35 秒','距离 +0.5 米、半角 +14°、伤害 +16%；第三斩减速 0.8 秒，多敌命中回转影步 0.5 秒','距离 +0.75 米、半角 +21°、伤害 +24%；第三斩减速 0.95 秒，多敌命中回转影步 0.65 秒']),
+ shadowblade_return:route('shadowblade','断魂重镰','↶',['伤害 +25%，攻速 -10%；两次出手间隔至少 1.2 秒，最近命中目标额外 +45% 斩击伤害；空挥消耗蓄势','伤害 +50%，攻速 -10%；两次出手间隔至少 1.2 秒，最近命中目标额外 +60% 斩击伤害；空挥消耗蓄势','伤害 +75%，攻速 -10%；两次出手间隔至少 1.2 秒，最近命中目标额外 +75% 斩击伤害；空挥消耗蓄势']),
  grimoire_wide:route('grimoire','裂界之页','▱',['裂口半径 2.1，伤害 +8%','裂口半径 2.5，伤害 +16%','裂口半径 2.9，伤害 +24%']),
  grimoire_echo:route('grimoire','复诵禁咒','◈',['裂口延迟再次爆发，造成 40% 伤害','再次爆发造成 55% 伤害','再次爆发造成 70% 伤害'])
 };

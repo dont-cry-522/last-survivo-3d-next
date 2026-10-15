@@ -1,11 +1,11 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 双视角实测</title><style>body{margin:12px;background:#17272b;color:#e2ecea;font:14px system-ui}button{padding:10px;margin:4px;background:#254943;border:1px solid #709582;color:inherit;border-radius:5px}iframe{display:block;border:0;margin-top:8px}pre{white-space:pre-wrap}#view{overflow:auto}</style><button id="run" disabled>运行双视角回归</button><select id="preview-map" aria-label="预览地图"><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="confluence">五境</option></select><select id="preview-place" aria-label="预览位置"><option value="spawn">出生地</option><option value="water">水岸</option><option value="waterbed">浅水石底</option><option value="watercenter">水中近看</option><option value="trees">树丛</option><option value="ruins">遗迹近景</option><option value="ruin-arch">残拱与通道</option><option value="elder">古树空地</option><option value="thicket">幽暗密林</option><option value="floor">地表细节近景</option></select><button id="third" disabled>第三人称预览</button><button id="first" disabled>第一人称预览</button><button id="capture" disabled>保存画面</button><p id="status">正在加载真实游戏（隔离存档，固定帧测试）</p><div id="view"></div><pre id="report"></pre><script type="module">
 import * as T from '../vendor/three.module.js';
-import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=198';
-import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=198';
-import {terrainAt,waterDepth} from '../water.js?v=198';
-import {updateTide} from '../coast.js?v=198';
-import {BOSS_STYLES} from '../boss-combat.js?v=198';
-import {biomeWeights} from '../confluence.js?v=198';
+import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=199';
+import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=199';
+import {terrainAt,waterDepth} from '../water.js?v=199';
+import {updateTide} from '../coast.js?v=199';
+import {BOSS_STYLES} from '../boss-combat.js?v=199';
+import {biomeWeights} from '../confluence.js?v=199';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
 const previewHero=document.createElement('select'),previewWeapon=document.createElement('select'),sourceDocument=new DOMParser().parseFromString(html,'text/html');
@@ -31,7 +31,7 @@ async function load(mobile=false,width=1180,height=720){
  const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
  // LOD generation must run in this renderer's realm: geometry merges compare
  // typed-array constructors, and WebGL uploads use instanceof checks.
- window.qaWorldReady=import('./world.js?v=198').then(module=>{window.qaAnimateWorld=module.animateWorld;});
+ window.qaWorldReady=import('./world.js?v=199').then(module=>{window.qaAnimateWorld=module.animateWorld;});
  <\/script>`;
  frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
  for(let i=0;i<600&&!win.game3d;i++)await sleep(50);assert(win.game3d,'加载超时 '+(win.qaErrors||[]).join(' / '));g=win.game3d;assert(await g.surfaceReady,'本地土石材质未全部加载');g.audio.init=async()=>true;const render=g.renderer.render.bind(g.renderer);g.renderer.render=(scene,camera)=>{if(scene!==g.hero.parent)return render(scene,camera);win.qaCamera=camera;if(g.state==='menu'&&win.document.querySelector('#preview-detail').getAttribute('aria-pressed')!=='true'){
@@ -486,8 +486,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=198');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=198');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=199');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=199');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -1408,8 +1408,66 @@ forestPreview.onclick=async()=>{try{
  s.discovered=true;s.claimed=false;s.mesh.visible=true;s.state='ready';s.eventRun={id:'purify',trial:true,done:true,progress:10,wave:2};step(3);assert(g.state==='event-choice','奖励未显示');$('#status').textContent='实际林心奖励界面 · 展示当前 3 级可选路线';
  }catch(e){$('#status').textContent='预览失败 '+e.message;}};
 
+
+const scytheRoutesButton=document.createElement('button');scytheRoutesButton.id='scythe-routes-run';scytheRoutesButton.textContent='镰刀路线实战检查';$('#capture').before(scytheRoutesButton);
+scytheRoutesButton.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button')];controls.forEach(b=>b.disabled=true);results.length=0;errors.length=0;
+ const advance=seconds=>{for(let i=0;i<Math.round(seconds*60);i++)g.step(1/60);};
+ const setup=(path,mode='first',rank=3)=>{select('wraith',1);arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};g.world.breakables=[];g.world.discoveries=[];g.world.roaming=[];for(const s of g.world.sites)s.claimed=true;g.setView(mode);win.document.querySelector('[data-attack-mode="manual"]').click();g.player.weaponPath=path?{id:path,rank}:null;};
+ const dummy=(x,z)=>{const e=g.spawn('golem',x,z);assert(e,'无法生成靶怪');Object.assign(e,{speed:0,cool:999,hp:10000,maxHp:10000,xp:0});return e;};
+ const tap=(mobile=false)=>{
+  g.player.attack=0;
+  if(!mobile){fire(1);return;}
+  const b=win.document.querySelector('#aim-stick');b.setPointerCapture=()=>{};b.releasePointerCapture=()=>{};const r=b.getBoundingClientRect(),o={pointerType:'touch',pointerId:53,clientX:r.x+r.width/2,clientY:r.y+r.height/2};pointer(b,'pointerdown',o);step();pointer(b,'pointerup',o);
+ };
+ const resolve=()=>{for(let i=0;i<60&&g.player.melee;i++)g.step(1/60);assert(!g.player.melee,'斩击没有结束');};
+ const near=(a,b,msg)=>assert(Math.abs(a-b)<.03,msg+' '+a+' / '+b);
+ const swing=(mobile=false)=>{tap(mobile);assert(g.player.melee?.scythe,'没有发起镰刀攻击');const strike=g.player.melee;resolve();return strike;};
+ const sweepCheck=(mode,mobile=false)=>{
+  setup('shadowblade_fan',mode);const a=dummy(-.7,2.5),b=dummy(.7,2.5);aimAt({x:0,y:0,z:2.5,height:1.5});
+  if(mobile){win.document.querySelector('[data-attack-mode="auto"]').click();g.player.attack=0;advance(.3);assert(a.hp===10000&&b.hp===10000,'手机未按住就自动攻击');}
+  const damage=[];for(let i=0;i<3;i++){const before=a.hp;g.player.dash=2;const start=g.time,inv=g.player.inv;swing(mobile);near(before-a.hp,[49.6,54.56,66.96][i],'横月伤害');near(g.player.dash,2-(g.time-start)-(i===2?.65:0),'多目标回转必须每斩只算一次');near(g.player.inv,inv-(g.time-start),'不能新增无敌');damage.push(before-a.hp);if(i===2)assert(a.slow>.8&&b.slow>.8,'第三斩减速未生效');advance(.42);}
+  step();assert(win.document.querySelector('#hint').textContent.includes('横月'),'没有连段提示');return{damage,...reportFrame()};
+ };
+ try{
+  await load();
+  for(const mode of['first','third']){
+   await check(mode+' 横月真实三连、两敌命中、回转一次',()=>sweepCheck(mode));
+   await check(mode+' 重镰最近合法目标、出手间隔、暂停冻结',()=>{
+    setup('shadowblade_return',mode);const far=dummy(.45,3),close=dummy(-.45,2.4);aimAt(close);tap();assert(g.player.melee.heavy,'起手未蓄势');g.pause();const time=g.time;step(12);assert(g.time===time&&close.hp===10000,'暂停推进蓄势或伤害');g.resume();resolve();near(10000-close.hp,122.5,'主目标重击');near(10000-far.hp,70,'副目标不应强化');assert(close.stagger>.2,'重击未短暂打断普通怪');
+    const old=close.hp;advance(.4);assert(!swing().heavy,'快速连击误获蓄势');near(old-close.hp,77,'快速第二斩');g.player.attack=9999;advance(1);step(7);assert(win.document.querySelector('#hint').textContent.includes('已蓄势'),'蓄势提示缺失');const hp=close.hp;assert(swing().heavy,'等待未重新蓄势');near(hp-close.hp,165.375,'第三斩重击');return{main:122.5,secondary:70,...reportFrame()};
+   });
+  }
+  await check('电脑自动攻击保留连斩节奏，不擅自停火或连续获得重击',()=>{
+   setup('shadowblade_return');const e=dummy(0,2.5);aimAt(e);win.document.querySelector('[data-attack-mode="auto"]').click();g.player.attack=0;const strikes=[];let last=null;
+   for(let i=0;i<150;i++){g.step(1/60);if(g.player.melee&&g.player.melee!==last){last=g.player.melee;strikes.push({heavy:last.heavy,time:g.time});}}
+   g.player.attack=9999;assert(strikes.length>=3&&strikes[0].heavy&&strikes.slice(1).every(s=>!s.heavy),'自动模式改了攻击节奏 '+JSON.stringify(strikes));step(7);return{strikes,...reportFrame()};
+  });
+  await check('墙后、身后与射程外不受伤，空挥消耗蓄势，单敌不回转',()=>{
+   setup('shadowblade_return');const behind=dummy(0,2.5),rear=dummy(0,-2.5),far=dummy(0,6);aimAt(behind);g.world.obstacles=[{x:0,z:1.2,r:.5,height:5}];swing();assert([behind,rear,far].every(e=>e.hp===10000),'命中穿过墙体或范围');g.world.obstacles=[];advance(.4);const s=swing();assert(!s.heavy,'空挥后再次免费蓄势');near(10000-behind.hp,77,'空挥后的普通伤害');
+   setup('shadowblade_fan');const e=dummy(0,2.5);aimAt(e);for(let i=0;i<3;i++){g.player.dash=2;const t=g.time;swing();near(g.player.dash,2-(g.time-t),'单敌不应退款');advance(.42);}return reportFrame();
+  });
+  await check('首领单独存在时重击正常，不增加首领硬直',()=>{
+   setup('shadowblade_return');g.spawnBoss();const e=g.boss;assert(e?.alive,'没有首领');Object.assign(e,{x:0,z:3,y:0,hp:10000,maxHp:10000,cool:999,recover:0});e.mesh.position.set(0,0,3);aimAt(e);swing();near(10000-e.hp,122.5,'首领重击');assert(!(e.stagger>0),'重镰给首领新增硬直');return{damage:10000-e.hp,...reportFrame()};
+  });
+  await check('闪避取消、死亡、返大厅及重开不残留攻击',()=>{
+   setup('shadowblade_return');const e=dummy(0,2.5);aimAt(e);tap();g.player.dash=0;g.dash();assert(!g.player.melee,'闪避未取消');advance(.5);assert(e.hp===10000,'取消后仍命中');g.player.inv=0;g.damage(999999,g.player.x,g.player.z);assert(g.state==='lost'&&!g.player.melee,'死亡没有清理');g.menu();g.start();assert(!g.player.weaponPath&&!g.player.scytheCount&&!g.player.melee&&g.player.scytheLast===undefined,'重开残留');return reportFrame();
+  });
+  await check('基础镰刀与旧潮叉仍正常命中，经验只发一次',()=>{
+   setup(null);const e=dummy(0,2.5);aimAt(e);const out=[];for(let i=0;i<3;i++){const hp=e.hp;swing();out.push(hp-e.hp);advance(.42);}assert(out.every((n,i)=>Math.abs(n-[40,44,54][i])<.03),'基础镰刀改变 '+out);
+   select('tide');arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};g.setView('first');win.document.querySelector('[data-attack-mode="manual"]').click();const q=dummy(0,2.5);aimAt(q);fire(1);resolve();assert(q.hp<10000,'潮叉没有命中');
+   setup('shadowblade_return');const target=dummy(0,2.5);target.hp=10;target.xp=1;aimAt(target);swing();assert(!target.alive,'重镰没有击杀');assert(g.orbs.length+g.player.xp===1,'击杀奖励不止一份');advance(.15);step(7);assert(g.orbs.length+g.player.xp===1,'死敌重复结算经验');assert(win.document.querySelector('#kills').textContent==='击败 1','击杀计数不是一次');return{baseDamage:out,...reportFrame()};
+  });
+  for(const [width,height]of[[844,390],[390,844]]){await load(true,width,height);await check('手机 '+width+'×'+height+' 自动瞄准、按住攻击、横月三连',()=>sweepCheck('third',true));await check('手机 '+width+'×'+height+' 重镰松手蓄势再攻击',()=>{setup('shadowblade_return','third');const e=dummy(0,2.5);aimAt(e);win.document.querySelector('[data-attack-mode="auto"]').click();g.player.attack=0;advance(.3);assert(e.hp===10000,'松手自动攻击');assert(swing(true).heavy,'触控起手无重击');advance(1.22);assert(swing(true).heavy,'触控等待未蓄势');return reportFrame();});}
+  errors.push(...win.qaErrors);$('#status').textContent='镰刀路线检查完成 '+results.filter(r=>r.pass).length+'/'+results.length;publish();
+ }catch(e){errors.push(String(e));publish();$('#status').textContent='镰刀检查中断 '+e.message;}finally{controls.forEach(c=>c.disabled=false);}
+};
+
+const scythePreview=document.createElement('button');scythePreview.id='scythe-route-preview';scythePreview.textContent='镰刀成长实景';$('#capture').before(scythePreview);
+scythePreview.onclick=async()=>{try{await load();select('wraith',1);g.setView('third');g.player.level=8;g.player.weaponPath={id:'shadowblade_return',rank:3};for(const e of g.enemies){e.alive=false;e.mesh.visible=false;}step(8);win.document.querySelector('[data-path-detail]').click();$('#status').textContent='断魂重镰 · 实际路线说明与森林背景';}catch(e){$('#status').textContent='预览失败 '+e.message;}};
+
 const autoCheck=new URLSearchParams(location.search).get('check');
-const autoButtons={forest:'forest-run',impacts:'impacts-run',bosses:'boss-run',creatures:'creatures-run',water:'water-run',identity:'identity-run',lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',slingshot:'slingshot-run',polish:'polish-run',heroes:'run'};
+const autoButtons={scythe:'scythe-routes-run',forest:'forest-run',impacts:'impacts-run',bosses:'boss-run',creatures:'creatures-run',water:'water-run',identity:'identity-run',lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',slingshot:'slingshot-run',polish:'polish-run',heroes:'run'};
 if(g&&autoButtons[autoCheck]){$('#status').textContent='正在运行 '+autoCheck+' 检查…';$('#'+autoButtons[autoCheck]).click();}
 </script>
 </html>

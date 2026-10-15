@@ -165,3 +165,14 @@ test('compact point routes reduce their actual bounds and bounce connects the tw
  assert(trace);assert(trace.mesh.position.distanceTo(center)<1e-8);assert(Math.abs(trace.size[1]-Math.hypot(2,1.8,3))<1e-8);
  v.update(1);assert.equal(v.active.length,0);
 });
+
+
+test('scythe finisher and charged primary use distinct compact accents within the same pool',()=>{
+ const v=new SkillVFX(new T.Scene(),{mobile:true});
+ const contact={x:1,y:1.2,z:2,normal:{x:0,y:0,z:-1},compact:true};
+ cast(v,'shadowblade_fan','hit',{combo:0,contact});assert.equal(v.active.length,1);
+ v.clear();cast(v,'shadowblade_fan','hit',{combo:2,contact});assert.equal(v.active.length,2);
+ v.clear();cast(v,'shadowblade_return','hit',{heavy:false,contact});assert.equal(v.active.length,2);
+ v.clear();cast(v,'shadowblade_return','hit',{heavy:true,contact});assert.equal(v.active.length,4);
+ assert(v.active.every(p=>p.life<=.32&&p.opacity<=.76));v.clear();assert.equal(v.active.length,0);
+});

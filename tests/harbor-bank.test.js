@@ -2,7 +2,7 @@ import test from'node:test';
 import assert from'node:assert/strict';
 import * as T from'../vendor/three.module.js';
 import{buildWorld,moveActor}from'../world.js';
-import{installBiomePlaces}from'../biome-places.js?v=198';
+import{installBiomePlaces}from'../biome-places.js?v=199';
 import{installForestVista}from'../forest-vista.js';
 import{installForestHabitats}from'../forest-habitats.js';
 import{terrainAt,waterDepth}from'../water.js';
@@ -50,8 +50,8 @@ test('pier meshes dispose per world without releasing shared material or touchin
 });
 
 test('ordinary-dressing clearance at a pier end never removes a protected district just beyond its rounded safety margin',async()=>{
- const {harborPierPlan}=await import('../harbor-bank-layout.js?v=198');
- const {bridgeContains}=await import('../coast.js?v=198');
+ const {harborPierPlan}=await import('../harbor-bank-layout.js?v=199');
+ const {bridgeContains}=await import('../coast.js?v=199');
  const baseline=buildWorld('coast',7),target=installBiomePlaces(baseline,'coast').find(p=>p.pier),b=target.pier;
  const ux=Math.cos(b.angle),uz=-Math.sin(b.angle),vx=Math.sin(b.angle),vz=Math.cos(b.angle);
  const world=buildWorld('coast',7),root=new T.Group();root.userData.district=true;

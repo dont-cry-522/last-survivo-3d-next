@@ -6,12 +6,13 @@ import * as T from'../vendor/three.module.js';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const pixelButton=document.createElement('button');pixelButton.id='pixels';pixelButton.disabled=true;pixelButton.textContent='深度解析像素诊断';$('#gpu').after(pixelButton);
 const pixelCaptures=document.createElement('div');pixelCaptures.id='pixel-captures';$('#capture').after(pixelCaptures);
+const motionButton=document.createElement('button');motionButton.id='creature-motion';motionButton.disabled=true;motionButton.textContent='实战怪物追击与首领检查';$('#first-view').after(motionButton);
 const creatureButton=document.createElement('button');creatureButton.id='creature-near';creatureButton.disabled=true;creatureButton.textContent='近看当前地图怪物';$('#first-view').after(creatureButton);
 const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text();let frame,g,win,now=0;const results=[],errors=[];
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
 async function load(mobile=false,width=1180,height=720){
- creatureButton.disabled=true;
+ creatureButton.disabled=true;motionButton.disabled=true;
  if(g){errors.push(...win.qaErrors);g.audio.stopMusic();g.cinema?.dispose();g.renderer.dispose();g.renderer.forceContextLoss();}frame?.remove();
  frame=document.createElement('iframe');frame.title='真实游戏环境预览';frame.style.width=width+'px';frame.style.height=height+'px';$('#view').append(frame);
  const boot=`<base href="../"><script>
@@ -32,7 +33,7 @@ async function load(mobile=false,width=1180,height=720){
  // Do not test the loading camera or race the startup world reconstruction.
  for(let i=0;i<1200&&win.document.querySelector('#start').disabled;i++)await sleep(50);
  assert(!win.document.querySelector('#start').disabled,'角色与场景预热超时');
- now=win.performance.now();step(2);creatureButton.disabled=false;
+ now=win.performance.now();step(2);creatureButton.disabled=false;motionButton.disabled=false;
 }
 function select(map,hero='silver',battle=false){g.menu();win.qaSeed();g.select(hero,map,0);if(battle){win.qaSeed();g.start();g.player.inv=9999;g.player.attack=9999;}step(12);}
 function spellBattle(){
@@ -156,6 +157,24 @@ $('#creature-near').onclick=()=>{
  const enemies=spots.map(p=>{const e=g.spawn(p.kind,p.x,p.z);assert(e,'怪物生成失败');e.speed=0;e.cool=999;return e;});
  g.adventureCamera.yaw=yaw;g.adventureCamera.pitch=-.08;g.setView('first');step(45);
  $('#status').textContent='实际地图怪物近景（测试场景冻结 AI，非难度测试） · '+JSON.stringify({kinds:enemies.map(e=>e.kind),width:win.innerWidth,height:win.innerHeight,...reportFrame()});
+};
+$('#creature-motion').onclick=async()=>{
+ motionButton.disabled=true;$('#status').textContent='实战动作检查进行中';await sleep(0);
+ try{
+  select($('#map').value,'silver',true);g.setView('first');
+  const tracked=[];
+  for(const [n,kind]of ['wolf','golem','mushroom','spitter','shaman'].entries())for(let i=0;i<24;i++){
+   const a=(n+i)*Math.PI/12,x=g.player.x+Math.sin(a)*7,z=g.player.z+Math.cos(a)*7;
+   const e=g.spawn(kind,x,z);if(e){tracked.push({e,x,z});break;}
+  }
+  assert(tracked.length===5,'未找到五种普通怪物的生成位置');g.spawnBoss();assert(g.boss,'首领无法生成');const bossStart={x:g.boss.x,z:g.boss.z};
+  let frames=0;for(let n=0;n<540;n++){if(n%30===0)await sleep(0);step();frames++;for(const {e}of tracked)e.mesh.traverse(o=>assert(o.matrixWorld.elements.every(Number.isFinite),'怪物姿势异常'));}
+  assert(g.state==='playing','测试对局意外结束');
+  const boss=g.boss;boss.mesh.traverse(o=>assert(o.matrixWorld.elements.every(Number.isFinite),'首领姿势异常'));
+  g.adventureCamera.yaw=Math.atan2(boss.x-g.player.x,boss.z-g.player.z);g.adventureCamera.pitch=.07;step(4);
+  const time=g.time,phase=boss.mesh.userData.phase;g.pause();step(30);assert(g.time===time&&boss.mesh.userData.phase===phase,'暂停后仍然迈步');g.resume();step(1);
+  $('#status').textContent='实战动作检查 PASS（正常 AI，测试玩家无敌且不自动攻击） · '+JSON.stringify({frames,boss:boss.kind,bossMoved:Math.hypot(boss.x-bossStart.x,boss.z-bossStart.z),creatures:tracked.map(({e,x,z})=>({kind:e.kind,moved:Math.hypot(e.x-x,e.z-z),wind:e.wind})),width:win.innerWidth,height:win.innerHeight,...reportFrame()});
+ }catch(error){$('#status').textContent='实战动作检查 FAIL · '+String(error);}finally{motionButton.disabled=false;}
 };
 $('#lobby').onclick=()=>preview();$('#battle').onclick=()=>preview(true);$('#mobile').onclick=()=>preview(true,true);
 $('#paths').onclick=()=>{for(const site of g.world.sites)site.trail.visible=!site.trail.visible;step();};

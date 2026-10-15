@@ -1,7 +1,8 @@
+import {creatureGait,gaitDistance} from './creature-gait.js?v=202';
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,tint,joint,smooth} from './creature-forms.js?v=201';
-import {bossLeg,poseBossLeg} from './boss-appearance.js?v=201';
-import {ADDITIONAL_BOSSES} from './boss-roster.js?v=201';
+import {form,surface,tube,oval,tint,joint,smooth} from './creature-forms.js?v=202';
+import {bossLeg,poseBossLeg} from './boss-appearance.js?v=202';
+import {ADDITIONAL_BOSSES} from './boss-roster.js?v=202';
 
 // Ten anatomical silhouettes, shared shaded geometry and the existing foot IK.
 // No per-instance textures/materials, lights or independent animation timers.
@@ -21,10 +22,11 @@ function tail(d,color,points,radii){d.tail=joint(d.rig);part(d,d.tail,'Tail',()=
 function buildStag(d){
  const r=d.rig;d.body=part(d,r,'DeerTorso',()=>[
   skin(0x675b43,[[-1.30,.12,.15,0,1.62],[-1.04,.47,.48,0,1.70],[-.55,.62,.55,0,1.77],[.15,.61,.60,0,1.79],[.72,.52,.70,0,1.94],[1.08,.28,.38,0,2.10]],{axis:'z',shade:(c,x,y)=>c.multiplyScalar(y<1.55?.72:1)}),
-  skin(0x776c4b,[[1.65,.39,.41,0,.66],[2.05,.34,.37,0,.90],[2.52,.25,.27,0,1.05],[2.91,.24,.23,0,1.18]],{sides:22}),
   ...Array.from({length:9},(_,i)=>horn(i%2?0x6e8051:0x8b8a5a,[[0,2.21,-1.05+i*.21],[.09,2.34,-.98+i*.21],[0,2.30,-.84+i*.21]],[.08,.075,.005]))
  ]);
- d.head=joint(r,0,2.82,1.17);
+ d.neck=joint(r,0,1.65,.66);
+ part(d,d.neck,'DeerNeck',()=>[skin(0x776c4b,[[1.65,.39,.41,0,.66],[2.05,.34,.37,0,.90],[2.52,.25,.27,0,1.05],[2.91,.24,.23,0,1.18]],{sides:22}).translate(0,-1.65,-.66)]);
+ d.head=joint(d.neck,0,1.17,.51);
  part(d,d.head,'DeerHead',()=>[skin(0x827352,[[-.28,.18,.24,0,.02],[-.09,.29,.29,0,.12],[.16,.25,.26,0,.07],[.32,.14,.16,0,-.06]],{sides:24}),horn(0x75684c,[[0,.03,.04],[0,-.04,.38],[0,-.16,.66]],[.25,.21,.12]),oval(0x2a3029,0,-.15,.65,.135,.08,.08),...sides.map(s=>skin(0x786b4c,[[0,.04,.04],[.18,.13,.05],[.45,.10,.025],[.64,.005,.004]],{sides:12}).rotateZ(-s*.8).translate(s*.20,.20,-.09))]);
  eyes(d,d.head,.09,.26,.23,0xd8bc75);
  for(const s of sides){const antler=joint(d.head,s*.16,.24,-.05);part(d,antler,'Antler'+s,()=>[
@@ -121,15 +123,18 @@ export function animateBossVariant(g,t,speed,dt){
  const d=g.userData,r=d.rig,kind=d.kind,cfg=ADDITIONAL_BOSSES[kind],stage=d.bossStage||'walk',second=d.bossMove===cfg.moves[1],s=stage==='strike'?Math.min(1,d.strikeProgress||0):0;
  const wind=stage==='wind'?smooth(d.windProgress||0):stage==='strike'?1-smooth(s/.32):0;
  const strike=stage==='strike'?smooth(s/.32)*(1-.7*smooth((s-.55)/.45)):stage==='recover'?.30*(1-smooth(d.recoverProgress||0)):0;
- const desired=stage==='walk'?Math.min(1,Math.max(0,speed)/cfg.speed):0;d.walkStride=(d.walkStride||0)+(desired-(d.walkStride||0))*(1-Math.exp(-Math.max(0,dt)*10));const stride=d.walkStride;
- if(dt>0&&stride)d.phase+=speed*dt*(kind==='webmatriarch'?2.3:kind==='moltenrhino'?2.0:2.7);const p=d.phase;
+ const groundCharge=stage==='strike'&&['antlerrush','horncharge'].includes(d.bossMove),groundMove=stage==='walk'||groundCharge;
+ const desired=groundMove?Math.min(1,Math.max(0,speed)/cfg.speed):0;d.walkStride=(d.walkStride||0)+(desired-(d.walkStride||0))*(1-Math.exp(-Math.max(0,dt)*10));const stride=d.walkStride;
+ const gait=creatureGait(kind,speed);d.motionGait=gait;
+ if(dt>0&&desired>0)d.phase+=gait?gaitDistance(speed*dt/g.scale.x,gait,desired):speed*dt*2.7;const p=d.phase;
  r.position.set(0,d.lift||0,0);r.rotation.set(0,0,0);r.scale.set(1,1,1);
  const breath=Math.sin(t*1.3)*.007;d.body.scale.set(1+breath,1+breath*.7,1+breath*.35);
  if(d.head)d.head.rotation.set(0,0,0);if(d.jaw)d.jaw.rotation.x=.06+wind*.18+strike*.22;
  if(d.tail)d.tail.rotation.set(0,Math.sin(t*.8+p*.7)*(.035+.09*stride),0);
  if(kind==='thornstag'){
   r.position.y+=Math.sin(p*2)*.035*stride-wind*.12;r.rotation.z=Math.sin(p)*.025*stride;
-  d.head.rotation.x=(second?-.12:.47)*wind+(second?.28:-.15)*strike;d.head.rotation.y=Math.sin(t*.35)*.035*(1-wind);
+  d.neck.rotation.x=(second?-.06:.48)*wind+(second?.10:.55)*strike+Math.sin(p*2-.45)*.018*stride;
+  d.head.rotation.x=(second?-.12:.18)*wind+(second?.28:.15)*strike;d.head.rotation.y=Math.sin(t*.35)*.035*(1-wind);
   for(let i=0;i<d.appendages.length;i++)d.appendages[i].rotation.z=(i?1:-1)*(Math.sin(t)*.008+wind*.025);
  }else if(kind==='rimefang'){
   r.position.y+=Math.sin(p*2)*.045*stride-wind*.18;r.rotation.x=wind*(second?-.08:.12)+strike*.10;
@@ -139,8 +144,13 @@ export function animateBossVariant(g,t,speed,dt){
  }else if(kind==='moltenrhino'){
   r.position.y+=Math.abs(Math.sin(p))*.06*stride-wind*.08;r.rotation.z=Math.sin(p)*.035*stride;r.rotation.x=wind*.06+strike*(second?.14:0);d.head.rotation.x=wind*(second?-.20:.27)+strike*(second?.38:.06);
  }else if(kind==='icephoenix'||kind==='cinderdrake'||kind==='sailreaper'){
-  const bird=kind==='icephoenix',ray=kind==='sailreaper';r.position.y+=Math.sin(t*(ray?1.4:2.2))*(ray?.07:.09);r.rotation.x=wind*(second?.12:-.12)+strike*(second?.22:.09);r.rotation.z=Math.sin(t*.9)*.018;
-  for(let i=0;i<d.wings.length;i++){const side=i?1:-1;d.wings[i].rotation.set(wind*(second?.20:-.10)-strike*.15,side*((ray?0:.14)+wind*(second?.46:-.14)-strike*.20),side*((ray?0:bird?-.16:-.35)+Math.sin(t*(bird?2.4:ray?1.5:1.9)+.2)* (ray?.13:.20)+wind*(second?.75:-.23)-strike*(second?.20:.55)));}
+  const bird=kind==='icephoenix',ray=kind==='sailreaper';
+  // Accumulate a speed-aware wing clock: changing speed cannot jump the wings
+  // to an unrelated time*frequency pose. Breast/wing motion trails the power beat.
+  d.flightPhase=(d.flightPhase||0)+dt*((bird?2.4:ray?1.5:1.9)+Math.min(1.5,speed/cfg.speed)*(ray?.35:.8));
+  const flap=d.flightPhase,free=Math.max(0,1-.65*wind-.8*strike);
+  r.position.y+=Math.sin(flap-.65)*(ray?.07:.09)*free;r.rotation.x=wind*(second?.12:-.12)+strike*(second?.22:.09);r.rotation.z=Math.sin(t*.9)*.018;
+  for(let i=0;i<d.wings.length;i++){const side=i?1:-1;d.wings[i].rotation.set(wind*(second?.20:-.10)-strike*.15,side*((ray?0:.14)+wind*(second?.46:-.14)-strike*.20),side*((ray?0:bird?-.16:-.35)+Math.sin(flap+.2)*(ray?.13:.20)*free+wind*(second?.75:-.23)-strike*(second?.20:.55)));}
   if(d.head)d.head.rotation.x=wind*(second?.10:-.26)+strike*(second?.2:.32);if(d.jaw)d.jaw.rotation.x=wind*(second?.12:.52)+strike*.37;
  }else if(kind==='dunedevourer'){
   r.rotation.x=Math.sin(t*.8)*.045+wind*(second?.13:-.17)+strike*(second?-.09:.18);r.rotation.z=Math.sin(t*1.2)*.04;d.head.rotation.x=.85+wind*(second?-.30:.35)-strike*.25;d.body.scale.z=1+Math.sin(p)*.025*stride;
@@ -152,5 +162,11 @@ export function animateBossVariant(g,t,speed,dt){
   d.appendages.forEach((a,i)=>{const angle=a.userData.angle,open=.04*Math.sin(t*1.2-i*.4)+wind*(second?.18:.42)-strike*.16;a.rotation.set(Math.sin(angle)*open,0,-Math.cos(angle)*open);});d.core.scale.setScalar(1+wind*.07+strike*.04);
  }
  // Foot targets follow the visual rig during flight, then plant on the ground.
- const lift=d.lift||0;for(const l of d.legs)poseBossLeg(l,r,p,stride,kind==='webmatriarch'?.25:.34,.20,lift);
+ const lift=d.lift||0,tuck=kind==='rimefang'?Math.max(0,Math.min(1,lift/1.6)):0;
+ for(const l of d.legs){
+  const fore=kind==='webmatriarch'&&l.hip.z>.5?wind*.22:0;
+  // The wolf tucks its rear paws and reaches with its forelegs; a casting
+  // spider braces on six legs while lifting its front pair.
+  poseBossLeg(l,r,p,stride,gait.travel,gait.lift,lift+tuck*.12+fore,gait.support,tuck*(l.hip.z>0?.18:-.18));
+ }
 }

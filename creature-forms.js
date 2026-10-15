@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=201';
+import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=202';
 
 // Finite templates and three shared finishes (one translucent jelly membrane). No per-enemy geometry/material,
 // bone textures, extra lights or disposable particle resources.
@@ -61,7 +61,8 @@ export function form(parent,key,build,{glow=false,translucent=false}={}){
 export const joint=(parent,x=0,y=0,z=0)=>{const p=new T.Group();p.position.set(x,y,z);parent.add(p);return p;};
 export function face(color,y,z,spread=.12){return[-1,1].flatMap(s=>[oval(0x26312f,s*spread,y,z,.059,.049,.025),oval(color,s*spread,y+.008,z+.019,.027,.027,.012),oval(0xf2edcf,s*spread-.008,y+.018,z+.031,.008,.009,.004,6,4)]);}
 export const smooth=x=>{x=T.MathUtils.clamp(x,0,1);return x*x*(3-2*x);};
-export function gait(phase,stride,lift=.10){const u=T.MathUtils.euclideanModulo(phase/(Math.PI*2),1),support=u<.64,q=support?0:(u-.64)/.36;return{support,travel:(support?1-u/.64*2:-1+2*smooth(q))*stride,lift:Math.sin(q*Math.PI)*lift*stride};}
+export {footCycle as gait} from './creature-gait.js?v=202';
+import {footCycle as gait} from './creature-gait.js?v=202';
 const down=new T.Vector3(0,-1,0),target=new T.Vector3(),direction=new T.Vector3(),bend=new T.Vector3(),elbow=new T.Vector3(),segment=new T.Vector3(),inverse=new T.Matrix4(),worldTarget=new T.Vector3(),actorInverse=new T.Matrix4();
 // Two fixed links keep the paw contact low during support, then flex at the
 // knee for recovery. Curved tapered geometry hides the mechanical hinge.
@@ -78,13 +79,16 @@ export function leg(parent,key,{x,y,z,side=1,reach=0,a=.24,b=.25,width=.10,color
  form(paw,key+'_foot',()=>sole==='toes'?[oval(color,0,.002,.024,width,.034,width*1.35,12,6),...[-1,0,1].map(n=>tube(foot,[[n*width*.6,.007,.04],[n*width*.64,.006,width*1.24],[n*width*.63,-.014,width*1.66]],[width*.22,width*.18,.004],{sides:5,steps:5}))]:sole==='point'?[tube(foot,[[0,.015,-.025],[side*.025,.006,.035],[side*.048,-.03,.09]],[width*.45,width*.31,.002],{sides:6,steps:6})]:[oval(foot,0,.002,.025,width*.75,.034,width*1.5,10,6)]);
  return{joint:carrier,upper,knee:lower,paw,upperLength:a,lowerLength:b,rest,phase,side,reach,hip:{x,y,z},planted:true,contact:new T.Vector3(),actorPosition:new T.Vector3(),actorQuaternion:new T.Quaternion()};
 }
-export function stepLeg(l,rig,phase,stride,{travel=.13,lift=.09,forward=0,sideways=0}={}){
- const step=gait(phase+l.phase,stride,lift),wasPlanted=l.planted; l.planted=step.support||stride<.001;
+export function stepLeg(l,rig,phase,stride,{travel=.13,lift=.09,forward=0,sideways=0,air=0,support=.64}={}){
+ const step=gait(phase+l.phase,stride,lift,support),wasPlanted=l.planted;step.lift+=air;l.planted=(step.support||stride<.001)&&Math.abs(air)<.001;
  rig.updateMatrix();inverse.copy(rig.matrix).invert();
  target.set(l.rest.x+step.travel*sideways,l.rest.y+step.lift,l.rest.z+step.travel*travel+forward);
  const actor=rig.parent;
  if(actor){
   actor.updateWorldMatrix(true,false);worldTarget.setFromMatrixPosition(actor.matrixWorld);
+  // Newly spawned actors are placed after their rest pose is built. A teleport
+  // must discard contacts from that old position, not stretch feet back to it.
+  if(l.hasActorPose&&worldTarget.distanceTo(l.actorPosition)>Math.max(1,(l.upperLength+l.lowerLength)*2)){l.hasContact=false;l.presentPoint=null;}
   const moved=l.hasActorPose&&(worldTarget.distanceToSquared(l.actorPosition)>1e-12||1-Math.abs(actor.quaternion.dot(l.actorQuaternion))>1e-10);
   if(moved)l.trackContact=true;
   l.actorPosition.copy(worldTarget);l.actorQuaternion.copy(actor.quaternion);l.hasActorPose=true;
@@ -98,8 +102,17 @@ export function stepLeg(l,rig,phase,stride,{travel=.13,lift=.09,forward=0,sidewa
    // Reach is measured in the leaning rig's coordinates, just like the IK
    // below; actor-space distance misses the caster's forward body tilt.
    segment.copy(target).applyMatrix4(inverse);segment.x-=l.hip.x;segment.y-=l.hip.y;segment.z-=l.hip.z;
-   if(segment.length()>l.upperLength+l.lowerLength+.045){l.planted=false;target.set(l.rest.x+step.travel*sideways,l.rest.y+step.lift,l.rest.z+step.travel*travel+forward);worldTarget.copy(target).applyMatrix4(actor.matrixWorld);}
+   const displaced=Math.hypot(target.x-l.rest.x-step.travel*sideways,target.z-l.rest.z-step.travel*travel-forward);
+   if(segment.length()>l.upperLength+l.lowerLength+.045||displaced>travel*.65+.12){l.planted=false;target.set(l.rest.x+step.travel*sideways,l.rest.y+step.lift,l.rest.z+step.travel*travel+forward);worldTarget.copy(target).applyMatrix4(actor.matrixWorld);}
   }
+  // A turning boss may need an early replant. Carry the released foot into
+  // its next step instead of teleporting it from the old world contact to the
+  // nominal cycle. Only swing X/Z is eased; supported toes stay pinned.
+  const time=actor.userData.lastTime,dt=time===undefined?0:Math.max(0,Math.min(.05,time-(l.poseTime??time)));
+  if(l.trackContact&&l.presentPoint&&(!l.planted||!wasPlanted)&&time!==undefined){
+   const blend=1-Math.exp(-dt*20);worldTarget.x=l.presentPoint.x+(worldTarget.x-l.presentPoint.x)*blend;worldTarget.z=l.presentPoint.z+(worldTarget.z-l.presentPoint.z)*blend;
+  }
+  l.presentPoint??=new T.Vector3();l.presentPoint.copy(worldTarget);l.poseTime=time;
   if(!l.planted||!wasPlanted||!l.hasContact)l.contact.copy(worldTarget);
   l.hasContact=l.planted;
   if(l.trackContact){target.copy(worldTarget).applyMatrix4(actorInverse.copy(actor.matrixWorld).invert());target.y=l.rest.y+step.lift;}

@@ -1,6 +1,7 @@
-import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=201';
-import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=201';
+import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=202';
+import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=202';
 import{Vector3,Matrix4,Quaternion}from'./vendor/three.module.js';
+import{creatureGait,gaitDistance}from'./creature-gait.js?v=202';
 // Attack timings are shared with the pose driver so the strike matches its hit.
 export const ENEMY_MOTION={
  foamling:{wind:.55,recover:.25,cadence:9,range:2.1},tidecrab:{wind:.7,recover:.35,cadence:10,range:3.1},reefturtle:{wind:1.1,recover:.6,cadence:4,range:4},jellyseer:{wind:.85,recover:.4,cadence:4,range:12},tidestar:{wind:.9,recover:.45,cadence:4,range:11},wreckwarden:{wind:1.25,recover:1.7,cadence:4},
@@ -26,11 +27,12 @@ export function advanceEnemyLocomotion(d,dt,distance,walking){
  d.motionTurn=(d.motionTurn||0)+(turn-(d.motionTurn||0))*blend;
  d.motionLook=(d.motionLook||0)+(look-(d.motionLook||0))*blend;
  d.motionSpeed=walking?Math.max(0,distance)/dt:0;
- const kind=d.species||d.kind,travel={wolf:.38,frostwolf:.38,ashstalker:.28,emberling:.27,yeti:.25,lavabrute:.30,spitter:.18,shaman:.145}[kind];
+ const kind=d.species||d.kind;d.motionGait=creatureGait(kind,d.motionSpeed);
+ const travel=d.motionGait?.travel||{spitter:.18,shaman:.145}[kind];
  const grounded=walking&&distance>1e-6&&!(d.pounce>0);
  // Only the presentation clock follows distance; AI timing and hop speed stay
  // on e.gait. A planted foot retreats by exactly the distance the root travels.
- if(travel){d.visualPhase=(d.visualPhase||0)+(grounded?distance*Math.PI*.64/(travel*Math.max(.01,Math.min(1,d.motionSpeed/2.5))):0);d.walkPhase=d.visualPhase;}
+ if(travel){d.visualPhase=(d.visualPhase||0)+(grounded?gaitDistance(distance,d.motionGait||{travel,support:.64},Math.min(1,d.motionSpeed/2.5)):0);d.walkPhase=d.visualPhase;}
  if(!d.appearance||!['wolf','mushroom'].includes(d.kind))return 0;
  const phase=d.walkPhase||0,previous=d.contactPhase;d.contactPhase=phase;
  if(!grounded||previous===undefined||phase<=previous)return 0;
@@ -90,7 +92,7 @@ function animateForestEnemy(d,t,stride,phase,gather,drive,impact){
   d.tail.rotation.set(-.05-gather*.2+airborne*.18+brake*.09,Math.sin(phase*.65-.5)*(.07+.18*stride)-turn*.22,0);
   if(d.tailTip)d.tailTip.rotation.set(Math.sin(phase*.65-.9)*.055*stride,Math.sin(phase*.65-1.25)*(.055+.11*stride)-turn*.28,0);
   d.ears?.forEach((ear,i)=>ear.rotation.set(-.16-Math.sin(phase-.8+i*.35)*.055*stride-gather*.30+drive*.11,look*.05,(i?1:-1)*.12+breath*.015+turn*.045));
-  prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,phase,stride,{travel:.38,lift:.115,air:airborne*.26,reachZ:airborne*(leg.back?-.11:.11),toeRoll:.18});
+  prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,phase,stride,{travel:.38,lift:.115,...d.motionGait,air:airborne*.26,reachZ:airborne*(leg.back?-.11:.11),toeRoll:.18});
  }else if(d.kind==='golem'){
   const weight=Math.sin(phase)*stride;
   rig.position.set(weight*.045,Math.abs(sway)*.014*stride-gather*.09-drive*.08-settle*.025,-impact*.13-gather*.045+drive*.04);

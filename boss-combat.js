@@ -1,6 +1,6 @@
-import{observePlayer}from'./target-awareness.js?v=201';
-import{ADDITIONAL_BOSSES}from'./boss-roster.js?v=201';
-import{additionalBossPlan,BOSS_TRAVEL}from'./boss-patterns.js?v=201';
+import{observePlayer}from'./target-awareness.js?v=202';
+import{ADDITIONAL_BOSSES}from'./boss-roster.js?v=202';
+import{additionalBossPlan,BOSS_TRAVEL}from'./boss-patterns.js?v=202';
 // A locked target and a readable anticipation precede every damaging attack.
 export const BOSS_STYLES={
  ...ADDITIONAL_BOSSES,

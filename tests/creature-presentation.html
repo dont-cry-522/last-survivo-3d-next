@@ -4,23 +4,23 @@
 <p>五张地图各五种普通怪物、三位首领，使用正式模型、动作与共享材质；本页不写玩家存档。</p>
 <select id="biome"><option value="forest">森林</option><option value="snow">雪地</option><option value="ash">灰烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="air">五境飞行怪</option><option value="boss">原五境守卫</option><option value="boss-forest">森林三首领</option><option value="boss-snow">雪地三首领</option><option value="boss-ash">灰烬三首领</option><option value="boss-sand">沙漠三首领</option><option value="boss-coast">海港三首领</option></select><select id="mode"><option value="walk">行走</option><option value="attack">蓄力 → 攻击 → 收招</option><option value="idle">待机</option></select>
 <select id="focus" aria-label="观察距离"><option value="all">全组对照</option><option value="0">近看第一种</option><option value="1">近看第二种</option><option value="2">近看第三种</option><option value="3">近看第四种</option><option value="4">近看第五种</option></select><label><input type="checkbox" id="old">旧造型对照</label><button id="pause">暂停</button><button id="step">前进 0.1 秒</button><button id="portraits-button">生成正式图鉴图片</button>
-<select id="view" aria-label="观察角度"><option value="front">正面</option><option value="side">侧面</option><option value="three-quarter" selected>斜侧</option><option value="back">背面</option></select><label><input type="checkbox" id="translate" checked>真实根移动 · 1 米地面刻线</label><button id="filmstrip-button">狼 / 霜狼 / 雪兔 · 连续 8 帧</button>
+<select id="view" aria-label="观察角度"><option value="front">正面</option><option value="side">侧面</option><option value="three-quarter" selected>斜侧</option><option value="back">背面</option></select><label><input type="checkbox" id="translate" checked>真实根移动 · 1 米地面刻线</label><button id="boss-filmstrip">生成首领动作连续帧</button><button id="filmstrip-button">狼 / 霜狼 / 雪兔 · 连续 8 帧</button>
 <button id="checks">检查全部怪物</button><button id="hit">受击预览</button><button id="still">固定展示姿势</button><pre id="checks-report"></pre><pre id="report">LOADING</pre><div id="stage"></div><div id="portraits"></div>
 <section id="filmstrip"><h2>连续走动对照</h2><p>每组先连续行走 1 秒，再按 0.1 秒间隔截取 8 帧；抽帧之间仍以 1/60 秒推进正式动作。相机跟随，地面刻线保持世界坐标，便于观察脚是否滑地。此页只检查模型动作，不模拟寻路或伤害。</p><pre id="filmstrip-report">尚未生成</pre><div id="filmstrip-images"></div></section>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=201';
-import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=201';
-import {setCreatureTime} from '../creature-forms.js?v=201';
-import {MAP_ROSTERS,REGIONAL_ENEMIES} from '../map-enemies.js?v=201';
+import {actor,animateActor} from '../world.js?v=202';
+import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=202';
+import {setCreatureTime} from '../creature-forms.js?v=202';
+import {MAP_ROSTERS,REGIONAL_ENEMIES} from '../map-enemies.js?v=202';
 import {ENEMIES} from '../rules.js';
-import {BOSS_ROUTES,ADDITIONAL_BOSSES} from '../boss-roster.js?v=201';
-import {BOSS_TRAVEL} from '../boss-patterns.js?v=201';
-import {BOSS_STYLES,bossAttackPlan} from '../boss-combat.js?v=201';
-import {recordEnemyHit} from '../enemy-feedback.js?v=201';
-import {enemyCastFlight} from '../enemy-cast-vfx.js?v=201';
-import {SkillVFX} from '../skill-vfx.js?v=201';
-import {ENEMY_MOTION,gaitPace,advanceEnemyLocomotion} from '../enemy-motion.js?v=201';
+import {BOSS_ROUTES,ADDITIONAL_BOSSES} from '../boss-roster.js?v=202';
+import {BOSS_TRAVEL} from '../boss-patterns.js?v=202';
+import {BOSS_STYLES,bossAttackPlan} from '../boss-combat.js?v=202';
+import {recordEnemyHit} from '../enemy-feedback.js?v=202';
+import {enemyCastFlight} from '../enemy-cast-vfx.js?v=202';
+import {SkillVFX} from '../skill-vfx.js?v=202';
+import {ENEMY_MOTION,gaitPace,advanceEnemyLocomotion} from '../enemy-motion.js?v=202';
 let kinds=[];const scene=new T.Scene(),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
 renderer.setSize(1120,460);renderer.setClearColor(0x25382f);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
 document.querySelector('#stage').append(renderer.domElement);scene.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));
@@ -39,6 +39,7 @@ function frameModels(){
   const z=models.reduce((n,m)=>n+m.position.z,0)/models.length;camera.position.set(0,bosses?5.5:4.6,z+18);camera.lookAt(0,bosses?2.5:.9,z);
  }else{
   const m=models[Number(focus)],center=m.position.clone().add(m.userData.fixture.offset),half=m.userData.fixture.half,size=renderer.getSize(new T.Vector2());
+  center.y+=(m.userData.lift||0)*m.scale.y;
   camera.top=half;camera.bottom=-half;camera.left=-half*size.x/size.y;camera.right=half*size.x/size.y;
   const angle=document.querySelector('#view').value,offset=angle==='side'?[6,.65,0]:angle==='back'?[0,1,-6]:angle==='front'?[0,1,6]:[3,1.2,6];camera.position.copy(center).add(new T.Vector3(...offset));camera.lookAt(center);
  }
@@ -49,7 +50,7 @@ document.querySelector('#focus').onchange=draw;document.querySelector('#view').o
 function poseModels(dt){
  const mode=document.querySelector('#mode').value,translate=document.querySelector('#translate').checked;setCreatureTime(clock);
  for(const [i,m]of models.entries()){
-  const kind=kinds[i],cfg=ENEMY_MOTION[kind]||{wind:1,cadence:4},phase=clock%2.8,d=m.userData,fixture=d.fixture;let wind=mode==='attack'&&phase<cfg.wind?cfg.wind-phase:0;
+  const kind=kinds[i],cfg=ENEMY_MOTION[kind]||{wind:1,cadence:4},phase=clock%2.8,d=m.userData,fixture=d.fixture;let chargeSpeed=0,wind=mode==='attack'&&phase<cfg.wind?cfg.wind-phase:0;
   if(AIR_ENEMIES[kind])animateAirborne({kind,mesh:m,id:i,flight:{stage:mode==='attack'?(wind>0?'wind':phase<1.6?'strike':'recover'):'orbit'}},clock);
   else{
    if(d.bossModel){
@@ -60,9 +61,11 @@ function poseModels(dt){
     d.windProgress=d.bossStage==='wind'?elapsed/style.wind:0;d.strikeProgress=d.bossStage==='strike'?(elapsed-style.wind)/chosen.duration:0;d.recoverProgress=d.bossStage==='recover'?(elapsed-style.wind-chosen.duration)/style.recovery:0;
     const travel=BOSS_TRAVEL[chosen.move]||(chosen.move==='leap'?[.65,3.8]:chosen.move==='burrow'?[.85,-2.5]:null);d.lift=d.bossStage==='strike'&&travel?Math.sin(Math.min(1,(elapsed-style.wind)/travel[0])*Math.PI)*travel[1]:0;
     wind=d.bossStage==='wind'?style.wind-elapsed:0;
+    if(d.bossStage==='strike'&&travel&&dt>0){const ease=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};chargeSpeed=7*(ease((elapsed-style.wind)/travel[0])-ease((elapsed-style.wind-dt)/travel[0]))/dt;}
+
    }
    if(mode==='walk')fixture.gait+=dt*cfg.cadence;
-   const intended=mode==='walk'?(REGIONAL_ENEMIES[kind]?.speed??ENEMIES[kind]?.speed??BOSS_STYLES[kind].speed)*gaitPace(kind,fixture.gait):0,start=m.position.z;
+   const intended=mode==='walk'?(REGIONAL_ENEMIES[kind]?.speed??ENEMIES[kind]?.speed??BOSS_STYLES[kind].speed)*gaitPace(kind,fixture.gait):chargeSpeed,start=m.position.z;
    if(translate)m.position.z+=intended*dt;
    const distance=m.position.z-start;fixture.distance+=distance;d.walkPhase=fixture.gait;
    advanceEnemyLocomotion(d,dt,distance,mode==='walk'&&translate&&distance>0);
@@ -92,6 +95,18 @@ document.querySelector('#filmstrip-button').onclick=()=>{
     if(i)advanceTime(.1);draw();const fig=document.createElement('figure'),img=document.createElement('img'),caption=document.createElement('figcaption');img.id='motion-'+kind+'-'+i;img.alt=kind+' frame '+i;img.src=renderer.domElement.toDataURL('image/png');caption.textContent=clock.toFixed(1)+' s · z '+models[index].position.z.toFixed(3)+' m';fig.append(img,caption);row.append(fig);
     results.push({kind,frame:i,time:+clock.toFixed(3),z:models[index].position.z,phase:models[index].userData.walkPhase});
    }
+  }
+  document.querySelector('#filmstrip-report').textContent=JSON.stringify({status:'PASS',frames:results});
+ }catch(e){document.querySelector('#filmstrip-report').textContent=JSON.stringify({status:'FAIL',error:String(e)});}
+ finally{filmstripBusy=false;renderer.setSize(1120,460);draw();}
+};
+document.querySelector('#boss-filmstrip').onclick=()=>{
+ paused=true;filmstripBusy=true;const output=document.querySelector('#filmstrip-images');output.replaceChildren();const results=[];
+ try{renderer.setSize(480,360);
+  for(const [biome,index,mode,start] of [['boss-forest',0,'attack',1.15],['boss-ash',0,'attack',1.35],['boss-snow',0,'attack',1.1],['boss-snow',1,'walk',1],['boss-sand',2,'walk',1],['boss-coast',2,'walk',1]]){
+   document.querySelector('#biome').value=biome;document.querySelector('#mode').value=mode;document.querySelector('#focus').value=String(index);document.querySelector('#view').value='three-quarter';document.querySelector('#translate').checked=true;reset();advanceTime(start);
+   const row=document.createElement('section'),title=document.createElement('h3');title.textContent=kinds[index]+' · '+mode;row.append(title);output.append(row);
+   for(let i=0;i<8;i++){if(i)advanceTime(.1);draw();const fig=document.createElement('figure'),img=document.createElement('img'),cap=document.createElement('figcaption');img.id='boss-motion-'+kinds[index]+'-'+i;img.src=renderer.domElement.toDataURL('image/png');cap.textContent=clock.toFixed(2)+' s · z '+models[index].position.z.toFixed(2);fig.append(img,cap);row.append(fig);results.push({kind:kinds[index],frame:i,time:clock,stage:models[index].userData.bossStage,phase:models[index].userData.phase});}
   }
   document.querySelector('#filmstrip-report').textContent=JSON.stringify({status:'PASS',frames:results});
  }catch(e){document.querySelector('#filmstrip-report').textContent=JSON.stringify({status:'FAIL',error:String(e)});}

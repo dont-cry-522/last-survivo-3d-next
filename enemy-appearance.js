@@ -1,6 +1,7 @@
 import * as T from './vendor/three.module.js';
+import {footCycle} from './creature-gait.js?v=202';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=201';
+import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=202';
 
 // Five finite, shared sets of geometry. Articulation moves groups, never vertices.
 const templates=new Map();
@@ -310,11 +311,11 @@ export function animateEnemyExpression(d,t,stride,gather,drive,impact=0){
 // Shared articulated support used by forest and regional limb carriers.
 const footDown=new T.Vector3(0,-1,0),footEnd=new T.Vector3(),footTarget=new T.Vector3(),footDirection=new T.Vector3(),footBend=new T.Vector3(),footElbowPoint=new T.Vector3(),footLinkDirection=new T.Vector3(),footInverse=new T.Matrix4(),footRigMatrix=new T.Matrix4(),footFlat=new T.Quaternion(),footFootOffset=new T.Vector3();
 export function prepareCreatureFeet(d){d.rig.updateMatrix();footRigMatrix.copy(d.rig.matrix);if(d.regionalRoot){d.regionalRoot.updateMatrix();footRigMatrix.multiply(d.regionalRoot.matrix);}footInverse.copy(footRigMatrix).invert();footFlat.copy(d.rig.quaternion).invert();}
-export function plantCreatureFoot(l,phase,stride,{air=0,reachZ=0,lift=.09,travel=.15,raise=0,toeRoll=0}={}){
- const u=((phase+l.phase)/(Math.PI*2)%1+1)%1,support=u<.64,q=support?0:(u-.64)/.36,step=(support?1-u/.64*2:-1+2*(q*q*(3-2*q)))*stride;
+export function plantCreatureFoot(l,phase,stride,{air=0,reachZ=0,lift=.09,travel=.15,raise=0,toeRoll=0,support:stance=.64}={}){
+ const cycle=footCycle(phase+l.phase,stride,lift,stance),{support,q}=cycle,step=cycle.travel;
  l.planted=support&&stride>.001&&air<.001&&raise<.001;
  const fit=l.joint.parent.scale.x;
- footTarget.set((l.restX+Math.sign(l.restX)*l.reach)*fit,.006+Math.sin(q*Math.PI)*lift*stride+air+raise,(l.restZ+reachZ)*fit+step*travel).applyMatrix4(footInverse);
+ footTarget.set((l.restX+Math.sign(l.restX)*l.reach)*fit,.006+cycle.lift+air+raise,(l.restZ+reachZ)*fit+step*travel).applyMatrix4(footInverse);
  l.paw.quaternion.copy(footFlat);if(toeRoll)l.paw.rotateX(-toeRoll*Math.sin(q*Math.PI)*stride);
  footEnd.copy(footTarget).add(footFootOffset.set(0,.055,0).applyQuaternion(l.paw.quaternion));if(l.drop)footEnd.add(footFootOffset.set(0,l.drop,-.095).applyQuaternion(footFlat));
  l.joint.position.set(l.restX,l.restY,l.restZ);l.joint.rotation.set(0,0,0);

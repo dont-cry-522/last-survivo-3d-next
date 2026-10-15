@@ -1,5 +1,7 @@
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,tint,joint,smooth} from './creature-forms.js?v=201';
+import {form,surface,tube,oval,tint,joint,smooth,stepLeg} from './creature-forms.js?v=202';
+
+import {creatureGait,gaitDistance} from './creature-gait.js?v=202';
 
 // These are the original spawn bounds used by projectile targeting. Appearance
 // and anticipation may change; the collision body and attack clock do not.
@@ -28,21 +30,11 @@ export function bossLeg(parent,key,{x,y,z,side=1,reach=0,a=.65,b=.65,width=.23,c
   oval(color,0,.035,.06,width*.86,.075,width*1.25,12,7),
   ...[-1,0,1].map(i=>tube(foot,[[i*width*.50,.045,.04],[i*width*.70,.025,width*1.2],[i*width*.87,-.029,width*(style==='root'?2.5:1.75)]],[width*.29,width*.20,.015],{sides:7,steps:8}))
  ]);
- return{joint:carrier,upper,knee,paw,hip:{x,y,z},rest:{x:x+reach*side,y:.008-sole.geometry.boundingBox.min.y,z:z+.10},soleY:sole.geometry.boundingBox.min.y,a,b,phase,side,reach,planted:true};
+ return{joint:carrier,upper,knee,paw,hip:{x,y,z},rest:{x:x+reach*side,y:.008-sole.geometry.boundingBox.min.y,z:z+.10},soleY:sole.geometry.boundingBox.min.y,a,b,upperLength:a,lowerLength:b,phase,side,reach,planted:true,contact:new T.Vector3(),actorPosition:new T.Vector3(),actorQuaternion:new T.Quaternion()};
 }
-const down=new T.Vector3(0,-1,0),target=new T.Vector3(),direction=new T.Vector3(),bend=new T.Vector3(),elbow=new T.Vector3(),segment=new T.Vector3(),inverse=new T.Matrix4();
-function poseLeg(l,rig,phase,stride,travel,lift,air=0){
- const u=T.MathUtils.euclideanModulo((phase+l.phase)/(Math.PI*2),1),support=u<.64,q=support?0:(u-.64)/.36;
- const retreat=(support?1-u/.64*2:-1+2*smooth(q))*stride;l.planted=(support||stride<.001)&&!air;
- target.set(l.rest.x,l.rest.y+Math.sin(q*Math.PI)*lift*stride+air,l.rest.z+retreat*travel);
- target.applyMatrix4(inverse);l.joint.position.set(l.hip.x,l.hip.y,l.hip.z);
- direction.copy(target).sub(l.joint.position);const raw=direction.length(),d=Math.min(l.a+l.b-.001,Math.max(Math.abs(l.a-l.b)+.001,raw));direction.normalize();
- l.joint.position.addScaledVector(direction,raw-d);target.sub(l.joint.position);
- const along=(l.a*l.a-l.b*l.b+d*d)/(2*d),height=Math.sqrt(Math.max(0,l.a*l.a-along*along));
- bend.set(l.reach?l.side:0,.12,l.reach?-.18:1).addScaledVector(direction,-bend.dot(direction)).normalize();elbow.copy(direction).multiplyScalar(along).addScaledVector(bend,height);
- l.upper.quaternion.setFromUnitVectors(down,segment.copy(elbow).normalize());l.knee.position.copy(elbow);l.knee.quaternion.setFromUnitVectors(down,segment.copy(target).sub(elbow).normalize());l.paw.position.copy(target);l.paw.rotation.set(-rig.rotation.x,0,-rig.rotation.z);
-}
-export function poseBossLeg(l,rig,phase,stride,travel,lift,air=0){rig.updateMatrix();inverse.copy(rig.matrix).invert();poseLeg(l,rig,phase,stride,travel,lift,air);}
+// Share the ordinary creature's planted-foot solver: world contacts, fixed
+// bones and bounded replanting also apply to large, scaled boss rigs.
+export function poseBossLeg(l,rig,phase,stride,travel,lift,air=0,support=.64,forward=0){stepLeg(l,rig,phase,stride,{travel,lift,air,support,forward});}
 function buildTree(d){
  const r=d.rig;
  d.body=form(r,'Boss_AncientBarkTrunk',()=>[
@@ -179,6 +171,9 @@ export function makeBossAppearance(kind){
  if(!Object.hasOwn(BOSS_COMBAT_HEIGHTS,kind))return null;
  const g=new T.Group(),rig=joint(g),d=g.userData={kind,rig,bossModel:true,bossAppearance:true,organicModel:true,combatHeight:BOSS_COMBAT_HEIGHTS[kind],phase:0,legs:[],arms:[],forearms:[],appendages:[],claws:[],eyes:[],tailSegments:[]};
  ({boss:buildTree,frostking:buildApe,cinderlord:buildFurnace,dunescorpion:buildScorpion,wreckwarden:buildWreck})[kind](d);
+ // The ape leans from its hips. Place its support under that forward centre of
+ // mass so a rear stroke does not repeatedly exhaust the knee's reach.
+ if(kind==='frostking')for(const l of d.legs)l.rest.z+=.20;
  animateBossAppearance(g,0,0,0);
  if(!fittedHeights.has(kind)){const first=new T.Box3().setFromObject(g).max.y;rig.scale.y=2;const second=new T.Box3().setFromObject(g).max.y;fittedHeights.set(kind,1+(d.combatHeight-first)/(second-first));}
  d.heightScale=fittedHeights.get(kind);rig.scale.y=d.heightScale;for(const l of d.legs)l.rest.y=.008-l.soleY*d.heightScale;animateBossAppearance(g,0,0,0);g.scale.y=d.combatHeight/new T.Box3().setFromObject(g).max.y;return g;
@@ -194,8 +189,8 @@ export function animateBossAppearance(g,t,speed,dt){
  const landing=stage==='strike'?smooth((s-.58)/.19)*(1-smooth((s-.85)/.15)):stage==='recover'?.18*Math.sin(Math.PI*T.MathUtils.clamp(d.recoverProgress||0,0,1)):0;
  const desired=stage==='walk'||stage==='move'?Math.min(1,Math.max(0,speed)/(kind==='boss'?1.5:kind==='wreckwarden'?1.8:2.3)):0;
  d.walkStride=(d.walkStride||0)+(desired-(d.walkStride||0))*(1-Math.exp(-Math.max(0,dt)*10));const stride=d.walkStride;
- const travel=kind==='boss'?.45:kind==='frostking'?.56:kind==='cinderlord'?.44:.48;
- if(desired>.001)d.phase+=Math.max(0,speed)*dt*Math.PI*.64/(travel*Math.max(.01,desired));const p=d.phase;
+ const gait=creatureGait(kind,speed);d.motionGait=gait;
+ if(desired>.001)d.phase+=gaitDistance(speed*dt/g.scale.x,gait,desired);const p=d.phase;
  r.position.set(0,(d.lift||0)+Math.abs(Math.sin(p))*.035*stride,0);r.rotation.set(0,0,Math.sin(p)*.025*stride);r.scale.set(1,d.heightScale||1,1);
  const breathe=Math.sin(t*(kind==='frostking'?1.65:1.2))*.006*(1-Math.max(wind,strike));d.body.scale.set(1+breathe*.4,1+breathe,1+breathe*.6);
  if(d.jaw)d.jaw.rotation.x=wind*(kind==='frostking'?.30:.18)+strike*(kind==='frostking'?.18:.10);
@@ -217,8 +212,7 @@ export function animateBossAppearance(g,t,speed,dt){
   if(scorpion){d.tail.rotation.set(.06+wind*(tail?.65:burrow?.32:.13)-strike*(tail?1.18:.08),Math.sin(p*.5)*.035*stride,0);for(let i=0;i<d.tailSegments.length;i++)d.tailSegments[i].rotation.x=-.30+Math.sin(t*.9-i*.5)*.012-wind*(tail?.035:0)+strike*(tail?-.07:0);}
   else{d.shell.rotation.set(-wind*.025+strike*.035,0,Math.sin(p-.6)*.016*stride);d.sail.rotation.set(Math.sin(t*.9)*.027,Math.sin(t*.7)*.05,Math.sin(p-.8)*.013*stride);for(let i=0;i<d.eyes.length;i++)d.eyes[i].rotation.set(-wind*.18+strike*.08,Math.sin(t*.56+i)*.035*(1-stride),0);}
  }
- r.updateMatrix();inverse.copy(r.matrix).invert();
  // A leap carries the complete body; a burrow intentionally takes it below
  // ground. The IK offset follows combat's lift instead of pinning feet in air.
- const air=d.lift||0;for(let i=0;i<d.legs.length;i++)poseLeg(d.legs[i],r,p,stride,travel,kind==='frostking'?.20:kind==='boss'?.16:.12,air);
+ const air=d.lift||0;for(let i=0;i<d.legs.length;i++)poseBossLeg(d.legs[i],r,p,stride,gait.travel,gait.lift,air,gait.support);
 }

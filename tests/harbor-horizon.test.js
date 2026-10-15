@@ -3,7 +3,7 @@ import assert from'node:assert/strict';
 import * as T from'../vendor/three.module.js';
 import{installDistantLandscape}from'../environment-lighting.js';
 import{installHarborHorizon,harborBayCut}from'../harbor-horizon.js';
-import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=201';
+import{groundWindTime,animateAdventureGroundDetail}from'../adventure-ground-detail.js?v=202';
 import{biomeAt}from'../confluence.js';
 import{buildWorld}from'../world.js';
 

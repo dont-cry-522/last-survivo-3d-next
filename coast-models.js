@@ -1,6 +1,8 @@
+import {creatureAttackPose} from './creature-gait.js?v=202';
+import {ENEMY_MOTION} from './enemy-motion.js?v=202';
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=201';
-import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=201';
+import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=202';
+import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=202';
 const geometries=new Map(),materials=new Map();
 function part(p,color,pos,size,type='sphere',glow=false){
  if(!geometries.has(type))geometries.set(type,type==='rock'?new T.DodecahedronGeometry(1,1):type==='box'?new T.BoxGeometry(2,2,2):type==='cone'?new T.ConeGeometry(1,2,12):type==='barrel'?new T.CylinderGeometry(.88,1,2,10):type==='hoop'?new T.TorusGeometry(1,.055,5,12):new T.SphereGeometry(1,16,12));
@@ -78,11 +80,9 @@ export function animateCoastEnemy(g,t,speed,attack,dt){
  // The shared gait spends 64% of a cycle moving a planted foot from +travel
  // to -travel. Match that retreat to the actor's real translation.
  d.phase+=speed*dt*(walking?Math.PI*.64/(travel*Math.max(.01,desiredStride)):3);const p=d.phase;
- const target=attack>0?Math.min(1,1-attack/1.2):0;d.wind=(d.wind||0)+(target-(d.wind||0))*(1-Math.exp(-dt*10));
- if(d.oldAttack>0&&attack<=0)d.release=.35;d.oldAttack=attack;d.release=Math.max(0,(d.release||0)-dt);const hit=Math.sin((d.release||0)/.35*Math.PI);
- let wind=d.wind,strike=hit;if(d.coastBoss){wind=d.bossStage==='wind'?d.windProgress:d.bossStage==='strike'?1-d.strikeProgress:0;strike=d.bossStage==='strike'?Math.sin(Math.PI*d.strikeProgress):0;}
+ const pose=creatureAttackPose(d,attack,dt,ENEMY_MOTION[d.kind]?.recover||.35);
+ let wind=pose.wind,strike=pose.strike;if(d.coastBoss){wind=d.bossStage==='wind'?d.windProgress:d.bossStage==='strike'?1-d.strikeProgress:0;strike=d.bossStage==='strike'?Math.sin(Math.PI*d.strikeProgress):0;}
  if(d.organicModel){
-  d.strike=(d.strike||0)+(hit-(d.strike||0))*(1-Math.exp(-dt*12));strike=d.strike;
   r.position.set(0,Math.abs(Math.sin(p))*.010*s-wind*.018,-wind*.016+strike*.025);r.rotation.set(wind*.025-strike*.04,0,Math.sin(p)*.014*s);
   if(d.kind==='foamling'){
    const pulse=Math.sin(p),squash=pulse*.045*s+Math.sin(t*1.45)*.014*(1-s)-wind*.10+strike*.07;

@@ -1,5 +1,7 @@
+import {creatureAttackPose} from './creature-gait.js?v=202';
+import {ENEMY_MOTION} from './enemy-motion.js?v=202';
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,tint,joint as organicJoint,leg,stepLeg} from './creature-forms.js?v=201';
+import {form,surface,tube,oval,tint,joint as organicJoint,leg,stepLeg} from './creature-forms.js?v=202';
 const materials=new Map(),geometries=new Map();
 function part(parent,color,x,y,z,sx,sy,sz,shape='sphere',lit=false){
  const key=color+':'+lit;if(!materials.has(key))materials.set(key,new T.MeshStandardMaterial({color,roughness:.78,metalness:.12,emissive:lit?color:0,emissiveIntensity:lit?.8:0}));
@@ -109,8 +111,7 @@ export function animateSandEnemy(g,t,speed,attack,dt){
  // Keep support feet in place as the body passes over them, instead of a
  // short decorative shuffle unrelated to actual movement distance.
  d.phase+=speed*dt*(walking?Math.PI*.64/(travel*Math.max(.01,desiredStride)):3.2);const p=d.phase;
- const desiredWind=attack>0?1-Math.min(1,attack/(d.kind==='sandguard'?1.05:.7)):0;d.gather=(d.gather||0)+(desiredWind-(d.gather||0))*(1-Math.exp(-dt*8));const wind=d.gather;if(d.kind==='duneoracle')r.rotation.y=Math.sin(t*1.7)*.055;else r.rotation.y=0;
- if(d.previousAttack>0&&attack<=0)d.release=.3;d.previousAttack=attack;d.release=Math.max(0,(d.release||0)-dt);const rawStrike=Math.sin(Math.PI*d.release/.3);d.strike=(d.strike||0)+(rawStrike-(d.strike||0))*(1-Math.exp(-dt*9));const strike=d.strike;
+ const {wind,strike}=creatureAttackPose(d,attack,dt,ENEMY_MOTION[d.kind]?.recover||.3);
  const beetle=d.kind==='clawbeetle',worm=d.kind==='sandworm',guard=d.kind==='sandguard',oracle=d.kind==='duneoracle',sway=Math.sin(p)*stride;
  r.rotation.set(wind*(worm?.045:.045)-strike*.065,d.kind==='duneoracle'?Math.sin(t*1.1)*.025:0,Math.sin(p)*.018*stride);r.position.y=-wind*.025+Math.abs(Math.sin(p))*.012*stride;r.position.z=-wind*.025+strike*.035;
  if(worm){const breathe=Math.sin(t*2.2)*.012*(1-stride)*(1-wind);d.head.rotation.x=wind*.14-strike*.17;d.head.position.z=.265-wind*.035+strike*.055;d.head.scale.set(1+wind*.10+strike*.06+breathe,1+wind*.10+strike*.06+breathe,1);r.rotation.z=0;r.position.y=0;}

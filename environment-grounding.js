@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
-import {forestHabitatAt} from './forest-habitats.js?v=208';
-import {biomeWeights} from './confluence.js?v=208';
+import {forestHabitatAt} from './forest-habitats.js?v=209';
+import {biomeWeights} from './confluence.js?v=209';
 
 function bakeForestFloor(world,data,size,extent){
  const habitat=world.forestHabitats;if(!habitat)return 0;

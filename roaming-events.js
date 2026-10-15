@@ -1,10 +1,10 @@
-import{MAP_HALF}from'./map-layout.js?v=208';
-import{playerHidden}from'./target-awareness.js?v=208';
+import{MAP_HALF}from'./map-layout.js?v=209';
+import{playerHidden}from'./target-awareness.js?v=209';
 import * as T from './vendor/three.module.js';
-import{terrainMesh}from'./map-tactics.js?v=208';
-import{sceneryAllowed}from'./biome-scenery.js?v=208';
-import{forestGrowthChoices}from'./rules.js?v=208';
-import{skillPairHint}from'./skill-catalog.js?v=208';
+import{terrainMesh}from'./map-tactics.js?v=209';
+import{sceneryAllowed}from'./biome-scenery.js?v=209';
+import{forestGrowthChoices}from'./rules.js?v=209';
+import{skillPairHint}from'./skill-catalog.js?v=209';
 export const ROAMING_REWARDS={courier:{name:'携宝猎物',xp:30,heal:0},camp:{name:'守卫补给营地',xp:40,heal:.18,choice:true}};
 const campNames={forest:'巡林者营地',snow:'雪线远征营',ash:'矿工余烬营',sand:'古道商旅营',coast:'潮岸补给营'};
 const campGuards={forest:[['golem','mushroom','shaman'],['wolf','wolf','spitter']],snow:[['golem','wolf','spitter'],['wolf','wolf','shaman']],ash:[['golem','spitter','shaman'],['mushroom','spitter','spitter']],sand:[['golem','wolf','shaman'],['golem','mushroom','spitter']],coast:[['golem','spitter','wolf'],['mushroom','spitter','shaman']]};

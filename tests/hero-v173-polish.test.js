@@ -5,10 +5,10 @@ import {fileURLToPath} from 'node:url';
 import * as T from '../vendor/three.module.js';
 import {loadCharacterData} from '../character-loader.js';
 import {clone} from '../vendor/SkeletonUtils.js';
-import {refineLingyaFace,refineLingyaAccessories} from '../lingya-face.js?v=208';
+import {refineLingyaFace,refineLingyaAccessories} from '../lingya-face.js?v=209';
 import {lingyaAccessories} from '../lingya-appearance.js';
-import {mirageHair,miasmaLantern} from '../mirage-appearance.js?v=208';
-import {sporeLantern} from '../wuling-appearance.js?v=208';
+import {mirageHair,miasmaLantern} from '../mirage-appearance.js?v=209';
+import {sporeLantern} from '../wuling-appearance.js?v=209';
 const entry=fs.readFileSync(new URL('../world.js',import.meta.url),'utf8').match(/from['"](.\/skinned-hero\.js[^'"]*)['"]/)[1];
 const {loadHeroAssets,createSkinnedHero,animateSkinnedHero,disposeHero}=await import(new URL(entry,new URL('../world.js',import.meta.url)));
 

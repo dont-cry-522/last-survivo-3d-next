@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {prepareCreatureSurface} from './creature-surface.js?v=208';
+import {prepareCreatureSurface} from './creature-surface.js?v=209';
 
 // Finite shared geometry, native morph targets and the existing IK. No skinning
 // texture per spawn, new timers, CPU vertex uploads or extra render pass.

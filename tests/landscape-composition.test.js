@@ -8,6 +8,26 @@ import{biomeAt}from'../confluence.js';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const release=world=>world.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
 
+test('slope finishes carry normalized climate weights and fade on the far range without extra draws',()=>{
+ let shared;
+ for(const id of ['forest','snow','ash','sand','coast','confluence']){
+  const world={half:96,group:new T.Group()},mesh=installDistantLandscape(world,id,biomeAt),g=mesh.geometry,w=g.attributes.ridgeClimate,l=g.attributes.ridgeLayer;
+  if(shared)assert.equal(mesh.material,shared);shared=mesh.material;
+  assert.equal(w.count,g.attributes.position.count);assert.equal(l.count,w.count);assert.equal(g.groups.length,0);assert.equal(g.index.count/3,6144);
+  const seen=new Set();let blended=0;
+  for(let i=0;i<w.count;i++){
+   const weights=[w.getX(i),w.getY(i),w.getZ(i),w.getW(i)],total=weights.reduce((a,b)=>a+b,0);
+   assert(weights.every(n=>Number.isFinite(n)&&n>=0&&n<=1)&&total<=1.000001);
+   if(weights.filter(n=>n>0).length>1)blended++;
+   weights.concat(Math.max(0,1-total)).forEach((n,k)=>{if(n>.01)seen.add(k);});
+   assert(l.getX(i)>=0&&l.getX(i)<=(i<193*9?1:.281));
+   if(i%9===0)assert.equal(l.getX(i),0,'detail must join the old foothill edge without a seam');
+  }
+  assert.equal(seen.size,id==='confluence'?5:1);if(id==='confluence')assert(blended>0,'joined regions lost their blended slope finish');
+  release(world);
+ }
+});
+
 test('broad distant ranges rise above foothills at eye level and retain substantial low passes',()=>{
  const rows=9,segments=192,ringSize=(segments+1)*rows;
  for(const id of['forest','snow','ash','sand','coast']){

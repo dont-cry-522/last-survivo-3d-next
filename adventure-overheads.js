@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {bodyHeight} from './adventure-mobility.js?v=208';
+import {bodyHeight} from './adventure-mobility.js?v=209';
 
 const ceilingOffsets=[[0,0],[.3,0],[-.3,0],[0,.3],[0,-.3]];
 // Natural soil elevation is not an airborne/platform posture. Avoid raycasting

@@ -23,7 +23,15 @@ test('forest districts preserve seeded gameplay, shared assets and destructible 
   if(map==='confluence')assert.deepEqual(forestHabitatAt(w,78,24),{shade:0,bank:0,ruin:0});
   const layer=installHabitatDetail(w,map),box=new T.Box3(),matrix=new T.Matrix4();assert(layer.children.length<=16);
   assert(layer.userData.records.some(p=>p.biome==='forest'&&p.kind==='reed'));
-  for(const m of layer.children)for(let i=0;i<m.count;i++){m.getMatrixAt(i,matrix);box.copy(m.geometry.boundingBox).applyMatrix4(matrix);assert(box.max.y<.7,'habitat blocks combat sightline');}
+  for(const m of layer.children)for(let i=0;i<m.count;i++){
+   m.getMatrixAt(i,matrix);box.copy(m.geometry.boundingBox).applyMatrix4(matrix);
+   const p=layer.userData.records.find(p=>Math.abs(p.x-matrix.elements[12])+Math.abs(p.z-matrix.elements[14])<1e-4);assert(p);
+   if(p.landscapeHeight){
+    assert(['shrub','reed'].includes(p.kind)&&p.landscape,'only grouped soft cover may form the middle layer');
+    assert(box.max.y<1.25&&Math.abs(box.max.y-p.landscapeHeight)<1e-5,'middle layer escaped its measured height');
+    assert(Math.hypot(p.x-w.spawn.x,p.z-w.spawn.z)>=10,'middle layer crowds the opening clearing');
+   }else assert(box.max.y<.7,'ordinary habitat blocks combat sightline');
+  }
   w.group.traverse(m=>{if(m.isInstancedMesh)m.dispose();if(m.userData.ownedGeometry)m.geometry.dispose();});assert(layer.userData.disposed);
  }
 });

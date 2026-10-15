@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import * as T from '../vendor/three.module.js';
-import {SURFACE_FILES,surfaceUniforms,loadSurfaceTextures} from '../surface-textures.js?v=208';
+import {SURFACE_FILES,surfaceUniforms,loadSurfaceTextures} from '../surface-textures.js?v=209';
 import {installGroundSurface} from '../biome-scenery.js';
 import {polishEnvironmentModels} from '../environment-props.js';
 

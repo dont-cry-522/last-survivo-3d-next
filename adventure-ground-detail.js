@@ -1,13 +1,13 @@
-import {applyFernSurface} from './fern-surfaces.js?v=208';
-import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=208';
-import{sceneryRhythmAt}from'./exploration-composition.js?v=208';
+import {applyFernSurface} from './fern-surfaces.js?v=209';
+import {applyTreeLeafSurface,TREE_LEAF_UVS} from './tree-scenery.js?v=209';
+import{sceneryRhythmAt}from'./exploration-composition.js?v=209';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {seeded,segmentDistance} from './rules.js?v=208';
-import {forestHabitatAt} from './forest-habitats.js?v=208';
-import {bridgeContains} from './coast.js?v=208';
-import {naturalRockGeometry} from './biome-scenery.js?v=208';
-import {surfaceUniforms} from './surface-textures.js?v=208';
+import {seeded,segmentDistance} from './rules.js?v=209';
+import {forestHabitatAt} from './forest-habitats.js?v=209';
+import {bridgeContains} from './coast.js?v=209';
+import {naturalRockGeometry} from './biome-scenery.js?v=209';
+import {surfaceUniforms} from './surface-textures.js?v=209';
 
 const profiles={
  forest:{count:1200,grass:.83,height:1,tuft:[0x6e8650,0x87985a],litter:[0x827561,0x66685c]},
@@ -239,24 +239,27 @@ function routesFor(world){
 function placementFilter(world,footprint=FOOTPRINT,shoulder=false){
  const FOOTPRINT=footprint;
  const regions=world.regions||[],routes=routesFor(world),districts=[...(world.districts||[]),...regions.flatMap(r=>r.districts||[])];
+ const passages=(world.biomePlaces||[]).map(p=>({...p,c:Math.cos(p.angle||0),s:Math.sin(p.angle||0)}));
+ const paths=[...routes.map(r=>({...r,width:shoulder?(r.width===5.8?4.2:1.65):r.width})),...(world.explorationRoutes||[]).map(r=>({...r,width:2}))].flatMap(r=>r.points.slice(1).map((b,i)=>{
+  const a=r.points[i],width=r.width+FOOTPRINT;return{a,b,width,minX:Math.min(a.x,b.x)-width,maxX:Math.max(a.x,b.x)+width,minZ:Math.min(a.z,b.z)-width,maxZ:Math.max(a.z,b.z)+width};
+ }));
  const clearings=[{...world.spawn,r:4},...regions.map(r=>({x:r.x,z:r.z,r:6})),
   ...(world.sites||[]).flatMap(s=>[{x:s.x,z:s.z,r:s.event?7:5.5},...(s.nodes||[]).map(n=>({...n,r:2}))]),
   ...(world.discoveries||[]).map(p=>({...p,r:3})),...(world.roaming||[]).map(p=>({...p,r:p.kind==='camp'?6:3})),
   ...districts.map(d=>({...d,r:['gate','court'].includes(d.kind)?10:7}))];
  // The actual shore is irregular; its maximum radial ripple is <1.12. Reserve
  // high-tide footprints even if installed during low tide, plus a dry bank margin.
- const shores=(world.ponds||[]).map(p=>{const k=p.baseRx===undefined?1:1.19;return{...p,rx:(p.baseRx??p.rx)*k*1.12+.9,rz:(p.baseRz??p.rz)*k*1.12+.9};});
+ const shores=(world.ponds||[]).map(p=>{const k=p.baseRx===undefined?1:1.19,pad=Math.max(.9,FOOTPRINT*1.42+.15);return{...p,rx:(p.baseRx??p.rx)*k*1.12+pad,rz:(p.baseRz??p.rz)*k*1.12+pad};});
  const crossings=[...(world.bridges||[]),...(world.fords||[]).map(f=>({...f,width:f.half*2,length:f.width}))];
  return(x,z,obstacles=world.obstacles||[])=>{
   if(Math.abs(x)>(world.half||96)-2-FOOTPRINT||Math.abs(z)>(world.half||96)-2-FOOTPRINT)return false;
+  if(passages.some(p=>{const dx=x-p.x,dz=z-p.z;return Math.abs(p.c*dx-p.s*dz)<3.1+FOOTPRINT&&Math.abs(p.s*dx+p.c*dz)<10+FOOTPRINT;}))return false;
+  if(paths.some(p=>x>p.minX&&x<p.maxX&&z>p.minZ&&z<p.maxZ&&segmentDistance(x,z,p.a.x,p.a.z,p.b.x,p.b.z)<p.width))return false;
   if(clearings.some(p=>near(x,z,p,p.r+FOOTPRINT)))return false;
   if(obstacles.some(o=>near(x,z,o,(o.r||0)+FOOTPRINT+.2)))return false;
   if((world.patches||[]).some(p=>p.kind==='vent'&&near(x,z,p,p.r+1+FOOTPRINT)||p.kind==='ice'&&near(x,z,p,p.r*1.2+FOOTPRINT)))return false;
   if(crossings.some(b=>bridgeContains(b,x,z,FOOTPRINT+.8)))return false;
   if(shores.some(p=>{const a=p.angle||0,c=Math.cos(a),s=Math.sin(a),dx=x-p.x,dz=z-p.z;return Math.hypot((c*dx-s*dz)/p.rx,(s*dx+c*dz)/p.rz)<1;}))return false;
-  for(const route of routes)for(let i=1;i<route.points.length;i++){
-   const a=route.points[i-1],b=route.points[i],width=shoulder?(route.width===5.8?4.2:1.65):route.width;if(segmentDistance(x,z,a.x,a.z,b.x,b.z)<width+FOOTPRINT)return false;
-  }
   return true;
  };
 }
@@ -282,7 +285,7 @@ function softenSceneryEdges(world,mapId,records,footprint,allowed){
  // Keep road shoulders, near-spawn cover, and existing scenery-edge growth.
  // Keeping each donor's quadrant also preserves the habitat's culling batches.
  for(let i=0;i<records.length;i++){
-  const p=records[i];if(p.shoulder||p.transition||p.biome==='forest'&&['reed','stone'].includes(p.kind)||near(p.x,p.z,world.spawn,20)||sources.some(s=>near(p.x,p.z,s,s.edge==='place'?17:s.footprint+5)))continue;
+  const p=records[i];if(p.shoulder||p.transition||p.landscape||p.biome==='forest'&&['reed','stone'].includes(p.kind)||near(p.x,p.z,world.spawn,20)||sources.some(s=>near(p.x,p.z,s,s.edge==='place'?17:s.footprint+5)))continue;
   const k=key(p);if(!donors.has(k))donors.set(k,[]);donors.get(k).push(i);
  }
  const localWeights=new Map();for(const source of sources){const k=key(source);localWeights.set(k,(localWeights.get(k)||0)+source.weight);}
@@ -445,6 +448,71 @@ function connectForestCover(world,mapId,records,footprint,allowed){
  }
 }
 
+// Reuse existing instances along substantial landscape edges. The low and
+// middle layers sample the same bounded source bands; no runtime searches,
+// extra batches, new colliders or replacement tree/LOD geometry are needed.
+function connectLandscapeCover(world,mapId,records,footprint,allowed){
+ const low=footprint===FOOTPRINT,random=seeded(layoutSeed(world,mapId)^0x3c76e91),quadrant=p=>Number(p.x>=0)+Number(p.z>=0)*2;
+ const protectedPlant=p=>near(p.x,p.z,world.spawn,10)||(world.sites||[]).some(s=>near(p.x,p.z,s,(s.event?9:7)+footprint))||(world.discoveries||[]).some(s=>near(p.x,p.z,s,5+footprint))||(world.roaming||[]).some(s=>near(p.x,p.z,s,7+footprint));
+ for(const biome of Object.keys(profiles)){
+  const all=records.filter(p=>p.biome===biome);if(!all.length)continue;
+  const region=world.regions?.find(r=>r.id===biome),start=region||world.spawn,sources=[];
+  const anchors=(world.obstacles||[]).filter(o=>!o.tactic&&!o.place&&!o.environmentCluster&&!o.climateLandform&&!world.breakables?.includes(o)&&(!region||region.contains(o.x,o.z))&&!protectedPlant(o)).sort((a,b)=>Math.hypot(a.x-start.x,a.z-start.z)-Math.hypot(b.x-start.x,b.z-start.z));
+  if(biome==='forest')for(const o of anchors.filter(o=>o.mesh?.userData.treeBiome==='forest')){
+   if(sources.some(s=>near(o.x,o.z,s,12)))continue;sources.push({...o,kind:'woodland-edge',angle:Math.atan2(o.x-start.x,o.z-start.z)+Math.PI/2});if(sources.length===4)break;
+  }
+  if(biome==='snow'||biome==='ash')for(const p of world.climateLandforms?.records||[])if(p.biome===biome&&p.solids.length)sources.push({...p,kind:biome==='snow'?'ridge-scree':'flow-scree'});
+  if(biome==='sand')for(const p of (world.climateLandforms?.records||[]).filter(p=>p.biome===biome&&p.kind==='dune').sort((a,b)=>Math.hypot(a.x-start.x,a.z-start.z)-Math.hypot(b.x-start.x,b.z-start.z)).slice(0,3))sources.push({...p,kind:'dune-foot'});
+  if(biome==='coast')for(const p of (world.ponds||[]).filter(p=>!region||p.biome==='coast'||region.contains(p.x,p.z)).slice(0,3)){
+   const c=Math.cos(p.angle||0),s=Math.sin(p.angle||0),dx=start.x-p.x,dz=start.z-p.z;sources.push({...p,kind:'shore-reeds',arc:Math.atan2(c*dx-s*dz,s*dx+c*dz)});
+  }
+  // Small or obstructed seeds still use real shelter. These fallback fans
+  // retain a gap on one side instead of forming rings around every obstacle.
+  for(const o of anchors){if(sources.some(s=>near(o.x,o.z,s,10)))continue;sources.push({...o,kind:'shelter-edge',angle:Math.atan2(o.x-start.x,o.z-start.z)+Math.PI/2});if(sources.length>=8)break;}
+  if(!sources.length)continue;
+  const donors=new Map(),key=p=>p.kind+':'+quadrant(p),kinds=low?['tuft','litter']:biome==='forest'?['shrub']:biome==='snow'||biome==='ash'?['stone']:['reed'];
+  for(const p of all){if(!kinds.includes(p.kind)||p.shoulder||p.transition||p.edge||near(p.x,p.z,world.spawn,20))continue;const k=key(p);if(!donors.has(k))donors.set(k,[]);donors.get(k).push(p);}
+  const budget=Math.min(Math.floor(all.length*(biome==='forest'?.12:.18)),[...donors.values()].reduce((n,a)=>n+a.length,0));let moved=0;
+  for(const [index,source]of sources.entries()){
+   // Main edges get enough instances to read as a connected band. Late
+   // shelter sources fill only the unspent budget when these are obstructed.
+   const primary=source.kind!=='shelter-edge',quota=Math.min(budget-moved,Math.ceil(budget/(primary?Math.min(3,sources.filter(s=>s.kind!=='shelter-edge').length):2)));let planted=0;
+   // Candidates stay inside one fixed source envelope. Narrow the existing
+   // collision and cover lists once, then keep moved records in this local list.
+   const reach=source.kind==='shore-reeds'?Math.max(source.baseRx??source.rx,source.baseRz??source.rz)*1.19*1.12+footprint*1.42+5:source.kind==='dune-foot'?Math.hypot(source.length*.42,source.width*.49)+1:(source.r||0)+footprint+10;
+   const centers=source.solids?.length?source.solids:[source],minX=Math.min(...centers.map(p=>p.x-(p.r||0)))-reach,maxX=Math.max(...centers.map(p=>p.x+(p.r||0)))+reach,minZ=Math.min(...centers.map(p=>p.z-(p.r||0)))-reach,maxZ=Math.max(...centers.map(p=>p.z+(p.r||0)))+reach;
+   const nearby=records.filter(p=>p.x>minX-1&&p.x<maxX+1&&p.z>minZ-1&&p.z<maxZ+1),obstacles=(world.obstacles||[]).filter(p=>{const r=(p.r||0)+footprint+.2;return p.x+r>=minX&&p.x-r<=maxX&&p.z+r>=minZ&&p.z-r<=maxZ;});
+   const attempts=Math.min(512,quota*12);
+   for(let attempt=0;attempt<attempts&&planted<quota&&moved<budget;attempt++){
+    const t=random(),depth=random(),side=attempt%7===6?-1:1;let x,z,angle=source.angle||0;
+    if(source.kind==='ridge-scree'||source.kind==='flow-scree'){
+     const solid=source.solids[Math.floor(t*source.solids.length)],turn=angle+Math.PI/2*side+(random()-.5)*(biome==='snow'?.75:.35),r=solid.r+footprint+.3+depth**1.6*3.5;
+     x=solid.x+Math.cos(turn)*r;z=solid.z+Math.sin(turn)*r;
+    }else if(source.kind==='dune-foot'){
+     const u=(t-.5)*source.length*.84,v=side*source.width*(.30+depth*.19),c=Math.cos(angle),s=Math.sin(angle);x=source.x+c*u-s*v;z=source.z+s*u+c*v;
+    }else if(source.kind==='shore-reeds'){
+     const turn=source.arc+(t-.5)*1.35+(attempt%2?Math.PI:0),k=source.baseRx===undefined?1:1.19,pad=footprint*1.42+1.05+depth*3.5,rx=(source.baseRx??source.rx)*k*1.12+pad,rz=(source.baseRz??source.rz)*k*1.12+pad,c=Math.cos(angle),s=Math.sin(angle),u=Math.sin(turn)*rx,v=Math.cos(turn)*rz;
+     x=source.x+c*u+s*v;z=source.z-s*u+c*v;angle=angle-turn;
+    }else{
+     const along=(t-.5)*10,across=(source.r||.7)+footprint+.35+depth*3.2,c=Math.cos(angle),s=Math.sin(angle);
+     x=source.x+s*along+c*across*side;z=source.z+c*along-s*across*side;
+    }
+    let inside=true;if(region)for(let i=0;i<8;i++){const a=i*Math.PI/4;if(!region.contains(x+Math.cos(a)*footprint,z+Math.sin(a)*footprint)){inside=false;break;}}
+    if(!inside||protectedPlant({x,z})||!allowed(x,z,obstacles)||nearby.some(p=>near(x,z,p,low?.64:.62)))continue;
+    const available=kinds.map(kind=>donors.get(kind+':'+quadrant({x,z}))).filter(a=>a?.length);if(!available.length)continue;
+    const record=available[Math.floor(random()*available.length)].pop();record.x=x;record.z=z;record.landscape=source.kind;record.landscapeIndex=index;record.landscapeDepth=depth;
+    if(!nearby.includes(record))nearby.push(record);
+    if(biome==='sand')record.angle=-.7+Math.sin(x*.31+z*.17)*.16;else if(biome==='coast')record.angle=angle+(random()-.5)*.42;
+    if(!low&&['forest','sand','coast'].includes(biome)){
+     const patch=.5+.5*Math.sin(x*.37+Math.sin(z*.21)*1.2),growth=(1-depth)*.55+patch*.45;
+     record.landscapeHeight=biome==='forest'?.90+growth*.31:biome==='sand'?.50+growth*.32:.70+growth*.45;
+    }
+    planted++;moved++;
+   }
+  }
+ }
+}
+
 export function installAdventureGroundDetail(world,mapId){
  if(!profiles[mapId]&&mapId!=='confluence')return null;
  if(world.adventureGroundDetail&&!world.adventureGroundDetail.userData.disposed)return world.adventureGroundDetail;
@@ -473,6 +541,7 @@ export function installAdventureGroundDetail(world,mapId){
   records.push({x,z,biome,kind,size,height,angle:random()*Math.PI*2,color:palette[Math.floor(random()*palette.length)],shade:.90+random()*.16});
  }
  connectForestCover(world,mapId,records,FOOTPRINT,allowed);
+ connectLandscapeCover(world,mapId,records,FOOTPRINT,allowed);
  softenSceneryEdges(world,mapId,records,FOOTPRINT,allowed);
  // Blend existing floor colors across districts without adding decal layers.
  for(const p of records)if(p.biome==='forest'){
@@ -559,12 +628,12 @@ function shrubGeometry(){
   const stem=t=>({x:s*reach*t*t,y:height*t-.035-.055*t*t*t,z:c*reach*t*t});
   for(let row=0;row<=4;row++){const t=row/4,p=stem(t),w=.008*(1-t*.7);vertex(p.x+c*w,p.y,p.z-s*w,.43+t*.27);vertex(p.x-c*w,p.y,p.z+s*w,.48+t*.27);if(row<4){const n=start+row*2;indices.push(n,n+1,n+2,n+1,n+3,n+2);}}
   for(let tier=0;tier<2;tier++)for(const side of[-1,1]){
-   const base=stem(.43+tier*.37+(side===1?.055:0)),angle=a+side*(.9+tier*.3),sx=Math.sin(angle),cz=Math.cos(angle),length=.22-tier*.023,n=positions.length/3;
+   const base=stem(.43+tier*.37+(side===1?.055:0)),angle=a+side*(.9+tier*.3),sx=Math.sin(angle),cz=Math.cos(angle),length=.22-tier*.023,lift=.023+(branch%2)*.007,droop=.018+tier*.006,n=positions.length/3;
    const [u,v,uw,vh]=TREE_LEAF_UVS[(branch*4+tier*2+(side===1?1:0))%TREE_LEAF_UVS.length];
    for(const [row,t]of[0,.52,1].entries()){
     for(const cross of[-1,0,1]){
-     const w=(.052-tier*.007)*cross,fold=Math.sin(t*Math.PI)*(1-Math.abs(cross))*.023;
-     vertex(base.x+sx*length*t+cz*w,base.y+.075*Math.sin(t*Math.PI)-.105*t*t+fold+w*side*.35,base.z+cz*length*t-sx*w,.86+t*.11+cross*.025,u+(cross+1)*.5*uw,v+t*vh);
+     const w=(.052-tier*.007)*cross,fold=Math.sin(t*Math.PI)*(1-Math.abs(cross))*.008;
+     vertex(base.x+sx*length*t+cz*w,base.y+lift*Math.sin(t*Math.PI)-droop*t*t+fold+w*side*.12,base.z+cz*length*t-sx*w,.86+t*.11+cross*.025,u+(cross+1)*.5*uw,v+t*vh);
     }
     if(row<2){const k=n+row*3;indices.push(k,k+3,k+1,k+1,k+3,k+4,k+1,k+4,k+2,k+2,k+4,k+5);}
    }
@@ -635,6 +704,7 @@ export function installHabitatDetail(world,mapId){
   }
  }
  connectForestCover(world,mapId,records,1.15,allowed);
+ connectLandscapeCover(world,mapId,records,1.15,allowed);
  softenSceneryEdges(world,mapId,records,1.15,allowed);
  // Broad patches alternate with quiet gaps; their widths grow into one another
  // below the sight line, staying inside the already-reserved 1.15m footprint.
@@ -652,7 +722,7 @@ export function installHabitatDetail(world,mapId){
   const damp=kind==='stone'?Float32Array.from(list,p=>p.biome==='forest'?forestHabitatAt(world,p.x,p.z).bank:0):null;
   if(damp)geometry.setAttribute('stoneDamp',new T.InstancedBufferAttribute(damp,1));
   geometry.computeBoundingBox();const batch=new T.InstancedMesh(geometry,kind==='fern'?fernMaterial:kind==='shrub'?shrubMaterial:kind==='stone'?habitatStoneMaterial:material,list.length);batch.name='habitat-'+kind;batch.receiveShadow=true;batch.userData.ownedGeometry=true;
-  list.forEach((p,i)=>{dummy.position.set(p.x,kind==='stone'?-.055:-.042-geometry.boundingBox.min.y*p.height,p.z);dummy.scale.set(p.width,p.height,p.width);dummy.rotation.set(0,p.angle,0);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);color.set(p.color);if(kind==='fern'||kind==='shrub')color.lerp(fernTint,.84);if(kind==='stone'&&p.biome==='forest')color.lerp(new T.Color(0x777468).lerp(new T.Color(0x545d57),damp[i]),.88);batch.setColorAt(i,color);});
+  list.forEach((p,i)=>{if(p.landscapeHeight){p.height=(p.landscapeHeight+.042)/(geometry.boundingBox.max.y-geometry.boundingBox.min.y);if(kind==='shrub')p.width=Math.min(1.55,p.width*1.55);}dummy.position.set(p.x,kind==='stone'?-.055:-.042-geometry.boundingBox.min.y*p.height,p.z);dummy.scale.set(p.width,p.height,p.width);dummy.rotation.set(0,p.angle,0);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);color.set(p.color);if(kind==='fern'||kind==='shrub')color.lerp(fernTint,.84);if(kind==='stone'&&p.biome==='forest')color.lerp(new T.Color(0x777468).lerp(new T.Color(0x545d57),damp[i]),.88);batch.setColorAt(i,color);});
   batch.computeBoundingSphere();batch.addEventListener('dispose',()=>{batch.visible=false;group.userData.disposed=true;});group.add(batch);
  }
  world.group.add(group);world.habitatDetail=group;return group;

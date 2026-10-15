@@ -1,5 +1,6 @@
-import{installHarborHorizon,harborBayLayout,harborBayCut}from'./harbor-horizon.js?v=208';
-import{installForestBackdrop}from'./tree-scenery.js?v=208';
+import{installHarborHorizon,harborBayLayout,harborBayCut}from'./harbor-horizon.js?v=209';
+import{installForestBackdrop}from'./tree-scenery.js?v=209';
+import{environmentDetailTexture}from'./biome-scenery.js?v=209';
 import * as T from './vendor/three.module.js';
 
 // The same three lights serve every climate; transitions do not allocate lights or shadow maps.
@@ -70,6 +71,42 @@ export class EnvironmentLighting{
 }
 
 const ridgeMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:1,side:T.DoubleSide});
+// Reuse the terrain's small noise texture on the existing two mountain layers.
+// Broad wooded patches, exposed strata and snow recesses belong to the slope;
+// no decal meshes, extra lights or screen-space pass. Far silhouettes stay soft.
+ridgeMaterial.onBeforeCompile=shader=>{
+ shader.uniforms.ridgeGrain={value:environmentDetailTexture()};
+ shader.vertexShader='attribute vec4 ridgeClimate; attribute float ridgeLayer; varying vec4 ridgeWeights; varying vec3 ridgePoint; varying float ridgeNear, ridgeUp;\n'+shader.vertexShader;
+ shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nridgePoint=position;ridgeWeights=ridgeClimate;ridgeNear=ridgeLayer;ridgeUp=abs(normal.y);');
+ shader.fragmentShader='uniform sampler2D ridgeGrain; varying vec4 ridgeWeights; varying vec3 ridgePoint; varying float ridgeNear, ridgeUp;\n'+shader.fragmentShader;
+ shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+  vec3 ridgeField=texture2D(ridgeGrain,ridgePoint.xz*.026).rgb;
+  vec3 ridgeFace=texture2D(ridgeGrain,vec2(ridgePoint.x*.028+ridgePoint.z*.019,ridgePoint.y*.09+ridgeField.r*.13)).rgb;
+  float ridgeSteep=1.0-smoothstep(.30,.88,ridgeUp);
+  float ridgeCoast=max(0.0,1.0-dot(ridgeWeights,vec4(1.0)));
+  float ridgePixel=max(length(dFdx(ridgePoint)),length(dFdy(ridgePoint)));
+  float ridgeFine=1.0-smoothstep(.8,2.6,ridgePixel);
+  float ridgeWood=smoothstep(.22,.77,ridgeField.g+ridgeField.r*.13);
+  float ridgeStrata=smoothstep(.25,.73,ridgeFace.g);
+  float ridgeCut=(1.0-smoothstep(.26,.52,ridgeFace.r))*(.35+.65*ridgeSteep);
+  vec3 ridgeTint=vec3(1.0);
+  ridgeTint+=ridgeWeights.x*(mix(vec3(.77,.84,.77),vec3(1.05,1.07,.98),ridgeWood)-1.0);
+  ridgeTint+=ridgeWeights.y*(mix(vec3(.73,.82,.91),vec3(1.04,1.04,1.02),ridgeStrata)-1.0);
+  ridgeTint+=ridgeWeights.z*(mix(vec3(.73,.75,.74),vec3(1.10,1.06,1.00),ridgeStrata)-1.0);
+  ridgeTint+=ridgeWeights.w*(mix(vec3(.82,.78,.71),vec3(1.08,1.055,.99),ridgeStrata)-1.0);
+  ridgeTint+=ridgeCoast*(mix(vec3(.75,.81,.82),vec3(1.04,1.065,1.04),ridgeStrata)-1.0);
+  diffuseColor.rgb*=mix(vec3(1.0),ridgeTint,ridgeNear);
+  diffuseColor.rgb*=1.0-ridgeCut*ridgeNear*.10;
+  float ridgeRelief=(ridgeFace.g-.5)*.22+(ridgeField.g-.5)*.16;
+  ridgeRelief*=ridgeNear*ridgeFine*(.4+ridgeSteep*.6);
+ `);
+ shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+  vec3 ridgeDx=dFdx(-vViewPosition),ridgeDy=dFdy(-vViewPosition),ridgeRx=cross(ridgeDy,normal),ridgeRy=cross(normal,ridgeDx);
+  float ridgeDet=dot(ridgeDx,ridgeRx);
+  normal=normalize(abs(ridgeDet)*normal-sign(ridgeDet)*(dFdx(ridgeRelief)*ridgeRx+dFdy(ridgeRelief)*ridgeRy));
+ `);
+};
+ridgeMaterial.customProgramCacheKey=()=> 'landscape-climate-slope-detail';
 // This radial mesh already has an exact spatial index: each angular sector is
 // contiguous in each ring. Tree roots and harbor footings only cast vertically.
 // Keep Three's actual triangle intersection/face data, but avoid scanning the
@@ -99,7 +136,7 @@ function indexRidgeQueries(mesh,segments,rows){
 }
 // Opaque foothill silhouettes live beyond the playable square. No new collision or rewards.
 export function installDistantLandscape(world,id,biomeAt=()=>id){
- const positions=[],colors=[],indices=[],segments=192,rows=9,half=world.half;
+ const positions=[],colors=[],indices=[],climates=[],layers=[],segments=192,rows=9,half=world.half;
  const bay=harborBayLayout(world,id,biomeAt);
  // Broad shoulders overlap a taller, more distant range. Each climate keeps
  // a low pass instead of wrapping the player in a uniformly high mountain bowl.
@@ -180,11 +217,13 @@ export function installDistantLandscape(world,id,biomeAt=()=>id){
     }
     positions.push(s*radius,y,c*radius);
     colors.push(shade.r,shade.g,shade.b);
+    climates.push(...['forest','snow','ash','sand'].map(key=>weights.get(key)||0));
+    layers.push((ring?.28:1)*T.MathUtils.smoothstep(t,0,.22));
    }
    if(i<segments)for(let row=0;row<rows-1;row++){const n=offset+i*rows+row;indices.push(n,n+1,n+rows,n+1,n+rows+1,n+rows);}
   }
  }
- const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();
+ const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setAttribute('ridgeClimate',new T.Float32BufferAttribute(climates,4));geometry.setAttribute('ridgeLayer',new T.Float32BufferAttribute(layers,1));geometry.setIndex(indices);geometry.computeVertexNormals();
  // The duplicated closing vertices need the same normal as the opening seam.
  const normal=geometry.attributes.normal,seam=new T.Vector3(),last=new T.Vector3();
  for(let ring=0;ring<2;ring++)for(let row=0;row<rows;row++){

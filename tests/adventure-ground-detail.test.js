@@ -8,15 +8,17 @@ import {segmentDistance} from '../rules.js';
 import {installForestHabitats,forestHabitatAt} from '../forest-habitats.js';
 import {polishEnvironmentModels} from '../environment-props.js';
 import {installForestVista} from '../forest-vista.js';
-import {installBiomePlaces} from '../biome-places.js?v=208';
-import {installEnvironmentClusters} from '../environment-clusters.js?v=208';
+import {installBiomePlaces} from '../biome-places.js?v=209';
+import {installEnvironmentClusters} from '../environment-clusters.js?v=209';
 import {installExplorationRoutes} from '../exploration-routes.js';
 import {installExplorationLandmarks} from '../exploration-landmarks.js';
 import {installExplorationComposition} from '../exploration-composition.js';
 import {installForestTerrain} from '../forest-terrain.js';
+import {installClimateLandforms} from '../climate-landforms.js';
+import {installHarborLife} from '../harbor-life.js';
 import {installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail} from '../adventure-ground-detail.js';
-import {naturalRockGeometry} from '../biome-scenery.js?v=208';
-import {surfaceUniforms} from '../surface-textures.js?v=208';
+import {naturalRockGeometry} from '../biome-scenery.js?v=209';
+import {surfaceUniforms} from '../surface-textures.js?v=209';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const maps=['forest','snow','ash','sand','coast','confluence'];
@@ -199,7 +201,7 @@ test('habitat clusters support all biomes, protect gameplay and release bounded 
   for(const m of g.children){
    assert(!m.castShadow&&!m.material.transparent&&m.userData.ownedGeometry);m.geometry.addEventListener('dispose',()=>released++);
    triangles+=m.count*m.geometry.index.count/3;
-   for(let i=0;i<m.count;i++){m.getMatrixAt(i,matrix);assert(matrix.elements.every(Number.isFinite));box.copy(m.geometry.boundingBox).applyMatrix4(matrix);assert(box.max.y<.7&&box.min.y<0,'cover floats or blocks eye-level combat');}
+   for(let i=0;i<m.count;i++){m.getMatrixAt(i,matrix);assert(matrix.elements.every(Number.isFinite));const record=records.find(p=>Math.abs(p.x-matrix.elements[12])+Math.abs(p.z-matrix.elements[14])<1e-4);box.copy(m.geometry.boundingBox).applyMatrix4(matrix);assert(box.max.y<(record?.landscapeHeight?1.25:.7)&&box.min.y<0,'cover floats or exceeds its soft-plant sightline budget');}
   }
   assert(triangles<180000,'habitat exceeded triangle budget');
   for(const p of records){
@@ -275,10 +277,11 @@ test('fuller forest understory stays inside reserved footprints, under the sight
    for(let i=0;i<p.count;i++)assert(Math.abs(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))-1)<1e-5);
    for(let i=0;i<mesh.count;i++){
     mesh.getMatrixAt(i,matrix);center.setFromMatrixPosition(matrix);
+    const record=habitat.userData.records.find(p=>Math.abs(p.x-center.x)+Math.abs(p.z-center.z)<1e-4);
     for(let j=0;j<p.count;j++){
      point.fromBufferAttribute(p,j).applyMatrix4(matrix);
      assert(Math.hypot(point.x-center.x,point.z-center.z)+.035<(mesh.parent===floor?.55:1.15),'wind-swept vegetation exceeds its reserved collision-free footprint');
-     assert(point.y<(mesh.parent===floor?.30:.7),'vegetation blocks combat sight lines');
+     assert(point.y<(mesh.parent===floor?.30:record?.landscapeHeight?1.25:.7),'vegetation exceeds its sightline budget');
     }
    }
   }
@@ -286,8 +289,8 @@ test('fuller forest understory stays inside reserved footprints, under the sight
  }
 });
 
-const scenicWorld=(id,seed)=>{
- const w=buildWorld(id,seed);polishEnvironmentModels(w);installForestVista(w,id);installForestHabitats(w,id);installBiomePlaces(w,id);installEnvironmentClusters(w,id);installExplorationRoutes(w);installExplorationLandmarks(w,id);installExplorationComposition(w,id);return w;
+const scenicWorld=(id,seed,landforms=false)=>{
+ const w=buildWorld(id,seed);polishEnvironmentModels(w);installForestVista(w,id);installForestHabitats(w,id);installBiomePlaces(w,id);if(landforms){installClimateLandforms(w,id);installHarborLife(w,id);}installEnvironmentClusters(w,id);installExplorationRoutes(w);installExplorationLandmarks(w,id);installExplorationComposition(w,id);return w;
 };
 const detailBudget=g=>({count:g.userData.records.length,draws:g.children.length,triangles:g.children.reduce((n,b)=>n+b.count*(b.geometry.index?.count??b.geometry.attributes.position.count)/3,0)});
 const releaseDetail=g=>{g.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});g.removeFromParent();};
@@ -303,9 +306,10 @@ test('scenery edges reassign existing cover across six maps, keeping original sh
   const layers=[installAdventureGroundDetail(w,id),installHabitatDetail(w,id)];
   assert.equal(state(w),before);assert.deepEqual(w.obstacles,obstacles);assert.deepEqual(obstacles.map(o=>o.mesh.matrix.toArray()),transforms);assert.equal(JSON.stringify(w.explorationRoutes.map(r=>r.points)),routes);
   for(const [layer,g]of layers.entries()){
-   const records=g.userData.records,old=baseline[layer].records,edge=records.filter(p=>p.edge),footprint=layer?1.15:.55;
+   const records=g.userData.records,old=baseline[layer].records,edge=records.filter(p=>p.edge),landscape=records.filter(p=>p.landscape),footprint=layer?1.15:.55;
    assert.deepEqual(detailBudget(g),baseline[layer].budget,id+' changed the instance, triangle or draw budget');
-   assert(edge.length>=records.length*.08&&edge.length<=Math.floor(records.length*.32),id+' missing or excessive scenery-edge redistribution');
+   assert(edge.length>=(records.length-landscape.length)*.08&&edge.length<=Math.floor(records.length*.32),id+' missing or excessive scenery-edge redistribution');
+   assert(edge.length+landscape.length>=records.length*.18,'the combined scenery and landscape transition budget was lost');
    assert(edge.some(p=>p.edge==='cluster')&&edge.some(p=>p.edge==='place'),`${id} seed ${seed} layer ${layer} missing a scenery type`);
    for(let i=0;i<records.length;i++){
     const p=records[i],was=old[i];assert.equal(p.kind,was.kind);assert.equal(p.biome,was.biome);
@@ -328,7 +332,7 @@ test('scenery edges reassign existing cover across six maps, keeping original sh
    // New composition can put scenery into cover that was already close. Such
    // sources need a safe joining fringe, not an ever-tighter mandatory ring.
    assert(nearest(records)<Math.max(footprint+.55,nearest(old)*.8),`${id} seed ${seed} layer ${layer} did not join nearby scenery: ${nearest(records)}/${nearest(old)}`);
-   assert(new Set(edge.map(p=>p.edge+':'+p.edgeIndex)).size>=(id==='confluence'?30:12),`${id} seed ${seed} layer ${layer}: redistribution only affects a few scenery islands`);
+   assert(new Set(edge.map(p=>p.edge+':'+p.edgeIndex)).size>=(id==='confluence'?30:12),`${id} seed ${seed} layer ${layer}: scenery joins vanished after reserving natural landscape bands`);
    const distances=edge.filter(p=>p.edge==='cluster').map(p=>{const a=clusters.records[p.edgeIndex];return Math.hypot(p.x-a.x,p.z-a.z)-a.footprint;});
    assert(Math.max(...distances)-Math.min(...distances)>1.4,'edge cover forms a regular narrow ring');
    const core=[],fringe=[];
@@ -349,7 +353,7 @@ test('scenery edges reassign existing cover across six maps, keeping original sh
 });
 
 test('edge redistribution is deterministic after cleanup and leaves a surviving world untouched',()=>{
- const first=scenicWorld('confluence',522),other=scenicWorld('forest',7),alive=[installAdventureGroundDetail(other,'forest'),installHabitatDetail(other,'forest')],shared=alive[0].children[0].material,random=Math.random;
+ const first=scenicWorld('confluence',522,true),other=scenicWorld('forest',7,true),alive=[installAdventureGroundDetail(other,'forest'),installHabitatDetail(other,'forest')],shared=alive[0].children[0].material,random=Math.random;
  let disposedMaterial=0;const onDispose=()=>disposedMaterial++;shared.addEventListener('dispose',onDispose);
  try{
   Math.random=()=>.03;const initial=[installAdventureGroundDetail(first,'confluence'),installHabitatDetail(first,'confluence')],records=initial.map(g=>g.userData.records),matrices=initial.map(g=>g.children.map(b=>b.instanceMatrix.array.slice()));initial.forEach(releaseDetail);
@@ -399,9 +403,9 @@ test('biome edges connect both cover layers with lee pockets, broken scree, wind
 });
 
 test('forest transitions join low cover and understory at real banks and groves within the existing instance budget',()=>{
- for(const [seed,habitatCount]of[[7,1151],[522,1122],[43837033,1116]]){
+ for(const seed of[7,522,43837033]){
   const w=buildWorld('forest',seed);installForestHabitats(w,'forest');const before=state(w),floor=installAdventureGroundDetail(w,'forest'),understory=installHabitatDetail(w,'forest');
-  assert.equal(state(w),before);assert.equal(floor.userData.records.length,1200);assert.equal(understory.userData.records.length,habitatCount);
+  assert.equal(state(w),before);assert.equal(floor.userData.records.length,1200);assert(understory.userData.records.length>900&&understory.userData.records.length<=2100,'clearance retries lost or expanded the existing habitat budget');
   assert.equal(floor.children.length,2);assert(understory.children.length<=16);
   const low=floor.userData.records.filter(p=>p.transition),high=understory.userData.records.filter(p=>p.transition);
   for(const [all,connected,footprint]of[[floor.userData.records,low,.55],[understory.userData.records,high,1.15]]){
@@ -450,7 +454,7 @@ test('forest transition planting keeps rotated scenery passages clear in both fo
   const world=scenicWorld(id,seed),layers=[installAdventureGroundDetail(world,id),installHabitatDetail(world,id)];
   assert(world.biomePlaces.length>0);
   for(const [layer,group]of layers.entries()){
-   const footprint=layer?1.15:.55,records=group.userData.records.filter(p=>p.transition);assert(records.length>10);
+   const footprint=layer?1.15:.55,records=group.userData.records;assert(records.length>10);
    for(const p of records)for(const place of world.biomePlaces){
     const c=Math.cos(place.angle||0),s=Math.sin(place.angle||0),dx=p.x-place.x,dz=p.z-place.z;
     assert(Math.abs(c*dx-s*dz)>=3.1+footprint||Math.abs(s*dx+c*dz)>=10+footprint,`${id} ${p.kind} fills a scenery passage`);
@@ -479,13 +483,13 @@ test('near-shore approaches retain a clear walking strip while the same cover bu
 
 test('opening forest cover forms two bounded path-side masses and keeps roots, gameplay and terrain attachment',()=>{
  const matrix=new T.Matrix4(),point=new T.Vector3();
- for(const [id,seed,highCount]of[["forest",7,1130],["forest",522,1104],["forest",43837033,1114],["confluence",7,2114],["confluence",522,2103],["confluence",43837033,2131]]){
+ for(const [id,seed]of[["forest",7],["forest",522],["forest",43837033],["confluence",7],["confluence",522],["confluence",43837033]]){
   const world=scenicWorld(id,seed),before=state(world),habitat=world.forestHabitats;
   const length=route=>route?.points.reduce((n,p,i,points)=>n+(i?Math.hypot(p.x-points[i-1].x,p.z-points[i-1].z):0),0)||0;
   const route=length(habitat.approach)>=14?habitat.approach:world.explorationRoutes.find(r=>r.site===habitat.relic);
   assert(route);if(id==='confluence'||seed===7)assert.equal(route.site,habitat.relic,'short or missing shore approach did not use the existing relic route');
   const layers=[installAdventureGroundDetail(world,id),installHabitatDetail(world,id)];
-  assert.equal(layers[0].userData.records.length,id==='forest'?1200:2200);assert.equal(layers[1].userData.records.length,highCount);
+  assert.equal(layers[0].userData.records.length,id==='forest'?1200:2200);assert(layers[1].userData.records.length>(id==='forest'?900:1600)&&layers[1].userData.records.length<=(id==='forest'?2100:3500));
   installForestTerrain(world,id);assert.equal(state(world),before);
   for(const [layer,group]of layers.entries()){
    const footprint=layer?1.15:.55,records=group.userData.records,forest=records.filter(p=>p.biome==='forest'),focused=forest.filter(p=>p.transition==='approach'),budget=Math.floor(forest.length*.18);
@@ -516,5 +520,84 @@ test('opening forest cover forms two bounded path-side masses and keeps roots, g
    assert.equal(pending.size,0,'focused records were lost from their culling batches');
   }
   cleanup(world);
+ }
+});
+
+test('whole cover layouts protect actual routes and passages while landscape bands preserve fixed GPU budgets',()=>{
+ for(const id of maps)for(const seed of[7,522]){
+  const w=scenicWorld(id,seed,true),before=state(w),routes=JSON.stringify(w.explorationRoutes.map(r=>r.points)),ground=w.ground.geometry.attributes.position.array.slice(),landforms=w.climateLandforms;
+  // Hide only the optional landform metadata, keeping every real obstacle and
+  // route. Switching from shelter fallback to ridge/dune feet must reuse draws.
+  w.climateLandforms=null;const fallback=[installAdventureGroundDetail(w,id),installHabitatDetail(w,id)],budgets=fallback.map(detailBudget);fallback.forEach(releaseDetail);w.climateLandforms=landforms;
+  const groups=[installAdventureGroundDetail(w,id),installHabitatDetail(w,id)];
+  assert.equal(state(w),before);assert.equal(JSON.stringify(w.explorationRoutes.map(r=>r.points)),routes);assert.deepEqual(w.ground.geometry.attributes.position.array,ground);
+  for(const [layer,g]of groups.entries()){
+   assert.deepEqual(detailBudget(g),budgets[layer],`${id} ${seed} changed the instance/triangle/draw budget`);
+   const footprint=layer?1.15:.55,records=g.userData.records;
+   for(const p of records){
+    far(p,w.spawn,4+footprint);for(const o of w.obstacles)far(p,o,o.r+footprint+.2);
+    for(const route of w.explorationRoutes)for(let i=1;i<route.points.length;i++){const a=route.points[i-1],b=route.points[i];assert(segmentDistance(p.x,p.z,a.x,a.z,b.x,b.z)>=2+footprint-1e-7,`${id} initial or relocated cover fills an actual exploration route`);}
+    for(const place of w.biomePlaces){const c=Math.cos(place.angle||0),s=Math.sin(place.angle||0),dx=p.x-place.x,dz=p.z-place.z;assert(Math.abs(c*dx-s*dz)>=3.1+footprint||Math.abs(s*dx+c*dz)>=10+footprint,`${id} initial or relocated cover fills a place passage`);}
+    for(const site of w.sites){far(p,site,(site.event?7:5.5)+footprint);for(const node of site.nodes||[])far(p,node,2+footprint);}
+    for(const find of w.discoveries)far(p,find,3+footprint);for(const event of w.roaming)far(p,event,(event.kind==='camp'?6:3)+footprint);
+    for(const pond of w.ponds){const k=pond.baseRx===undefined?1:1.19,tide={...pond,rx:(pond.baseRx??pond.rx)*k,rz:(pond.baseRz??pond.rz)*k};for(let i=0;i<8;i++)assert.equal(waterDepth(tide,p.x+Math.cos(i*Math.PI/4)*footprint,p.z+Math.sin(i*Math.PI/4)*footprint),0,'cover footprint enters high tide');}
+    if(!p.landscape)continue;
+    assert(!p.shoulder&&!p.transition&&!p.edge,'landscape relocation consumed a protected foreground patch');far(p,w.spawn,10);
+    for(const site of w.sites)far(p,site,(site.event?9:7)+footprint);for(const find of w.discoveries)far(p,find,5+footprint);for(const event of w.roaming)far(p,event,7+footprint);
+    if(w.regions){const region=w.regions.find(r=>r.id===p.biome);for(let i=0;i<8;i++)assert(region.contains(p.x+Math.cos(i*Math.PI/4)*footprint,p.z+Math.sin(i*Math.PI/4)*footprint),'landscape foliage crosses a joined-map biome boundary');}
+   }
+   for(const biome of id==='confluence'?maps.slice(0,5):[id]){
+    const all=records.filter(p=>p.biome===biome),band=all.filter(p=>p.landscape);assert(band.length>=10,`${id} ${seed} ${biome} has no landscape band`);assert(band.length<=Math.floor(all.length*(biome==='forest'?.12:.18)));
+    const expected={forest:'woodland-edge',snow:'ridge-scree',ash:'flow-scree',sand:'dune-foot',coast:'shore-reeds'}[biome];
+    assert(band.some(p=>p.landscape===expected),`${id} ${seed} ${biome} did not connect to its actual landscape`);
+    for(const p of band){
+     if(p.landscape==='ridge-scree'||p.landscape==='flow-scree')assert(landforms.records.filter(q=>q.biome===biome).flatMap(q=>q.solids).some(q=>Math.hypot(p.x-q.x,p.z-q.z)-q.r<=footprint+3.81),'scree floats apart from the real ridge foot');
+     if(p.landscape==='dune-foot')assert(landforms.records.filter(q=>q.kind==='dune').some(q=>{const dx=p.x-q.x,dz=p.z-q.z,c=Math.cos(q.angle),s=Math.sin(q.angle),u=c*dx+s*dz,v=-s*dx+c*dz;return Math.abs(u)<=q.length*.42+1e-7&&Math.abs(v)>=q.width*.30-1e-7&&Math.abs(v)<=q.width*.49+1e-7;}),'dry grass left the real dune foot');
+    }
+   }
+  }
+  cleanup(w);
+ }
+});
+
+test('middle landscape foliage has measured uneven height, grounded roots and a connected low layer in all biomes',()=>{
+ const matrix=new T.Matrix4(),box=new T.Box3(),leafStart=new T.Vector3(),leafTip=new T.Vector3();
+ for(const id of maps){
+  const w=scenicWorld(id,522,true),low=installAdventureGroundDetail(w,id).userData.records,high=installHabitatDetail(w,id),records=high.userData.records.filter(p=>p.landscape),pending=new Set(records);installForestTerrain(w,id);
+  for(const mesh of high.children)for(let i=0;i<mesh.count;i++){
+   mesh.getMatrixAt(i,matrix);const p=records.find(p=>Math.abs(p.x-matrix.elements[12])+Math.abs(p.z-matrix.elements[14])<1e-4);if(!p)continue;pending.delete(p);box.copy(mesh.geometry.boundingBox).applyMatrix4(matrix);const ground=w.groundHeightAt?.(p.x,p.z)||0;box.min.y-=ground;box.max.y-=ground;
+   if(p.landscapeHeight){assert.equal(p.kind,p.biome==='forest'?'shrub':'reed');assert(Math.abs(box.max.y-p.landscapeHeight)<1e-5,'height metadata does not affect the actual instance');assert(Math.abs(box.min.y+.042)<1e-5,'raised foliage has floating roots');assert(box.max.y<1.25);}
+   else{assert.equal(p.kind,'stone');assert(box.max.y<.3,'hard scree has grown into an uncollidable obstacle');}
+   if(p.kind==='shrub'){
+    const positions=mesh.geometry.attributes.position;
+    for(let branch=0;branch<3;branch++)for(let leaf=0;leaf<4;leaf++){
+     // Each branch has ten stem vertices, followed by four curved 3x3 leaves.
+     const start=branch*46+10+leaf*9;leafStart.fromBufferAttribute(positions,start+1).applyMatrix4(matrix);leafTip.fromBufferAttribute(positions,start+7).applyMatrix4(matrix);
+     assert(Math.abs(leafTip.y-leafStart.y)<Math.hypot(leafTip.x-leafStart.x,leafTip.z-leafStart.z)*.6,'tall shrub leaves become vertically stretched hanging blades');
+    }
+    for(let j=0;j<positions.count;j++){leafTip.fromBufferAttribute(positions,j).applyMatrix4(matrix);assert(Math.hypot(leafTip.x-p.x,leafTip.z-p.z)+.035<1.15,'wider shrub crown exceeds its reserved wind footprint');}
+   }
+  }
+  assert.equal(pending.size,0,'landscape records were lost from the rendered batches');
+  for(const biome of id==='confluence'?maps.slice(0,5):[id]){
+   const band=records.filter(p=>p.biome===biome),floor=low.filter(p=>p.biome===biome&&p.landscape),connected=band.filter(p=>floor.some(q=>Math.hypot(p.x-q.x,p.z-q.z)<3.5));
+   assert(connected.length>band.length*.6,`${id} ${biome} middle layer has no continuous low apron`);
+   if(['forest','sand','coast'].includes(biome)){
+    const tops=band.map(p=>p.landscapeHeight),min={forest:.90,sand:.50,coast:.70}[biome],max={forest:1.21,sand:.82,coast:1.15}[biome];
+    assert(Math.min(...tops)>=min&&Math.max(...tops)<=max);assert(Math.max(...tops)-Math.min(...tops)>.15,'soft landscape cover forms an equal-height wall');
+   }
+  }
+  cleanup(w);
+ }
+});
+
+test('missing climate formations use existing safe shelter in both layers without extra instances',()=>{
+ for(const id of['snow','ash','sand']){
+  const w=scenicWorld(id,522);assert(!w.climateLandforms);
+  for(const g of[installAdventureGroundDetail(w,id),installHabitatDetail(w,id)]){
+   const band=g.userData.records.filter(p=>p.landscape);assert(band.length>=10);assert(band.every(p=>p.landscape==='shelter-edge'));
+   for(const p of band)assert(w.obstacles.some(o=>!o.place&&!o.environmentCluster&&Math.hypot(p.x-o.x,p.z-o.z)<=o.r+8),'fallback cover has no existing shelter');
+  }
+  cleanup(w);
  }
 });

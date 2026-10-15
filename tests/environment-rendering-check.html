@@ -4,20 +4,28 @@
 <script type="module">
 import * as T from'../vendor/three.module.js';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
+const initialSize=new URLSearchParams(location.search).get('size'),singleSizeBatch=['desktop','mobile'].includes(initialSize);
 const pixelButton=document.createElement('button');pixelButton.id='pixels';pixelButton.disabled=true;pixelButton.textContent='深度解析像素诊断';$('#gpu').after(pixelButton);
 const pixelCaptures=document.createElement('div');pixelCaptures.id='pixel-captures';$('#capture').after(pixelCaptures);
 const motionButton=document.createElement('button');motionButton.id='creature-motion';motionButton.disabled=true;motionButton.textContent='实战怪物追击与首领检查';$('#first-view').after(motionButton);
 const creatureButton=document.createElement('button');creatureButton.id='creature-near';creatureButton.disabled=true;creatureButton.textContent='近看当前地图怪物';$('#first-view').after(creatureButton);
-const placeControls=document.createElement('span');placeControls.innerHTML='<select id="place-index" aria-label="景点编号"><option value="0">第 0 处景点</option><option value="1">第 1 处景点</option></select> <select id="place-size" aria-label="入口预览尺寸"><option value="desktop">普通横屏 1180×720</option><option value="mobile">手机横屏 844×390</option></select> <button id="place-entry" disabled>从景点入口看进去</button>';$('#first-view').after(placeControls);
-const placeCheckButton=document.createElement('button');placeCheckButton.id='place-check';placeCheckButton.disabled=true;placeCheckButton.textContent='批量检查五图双景点与手机入口';placeControls.after(placeCheckButton);
-const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text();let frame,g,win,now=0;const results=[],errors=[];
+const placeControls=document.createElement('span');placeControls.innerHTML='<select id="place-biome" aria-label="五境区域"><option value="auto">自动区域</option><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option></select> <select id="place-index" aria-label="景点编号"><option value="0">第 0 处景点</option><option value="1">第 1 处景点</option></select> <select id="place-camera" aria-label="入口视角"><option value="first">第一人称</option><option value="third">第三人称</option></select> <select id="place-framing" aria-label="入口构图"><option value="panorama">环境全景（−0.04）</option><option value="ground">原地面机位（−0.16）</option></select> <select id="place-size" aria-label="入口预览尺寸"><option value="desktop">普通横屏 1180×720</option><option value="mobile">手机横屏 844×390</option></select> <button id="place-entry" disabled>预览当前环境机位</button>';$('#first-view').after(placeControls);
+if(singleSizeBatch)$('#place-size').value=initialSize;
+const placeCheckButton=document.createElement('button');placeCheckButton.id='place-check';placeCheckButton.disabled=true;placeCheckButton.textContent=singleSizeBatch?'检查当前尺寸 · 20 组':'检查五图与五境双视角 · 40 组';placeControls.after(placeCheckButton);
+const landscapeButton=document.createElement('button');landscapeButton.id='landscape-near';landscapeButton.disabled=true;landscapeButton.textContent='近看地貌植被';placeControls.append(' ',landscapeButton);
+const sourceHtml=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text();
+// srcdoc is a rendering fixture, not an offline install/export test. Excluding
+// this module also avoids its runtime URLs resolving against /tests/.
+const html=sourceHtml.replace(/<script\b[^>]*\bsrc=["'](?:\.\/)?offline\.js[^"']*["'][^>]*><\/script>/gi,'');
+let frame,g,win,now=0,loadedSize=null,placeWorld=null;const results=[],errors=[],vegetationCache=new WeakMap();
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
 async function load(mobile=false,width=1180,height=720){
+ loadedSize={mobile,width,height};placeWorld=null;
  creatureButton.disabled=true;motionButton.disabled=true;
  if(g){errors.push(...win.qaErrors);g.audio.stopMusic();g.cinema?.dispose();g.renderer.dispose();g.renderer.forceContextLoss();}frame?.remove();
  frame=document.createElement('iframe');frame.title='真实游戏环境预览';frame.style.width=width+'px';frame.style.height=height+'px';$('#view').append(frame);
- const boot=`<base href="../"><script>
+ const boot=`<base href="${new URL('../',location.href).href}"><script>
  window.qaErrors=[];addEventListener('error',e=>qaErrors.push(e.message));addEventListener('unhandledrejection',e=>qaErrors.push(String(e.reason)));
  const log=console.error.bind(console);console.error=(...a)=>{qaErrors.push(a.map(String).join(' '));log(...a)};
  let seed=522;window.qaSeed=()=>seed=522;Math.random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};
@@ -157,43 +165,111 @@ function placeGroundMetrics(place){
  }
  return{size,pixelSize:pixel,rgHash:(rgHash>>>0).toString(16),forestPixels:state.forestPixels,placeFloor:state.placeFloors?.find(p=>p.biome===place.biome&&p.index===place.index)??null,local,samples:[place.entrance,{x:(place.entrance.x+place.x)/2,z:(place.entrance.z+place.z)/2},place,{x:(place.exit.x+place.x)/2,z:(place.exit.z+place.z)/2},place.exit].map(sample)};
 }
-function placeEntrance(map,index){
-  select(map,'silver',true);
-  const place=g.world.biomePlaces?.find(p=>p.index===index&&(map==='confluence'||p.biome===map));assert(place,'当前地图没有第 '+index+' 处景点');
-  const entry=place.entrance;Object.assign(g.player,{x:entry.x,z:entry.z,vx:0,vz:0,attack:9999,inv:9999});g.hero.position.set(entry.x,g.world.groundHeightAt?.(entry.x,entry.z)||0,entry.z);
-  g.adventureCamera.yaw=Math.atan2(place.x-entry.x,place.z-entry.z);g.adventureCamera.pitch=-.16;g.adventureCamera._ready=false;g.setView('first');step(12);
-  const report={seed:522,map,biome:place.biome,index:place.index,name:place.name,position:{x:g.player.x,y:g.player.y,z:g.player.z},entrance:entry,center:{x:place.x,z:place.z},yaw:g.adventureCamera.yaw,pitch:g.adventureCamera.pitch,time:g.time,width:win.innerWidth,height:win.innerHeight,mask:placeGroundMetrics(place),render:reportFrame()};
+function preparePlaceWorld(map,force=false){
+ if(force||placeWorld?.world!==g.world||placeWorld.map!==map||g.state!=='playing'){select(map,'silver',true);placeWorld={map,world:g.world};}
+}
+function vegetationMetrics(place){
+ let layers=vegetationCache.get(g.world);
+ if(!layers){
+  layers=[];g.world.group.updateMatrixWorld(true);const instance=new T.Matrix4(),matrix=new T.Matrix4(),box=new T.Box3();
+  for(const [name,group]of [['ground',g.world.adventureGroundDetail],['habitat',g.world.habitatDetail]]){
+   const items=[];let triangles=0,draws=0;
+   for(const batch of group?.children||[]){if(!batch.isInstancedMesh)continue;draws++;batch.geometry.computeBoundingBox();triangles+=batch.count*(batch.geometry.index?.count??batch.geometry.attributes.position.count)/3;
+    for(let i=0;i<batch.count;i++){batch.getMatrixAt(i,instance);matrix.multiplyMatrices(batch.matrixWorld,instance);box.copy(batch.geometry.boundingBox).applyMatrix4(matrix);const x=(box.min.x+box.max.x)/2,z=(box.min.z+box.max.z)/2;
+     items.push({x,z,biome:g.world.regions?.find(r=>r.contains(x,z))?.id||place.biome,height:box.max.y-box.min.y,top:box.max.y-(g.world.groundHeightAt?.(x,z)||0)});
+    }
+   }
+   layers.push({name,records:group?.userData.records?.length||0,draws,triangles,items});
+  }
+  vegetationCache.set(g.world,layers);
+ }
+ return layers.map(({items,...layer})=>{const regional=items.filter(p=>p.biome===place.biome),near=regional.filter(p=>Math.hypot(p.x-g.player.x,p.z-g.player.z)<20);return{...layer,instances:items.length,regionalInstances:regional.length,near20m:near.length,midlayerAtLeast075m:regional.filter(p=>p.height>=.75).length,nearMidlayerAtLeast075m:near.filter(p=>p.height>=.75).length,maxWorldBoundsHeight:Math.max(0,...regional.map(p=>p.height)),maxTopAboveGround:Math.max(0,...regional.map(p=>p.top))};});
+}
+function placeEntrance(map,index,{biome='auto',camera='first',framing='panorama'}={}){
+  preparePlaceWorld(map);
+  const requestedBiome=map==='confluence'?(biome==='auto'?g.world.biomePlaces?.find(p=>p.index===index)?.biome:biome):map;
+  const place=g.world.biomePlaces?.find(p=>p.index===index&&p.biome===requestedBiome);assert(place,'当前地图没有 '+requestedBiome+' 第 '+index+' 处景点');
+  const entry=place.entrance,ground=g.world.groundHeightAt?.(entry.x,entry.z)||0;Object.assign(g.player,{x:entry.x,y:ground,groundHeight:ground,z:entry.z,vx:0,vy:0,vz:0,attack:9999,inv:9999});g.hero.position.set(entry.x,ground,entry.z);
+  g.adventureCamera.yaw=Math.atan2(place.x-entry.x,place.z-entry.z);g.adventureCamera.pitch=framing==='ground'?-.16:-.04;g.adventureCamera._ready=false;g.setView(camera);step(12);
+  const report={seed:522,map,requestedBiome:biome,biome:place.biome,activeBiome:g.world.activeBiome||place.biome,index:place.index,name:place.name,camera,framing,position:{x:g.player.x,y:g.player.y,z:g.player.z},cameraPosition:g.camera.position.toArray(),entrance:entry,center:{x:place.x,z:place.z},yaw:g.adventureCamera.yaw,pitch:g.adventureCamera.pitch,time:g.time,width:win.innerWidth,height:win.innerHeight,offlineTested:false,mask:placeGroundMetrics(place),vegetation:vegetationMetrics(place),render:reportFrame(),errors:[...win.qaErrors]};
   window.placeEntranceReport=report;return report;
 }
+function landscapeView(map,biome,camera){
+ preparePlaceWorld(map);
+ const world=g.world,requestedBiome=biome;biome=map==='confluence'?(biome==='auto'?world.activeBiome||'forest':biome):map;
+ const records=(world.habitatDetail?.userData.records||[]).filter(p=>p.biome===biome&&p.landscape),groups=new Map(),preferred={forest:'woodland-edge',snow:'ridge-scree',ash:'flow-scree',sand:'dune-foot',coast:'shore-reeds'}[biome];
+ for(const p of records){const key=p.landscape+':'+p.landscapeIndex;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(p);}
+ assert(groups.size,'当前区域没有可近看的地貌植被组');
+ const floor=(x,z)=>world.groundHeightAt?.(x,z)||0,eye=g.player.standHeight-.13||1.55;
+ const clear=p=>Math.abs(p.x)<world.half-2&&Math.abs(p.z)<world.half-2&&world.obstacles.every(o=>Math.hypot(p.x-o.x,p.z-o.z)>(o.r||0)+.8)&&
+  !(world.patches||[]).some(o=>['vent','ice'].includes(o.kind)&&Math.hypot(p.x-o.x,p.z-o.z)<o.r+1)&&
+  !(world.ponds||[]).some(o=>{const c=Math.cos(o.angle||0),s=Math.sin(o.angle||0),dx=p.x-o.x,dz=p.z-o.z,k=o.baseRx===undefined?1:1.19;return Math.hypot((c*dx-s*dz)/((o.baseRx??o.rx??o.r)*k*1.12+.9),(s*dx+c*dz)/((o.baseRz??o.rz??o.r)*k*1.12+.9))<1;})&&
+  [[.5,0],[-.5,0],[0,.5],[0,-.5]].every(([x,z])=>Math.abs(floor(p.x+x,p.z+z)-p.y)<.4);
+ const visible=(a,b)=>!world.overhead?.firstHit(a,b,.12)&&world.obstacles.every(o=>{
+  const dx=b.x-a.x,dz=b.z-a.z,t=Math.max(0,Math.min(1,((o.x-a.x)*dx+(o.z-a.z)*dz)/(dx*dx+dz*dz))),y=a.y+(b.y-a.y)*t;
+  return Math.hypot(a.x+dx*t-o.x,a.z+dz*t-o.z)>(o.r||0)+.12||y>(o.y||0)+(o.height??o.sceneryHeight??10)+.12;
+ });
+ const testCamera=new T.PerspectiveCamera(),trial=new g.adventureCamera.constructor(testCamera,{mode:camera,distance:g.adventureCamera.distance,shoulderOffset:g.adventureCamera.shoulderOffset});let chosen;
+ const candidates=[...groups.values()].sort((a,b)=>Number(b[0].landscape===preferred)-Number(a[0].landscape===preferred)||b.length-a.length).flatMap(group=>group.slice(0,6).map(anchor=>({group,anchor})));
+ for(const {group,anchor} of candidates){
+  const sample=group.filter(p=>Math.hypot(p.x-anchor.x,p.z-anchor.z)<2.5).slice(0,6),center={x:sample.reduce((n,p)=>n+p.x,0)/sample.length,z:sample.reduce((n,p)=>n+p.z,0)/sample.length};center.y=floor(center.x,center.z)+.55;
+  const base=Math.atan2(world.spawn.x-center.x,world.spawn.z-center.z);
+  search:for(const distance of camera==='first'?[6,5,7,8]:[1.4,2,3])for(let i=0;i<24;i++){
+   const angle=base+i*Math.PI/12,p={x:center.x+Math.sin(angle)*distance,z:center.z+Math.cos(angle)*distance};p.y=floor(p.x,p.z);if(!clear(p))continue;
+   const yaw=Math.atan2(center.x-p.x,center.z-p.z),pitch=Math.atan2(center.y-p.y-eye*(camera==='first'?1:.84),distance);
+   trial.yaw=yaw;trial.pitch=pitch;trial.update(0,p,world.obstacles,{eyeHeight:eye,shoulderHeight:eye*.84,groundHeight:world.groundHeightAt,snap:true});
+   const viewDistance=testCamera.position.distanceTo(new T.Vector3(center.x,center.y,center.z));
+   if(viewDistance<5||viewDistance>8||!visible(testCamera.position,center))continue;
+   chosen={group,center,position:p,yaw,pitch};break search;
+  }
+  if(chosen)break;
+ }
+ assert(chosen,'现有植被组周围未找到安全且无遮挡的近看机位');
+ const {position,center,group,yaw,pitch}=chosen;
+ Object.assign(g.player,{...position,groundHeight:position.y,vx:0,vy:0,vz:0,waterDepth:0,attack:9999,inv:9999});g.hero.position.set(position.x,position.y,position.z);
+ g.adventureCamera.yaw=yaw;g.adventureCamera.pitch=pitch;g.adventureCamera._ready=false;g.setView(camera);step(12);
+ const vegetation=vegetationMetrics({biome}),near=vegetationCache.get(world).find(layer=>layer.name==='habitat').items.filter(p=>p.biome===biome&&Math.hypot(p.x-center.x,p.z-center.z)<6).sort((a,b)=>Math.hypot(a.x-center.x,a.z-center.z)-Math.hypot(b.x-center.x,b.z-center.z));
+ const report={seed:522,map,requestedBiome,biome,activeBiome:world.activeBiome||biome,camera,landscape:group[0].landscape,landscapeIndex:group[0].landscapeIndex,groupInstances:group.length,position:{x:g.player.x,y:g.player.y,z:g.player.z},cameraPosition:g.camera.position.toArray(),center,viewDistance:g.camera.position.distanceTo(new T.Vector3(center.x,center.y,center.z)),yaw,pitch,width:win.innerWidth,height:win.innerHeight,nearbyActualBounds:near.slice(0,12),vegetation,render:reportFrame(),errors:[...win.qaErrors],offlineTested:false};
+ window.landscapeViewReport=report;return report;
+}
+landscapeButton.onclick=async()=>{
+ landscapeButton.disabled=true;$('#status').textContent='寻找现有地貌植被组的安全机位';
+ try{
+  const mobile=$('#place-size').value==='mobile',width=mobile?844:1180,height=mobile?390:720;
+  if(!g||loadedSize.mobile!==mobile||loadedSize.width!==width||loadedSize.height!==height)await load(mobile,width,height);
+  const report=landscapeView($('#map').value,$('#place-biome').value,$('#place-camera').value);$('#report').textContent=JSON.stringify(report,null,2);$('#status').textContent='地貌植被近看 · '+report.biome+' / '+report.landscape+' / '+report.camera+' · 实际机位距目标 '+report.viewDistance.toFixed(2)+' 米';
+ }catch(error){$('#status').textContent='地貌植被预览失败：'+error.message;$('#report').textContent=JSON.stringify({error:error.message,errors:[...win.qaErrors]},null,2);}finally{landscapeButton.disabled=false;}
+};
 $('#place-entry').onclick=async()=>{
  const button=$('#place-entry');button.disabled=true;$('#status').textContent='准备固定种子的景点入口机位';
  try{
-  const map=$('#map').value,index=Number($('#place-index').value),mobile=$('#place-size').value==='mobile';await load(mobile,mobile?844:1180,mobile?390:720);
-  const report=placeEntrance(map,index);$('#report').textContent=JSON.stringify(report,null,2);$('#status').textContent='景点入口第一人称 · '+report.name+' · 固定种子 522 · '+win.innerWidth+'×'+win.innerHeight;
+  const map=$('#map').value,index=Number($('#place-index').value),mobile=$('#place-size').value==='mobile',width=mobile?844:1180,height=mobile?390:720;
+  if(!g||loadedSize.mobile!==mobile||loadedSize.width!==width||loadedSize.height!==height)await load(mobile,width,height);
+  const report=placeEntrance(map,index,{biome:$('#place-biome').value,camera:$('#place-camera').value,framing:$('#place-framing').value});$('#report').textContent=JSON.stringify(report,null,2);$('#status').textContent='环境入口 · '+report.biome+' / '+report.name+' / '+report.camera+' · 固定种子 522 · '+win.innerWidth+'×'+win.innerHeight+'（不测试离线）';
  }catch(error){$('#status').textContent='入口预览失败：'+error.message;}finally{button.disabled=false;}
 };
 placeCheckButton.onclick=async()=>{
  for(const b of document.querySelectorAll('button'))b.disabled=true;results.length=0;errors.length=0;publish();
+ const sizes=singleSizeBatch?[$('#place-size').value==='mobile']:[false,true],expected=sizes.length*20;
  try{
-  for(const mobile of [false,true]){
-   await load(mobile,mobile?844:1180,mobile?390:720);
-   for(const map of ['forest','snow','ash','sand','coast']){
-    for(const index of [0,1])await check((mobile?'手机横屏':'普通横屏')+' / '+map+' / 景点 '+index,()=>{
-     // Geometry uploads are lazy: two different entrance frusta can expose
-     // different shared meshes. Compare a rebuilt copy of this exact view.
-     const baseline=placeEntrance(map,index),owned=new Set(),released=new Set();g.world.group.traverse(o=>{if(o.userData.ownedGeometry)owned.add(o.geometry);});
-     for(const geometry of owned)geometry.addEventListener('dispose',()=>released.add(geometry));
-     const detail=placeEntrance(map,index);assert(detail.mask,'地面蒙版缺失');assert(detail.render.calls>0,'没有实际渲染场景');assert(detail.render.pixels<=(mobile?1800000:3200000),'入口画面超过像素预算');
-     detail.rebuild={baseline:baseline.render,repeated:detail.render,ownedGeometries:owned.size,releasedGeometries:released.size,geometryDelta:detail.render.geometries-baseline.render.geometries,textureDelta:detail.render.textures-baseline.render.textures};
-     assert([...owned].every(geometry=>released.has(geometry)),'重建没有释放上一场景的自有几何 '+JSON.stringify(detail.rebuild));
-     assert(detail.render.geometries<=baseline.render.geometries+2,'相同机位重建几何资源增长 '+JSON.stringify(detail.rebuild));assert(detail.render.textures<=baseline.render.textures,'相同机位重建纹理资源增长 '+JSON.stringify(detail.rebuild));
-     return detail;
+  for(const mobile of sizes){
+   const width=mobile?844:1180,height=mobile?390:720;
+   if(!g||loadedSize?.mobile!==mobile||loadedSize.width!==width||loadedSize.height!==height)await load(mobile,width,height);
+   $('#place-size').value=mobile?'mobile':'desktop';
+   for(const map of ['forest','snow','ash','sand','coast','confluence']){
+    preparePlaceWorld(map);const biomes=map==='confluence'?['forest','snow','ash','sand','coast']:[map];
+    for(const biome of biomes)for(const camera of ['first','third'])await check((mobile?'手机横屏':'普通横屏')+' / '+map+' / '+biome+' / '+camera,()=>{
+     const detail=placeEntrance(map,0,{biome,camera});assert(detail.biome===biome,'入口选择了错误区域');assert(detail.mask,'地面蒙版缺失');assert(detail.render.calls>0,'没有实际渲染场景');assert(detail.render.pixels<=(mobile?1800000:3200000),'入口画面超过像素预算');assert(win.document.body.classList.contains('touch')===mobile,'横屏操作分支不匹配');
+     // Repeat the same view without advancing the game clock. Different views
+     // legitimately upload different geometry and are never memory baselines.
+     step(2,0);const repeated=reportFrame();detail.stableView={repeated,geometryDelta:repeated.geometries-detail.render.geometries,textureDelta:repeated.textures-detail.render.textures};
+     assert(repeated.geometries===detail.render.geometries&&repeated.textures===detail.render.textures,'同机位连续渲染分配了新资源');return detail;
     });
    }
   }
  }catch(error){results.push({name:'景点批量初始化',pass:false,error:error.message});}
- errors.push(...(win?.qaErrors||[]));window.placeEntranceChecks={results:[...results],errors:[...errors]};publish();for(const b of document.querySelectorAll('button'))b.disabled=false;
- $('#status').textContent=results.length===20&&results.every(r=>r.pass)&&!errors.length?'五图双景点 × 两种横屏，共 20 组入口检查通过。':'景点入口检查存在失败，请查看报告。';
+ errors.push(...(win?.qaErrors||[]));window.placeEntranceChecks={expected,results:[...results],errors:[...errors]};publish();for(const b of document.querySelectorAll('button'))b.disabled=false;
+ $('#status').textContent=results.length===expected&&results.every(r=>r.pass)&&!errors.length?'五图与五境五区 × 双视角 × '+(singleSizeBatch?'当前尺寸':'两种横屏')+'，共 '+expected+' 组通过（不测试离线）。':'环境入口检查存在失败，请查看报告。';
 };
 $('#creature-near').onclick=()=>{
  if(g.state!=='playing'){if(g.state==='paused')g.resume();else g.start();}
@@ -242,5 +318,5 @@ $('#gpu').onclick=async()=>{
  }finally{if(target)target.resolveDepthBuffer=false;$('#gpu').disabled=false;}
 };
 $('#water').onclick=()=>{const pond=g.world.ponds[0];if(!pond)return;g.start();g.player.inv=9999;g.player.attack=9999;g.player.x=pond.x+pond.rx+1.5;g.player.z=pond.z;step(100);$('#status').textContent='水岸实景';};
-await load();for(const b of document.querySelectorAll('button'))b.disabled=false;$('#status').textContent='准备完成';
+await load(initialSize==='mobile',initialSize==='mobile'?844:1180,initialSize==='mobile'?390:720);for(const b of document.querySelectorAll('button'))b.disabled=false;$('#status').textContent='准备完成'+(singleSizeBatch?' · 当前尺寸 20 组模式':'');
 </script></html>

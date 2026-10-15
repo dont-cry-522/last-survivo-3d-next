@@ -1,4 +1,5 @@
 import * as T from '../vendor/three.module.js';
+import {creatureGait,gaitDistance,gaitStride} from '../creature-gait.js';
 
 const $=s=>document.querySelector(s),wait=ms=>new Promise(r=>setTimeout(r,ms)),precision=n=>Math.round(n*1e6)/1e6;
 let win,g,watched,busy=false,sounds=[],html;
@@ -11,15 +12,16 @@ function phase(e){return e.mesh.userData.walkPhase||0;}
 function pose(e){const d=e.mesh.userData;return[d.rig,d.head,d.cap,d.tail,...(d.feet||[]),...d.legs.flatMap(l=>[l.joint,l.knee,l.paw])].filter(Boolean).flatMap(n=>[...n.position.toArray(),...n.quaternion.toArray(),...n.scale.toArray()]);}
 function feet(e){
  e.mesh.updateMatrixWorld(true);const d=e.mesh.userData,nodes=e.kind==='wolf'?d.legs.map(l=>l.paw):d.feet,point=new T.Vector3();
- const markers=nodes.map(n=>n.getWorldPosition(point).y),meshes=e.kind==='wolf'?d.legs.map(l=>l.knee):nodes;
- return{markers:markers.map(precision),surfaceMin:precision(Math.min(...meshes.map(n=>new T.Box3().setFromObject(n,true).min.y)))};
+ const markers=nodes.map(n=>n.getWorldPosition(point).y),meshes=e.kind==='wolf'?d.legs.flatMap(l=>[l.knee,l.paw,l.ankle].filter(Boolean)):nodes;
+ const surfaceMin=Math.min(...meshes.map(n=>new T.Box3().setFromObject(n,true).min.y));assert(Number.isFinite(surfaceMin),'visible feet geometry was not measured');
+ return{markers:markers.map(precision),surfaceMin:precision(surfaceMin)};
 }
 async function boot(){
  if(g)return;html??=await(await fetch('../index.html',{cache:'no-store'})).text();
  const frame=document.createElement('iframe');frame.width=1280;frame.height=720;$('#view').replaceChildren(frame);
  const inject=`<base href="../"><script>let seed=9137;window.qaSeed=()=>seed=9137;Math.random=()=>((seed=Math.imul(seed,1664525)+1013904223>>>0)/4294967296);window.qaErrors=[];addEventListener('error',e=>qaErrors.push(e.message));addEventListener('unhandledrejection',e=>qaErrors.push(String(e.reason)));window.requestAnimationFrame=cb=>{window.qaFrame=cb;return 0};const mem=new Map([['forest3d-audio','{"muted":true,"music":0,"sfx":0}']]);Object.defineProperty(window,'localStorage',{value:{getItem:k=>mem.get(k)||null,setItem:(k,v)=>mem.set(k,String(v)),removeItem:k=>mem.delete(k)}});<\/script>`;
  frame.srcdoc=html.replace('<head>','<head>'+inject);win=frame.contentWindow;
- for(let i=0;i<400&&!win.game3d;i++)await wait(50);
+ for(let i=0;i<1200&&!win.game3d&&!win.qaErrors?.length;i++)await wait(50);
  assert(win.game3d,'game3d did not load');g=win.game3d;g.select('silver','forest',0);g.audio.setMuted(true);
  const creature=g.audio.creature.bind(g.audio);
  g.audio.creature=(kind,event,dx,dz)=>{
@@ -51,10 +53,10 @@ async function run(){
   await boot();
   for(const kind of['wolf','mushroom']){
    await check(kind+' · walking follows real movement',()=>{
-    const e=reset(kind),startPhase=phase(e);let length=0,previous=position(e);
-    for(let i=0;i<48;i++){step();length+=distance(previous,e);previous=position(e);}
+    const e=reset(kind),startPhase=phase(e);let length=0,expectedPhase=0,previous=position(e);
+    for(let i=0;i<48;i++){step();const travelled=distance(previous,e),local=travelled/e.mesh.scale.x;length+=travelled;if(kind==='wolf')expectedPhase+=gaitDistance(local,creatureGait(kind,local*60),gaitStride(local*60));previous=position(e);}
     const advanced=phase(e)-startPhase;assert(length>.3,'enemy failed to walk');assert(advanced>0,'moving enemy gait froze');
-    if(kind==='wolf')assert(Math.abs(advanced-length*4.5)<1e-5,'wolf phase did not follow actual path length');
+    if(kind==='wolf')assert(Math.abs(advanced-expectedPhase)<1e-5,'wolf phase did not follow actual path length and speed');
     const contacts=sounds.filter(s=>s.event==='step');assert(contacts.length>0,'walking generated no support contact');
     return{distance:precision(length),phase:precision(advanced),steps:contacts.length};
    });

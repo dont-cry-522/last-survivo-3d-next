@@ -1,7 +1,8 @@
 import * as T from './vendor/three.module.js';
-import {footCycle} from './creature-gait.js?v=205';
+import {footCycle} from './creature-gait.js?v=206';
+import {plantFootContact} from './creature-forms.js?v=206';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=205';
+import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=206';
 
 // Five finite, shared sets of geometry. Articulation moves groups, never vertices.
 const templates=new Map();
@@ -309,13 +310,20 @@ export function animateEnemyExpression(d,t,stride,gather,drive,impact=0){
 }
 
 // Shared articulated support used by forest and regional limb carriers.
-const footDown=new T.Vector3(0,-1,0),footEnd=new T.Vector3(),footTarget=new T.Vector3(),footDirection=new T.Vector3(),footBend=new T.Vector3(),footElbowPoint=new T.Vector3(),footLinkDirection=new T.Vector3(),footInverse=new T.Matrix4(),footRigMatrix=new T.Matrix4(),footFlat=new T.Quaternion(),footFootOffset=new T.Vector3();
-export function prepareCreatureFeet(d){d.rig.updateMatrix();footRigMatrix.copy(d.rig.matrix);if(d.regionalRoot){d.regionalRoot.updateMatrix();footRigMatrix.multiply(d.regionalRoot.matrix);}footInverse.copy(footRigMatrix).invert();footFlat.copy(d.rig.quaternion).invert();}
-export function plantCreatureFoot(l,phase,stride,{air=0,reachZ=0,lift=.09,travel=.15,raise=0,toeRoll=0,support:stance=.64}={}){
- const cycle=footCycle(phase+l.phase,stride,lift,stance),{support,q}=cycle,step=cycle.travel;
- l.planted=support&&stride>.001&&air<.001&&raise<.001;
+const footDown=new T.Vector3(0,-1,0),footEnd=new T.Vector3(),footTarget=new T.Vector3(),footDirection=new T.Vector3(),footBend=new T.Vector3(),footElbowPoint=new T.Vector3(),footLinkDirection=new T.Vector3(),footInverse=new T.Matrix4(),footRigMatrix=new T.Matrix4(),footFlat=new T.Quaternion(),footFootOffset=new T.Vector3(),footProbe=new T.Vector3();
+let footActor;
+export function prepareCreatureFeet(d){d.rig.updateMatrix();footRigMatrix.copy(d.rig.matrix);if(d.regionalRoot){d.regionalRoot.updateMatrix();footRigMatrix.multiply(d.regionalRoot.matrix);}footInverse.copy(footRigMatrix).invert();footFlat.copy(d.rig.quaternion).invert();footActor=d.rig.parent;}
+export function plantCreatureFoot(l,phase,stride,{air=0,reachZ=0,lift=.09,travel=.15,raise=0,toeRoll=0,support:stance=.64,offset=l.phase}={}){
+ const cycle=footCycle(phase+offset,stride,lift,stance),{support,q}=cycle,step=cycle.travel;
  const fit=l.joint.parent.scale.x;
- footTarget.set((l.restX+Math.sign(l.restX)*l.reach)*fit,.006+cycle.lift+air+raise,(l.restZ+reachZ)*fit+step*travel).applyMatrix4(footInverse);
+ footTarget.set((l.restX+Math.sign(l.restX)*l.reach)*fit,.006+cycle.lift+air+raise,(l.restZ+reachZ)*fit+step*travel);
+ const reachable=point=>{footProbe.copy(point).applyMatrix4(footInverse).add(footFootOffset.set(0,.055+(l.drop||0),l.drop?-.095:0).applyQuaternion(footFlat));footProbe.x-=l.restX;footProbe.y-=l.restY;footProbe.z-=l.restZ;return footProbe.length();};
+ const reachLimit=Math.max(l.upperLength+l.lowerLength+.045,reachable(footTarget)+.02);
+ // Lock a supporting toe in the world, including elite scale and turning.
+ // A stopped or overextended foot takes a short settling step before replanting.
+ if(footActor)plantFootContact(l,footActor,footTarget,{phase:phase+offset,stride,support,swing:q,groundY:.006,lift:lift*stride,air:air+raise,maxStep:travel*.65+.12,canReach:point=>reachable(point)<=reachLimit});
+ else l.planted=support&&air<.001&&raise<.001;
+ footTarget.applyMatrix4(footInverse);
  l.paw.quaternion.copy(footFlat);if(toeRoll)l.paw.rotateX(-toeRoll*Math.sin(q*Math.PI)*stride);
  footEnd.copy(footTarget).add(footFootOffset.set(0,.055,0).applyQuaternion(l.paw.quaternion));if(l.drop)footEnd.add(footFootOffset.set(0,l.drop,-.095).applyQuaternion(footFlat));
  l.joint.position.set(l.restX,l.restY,l.restZ);l.joint.rotation.set(0,0,0);

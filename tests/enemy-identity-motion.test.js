@@ -29,10 +29,13 @@ test('forest swimming, recoil and death combine without moving roots, pause drif
   deaths.add({mesh:m,role:kind});deaths.update(.18);assert(pose(m).every(Number.isFinite));const dying=pose(m);deaths.update(0);assert.deepEqual(pose(m),dying,kind+' corpse changed while paused');deaths.update(.32);assert.equal(deaths.items.length,0);assert.equal(scene.children.length,0);
  }
 });
-test('wolf contact masks follow ground distance once per support pair and never fire while blocked, paused or airborne',()=>{
+test('wolf contacts alternate four paws at a walk and diagonal pairs at a run, with no blocked or airborne steps',()=>{
  const d=actor('wolf').userData;d.walkPhase=0;advanceEnemyLocomotion(d,1/60,0,false);const contacts=[];
  for(let i=0;i<160;i++){d.walkPhase=i;const mask=advanceEnemyLocomotion(d,1/60,.025,true);if(mask)contacts.push(mask);}
- assert(contacts.length>=8&&contacts.length<=12);contacts.forEach((mask,i)=>assert.equal(mask,i%2?9:6));assert(d.visualPhase>Math.PI*contacts.length&&d.visualPhase<Math.PI*(contacts.length+1));
+ assert(contacts.length>=14&&contacts.length<=20);assert.deepEqual([...new Set(contacts)].sort((a,b)=>a-b),[1,2,4,8],'a slow wolf should not march on paired diagonal legs');
+ const runner=actor('wolf').userData,runContacts=[];advanceEnemyLocomotion(runner,1/60,0,false);
+ for(let i=0;i<160;i++){const mask=advanceEnemyLocomotion(runner,1/60,4.5/60,true);if(mask)runContacts.push(mask);}
+ assert.deepEqual([...new Set(runContacts)].sort((a,b)=>a-b),[6,9]);
  const phase=d.visualPhase;for(let i=0;i<100;i++)assert.equal(advanceEnemyLocomotion(d,1/60,0,true),0);assert.equal(d.visualPhase,phase);
  d.pounce=.5;for(let i=0;i<10;i++)assert.equal(advanceEnemyLocomotion(d,1/60,.15,false),0);assert.equal(d.visualPhase,phase);
  const state=[d.visualPhase,d.contactPhase,d.motionTurn,d.motionLook,d.motionSpeed];d.turnRate=6;d.lookTurn=.7;assert.equal(advanceEnemyLocomotion(d,0,.1,true),0);assert.deepEqual([d.visualPhase,d.contactPhase,d.motionTurn,d.motionLook,d.motionSpeed],state);

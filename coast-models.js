@@ -1,8 +1,8 @@
-import {creatureAttackPose} from './creature-gait.js?v=205';
-import {ENEMY_MOTION} from './enemy-motion.js?v=205';
+import {creatureAttackPose,gaitDistance,gaitStride} from './creature-gait.js?v=206';
+import {ENEMY_MOTION} from './enemy-motion.js?v=206';
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=205';
-import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=205';
+import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=206';
+import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=206';
 const geometries=new Map(),materials=new Map();
 function part(p,color,pos,size,type='sphere',glow=false){
  if(!geometries.has(type))geometries.set(type,type==='rock'?new T.DodecahedronGeometry(1,1):type==='box'?new T.BoxGeometry(2,2,2):type==='cone'?new T.ConeGeometry(1,2,12):type==='barrel'?new T.CylinderGeometry(.88,1,2,10):type==='hoop'?new T.TorusGeometry(1,.055,5,12):new T.SphereGeometry(1,16,12));
@@ -74,14 +74,21 @@ export function makeCoastEnemy(kind){
  d.arms=[...d.claws,...d.tips];d.cap=d.body;return g;
 }
 export function animateCoastEnemy(g,t,speed,attack,dt){
- const d=g.userData,r=d.rig,walking=d.organicModel&&d.legs.length>0,travel=d.kind==='reefturtle'?.24:.27,desiredStride=Math.min(1,speed/(d.kind==='reefturtle'?.8:1.8));
+ g.userData.lastTime=t;
+ const d=g.userData,r=d.rig,walking=d.organicModel&&d.legs.length>0,travel=d.kind==='reefturtle'?.24:.27;
+ const pounce=d.kind==='tidecrab'?T.MathUtils.clamp(d.pounce||0,0,1):0,recovery=d.kind==='tidecrab'?Math.max(0,d.landRecover||0):0;
+ d.boundRecoveryLength=recovery?Math.max(d.boundRecoveryLength||0,recovery):0;
+ const recover=recovery/(d.boundRecoveryLength||1),bounding=pounce>0||recovery>0,air=Math.sin(Math.PI*pounce),landing=Math.sin(Math.PI*recover);
+ const desiredStride=bounding?0:gaitStride(speed,d.kind==='reefturtle'?.8:1.8);
  if(walking)d.walkStride=(d.walkStride||0)+(desiredStride-(d.walkStride||0))*(1-Math.exp(-dt*14));
- const s=walking?d.walkStride:Math.min(1,speed/3);
+ const s=walking?d.walkStride*(bounding?0:1):Math.min(1,speed/3);
  // The shared gait spends 64% of a cycle moving a planted foot from +travel
  // to -travel. Match that retreat to the actor's real translation.
- d.phase+=speed*dt*(walking?Math.PI*.64/(travel*Math.max(.01,desiredStride)):3);const p=d.phase;
+ // The combat lunge is one bound, including its last translating frame. Its
+ // existing recovery clock prevents that final high speed from restarting legs.
+ if(!bounding)d.phase+=walking?gaitDistance(speed*dt/g.scale.x,{travel,support:.64},desiredStride):speed*dt*3;const p=d.phase;
  const pose=creatureAttackPose(d,attack,dt,ENEMY_MOTION[d.kind]?.recover||.35);
- let wind=pose.wind,strike=pose.strike;if(d.coastBoss){wind=d.bossStage==='wind'?d.windProgress:d.bossStage==='strike'?1-d.strikeProgress:0;strike=d.bossStage==='strike'?Math.sin(Math.PI*d.strikeProgress):0;}
+ let wind=pose.wind,strike=Math.max(pose.strike,air*.85);if(d.coastBoss){wind=d.bossStage==='wind'?d.windProgress:d.bossStage==='strike'?1-d.strikeProgress:0;strike=d.bossStage==='strike'?Math.sin(Math.PI*d.strikeProgress):0;}
  if(d.organicModel){
   r.position.set(0,Math.abs(Math.sin(p))*.010*s-wind*.018,-wind*.016+strike*.025);r.rotation.set(wind*.025-strike*.04,0,Math.sin(p)*.014*s);
   if(d.kind==='foamling'){
@@ -100,7 +107,8 @@ export function animateCoastEnemy(g,t,speed,attack,dt){
    // braces low between its two alternating tripods before closing a claw.
    r.position.set(weight*(turtle?.016:.007),Math.abs(Math.sin(p*(turtle?1:2)))*(turtle?.007:.004)*s-wind*(turtle?.012:.025),-wind*(turtle?.022:.018)+strike*(turtle?.018:.028));
    r.rotation.set(wind*(turtle?-.025:.04)-strike*(turtle?.025:.035),Math.sin(p-.5)*(turtle?.012:.007)*s,weight*(turtle?.020:.010));
-   for(const l of d.legs)stepLeg(l,r,p,s,{travel,lift:d.kind==='reefturtle'?.043:.057});
+   r.position.y+=air*.09-landing*.035;r.position.z+=air*.04;r.rotation.x+=Math.sin(pounce*Math.PI*2)*.045+landing*.035;
+   for(const l of d.legs)stepLeg(l,r,p,s,{travel,lift:turtle?.043:.057,air:air*.13,forward:air*(l.hip.z>0?.14-.20*pounce:.08-.24*pounce)});
    d.claws.forEach((o,i)=>{const side=i?1:-1,carry=Math.sin(p+i*Math.PI-.45)*.025*s;o.rotation.set(carry-wind*.16+strike*.12,side*(wind*(i?.23:.17)-strike*(i?.24:.17)),-side*wind*.04);d.elbows[i].rotation.set(-wind*.12+strike*.10,-side*(wind*(i?.34:.26)-strike*(i?.23:.17)),0);});d.tips.forEach((o,i)=>o.rotation.y=(i?1:-1)*(-wind*(i?.31:.25)+strike*(i?.25:.19)));
    if(d.head){d.head.position.z=.50-wind*.12+strike*.14;d.head.rotation.x=-wind*.12+strike*.08-Math.sin(p-.6)*.015*s;d.head.rotation.z=-r.rotation.z*.6;d.head.rotation.y=Math.sin(t*.8)*.025*(1-s)-weight*.015;}
    d.eyes.forEach((eye,i)=>{const side=i?1:-1;if(d.kind==='tidecrab'){eye.rotation.set(-wind*.20+strike*.10,Math.sin(t*.85+i*.9)*.12*(1-wind)+side*wind*.10,side*(-wind*.08+Math.sin(t*.63+i)*.028));}else{const phase=T.MathUtils.euclideanModulo(t+i*.065,5.3),blink=phase<.20?Math.sin(phase/.20*Math.PI)**2:0;eye.scale.y=Math.max(.06,1-.92*blink-wind*.16);}});

@@ -15,6 +15,9 @@ export function creatureGait(kind,speed){
  const x=Math.max(0,Math.min(1,(speed-p[4])/(p[5]-p[4]))),run=x*x*(3-2*x);
  return{travel:p[0]+(p[1]-p[0])*run,lift:p[2]+(p[3]-p[2])*run,support:.64+(p[6]-.64)*run,run};
 }
+// Slow travel shortens both the stroke and its cadence. A linear stride would
+// cancel speed in gaitDistance, making a creeping creature pedal at full pace.
+export function gaitStride(speed,referenceSpeed=2.5){return Math.sqrt(Math.max(0,Math.min(1,speed/referenceSpeed)));}
 export function gaitDistance(distance,gait,stride=1){return Math.max(0,distance)*Math.PI*gait.support/(gait.travel*Math.max(.01,stride));}
 
 export function footCycle(phase,stride,lift=.10,stance=.64){

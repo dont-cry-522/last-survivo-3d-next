@@ -1,8 +1,8 @@
-import {creatureGait,gaitDistance} from './creature-gait.js?v=205';
+import {creatureGait,gaitDistance,gaitStride} from './creature-gait.js?v=206';
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,tint,joint,smooth} from './creature-forms.js?v=205';
-import {bossLeg,poseBossLeg} from './boss-appearance.js?v=205';
-import {ADDITIONAL_BOSSES} from './boss-roster.js?v=205';
+import {form,surface,tube,oval,tint,joint,smooth} from './creature-forms.js?v=206';
+import {bossLeg,poseBossLeg} from './boss-appearance.js?v=206';
+import {ADDITIONAL_BOSSES} from './boss-roster.js?v=206';
 
 // Ten anatomical silhouettes, shared shaded geometry and the existing foot IK.
 // No per-instance textures/materials, lights or independent animation timers.
@@ -124,7 +124,7 @@ export function animateBossVariant(g,t,speed,dt){
  const wind=stage==='wind'?smooth(d.windProgress||0):stage==='strike'?1-smooth(s/.32):0;
  const strike=stage==='strike'?smooth(s/.32)*(1-.7*smooth((s-.55)/.45)):stage==='recover'?.30*(1-smooth(d.recoverProgress||0)):0;
  const groundCharge=stage==='strike'&&['antlerrush','horncharge'].includes(d.bossMove),groundMove=stage==='walk'||groundCharge;
- const desired=groundMove?Math.min(1,Math.max(0,speed)/cfg.speed):0;d.walkStride=(d.walkStride||0)+(desired-(d.walkStride||0))*(1-Math.exp(-Math.max(0,dt)*10));const stride=d.walkStride;
+ const desired=groundMove?(d.legs.length>0&&!d.wings.length?gaitStride(speed,cfg.speed):Math.min(1,Math.max(0,speed)/cfg.speed)):0;d.walkStride=(d.walkStride||0)+(desired-(d.walkStride||0))*(1-Math.exp(-Math.max(0,dt)*10));const stride=d.walkStride;
  const gait=creatureGait(kind,speed);d.motionGait=gait;
  if(dt>0&&desired>0)d.phase+=gait?gaitDistance(speed*dt/g.scale.x,gait,desired):speed*dt*2.7;const p=d.phase;
  r.position.set(0,d.lift||0,0);r.rotation.set(0,0,0);r.scale.set(1,1,1);

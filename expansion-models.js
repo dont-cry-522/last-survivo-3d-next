@@ -1,7 +1,7 @@
-import {creatureAttackPose} from './creature-gait.js?v=205';
-import {ENEMY_MOTION} from './enemy-motion.js?v=205';
+import {creatureAttackPose,gaitDistance,gaitStride} from './creature-gait.js?v=206';
+import {ENEMY_MOTION} from './enemy-motion.js?v=206';
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,tint,joint as organicJoint,leg,stepLeg} from './creature-forms.js?v=205';
+import {form,surface,tube,oval,tint,joint as organicJoint,leg,stepLeg} from './creature-forms.js?v=206';
 const materials=new Map(),geometries=new Map();
 function part(parent,color,x,y,z,sx,sy,sz,shape='sphere',lit=false){
  const key=color+':'+lit;if(!materials.has(key))materials.set(key,new T.MeshStandardMaterial({color,roughness:.78,metalness:.12,emissive:lit?color:0,emissiveIntensity:lit?.8:0}));
@@ -105,22 +105,29 @@ export function makeSandEnemy(kind){
  animateSandEnemy(g,0,0,0,0);return g;
 }
 export function animateSandEnemy(g,t,speed,attack,dt){
- const d=g.userData,r=d.rig,walking=d.legs.length>0,travel=d.kind==='clawbeetle'?.24:.22,desiredStride=Math.min(1,speed/(d.kind==='clawbeetle'?1.8:.85));
+ g.userData.lastTime=t;
+ const d=g.userData,r=d.rig,walking=d.legs.length>0,travel=d.kind==='clawbeetle'?.24:.22;
+ const pounce=d.kind==='clawbeetle'?T.MathUtils.clamp(d.pounce||0,0,1):0,recovery=d.kind==='clawbeetle'?Math.max(0,d.landRecover||0):0;
+ d.boundRecoveryLength=recovery?Math.max(d.boundRecoveryLength||0,recovery):0;
+ const recover=recovery/(d.boundRecoveryLength||1),bounding=pounce>0||recovery>0,air=Math.sin(Math.PI*pounce),landing=Math.sin(Math.PI*recover);
+ const desiredStride=bounding?0:gaitStride(speed,d.kind==='clawbeetle'?1.8:.85);
  if(walking)d.walkStride=(d.walkStride||0)+(desiredStride-(d.walkStride||0))*(1-Math.exp(-dt*14));
- const stride=walking?d.walkStride:Math.min(1,speed/3);
+ const stride=walking?d.walkStride*(bounding?0:1):Math.min(1,speed/3);
  // Keep support feet in place as the body passes over them, instead of a
  // short decorative shuffle unrelated to actual movement distance.
- d.phase+=speed*dt*(walking?Math.PI*.64/(travel*Math.max(.01,desiredStride)):3.2);const p=d.phase;
- const {wind,strike}=creatureAttackPose(d,attack,dt,ENEMY_MOTION[d.kind]?.recover||.3);
+ // Combat owns the bound and landing; a full-speed final frame must not
+ // become another rapid walking cycle after pounce reaches zero.
+ if(!bounding)d.phase+=walking?gaitDistance(speed*dt/g.scale.x,{travel,support:.64},desiredStride):speed*dt*3.2;const p=d.phase;
+ const pose=creatureAttackPose(d,attack,dt,ENEMY_MOTION[d.kind]?.recover||.3),wind=pose.wind,strike=Math.max(pose.strike,air*.85);
  const beetle=d.kind==='clawbeetle',worm=d.kind==='sandworm',guard=d.kind==='sandguard',oracle=d.kind==='duneoracle',sway=Math.sin(p)*stride;
  r.rotation.set(wind*(worm?.045:.045)-strike*.065,d.kind==='duneoracle'?Math.sin(t*1.1)*.025:0,Math.sin(p)*.018*stride);r.position.y=-wind*.025+Math.abs(Math.sin(p))*.012*stride;r.position.z=-wind*.025+strike*.035;
  if(worm){const breathe=Math.sin(t*2.2)*.012*(1-stride)*(1-wind);d.head.rotation.x=wind*.14-strike*.17;d.head.position.z=.265-wind*.035+strike*.055;d.head.scale.set(1+wind*.10+strike*.06+breathe,1+wind*.10+strike*.06+breathe,1);r.rotation.z=0;r.position.y=0;}
- if(beetle){r.position.set(sway*.006,-wind*.019+Math.abs(Math.sin(p*2))*.004*stride,-wind*.017+strike*.025);r.rotation.set(wind*.055-strike*.075,Math.sin(p-.4)*.008*stride,sway*.009);}
+ if(beetle){r.position.set(sway*.006,-wind*.019+Math.abs(Math.sin(p*2))*.004*stride+air*.11-landing*.035,-wind*.017+strike*.025+air*.04);r.rotation.set(wind*.055-strike*.075+Math.sin(pounce*Math.PI*2)*.05+landing*.035,Math.sin(p-.4)*.008*stride,sway*.009);}
  else if(!worm){
   r.position.set(sway*(guard?.016:oracle?.010:.021),-wind*.025+Math.abs(Math.sin(p))*(guard?.009:oracle?.008:.012)*stride,-wind*.022+strike*.018);
   r.rotation.set((guard?.025:oracle?.012:.065)*stride+wind*(guard?-.04:oracle?-.055:.11)+strike*(guard?.06:oracle?.035:-.075),Math.sin(p-.35)*.014*stride+(guard?-wind*.09+strike*.11:oracle?wind*.04-strike*.03:0),sway*(guard?.025:oracle?.018:.035));
  }
- for(const l of d.legs)stepLeg(l,r,p,stride,{travel,lift:beetle?.065:guard?.070:oracle?.058:.085});
+ for(const l of d.legs)stepLeg(l,r,p,stride,{travel,lift:beetle?.065:guard?.070:oracle?.058:.085,air:air*.15,forward:air*(l.hip.z>0?.14-.20*pounce:.08-.24*pounce)});
  if(d.jaws)d.jaws.forEach((j,i)=>j.rotation.y=(i?1:-1)*(wind*(i?.27:.21)-strike*(i?.20:.16)+Math.max(0,Math.sin(t*2.7+i*.6))*.026*(1-stride)*(1-wind)));
  d.arms.forEach((a,i)=>{
   const walk=Math.sin(p+i*Math.PI-.45)*stride,side=i?1:-1,forearm=d.forearms[i];

@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,tint,joint,smooth,stepLeg} from './creature-forms.js?v=205';
+import {form,surface,tube,oval,tint,joint,smooth,stepLeg} from './creature-forms.js?v=206';
 
-import {creatureGait,gaitDistance} from './creature-gait.js?v=205';
+import {creatureGait,gaitDistance,gaitStride} from './creature-gait.js?v=206';
 
 // These are the original spawn bounds used by projectile targeting. Appearance
 // and anticipation may change; the collision body and attack clock do not.
@@ -188,23 +188,26 @@ export function animateBossAppearance(g,t,speed,dt){
  const wind=stage==='wind'?smooth(d.windProgress||0):stage==='strike'?1-smooth(s/.30):0;
  const strike=stage==='strike'?smooth(s/.30)*(1-.65*smooth((s-.50)/.50)):stage==='recover'?.35*rec:0;
  const landing=stage==='strike'?smooth((s-.58)/.19)*(1-smooth((s-.85)/.15)):stage==='recover'?.18*Math.sin(Math.PI*T.MathUtils.clamp(d.recoverProgress||0,0,1)):0;
- const desired=stage==='walk'||stage==='move'?Math.min(1,Math.max(0,speed)/(kind==='boss'?1.5:kind==='wreckwarden'?1.8:2.3)):0;
+ const desired=stage==='walk'||stage==='move'?gaitStride(speed,kind==='boss'?1.5:kind==='wreckwarden'?1.8:2.3):0;
  d.walkStride=(d.walkStride||0)+(desired-(d.walkStride||0))*(1-Math.exp(-Math.max(0,dt)*10));const stride=d.walkStride;
  const gait=creatureGait(kind,speed);d.motionGait=gait;
  if(desired>.001)d.phase+=gaitDistance(speed*dt/g.scale.x,gait,desired);const p=d.phase;
- r.position.set(0,(d.lift||0)+Math.abs(Math.sin(p))*.035*stride,0);r.rotation.set(0,0,Math.sin(p)*.025*stride);r.scale.set(1,d.heightScale||1,1);
+ const supportPhase=p-Math.PI*(gait.support-.5),load=Math.sin(supportPhase),biped=d.legs.length===2;
+ // Broad multi-leg support keeps the shell/trunk level; bipeds transfer weight
+ // over one foot and their arms counter the same-side leg's forward stroke.
+ r.position.set(biped?-load*.025*stride:0,(d.lift||0)+load*load*(biped?.025:.009)*stride,0);r.rotation.set(0,0,load*(biped?.016:.007)*stride);r.scale.set(1,d.heightScale||1,1);
  const breathe=Math.sin(t*(kind==='frostking'?1.65:1.2))*.006*(1-Math.max(wind,strike));d.body.scale.set(1+breathe*.4,1+breathe,1+breathe*.6);
  if(d.jaw)d.jaw.rotation.x=wind*(kind==='frostking'?.30:.18)+strike*(kind==='frostking'?.18:.10);
  for(let i=0;i<d.arms.length;i++){const side=i?1:-1;d.arms[i].rotation.set(Math.sin(p+i*Math.PI)*.17*stride-wind*.7+strike*.45,0,side*.04);d.forearms[i].rotation.set(-.12-wind*.25+strike*.13,0,0);}
  if(kind==='boss'){
   const roots=move==='roots';r.rotation.x=-wind*.09+strike*.10;r.rotation.y=(roots?-.08:-.21)*wind+(roots?.06:.17)*strike;r.position.y-=wind*.08+strike*.06;
-  for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(-.18-wind*(roots?.60:1.32)+strike*(roots?.30:.60),side*(-.16-wind*(roots?.12:.40)+strike*.30),side*(.36+wind*(roots?.04:.27)-strike*.12));d.forearms[i].rotation.x=-.42-wind*.42+strike*.36;d.appendages[i].rotation.set(Math.sin(t*.85+i-.45)*.012+strike*.025,0,side*Math.sin(t*.7+i)*.018+Math.sin(p-.6)*.012*stride);}
+  for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(-.18+Math.cos(supportPhase+i*Math.PI)*.04*stride-wind*(roots?.60:1.32)+strike*(roots?.30:.60),side*(-.16-wind*(roots?.12:.40)+strike*.30),side*(.36+wind*(roots?.04:.27)-strike*.12));d.forearms[i].rotation.x=-.42-wind*.42+strike*.36;d.appendages[i].rotation.set(Math.sin(t*.85+i-.45)*.012+strike*.025,0,side*Math.sin(t*.7+i)*.018+Math.sin(p-.6)*.012*stride);}
  }else if(kind==='frostking'){
   const leap=move==='leap';r.position.y-=.08+wind*(leap?.31:.13)+landing*.21;r.rotation.x=.27+.045*stride+wind*(leap?.13:-.08)+strike*.15;r.rotation.y=Math.sin(p-.35)*.025*stride+(leap?0:-wind*.065+strike*.07);d.head.rotation.set(-.16-wind*.22+landing*.12,Math.sin(t*.43)*.009*(1-stride),0);
-  for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(-.22+Math.sin(p+i*Math.PI)*.22*stride-wind*(leap?.51:1.43)-strike*(leap?1.45:-.65)+landing*1.15,side*(.05+wind*(leap?.10:.20)),side*(.13+wind*.15+strike*.06));d.forearms[i].rotation.x=.06-wind*(leap?.72:.30)-strike*.28+landing*.28;}
+  for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(-.22+Math.cos(supportPhase+i*Math.PI)*.22*stride-wind*(leap?.51:1.43)-strike*(leap?1.45:-.65)+landing*1.15,side*(.05+wind*(leap?.10:.20)),side*(.13+wind*.15+strike*.06));d.forearms[i].rotation.x=.06-wind*(leap?.72:.30)-strike*.28+landing*.28;}
  }else if(kind==='cinderlord'){
   const embers=move==='embers';r.rotation.x=-wind*.10+strike*.13;r.rotation.y=wind*(embers?.13:-.12)-strike*.08;r.position.y+=Math.sin(t*1.2)*.012-wind*.06;d.head.rotation.set(.07-wind*.08+strike*.05,Math.sin(t*.43)*.010,0);
-  for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(-wind*(embers?1.75:1.08)+strike*(embers?-.25:.58),side*(-wind*.24+strike*(embers?.09:.27)),side*(wind*(embers?.28:.57)+strike*(embers?.08:-.18)));d.forearms[i].rotation.x=-.15-wind*.50+strike*.38;}
+  for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(Math.cos(supportPhase+i*Math.PI)*.09*stride-wind*(embers?1.75:1.08)+strike*(embers?-.25:.58),side*(-wind*.24+strike*(embers?.09:.27)),side*(wind*(embers?.28:.57)+strike*(embers?.08:-.18)));d.forearms[i].rotation.x=-.15-wind*.50+strike*.38;}
   d.core.scale.set(1+wind*.025,1+wind*.018,1+wind*.025);
  }else{
   const scorpion=kind==='dunescorpion',tail=move==='tail',burrow=move==='burrow',surge=move==='surge',anchors=move==='anchors';

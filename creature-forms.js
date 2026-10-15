@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=205';
+import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=206';
 
 // Finite templates and three shared finishes (one translucent jelly membrane). No per-enemy geometry/material,
 // bone textures, extra lights or disposable particle resources.
@@ -61,9 +61,59 @@ export function form(parent,key,build,{glow=false,translucent=false}={}){
 export const joint=(parent,x=0,y=0,z=0)=>{const p=new T.Group();p.position.set(x,y,z);parent.add(p);return p;};
 export function face(color,y,z,spread=.12){return[-1,1].flatMap(s=>[oval(0x26312f,s*spread,y,z,.059,.049,.025),oval(color,s*spread,y+.008,z+.019,.027,.027,.012),oval(0xf2edcf,s*spread-.008,y+.018,z+.031,.008,.009,.004,6,4)]);}
 export const smooth=x=>{x=T.MathUtils.clamp(x,0,1);return x*x*(3-2*x);};
-export {footCycle as gait} from './creature-gait.js?v=205';
-import {footCycle as gait} from './creature-gait.js?v=205';
+export {footCycle as gait} from './creature-gait.js?v=206';
+import {footCycle as gait} from './creature-gait.js?v=206';
 const down=new T.Vector3(0,-1,0),target=new T.Vector3(),direction=new T.Vector3(),bend=new T.Vector3(),elbow=new T.Vector3(),segment=new T.Vector3(),inverse=new T.Matrix4(),worldTarget=new T.Vector3(),actorInverse=new T.Matrix4();
+const rootPoint=new T.Vector3(),nominalPoint=new T.Vector3(),rootDelta=new T.Vector3(),nextContact=new T.Vector3();
+// Both articulated rigs use this same contact history. Ordinary swing follows
+// its authored arc; only a released support or unfinished stop needs a short
+// corrective step, with clearance before the next contact is established.
+export function plantFootContact(l,actor,point,{phase,stride,support,swing=0,groundY,lift,air=0,maxStep=.3,canReach}={}){
+ const time=actor.userData.lastTime;actor.updateWorldMatrix(true,false);actorInverse.copy(actor.matrixWorld).invert();
+ rootPoint.setFromMatrixPosition(actor.matrixWorld);nominalPoint.copy(point).applyMatrix4(actor.matrixWorld);
+ let s=l.footContact;
+ const teleported=s&&rootPoint.distanceTo(s.root)>Math.max(1,(l.upperLength+l.lowerLength)*2);
+ if(!s||teleported||(s.time===undefined&&time!==undefined)){
+  s=l.footContact={root:rootPoint.clone(),rotation:actor.quaternion.clone(),point:nominalPoint.clone(),nominal:nominalPoint.clone(),contact:nominalPoint.clone(),phase,stride,time,tracked:s?.tracked||false};
+  l.planted=(support||stride<.001)&&Math.abs(air)<.001;
+ }
+ const dt=time===undefined?0:Math.max(0,Math.min(.05,time-(s.time??time))),wasPlanted=l.planted;
+ rootDelta.copy(rootPoint).sub(s.root);
+ const speed=dt>0?rootDelta.length()/dt/Math.max(.001,actor.scale.x):0,footSpeed=speed>.01?speed+actor.quaternion.angleTo(s.rotation)*Math.hypot(point.x,point.z)/dt:0,stepTime=Math.max(.06,Math.min(.18,maxStep/Math.max(.01,footSpeed)));
+ if(dt>0&&!teleported&&(rootPoint.distanceToSquared(s.root)>1e-12||1-Math.abs(actor.quaternion.dot(s.rotation))>1e-10))s.tracked=true;
+ const stopped=dt>0&&Math.abs(phase-s.phase)<1e-8&&stride<s.stride-1e-6&&Math.abs(air)<.001;
+ s.root.copy(rootPoint);s.rotation.copy(actor.quaternion);s.phase=phase;s.stride=stride;s.time=time;
+ l.planted=!!(support||stride<.001||s.settled)&&Math.abs(air)<.001;
+ if(!s.tracked){s.point.copy(nominalPoint);s.nominal.copy(nominalPoint);s.contact.copy(nominalPoint);return point;}
+ if(s.settled&&support)s.settled=false;
+ if(Math.abs(air)>.001){s.adjust=null;s.settled=false;s.swingOffset=null;}
+ if(s.settled){point.y=groundY;nominalPoint.copy(point).applyMatrix4(actor.matrixWorld);}
+ worldTarget.copy(nominalPoint);
+ if(l.planted&&wasPlanted&&!s.adjust){
+  worldTarget.x=s.contact.x;worldTarget.z=s.contact.z;point.copy(worldTarget).applyMatrix4(actorInverse);
+  const displaced=Math.hypot(worldTarget.x-nominalPoint.x,worldTarget.z-nominalPoint.z)/Math.max(.001,actor.scale.x);
+  // Release before the moving body exhausts reach: a short-legged fast walker
+  // cannot spend the same recovery time as a stationary turning creature.
+  nextContact.copy(worldTarget).addScaledVector(rootDelta,-Math.min(.06,stepTime*.5)/Math.max(.001,dt)).applyMatrix4(actorInverse);
+  if(dt>0&&(displaced>maxStep||(canReach&&(!canReach(point)||!canReach(nextContact)))))s.adjust={from:s.point.clone(),age:-dt,duration:stepTime,settle:false};
+ }
+ if(stopped&&!wasPlanted&&!s.adjust?.settle)s.adjust={from:s.point.clone(),age:-dt,duration:.18,settle:true};
+ if(s.adjust){
+  const a=s.adjust;a.age+=dt;const u=Math.min(1,a.age/a.duration),blend=smooth(u);
+  // A stop ends at the floor even if its frozen gait phase was mid-swing.
+  if(a.settle){point.copy(nominalPoint).applyMatrix4(actorInverse);point.y=groundY;nominalPoint.copy(point).applyMatrix4(actor.matrixWorld);}
+  worldTarget.copy(a.from).lerp(nominalPoint,blend);worldTarget.y+=Math.sin(Math.PI*u)**2*Math.max(.025,lift*.65)*actor.scale.y;
+  l.planted=u>=1&&(support||a.settle);s.swingOffset=null;
+  if(u>=1){s.settled=a.settle;s.adjust=null;}
+ }else if(!l.planted){
+  // Preserve the actual toe-off position, then remove its offset by touchdown.
+  // Filtering the entire swing instead would lag behind every intended landing.
+  if(wasPlanted&&Math.abs(air)<.001)s.swingOffset={point:s.point.clone().sub(s.nominal),start:swing};
+  if(s.swingOffset){const u=(swing-s.swingOffset.start)/Math.max(.001,1-s.swingOffset.start);worldTarget.addScaledVector(s.swingOffset.point,1-smooth(u));}
+ }else s.swingOffset=null;
+ if(l.planted&&!wasPlanted)s.contact.copy(worldTarget);
+ s.point.copy(worldTarget);s.nominal.copy(nominalPoint);point.copy(worldTarget).applyMatrix4(actorInverse);return point;
+}
 // Two fixed links keep the paw contact low during support, then flex at the
 // knee for recovery. Curved tapered geometry hides the mechanical hinge.
 export function leg(parent,key,{x,y,z,side=1,reach=0,a=.24,b=.25,width=.10,color=0x827258,foot=0x514b40,phase=0,sole='round'}){
@@ -77,45 +127,18 @@ export function leg(parent,key,{x,y,z,side=1,reach=0,a=.24,b=.25,width=.10,color
  form(upper,key+'_upper',()=>[surface(color,[[.035,width*(broad?1.13:1),width*(plated?.78:1.04)],[0,width*(broad?1.15:1.08),width],[-a*.28,width*(broad?1.07:.94),width*(broad?1.1:.92)],[-a*.65,width*.73,width*.75],[-a*.94,width*.58,width*.60],[-a-.018,width*.50,width*.50]],{sides,shade:(c,x,y)=>c.multiplyScalar(.91+.12*T.MathUtils.smoothstep(-y,0,a))})]);
  form(lower,key+'_lower',()=>[surface(color,[[.029,width*.55,width*.56],[.008,width*.66,width*.66],[-b*.18,width*(broad?.68:.58),width*.61],[-b*.52,width*(broad?.57:.43),width*.47],[-b*.87,width*.34,width*.36],[-b-.013,width*.32,width*.33]],{sides,deform:(x,y,z)=>[x,y,z-.014*Math.sin(Math.PI*T.MathUtils.clamp(-y/b,0,1))]})]);
  form(paw,key+'_foot',()=>sole==='toes'?[oval(color,0,.002,.024,width,.034,width*1.35,12,6),...[-1,0,1].map(n=>tube(foot,[[n*width*.6,.007,.04],[n*width*.64,.006,width*1.24],[n*width*.63,-.014,width*1.66]],[width*.22,width*.18,.004],{sides:5,steps:5}))]:sole==='point'?[tube(foot,[[0,.015,-.025],[side*.025,.006,.035],[side*.048,-.03,.09]],[width*.45,width*.31,.002],{sides:6,steps:6})]:[oval(foot,0,.002,.025,width*.75,.034,width*1.5,10,6)]);
- return{joint:carrier,upper,knee:lower,paw,upperLength:a,lowerLength:b,rest,phase,side,reach,hip:{x,y,z},planted:true,contact:new T.Vector3(),actorPosition:new T.Vector3(),actorQuaternion:new T.Quaternion()};
+ return{joint:carrier,upper,knee:lower,paw,upperLength:a,lowerLength:b,rest,phase,side,reach,hip:{x,y,z},planted:true};
 }
 export function stepLeg(l,rig,phase,stride,{travel=.13,lift=.09,forward=0,sideways=0,air=0,support=.64}={}){
- const step=gait(phase+l.phase,stride,lift,support),wasPlanted=l.planted;step.lift+=air;l.planted=(step.support||stride<.001)&&Math.abs(air)<.001;
+ const step=gait(phase+l.phase,stride,lift,support);step.lift+=air;l.planted??=false;
  rig.updateMatrix();inverse.copy(rig.matrix).invert();
  target.set(l.rest.x+step.travel*sideways,l.rest.y+step.lift,l.rest.z+step.travel*travel+forward);
  const actor=rig.parent;
  if(actor){
-  actor.updateWorldMatrix(true,false);worldTarget.setFromMatrixPosition(actor.matrixWorld);
-  // Newly spawned actors are placed after their rest pose is built. A teleport
-  // must discard contacts from that old position, not stretch feet back to it.
-  if(l.hasActorPose&&worldTarget.distanceTo(l.actorPosition)>Math.max(1,(l.upperLength+l.lowerLength)*2)){l.hasContact=false;l.presentPoint=null;}
-  const moved=l.hasActorPose&&(worldTarget.distanceToSquared(l.actorPosition)>1e-12||1-Math.abs(actor.quaternion.dot(l.actorQuaternion))>1e-10);
-  if(moved)l.trackContact=true;
-  l.actorPosition.copy(worldTarget);l.actorQuaternion.copy(actor.quaternion);l.hasActorPose=true;
-  worldTarget.copy(target).applyMatrix4(actor.matrixWorld);
-  if(l.trackContact&&l.planted&&wasPlanted&&l.hasContact){
-   worldTarget.x=l.contact.x;worldTarget.z=l.contact.z;
-   target.copy(worldTarget).applyMatrix4(actorInverse.copy(actor.matrixWorld).invert());
-   target.y=l.rest.y+step.lift;
-   // A sharp turn may exhaust a leg's reach. Replant on that frame instead
-   // of pulling a detached hip out of the shell or garment.
-   // Reach is measured in the leaning rig's coordinates, just like the IK
-   // below; actor-space distance misses the caster's forward body tilt.
-   segment.copy(target).applyMatrix4(inverse);segment.x-=l.hip.x;segment.y-=l.hip.y;segment.z-=l.hip.z;
-   const displaced=Math.hypot(target.x-l.rest.x-step.travel*sideways,target.z-l.rest.z-step.travel*travel-forward);
-   if(segment.length()>l.upperLength+l.lowerLength+.045||displaced>travel*.65+.12){l.planted=false;target.set(l.rest.x+step.travel*sideways,l.rest.y+step.lift,l.rest.z+step.travel*travel+forward);worldTarget.copy(target).applyMatrix4(actor.matrixWorld);}
-  }
-  // A turning boss may need an early replant. Carry the released foot into
-  // its next step instead of teleporting it from the old world contact to the
-  // nominal cycle. Only swing X/Z is eased; supported toes stay pinned.
-  const time=actor.userData.lastTime,dt=time===undefined?0:Math.max(0,Math.min(.05,time-(l.poseTime??time)));
-  if(l.trackContact&&l.presentPoint&&(!l.planted||!wasPlanted)&&time!==undefined){
-   const blend=1-Math.exp(-dt*20);worldTarget.x=l.presentPoint.x+(worldTarget.x-l.presentPoint.x)*blend;worldTarget.z=l.presentPoint.z+(worldTarget.z-l.presentPoint.z)*blend;
-  }
-  l.presentPoint??=new T.Vector3();l.presentPoint.copy(worldTarget);l.poseTime=time;
-  if(!l.planted||!wasPlanted||!l.hasContact)l.contact.copy(worldTarget);
-  l.hasContact=l.planted;
-  if(l.trackContact){target.copy(worldTarget).applyMatrix4(actorInverse.copy(actor.matrixWorld).invert());target.y=l.rest.y+step.lift;}
+  plantFootContact(l,actor,target,{phase:phase+l.phase,stride,support:step.support,swing:step.q,groundY:l.rest.y,lift,air,maxStep:travel*.65+.12,canReach:point=>{
+   segment.copy(point).applyMatrix4(inverse);segment.x-=l.hip.x;segment.y-=l.hip.y;segment.z-=l.hip.z;
+   return segment.length()<=l.upperLength+l.lowerLength+.045;
+  }});
  }
  // Invert only the visual rig, so its breathing/banking doesn't push toes into
  // the floor. The actor's position, radius and movement remain untouched.

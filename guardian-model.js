@@ -1,7 +1,7 @@
-import {primaryGripFrame,fitWeaponToPalm,GRIP_POINTS} from './weapon-grips.js?v=205';
-import{heroDodgePose}from'./hero-dodge.js?v=205';
+import {primaryGripFrame,fitWeaponToPalm,GRIP_POINTS} from './weapon-grips.js?v=206';
+import{heroDodgePose}from'./hero-dodge.js?v=206';
 import * as T from './vendor/three.module.js';
-import {guardianPose} from './guardian-motion.js?v=205';
+import {guardianPose} from './guardian-motion.js?v=206';
 const geo=new Map(),mats=new Map();
 function material(color,metal=0){const key=color+':'+metal;if(!mats.has(key))mats.set(key,new T.MeshStandardMaterial({color,metalness:metal,roughness:metal?.46:.82,side:T.DoubleSide}));return mats.get(key);}
 function geometry(key,create){if(!geo.has(key))geo.set(key,create());return geo.get(key);}

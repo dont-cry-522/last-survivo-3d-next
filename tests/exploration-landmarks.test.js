@@ -4,7 +4,7 @@ import * as T from'../vendor/three.module.js';
 import{buildWorld,clearAt,moveActor,animateWorld}from'../world.js';
 import{installForestVista}from'../forest-vista.js';
 import{installForestHabitats}from'../forest-habitats.js';
-import{installBiomePlaces,placeTemplate}from'../biome-places.js?v=205';
+import{installBiomePlaces,placeTemplate}from'../biome-places.js?v=206';
 import{installExplorationRoutes}from'../exploration-routes.js';
 import{installExplorationLandmarks}from'../exploration-landmarks.js';
 import{createOverheadQuery}from'../adventure-overheads.js';

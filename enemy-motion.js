@@ -1,7 +1,7 @@
-import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=205';
-import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=205';
+import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=206';
+import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=206';
 import{Vector3,Matrix4,Quaternion}from'./vendor/three.module.js';
-import{creatureGait,gaitDistance}from'./creature-gait.js?v=205';
+import{creatureGait,gaitDistance,gaitStride}from'./creature-gait.js?v=206';
 // Attack timings are shared with the pose driver so the strike matches its hit.
 export const ENEMY_MOTION={
  foamling:{wind:.55,recover:.25,cadence:9,range:2.1},tidecrab:{wind:.7,recover:.35,cadence:10,range:3.1},reefturtle:{wind:1.1,recover:.6,cadence:4,range:4},jellyseer:{wind:.85,recover:.4,cadence:4,range:12},tidestar:{wind:.9,recover:.45,cadence:4,range:11},wreckwarden:{wind:1.25,recover:1.7,cadence:4},
@@ -19,6 +19,9 @@ export function gaitPace(kind,phase){
  return 1;
 }
 const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+// At a walk, each paw takes its turn. At a run, the front paws meet the
+// opposite hind paws. Keep the same phase for the pose and ground contacts.
+const wolfFootPhase=(leg,run)=>leg.phase+(leg.back?0:(1-run)*Math.PI*.5);
 // Presentation only: e.gait remains the AI's clock. Return one bounded contact
 // mask per frame for the caller's existing footstep sound/ground effects.
 export function advanceEnemyLocomotion(d,dt,distance,walking){
@@ -26,17 +29,33 @@ export function advanceEnemyLocomotion(d,dt,distance,walking){
  const blend=1-Math.exp(-dt*10),turn=Math.max(-1,Math.min(1,(d.turnRate||0)/6)),look=Math.max(-.75,Math.min(.75,d.lookTurn||0));
  d.motionTurn=(d.motionTurn||0)+(turn-(d.motionTurn||0))*blend;
  d.motionLook=(d.motionLook||0)+(look-(d.motionLook||0))*blend;
- d.motionSpeed=walking?Math.max(0,distance)/dt:0;
- const kind=d.species||d.kind;d.motionGait=creatureGait(kind,d.motionSpeed);
- const travel=d.motionGait?.travel||{spitter:.18,shaman:.145}[kind];
+ const scale=Math.max(.001,d.rig?.parent?.scale.x||1),localDistance=Math.max(0,distance)/scale;
+ d.motionSpeed=walking?localDistance/dt:0;
+ const kind=d.species||d.kind;
  const grounded=walking&&distance>1e-6&&!(d.pounce>0);
+ // Finish the current steps when stopping or jumping. Changing a running
+ // wolf's phase offsets on that frame would throw a forepaw across its stroke.
+ if(grounded||!d.motionGait){
+  const next=creatureGait(kind,d.motionSpeed);
+  if(kind==='wolf'&&next&&d.motionGait&&d.visualPhase>0)for(const key of ['travel','lift','support','run'])next[key]=d.motionGait[key]+(next[key]-d.motionGait[key])*blend;
+  d.motionGait=next;
+ }
+ const travel=d.motionGait?.travel||{spitter:.18,shaman:.145}[kind];
  // Only the presentation clock follows distance; AI timing and hop speed stay
  // on e.gait. A planted foot retreats by exactly the distance the root travels.
- if(travel){d.visualPhase=(d.visualPhase||0)+(grounded?gaitDistance(distance,d.motionGait||{travel,support:.64},Math.min(1,d.motionSpeed/2.5)):0);d.walkPhase=d.visualPhase;}
+ if(travel){d.visualPhase=(d.visualPhase||0)+(grounded?gaitDistance(localDistance,d.motionGait||{travel,support:.64},gaitStride(d.motionSpeed)):0);d.walkPhase=d.visualPhase;}
  if(!d.appearance||!['wolf','mushroom'].includes(d.kind))return 0;
  const phase=d.walkPhase||0,previous=d.contactPhase;d.contactPhase=phase;
+ if(d.kind==='wolf'){
+  let mask=0;d.contactCycles??=[];
+  for(const [i,leg]of d.legs.entries()){
+   const cycle=Math.floor((phase+wolfFootPhase(leg,d.motionGait?.run||0))/(Math.PI*2)),before=d.contactCycles[i];
+   if(grounded&&phase>previous&&before!==undefined&&cycle>before)mask|=1<<i;
+   d.contactCycles[i]=cycle;
+  }
+  return mask;
+ }
  if(!grounded||previous===undefined||phase<=previous)return 0;
- if(d.kind==='wolf'){const beat=Math.floor(phase/Math.PI);return beat>Math.floor(previous/Math.PI)?beat%2?6:9:0;}
  return Math.floor((phase-Math.PI)/(Math.PI*2))>Math.floor((previous-Math.PI)/(Math.PI*2))?3:0;
 }
 const stoneSoles=new WeakMap();
@@ -71,7 +90,7 @@ function animateForestEnemy(d,t,stride,phase,gather,drive,impact){
  const rig=d.rig,pounce=d.pounce||0,turn=d.motionTurn||0,look=d.motionLook||0;
  const leap=d.kind==='wolf'||d.kind==='mushroom',recover=Math.min(1,(d.landRecover||0)/(ENEMY_MOTION[d.kind]?.recover||.18));
  if(leap){stride*=pounce>0?0:1-recover;drive=Math.max(drive,pounce>0?.8*smooth(pounce/.18):0);}
- const sway=Math.sin(phase),lag=Math.sin(phase-.55),brake=leap&&d.motionSpeed!==undefined?Math.max(0,stride-Math.min(1,d.motionSpeed/2.5))*(1-gather):0;
+ const sway=Math.sin(phase),lag=Math.sin(phase-.55),brake=leap&&d.motionSpeed!==undefined?Math.max(0,stride-gaitStride(d.motionSpeed))*(1-gather):0;
  const airborne=pounce>0?Math.sin(pounce*Math.PI):0,breath=Math.sin(t*2.1),settle=d.previousAttack>0?0:Math.sin(Math.PI*drive);
  const landing=d.landRecover!==undefined?Math.sin(Math.PI*recover):Math.sin(Math.PI*(1-(d.landing||0)/.18)),adjust=d.pounceMissed?landing:0;
  if(d.kind==='mushroom'){
@@ -82,17 +101,18 @@ function animateForestEnemy(d,t,stride,phase,gather,drive,impact){
   d.cap.children[0].morphTargetInfluences[0]=Math.min(1,Math.max(0,Math.sin(phase-.45))*.30*stride+landing*.60+gather*.22);
   d.feet?.forEach((foot,i)=>{const step=Math.sin(phase+i*Math.PI);foot.position.y=.12+Math.max(0,-step)*.045*stride+airborne*.035+landing*.065;foot.position.z=.1+step*.08*stride+airborne*.035;foot.rotation.x=step*.18*stride+gather*.12-drive*.14+airborne*.13;});
  }else if(d.kind==='wolf'){
-  rig.position.set(sway*.012*stride+look*adjust*.018,(Math.abs(sway)*.015-.015)*stride-gather*.09+airborne*.26-landing*.07-brake*.02,-impact*.13-gather*.035+drive*.04-brake*.025);
-  rig.rotation.set(.045*stride+Math.sin(phase*2)*.018*stride-gather*.04+drive*.09+landing*.08+brake*.055,0,sway*.025*stride-turn*.045*stride);
+  const run=d.motionGait?.run??1,load=Math.sin(phase-Math.PI*((d.motionGait?.support??.64)-.5));
+  rig.position.set(-load*.009*stride+look*adjust*.018,(load*load*.012-.012)*stride-gather*.09+airborne*.26-landing*.07-brake*.02,-impact*.13-gather*.035+drive*.04-brake*.025);
+  rig.rotation.set(.025*stride+Math.sin(phase*2-.4)*.012*stride-gather*.04+drive*.09+landing*.08+brake*.055,0,-load*.015*stride-turn*.035*stride);
   // Stalk below the withers, draw back before biting, then lead with the muzzle.
   // These are local poses only; leap travel and the damage clock stay unchanged.
   d.head.position.set(0,.87-gather*.035+landing*.015,.49-gather*.025+drive*.045);
   d.head.rotation.set(.07+.07*stride+lag*.025*stride+gather*.12-drive*.24+landing*.10-brake*.025,Math.sin(t*1.35)*.025*(1-stride)+look*(.34+adjust*.08)-turn*.065,-sway*.018*stride+turn*.025);
   d.jaw.position.y=-.21-gather*.015-drive*.018-pounce*.012;d.jaw.rotation.x=gather*.24+drive*.17+pounce*.10;
-  d.tail.rotation.set(-.05-gather*.2+airborne*.18+brake*.09,Math.sin(phase*.65-.5)*(.07+.18*stride)-turn*.22,0);
-  if(d.tailTip)d.tailTip.rotation.set(Math.sin(phase*.65-.9)*.055*stride,Math.sin(phase*.65-1.25)*(.055+.11*stride)-turn*.28,0);
+  d.tail.rotation.set(-.05-gather*.2+airborne*.18+brake*.09,Math.sin(t*1.25-.5)*.025*(1-stride)+Math.sin(phase-.8)*.08*stride-turn*.22,0);
+  if(d.tailTip)d.tailTip.rotation.set(Math.sin(phase-1.1)*.035*stride,Math.sin(t*1.25-1)*.035*(1-stride)+Math.sin(phase-1.4)*.065*stride-turn*.28,0);
   d.ears?.forEach((ear,i)=>ear.rotation.set(-.16-Math.sin(phase-.8+i*.35)*.055*stride-gather*.30+drive*.11,look*.05,(i?1:-1)*.12+breath*.015+turn*.045));
-  prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,phase,stride,{travel:.38,lift:.115,...d.motionGait,air:airborne*.26,reachZ:airborne*(leg.back?-.11:.11),toeRoll:.18});
+  prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,phase,stride,{travel:.38,lift:.115,...d.motionGait,offset:wolfFootPhase(leg,run),air:airborne*.26,reachZ:airborne*(leg.back?-.11:.11),toeRoll:.18});
  }else if(d.kind==='golem'){
   const weight=Math.sin(phase)*stride;
   rig.position.set(weight*.045,Math.abs(sway)*.014*stride-gather*.09-drive*.08-settle*.025,-impact*.13-gather*.045+drive*.04);

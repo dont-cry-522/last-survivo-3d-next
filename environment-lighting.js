@@ -1,5 +1,5 @@
-import{installHarborHorizon,harborBayLayout,harborBayCut}from'./harbor-horizon.js?v=205';
-import{installForestBackdrop}from'./tree-scenery.js?v=205';
+import{installHarborHorizon,harborBayLayout,harborBayCut}from'./harbor-horizon.js?v=206';
+import{installForestBackdrop}from'./tree-scenery.js?v=206';
 import * as T from './vendor/three.module.js';
 
 // The same three lights serve every climate; transitions do not allocate lights or shadow maps.

@@ -2,7 +2,7 @@
 <style>body{background:#172b29;color:#eee;font:15px system-ui}button{padding:12px}canvas{margin:12px;border:1px solid #789}pre{white-space:pre-wrap}</style>
 <h1>小地图：原始绘制／缓存绘制</h1><p>核对不规则坐标、重叠、障碍消失与倒木新增，保留大地图细节。</p><button id="run">运行像素对照</button><p id="status">等待运行</p><div id="images"></div><pre id="report"></pre>
 <script type="module">
-import {drawMapObstacles} from '../map-navigation.js?v=205';
+import {drawMapObstacles} from '../map-navigation.js?v=206';
 const $=s=>document.querySelector(s);
 $('#run').onclick=()=>{
  const results=[];$('#images').replaceChildren();

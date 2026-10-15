@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
-import {flatGround,fitGroundSurface,disposeGroundSurface} from './ground-cues.js?v=205';
-import {MIRAGE} from './mirage-config.js?v=205';
+import {flatGround,fitGroundSurface,disposeGroundSurface} from './ground-cues.js?v=206';
+import {MIRAGE} from './mirage-config.js?v=206';
 
 const clamp=n=>Math.max(0,Math.min(1,n));
 const fogVertex=`varying vec2 fogUv;void main(){fogUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`;

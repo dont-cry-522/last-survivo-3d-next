@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>怪物连续步态 · 实测检查</title>
+<style>
+body{margin:20px;background:#16221f;color:#eef1e7;font:15px system-ui;line-height:1.5}h1{font-size:24px;margin-bottom:8px}p{max-width:1100px;color:#c5d0c6}button,select,input{font:inherit;padding:7px;margin:4px;border:1px solid #698176;border-radius:5px;background:#243b32;color:inherit}button{cursor:pointer}label{display:inline-block}#stage{max-width:1200px;background:#24382f}canvas{display:block;width:100%;height:auto}#status{font-size:18px;color:#cce79b}#timeline{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0}#timeline span{padding:4px 9px;background:#263a31;border-radius:4px}#timeline .active{background:#50763e;color:white}table{border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:13px}td,th{padding:6px 10px;border-bottom:1px solid #3c5549;text-align:right}td:first-child,th:first-child{text-align:left}pre{white-space:pre-wrap;max-height:400px;overflow:auto;background:#101914;padding:10px}#captures{display:flex;flex-wrap:wrap;gap:8px}figure{margin:0;width:280px}figure img{width:100%;display:block}figcaption{font-size:12px}#live{font-variant-numeric:tabular-nums;color:#dbe8bc}summary{cursor:pointer}
+</style>
+<h1>怪物连续步态：距离、落脚与转向</h1>
+<p>使用正式 actor → advanceEnemyLocomotion → animateActor 与正式首领攻击状态机；根节点真实移动，动画输入取每帧实际路程。此页是受控动作夹具，不是完整寻路／战斗 AI 测试；不改 AI、不读写存档。1 米地面刻线固定于世界坐标。绿色点是当前支撑足，橙色点是摆动足。</p>
+<div>
+<label>地图 <select id="biome"><option value="forest">森林</option><option value="snow">雪地</option><option value="ash">灰烬</option><option value="sand">沙漠</option><option value="coast">海港</option></select></label>
+<label>物种 <select id="kind"></select></label>
+<label>比例 <select id="scale"><option value="1">普通 1.00</option><option value="1.14">精英 1.14</option></select></label>
+<label>观察 <select id="view"><option value="side">侧面</option><option value="quarter" selected>斜侧</option><option value="front">前方</option><option value="top">俯视</option></select></label>
+<label>播放 <select id="rate"><option value="1">正常</option><option value="0.5">0.5 倍慢放</option><option value="0.25">0.25 倍慢放</option></select></label>
+<label>采样 <select id="fps"><option value="60">60 FPS</option><option value="30">30 FPS</option><option value="120">120 FPS</option></select></label>
+<label>定位 <select id="moment"><option value="slow">慢走 1 秒</option><option value="chase">追击 3.8 秒</option><option value="turn">转弯 7.1 秒</option><option value="attack">释放攻击</option></select></label><button id="jump">从起点模拟至此</button>
+</div>
+<div><button id="play">暂停</button><button id="restart">重新播放</button><button id="step">前进一帧</button><button id="cycle">完整采样一轮</button><button id="suite">五境代表怪与首领采样</button><button id="capture">保存当前对比帧</button><button id="strip">连续 8 帧（每 0.1 秒）</button><button id="clear">清除对比帧</button></div>
+<div id="timeline"></div><div id="status">正在加载正式模型…</div><div id="live"></div><div id="stage"></div>
+<p>“支撑滑移”仅统计同一只脚连续两帧被正式求解器标记为 planted 的世界 XZ 位移；未提供接触标记的物种显示 N/A。“足部最大位移”还包含摆腿和腾空，用于暴露取消接触时的跳变，不能全部解释成滑步。周期频率取正式动画相位增量，不用输入速度推算。起停、转向和攻击分别统计，不以有限值检查替代视觉质量判断。</p>
+<table><thead><tr><th>阶段</th><th>路程 m</th><th>平均速度 m/s</th><th>周期 Hz</th><th>支撑帧对</th><th>平均滑移 m/s</th><th>最大滑移 mm/帧</th><th>足部最大位移 mm/帧</th><th>有限值</th></tr></thead><tbody id="measurements"></tbody></table>
+<details><summary>原始观测报告</summary><pre id="report">LOADING</pre></details>
+<details open><summary>五境采样结果</summary><pre id="suite-report">尚未运行</pre></details>
+<h2>保留的对比帧</h2><div id="captures"></div>
+<script type="module">import('./creature-locomotion-check.js').catch(error=>{document.getElementById('status').textContent=`模型加载失败：${error.message}`;document.getElementById('report').textContent=String(error.stack||error);});</script>
+</html>

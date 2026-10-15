@@ -1,4 +1,4 @@
-import {ADDITIONAL_BOSSES} from './boss-roster.js?v=202';
+import {ADDITIONAL_BOSSES} from './boss-roster.js?v=203';
 
 // Only the listed moves translate their owner; all use the existing swept
 // collision callback. Warning positions are locked once, before the windup.

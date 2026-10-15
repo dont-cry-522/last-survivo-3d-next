@@ -1,8 +1,8 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot} from './enemy-appearance.js?v=202';
+import {updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot} from './enemy-appearance.js?v=203';
 
-import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=202';
+import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=203';
 
 // Bounded shared templates; every moving part is a batch, not a collection of
 // decorative meshes. Only joints move after construction.
@@ -251,12 +251,12 @@ export function animateRegionalAppearance(d,t,stride,phase,wind,release,impact){
    const ape=id==='yeti';rig.position.set(wave*(ape?.026:.032)*stride,Math.abs(wave)*(ape?.013:.008)*stride-gather*.065-drive*.025,-impact*.12);rig.rotation.set((ape?.075:0)+Math.sin(phase*2-.4)*(ape?.012:.006)*stride-gather*.12+drive*.16,ape?Math.sin(phase-.4)*.028*stride:Math.sin(phase-.3)*.022*stride-gather*.24+drive*.28,wave*(ape?.028:.035)*stride);
   d.head.rotation.set(-rig.rotation.x*.45+(ape?-gather*.16+drive*.11:0),look*.16-rig.rotation.y*.35,-rig.rotation.z*.3);prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,phase,stride,{lift:ape?.07:.045,travel:ape?.25:.30,...d.motionGait});
   if(ape)for(const arm of d.knuckles)plantCreatureFoot(arm,phase,stride,{lift:.07,travel:.25,...d.motionGait,reachZ:.31-gather*.35+drive*.35,raise:gather*(arm.restX<0?.78:.91)+drive*.09});
-  else d.arms.forEach((a,i)=>{a.rotation.set(Math.sin(phase+i*Math.PI-.3)*.12*stride-gather*(i?1.6:.3)+drive*.40,0,(i?1:-1)*.075);a.userData.elbow.rotation.x=-.18-gather*.34+drive*.16;});
+  else d.arms.forEach((a,i)=>{a.rotation.set(Math.sin(phase+i*Math.PI-.3)*.12*stride-gather*(i?1.6:.3)+drive*.40,0,(i?1:-1)*.075);a.userData.elbow.rotation.x=-.18-gather*(i?.40:.25)+drive*(i?.20:.12);});
  }else if(d.staff){
    const ice=id==='icewitch',walk=wave*stride;rig.position.set(walk*(ice?.006:.013),(ice?.085+breath*.015:.008+Math.abs(wave)*.013*stride)+gather*.04,-impact*.10);rig.rotation.set(gather*(ice?-.045:.045)-drive*.06,Math.sin(phase-.4)*.018*stride-gather*(ice?.035:.09)+drive*(ice?.025:.07),walk*.023);d.head.rotation.set(-rig.rotation.x*.65,look*.18-rig.rotation.y*.45,-rig.rotation.z*.6);
   d.staff.position.set(.48,.76+gather*(ice?.25:.31)-drive*.10,.1);d.staff.rotation.set(-gather*(ice?.65:.45)+drive*.47,0,(ice?.09:0)+Math.sin(phase-.55)*.025*stride);d.focus.scale.setScalar(1+gather*.18);d.arms[0].rotation.set(-Math.sin(phase-.5)*.10*stride-gather*.24+drive*.13,0,-.04-gather*.06);d.feet.forEach((f,i)=>{const step=Math.sin(phase+i*Math.PI);f.position.set((i?1:-1)*.15,.01+Math.max(0,-step)*.025*stride,.045+step*.055*stride);f.rotation.x=0;});updateEnemyGrip(d);
  }else{
-   const crystal=id==='snowtotem';rig.position.set(0,.035+Math.sin(t*(crystal?1.4:2.2))*.022+gather*.075-drive*.035,-impact*.075);rig.rotation.set(-impact*.08-gather*(crystal?.035:.06)+drive*(crystal?.025:.09),0,Math.sin(t*1.3)*.020);d.satellites.position.y=-gather*(crystal?.025:.045)+drive*.035;d.satellites.rotation.y=(crystal?t*.35:Math.sin(t*1.7)*.18)-gather*.18+drive*.10;d.satellites.scale.setScalar(1+gather*(crystal?.18:-.16)+drive*.16);
+   const crystal=id==='snowtotem';rig.position.set(0,.035+Math.sin(t*(crystal?1.4:2.2))*.022+gather*.075-drive*.035,-impact*.075);rig.rotation.set(-impact*.08-gather*(crystal?.035:.06)+drive*(crystal?.025:.09),0,Math.sin(t*1.3)*.020);d.satellites.position.y=-gather*(crystal?.025:.045)+drive*.035;d.satellites.rotation.y=(crystal?t*.35:Math.sin(t*1.7)*.18)-gather*.18+drive*.10;d.satellites.scale.setScalar(1+gather*(crystal?.18:-.16)+drive*.16);d.satellites.children.forEach((part,i)=>{part.rotation.x=Math.sin(t*(crystal?.9:1.5)-i*.65)*.035-gather*(i?.08:.13)+drive*(i?.11:.06);});
    d.cores[0].position.set(0,(crystal?.82:.71)+gather*.018-drive*.025,0);d.cores[0].rotation.set((crystal?Math.sin(t*1.1)*.05:Math.sin(t*2.4)*.07)-gather*.08+drive*.11,crystal?t*.12:Math.sin(t*.8)*.12,crystal?-.06:Math.sin(t*1.7)*.06);d.cores[0].scale.set(1-gather*.04,1+(crystal?0:Math.sin(t*2.9)*.035)+gather*.06,1-gather*.04);
  }
  animateEnemyExpression(d,t,stride,gather,drive,impact);

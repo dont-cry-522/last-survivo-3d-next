@@ -93,7 +93,7 @@ test('thin mushroom gills and stone mottling remain real shared geometry within 
   for(const part of parts){count+=(part.geometry.index?.count||part.geometry.attributes.position.count)/3;materials.add(part.material);assert.ok(Array.from(part.geometry.attributes.normal.array).every(Number.isFinite));}
   assert.ok(count<=budgets[kind],`${kind}: ${count} triangles`);triangles+=count;calls+=parts.length;
  }
- assert.ok(triangles<=18100,`forest set uses ${triangles} triangles`);assert.equal(calls,57);assert.equal(materials.size,2,'surface detail must not add per-creature materials');
+ assert.ok(triangles<=18100,`forest set uses ${triangles} triangles`);assert.equal(calls,53);assert.equal(materials.size,2,'surface detail must not add per-creature materials');
  const cap=actor('mushroom').getObjectByName('mushroom-cap').geometry,p=cap.attributes.position,n=cap.attributes.normal;let blades=0;
  for(let i=0;i<p.count;i++)if(p.getY(i)<-.14&&Math.hypot(p.getX(i),p.getZ(i))>.15&&Math.abs(n.getY(i))<.35){assert.ok(Math.hypot(n.getX(i),n.getY(i),n.getZ(i))>.99);blades++;}
  assert.ok(blades>=100,'gills must hang below the cap and retain outward normals on both sides');
@@ -117,7 +117,7 @@ test('continuous wolf anatomy and irregular stone contours retain their actor bu
  };
  const wolf=actor('wolf'),golem=actor('golem'),body=wolf.getObjectByName('creature-body').geometry;
  assert.deepEqual(shells(body),{count:1,closed:true},'wolf chest and neck returned to overlapping shells');
- for(const [m,height,budget,calls]of[[wolf,1.350000011920929,6200,23],[golem,2.1435913920402525,2100,6]]){
+ for(const [m,height,budget,calls]of[[wolf,1.350000011920929,6200,19],[golem,2.1435913920402525,2100,6]]){
   const parts=surfaces(m);assert.equal(new T.Box3().setFromObject(m).max.y,height,'spawn-derived projectile hit height changed');assert.equal(parts.length,calls);assert(parts.reduce((n,p)=>n+(p.geometry.index?.count??p.geometry.attributes.position.count)/3,0)<=budget);
  }
  const stone=golem.getObjectByName('creature-body').geometry,p=stone.attributes.position,n=stone.attributes.normal,c=stone.attributes.color,at=new Map();let creases=0,moss=0;

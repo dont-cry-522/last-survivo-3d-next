@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
-import {footCycle} from './creature-gait.js?v=202';
+import {footCycle} from './creature-gait.js?v=203';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=202';
+import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=203';
 
 // Five finite, shared sets of geometry. Articulation moves groups, never vertices.
 const templates=new Map();

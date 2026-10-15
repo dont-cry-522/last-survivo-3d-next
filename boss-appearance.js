@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,tint,joint,smooth,stepLeg} from './creature-forms.js?v=202';
+import {form,surface,tube,oval,tint,joint,smooth,stepLeg} from './creature-forms.js?v=203';
 
-import {creatureGait,gaitDistance} from './creature-gait.js?v=202';
+import {creatureGait,gaitDistance} from './creature-gait.js?v=203';
 
 // These are the original spawn bounds used by projectile targeting. Appearance
 // and anticipation may change; the collision body and attack clock do not.
@@ -82,10 +82,11 @@ function buildApe(d){
  for(const side of sides){
   d.eyes.push(eye(d.head,'Frostking'+side,side*.21,.13,.471,.083,0xc8f1ed));
   d.legs.push(bossLeg(r,'Frostking_YetiHind'+side,{x:side*.52,y:1.15,z:-.32,side,a:.65,b:.60,width:.31,color:0xb3caca,foot:0x6e8992,phase:side<0?0:Math.PI,style:'ape'}));
-  const arm=joint(r,side*1.00,2.53,.02),forearm=joint(arm,side*.12,-1.02,.05);
+  const arm=joint(r,side*1.00,2.53,.02),forearm=joint(arm,0,-1.02,0);
   form(arm,'Frostking_YetiShoulder'+side,()=>[tube(fur,[[0,.11,0],[side*.25,-.22,.015],[side*.18,-.68,.04],[side*.12,-1.03,.05]],[.49,.50,.37,.30],{sides:16,steps:15}),...Array.from({length:4},(_,i)=>tube(0xb8cecb,[[side*.28,-.12-i*.17,-.05],[side*.50,-.33-i*.15,-.09],[side*.43,-.59-i*.15,-.06]],[.15,.13,.012],{steps:8,sides:7}))]);
   form(forearm,'Frostking_YetiForearm'+side,()=>[tube(fur,[[0,.12,0],[side*.03,-.19,.015],[side*.06,-.43,.03],[0,-.83,.08]],[.29,.35,.36,.28],{sides:16,steps:16}),
    ...Array.from({length:5},(_,i)=>{const a=i*Math.PI*2/5;return tube(i%2?0xc3d2cc:fur,[[Math.cos(a)*.23,-.43,Math.sin(a)*.23],[Math.cos(a)*.34,-.66,Math.sin(a)*.34],[Math.cos(a)*.26,-.92,Math.sin(a)*.26]],[.09,.08,.004],{steps:8,sides:6});}),
+  ]);form(forearm,'Frostking_YetiHand'+side,()=>[
    oval(0x76949c,0,-.94,.12,.33,.30,.31,16,10),...[-1.5,-.5,.5,1.5].map(i=>tube(0x8ea9ac,[[i*.13,-.91,.29],[i*.14,-1.11,.31],[i*.14,-1.18,.13]],[.09,.10,.065],{sides:8,steps:9})),tube(0x91acae,[[-side*.26,-.80,.09],[-side*.40,-.98,.26],[-side*.24,-1.07,.34]],[.12,.11,.065],{sides:8,steps:9})]);
   d.arms.push(arm);d.forearms.push(forearm);
  }
@@ -197,9 +198,9 @@ export function animateBossAppearance(g,t,speed,dt){
  for(let i=0;i<d.arms.length;i++){const side=i?1:-1;d.arms[i].rotation.set(Math.sin(p+i*Math.PI)*.17*stride-wind*.7+strike*.45,0,side*.04);d.forearms[i].rotation.set(-.12-wind*.25+strike*.13,0,0);}
  if(kind==='boss'){
   const roots=move==='roots';r.rotation.x=-wind*.09+strike*.10;r.rotation.y=(roots?-.08:-.21)*wind+(roots?.06:.17)*strike;r.position.y-=wind*.08+strike*.06;
-  for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(-.18-wind*(roots?.60:1.32)+strike*(roots?.30:.60),side*(-.16-wind*(roots?.12:.40)+strike*.30),side*(.36+wind*(roots?.04:.27)-strike*.12));d.forearms[i].rotation.x=-.42-wind*.42+strike*.36;d.appendages[i].rotation.set(Math.sin(t*.85+i)*.012+strike*.025,0,side*Math.sin(t*.7+i)*.018+Math.sin(p-.6)*.012*stride);}
+  for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(-.18-wind*(roots?.60:1.32)+strike*(roots?.30:.60),side*(-.16-wind*(roots?.12:.40)+strike*.30),side*(.36+wind*(roots?.04:.27)-strike*.12));d.forearms[i].rotation.x=-.42-wind*.42+strike*.36;d.appendages[i].rotation.set(Math.sin(t*.85+i-.45)*.012+strike*.025,0,side*Math.sin(t*.7+i)*.018+Math.sin(p-.6)*.012*stride);}
  }else if(kind==='frostking'){
-  const leap=move==='leap';r.position.y-=.08+wind*(leap?.31:.13)+landing*.21;r.rotation.x=.27+.045*stride+wind*(leap?.13:-.08)+strike*.15;d.head.rotation.set(-.16-wind*.22+landing*.12,Math.sin(t*.43)*.009*(1-stride),0);
+  const leap=move==='leap';r.position.y-=.08+wind*(leap?.31:.13)+landing*.21;r.rotation.x=.27+.045*stride+wind*(leap?.13:-.08)+strike*.15;r.rotation.y=Math.sin(p-.35)*.025*stride+(leap?0:-wind*.065+strike*.07);d.head.rotation.set(-.16-wind*.22+landing*.12,Math.sin(t*.43)*.009*(1-stride),0);
   for(let i=0;i<2;i++){const side=i?1:-1;d.arms[i].rotation.set(-.22+Math.sin(p+i*Math.PI)*.22*stride-wind*(leap?.51:1.43)-strike*(leap?1.45:-.65)+landing*1.15,side*(.05+wind*(leap?.10:.20)),side*(.13+wind*.15+strike*.06));d.forearms[i].rotation.x=.06-wind*(leap?.72:.30)-strike*.28+landing*.28;}
  }else if(kind==='cinderlord'){
   const embers=move==='embers';r.rotation.x=-wind*.10+strike*.13;r.rotation.y=wind*(embers?.13:-.12)-strike*.08;r.position.y+=Math.sin(t*1.2)*.012-wind*.06;d.head.rotation.set(.07-wind*.08+strike*.05,Math.sin(t*.43)*.010,0);
@@ -208,8 +209,8 @@ export function animateBossAppearance(g,t,speed,dt){
  }else{
   const scorpion=kind==='dunescorpion',tail=move==='tail',burrow=move==='burrow',surge=move==='surge',anchors=move==='anchors';
   r.rotation.x=wind*(tail?.10:surge?-.07:.045)-strike*.055;r.position.y-=wind*(burrow?.17:.055);r.position.z=-wind*.06+strike*.08;
-  for(let i=0;i<2;i++){const side=i?1:-1,clawMove=move==='pincers'||move==='claws';d.arms[i].rotation.set(-wind*(anchors?.58:.16)+strike*(anchors?.35:.08),side*(wind*(clawMove?.34:.15)-strike*(clawMove?.37:.10)),side*wind*(anchors?.10:.025));d.forearms[i].rotation.set(-wind*(anchors?.42:.10)+strike*.08,side*(-wind*.12+strike*.14),0);d.claws[i].rotation.y=side*(-wind*.45+strike*.19);}
-  if(scorpion){d.tail.rotation.set(.06+wind*(tail?.65:burrow?.32:.13)-strike*(tail?1.18:.08),Math.sin(p*.5)*.035*stride,0);for(let i=0;i<d.tailSegments.length;i++)d.tailSegments[i].rotation.x=-.30+Math.sin(t*.9-i*.5)*.012-wind*(tail?.035:0)+strike*(tail?-.07:0);}
+  for(let i=0;i<2;i++){const side=i?1:-1,clawMove=move==='pincers'||move==='claws';d.arms[i].rotation.set(-wind*(anchors?.58:.16)+strike*(anchors?.35:.08),side*(wind*(clawMove?.34:.15)-strike*(clawMove?.37:.10)),side*wind*(anchors?.10:.025));d.forearms[i].rotation.set(-wind*(anchors?.42:.10)+strike*.08,side*(-wind*.12+strike*.14),0);d.claws[i].rotation.y=side*(-wind*(i?.45:.36)+strike*(i?.19:.25));}
+  if(scorpion){d.tail.rotation.set(.06+wind*(tail?.65:burrow?.32:.13)-strike*(tail?1.18:.08),Math.sin(p*.5)*.035*stride,0);for(let i=0;i<d.tailSegments.length;i++)d.tailSegments[i].rotation.x=-.30+Math.sin(t*.9-i*.5)*.012-wind*(tail?.018+i*.006:0)+strike*(tail?-.035-i*.012:0);}
   else{d.shell.rotation.set(-wind*.025+strike*.035,0,Math.sin(p-.6)*.016*stride);d.sail.rotation.set(Math.sin(t*.9)*.027,Math.sin(t*.7)*.05,Math.sin(p-.8)*.013*stride);for(let i=0;i<d.eyes.length;i++)d.eyes[i].rotation.set(-wind*.18+strike*.08,Math.sin(t*.56+i)*.035*(1-stride),0);}
  }
  // A leap carries the complete body; a burrow intentionally takes it below

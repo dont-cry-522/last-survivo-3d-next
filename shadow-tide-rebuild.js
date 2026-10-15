@@ -1,8 +1,8 @@
 import * as T from './vendor/three.module.js';
-import {smoothSeams} from './hero-finish.js?v=202';
+import {smoothSeams} from './hero-finish.js?v=203';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {tideHarness} from './tide-appearance.js?v=202';
-import {SHADOW_PALETTE} from './shadow-appearance.js?v=202';
+import {tideHarness} from './tide-appearance.js?v=203';
+import {SHADOW_PALETTE} from './shadow-appearance.js?v=203';
 
 const smooth=(a,b,x)=>T.MathUtils.smoothstep(x,a,b);
 const bell=(x,center,width)=>Math.exp(-(((x-center)/width)**2));

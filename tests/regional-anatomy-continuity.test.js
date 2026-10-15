@@ -64,5 +64,5 @@ test('all ten regional templates retain full normal buffers and bounded shared g
    triangles+=(g.index?.count||p.count)/3;calls++;
   });
  }
- assert.equal(calls,128,'anatomy or soft ears added draw calls');assert(triangles<43000,'regional anatomy exceeded its established triangle budget');
+ assert.equal(calls,110,'anatomy or soft ears added draw calls');assert(triangles<43000,'regional anatomy exceeded its established triangle budget');
 });

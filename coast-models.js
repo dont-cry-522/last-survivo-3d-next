@@ -1,8 +1,8 @@
-import {creatureAttackPose} from './creature-gait.js?v=202';
-import {ENEMY_MOTION} from './enemy-motion.js?v=202';
+import {creatureAttackPose} from './creature-gait.js?v=203';
+import {ENEMY_MOTION} from './enemy-motion.js?v=203';
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=202';
-import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=202';
+import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=203';
+import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=203';
 const geometries=new Map(),materials=new Map();
 function part(p,color,pos,size,type='sphere',glow=false){
  if(!geometries.has(type))geometries.set(type,type==='rock'?new T.DodecahedronGeometry(1,1):type==='box'?new T.BoxGeometry(2,2,2):type==='cone'?new T.ConeGeometry(1,2,12):type==='barrel'?new T.CylinderGeometry(.88,1,2,10):type==='hoop'?new T.TorusGeometry(1,.055,5,12):new T.SphereGeometry(1,16,12));
@@ -101,8 +101,8 @@ export function animateCoastEnemy(g,t,speed,attack,dt){
    r.position.set(weight*(turtle?.016:.007),Math.abs(Math.sin(p*(turtle?1:2)))*(turtle?.007:.004)*s-wind*(turtle?.012:.025),-wind*(turtle?.022:.018)+strike*(turtle?.018:.028));
    r.rotation.set(wind*(turtle?-.025:.04)-strike*(turtle?.025:.035),Math.sin(p-.5)*(turtle?.012:.007)*s,weight*(turtle?.020:.010));
    for(const l of d.legs)stepLeg(l,r,p,s,{travel,lift:d.kind==='reefturtle'?.043:.057});
-   d.claws.forEach((o,i)=>{const side=i?1:-1,carry=Math.sin(p+i*Math.PI-.45)*.025*s;o.rotation.set(carry-wind*.16+strike*.12,side*(wind*.20-strike*.20),-side*wind*.04);d.elbows[i].rotation.set(-wind*.12+strike*.10,-side*(wind*.30-strike*.20),0);});d.tips.forEach((o,i)=>o.rotation.y=(i?1:-1)*(-wind*.28+strike*.22));
-   if(d.head){d.head.position.z=.50-wind*.12+strike*.14;d.head.rotation.x=-wind*.12+strike*.08-Math.sin(p-.6)*.015*s;d.head.rotation.y=Math.sin(t*.8)*.025*(1-s)-weight*.015;}
+   d.claws.forEach((o,i)=>{const side=i?1:-1,carry=Math.sin(p+i*Math.PI-.45)*.025*s;o.rotation.set(carry-wind*.16+strike*.12,side*(wind*(i?.23:.17)-strike*(i?.24:.17)),-side*wind*.04);d.elbows[i].rotation.set(-wind*.12+strike*.10,-side*(wind*(i?.34:.26)-strike*(i?.23:.17)),0);});d.tips.forEach((o,i)=>o.rotation.y=(i?1:-1)*(-wind*(i?.31:.25)+strike*(i?.25:.19)));
+   if(d.head){d.head.position.z=.50-wind*.12+strike*.14;d.head.rotation.x=-wind*.12+strike*.08-Math.sin(p-.6)*.015*s;d.head.rotation.z=-r.rotation.z*.6;d.head.rotation.y=Math.sin(t*.8)*.025*(1-s)-weight*.015;}
    d.eyes.forEach((eye,i)=>{const side=i?1:-1;if(d.kind==='tidecrab'){eye.rotation.set(-wind*.20+strike*.10,Math.sin(t*.85+i*.9)*.12*(1-wind)+side*wind*.10,side*(-wind*.08+Math.sin(t*.63+i)*.028));}else{const phase=T.MathUtils.euclideanModulo(t+i*.065,5.3),blink=phase<.20?Math.sin(phase/.20*Math.PI)**2:0;eye.scale.y=Math.max(.06,1-.92*blink-wind*.16);}});
   }
   return;

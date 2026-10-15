@@ -1,34 +1,35 @@
-import{makeBossVariant,animateBossVariant}from'./boss-variants.js?v=202';
-import{polishRegionalEnemy}from'./regional-enemy-appearance.js?v=202';
-import{forestStreamLayout}from'./forest-stream-layout.js?v=202';
-import{bodyTravel}from'./actor-collision.js?v=202';
-import{followNaturalGround}from'./adventure-mobility.js?v=202';
-import{canMoveBelowOverhead}from'./adventure-overheads.js?v=202';
-import{buildConfluence,biomeWeights}from'./confluence.js?v=202';
-import{addTree,updateTreeDetail,animateTreeCanopy}from'./tree-scenery.js?v=202';
-import{installTactics}from'./map-tactics.js?v=202';
-import{installRoaming}from'./roaming-events.js?v=202';
-import{installDiscoveries}from'./map-discoveries.js?v=202';
-import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=202';
-import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=202';
-import{districtLayout,buildDistricts}from'./map-districts.js?v=202';
-import{makeCoastEnemy,animateCoastEnemy,coastProp}from'./coast-models.js?v=202';
-import{installCoast}from'./coast.js?v=202';
-import{coastLayout as buildCoastLayout}from'./coast-layout.js?v=202';
-import{makeBoss,animateBoss,makeSandEnemy,animateSandEnemy}from'./expansion-models.js?v=202';
-import{BOSS_COMBAT_HEIGHTS,makeBossAppearance,animateBossAppearance}from'./boss-appearance.js?v=202';
-import{siteSchedule}from'./site-discovery.js?v=202';
-import{MAP_EVENTS,biomeEvent,eventNodes}from'./map-events.js?v=202';
-import{MAP_HALF,MAP_SCALE}from'./map-layout.js?v=202';
-import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=202';
-import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=202';
-import{polishEnemyAppearance}from'./enemy-appearance.js?v=202';
-import{REGIONAL_ENEMIES}from'./map-enemies.js?v=202';
-import{groundCue}from'./ground-cues.js?v=202';
-import{heroesReady,createSkinnedHero,animateSkinnedHero}from'./skinned-hero.js?v=202';
+import {installCreatureAnatomy,animateCreatureAnatomy} from './creature-anatomy.js?v=203';
+import{makeBossVariant,animateBossVariant}from'./boss-variants.js?v=203';
+import{polishRegionalEnemy}from'./regional-enemy-appearance.js?v=203';
+import{forestStreamLayout}from'./forest-stream-layout.js?v=203';
+import{bodyTravel}from'./actor-collision.js?v=203';
+import{followNaturalGround}from'./adventure-mobility.js?v=203';
+import{canMoveBelowOverhead}from'./adventure-overheads.js?v=203';
+import{buildConfluence,biomeWeights}from'./confluence.js?v=203';
+import{addTree,updateTreeDetail,animateTreeCanopy}from'./tree-scenery.js?v=203';
+import{installTactics}from'./map-tactics.js?v=203';
+import{installRoaming}from'./roaming-events.js?v=203';
+import{installDiscoveries}from'./map-discoveries.js?v=203';
+import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=203';
+import{groveCenters,installScenery,animateScenery}from'./biome-scenery.js?v=203';
+import{districtLayout,buildDistricts}from'./map-districts.js?v=203';
+import{makeCoastEnemy,animateCoastEnemy,coastProp}from'./coast-models.js?v=203';
+import{installCoast}from'./coast.js?v=203';
+import{coastLayout as buildCoastLayout}from'./coast-layout.js?v=203';
+import{makeBoss,animateBoss,makeSandEnemy,animateSandEnemy}from'./expansion-models.js?v=203';
+import{BOSS_COMBAT_HEIGHTS,makeBossAppearance,animateBossAppearance}from'./boss-appearance.js?v=203';
+import{siteSchedule}from'./site-discovery.js?v=203';
+import{MAP_EVENTS,biomeEvent,eventNodes}from'./map-events.js?v=203';
+import{MAP_HALF,MAP_SCALE}from'./map-layout.js?v=203';
+import{buildPonds,animateWater,waterDepth,restoreWaterPose,animateWaterPose}from'./water.js?v=203';
+import{ENEMY_MOTION,animateEnemyIdentity}from'./enemy-motion.js?v=203';
+import{polishEnemyAppearance}from'./enemy-appearance.js?v=203';
+import{REGIONAL_ENEMIES}from'./map-enemies.js?v=203';
+import{groundCue}from'./ground-cues.js?v=203';
+import{heroesReady,createSkinnedHero,animateSkinnedHero}from'./skinned-hero.js?v=203';
 import * as T from './vendor/three.module.js';
-import{makeHero,animateHero}from'./hero-model.js?v=202';
-import{MAPS,seeded}from'./rules.js?v=202';
+import{makeHero,animateHero}from'./hero-model.js?v=203';
+import{MAPS,seeded}from'./rules.js?v=203';
 const geo=new Map(),materials=new Map(),terrainMaterials=new Map(),detailMaterials=new Map(),weatherMaterials=new Map();
 const hiddenWeatherMatrix=new T.Matrix4().makeScale(0,0,0);
 let fireflyTexture;
@@ -49,7 +50,8 @@ const box=(p,c,x,y,z,w,h,d)=>mesh('BoxGeometry',[w,h,d],c,x,y,z,p);
 const orb=(p,c,x,y,z,r,glow=false)=>mesh('SphereGeometry',[r,10,7],c,x,y,z,p,glow);
 const cone=(p,c,x,y,z,r,h)=>mesh('ConeGeometry',[r,h,7],c,x,y,z,p);
 function detailMaterial(color,opacity,vertexColors=false){const key=color+':'+opacity+':'+vertexColors;if(!detailMaterials.has(key))detailMaterials.set(key,new T.MeshStandardMaterial({color,transparent:true,opacity,vertexColors,roughness:1,depthWrite:false,side:T.DoubleSide}));return detailMaterials.get(key);}
-export function actor(kind='silver',weapon='crossbow',polished=true){
+export function actor(kind='silver',weapon='crossbow',polished=true){const g=buildActor(kind,weapon,polished);return polished?installCreatureAnatomy(g,kind):g;}
+function buildActor(kind='silver',weapon='crossbow',polished=true){
  const variant=makeBossVariant(kind);if(variant)return variant;
  if(polished&&Object.hasOwn(BOSS_COMBAT_HEIGHTS,kind))return makeBossAppearance(kind);
  if(REGIONAL_ENEMIES[kind]?.map==='coast')return makeCoastEnemy(kind);
@@ -109,7 +111,7 @@ function regionalActor(id){
  return polishRegionalEnemy(g,id);
 }
 export function animateActor(g,t,speed=0,attack=0,hurt=0){
- const d=g.userData,dt=d.feedbackTime===undefined?1/60:Math.max(0,Math.min(.1,t-d.feedbackTime));d.feedbackTime=t;restoreEnemyHit(g);animateBaseActor(g,t,speed,attack,d.hitReaction?0:hurt);animateEnemyHit(g,dt);
+ const d=g.userData,dt=d.feedbackTime===undefined?1/60:Math.max(0,Math.min(.1,t-d.feedbackTime));d.feedbackTime=t;restoreEnemyHit(g);animateBaseActor(g,t,speed,attack,d.hitReaction?0:hurt);animateEnemyHit(g,dt);animateCreatureAnatomy(g,t,speed);
 }
 function animateBaseActor(g,t,speed=0,attack=0,hurt=0){
  if(g.userData.bossVariant){const d=g.userData,dt=d.lastTime===undefined?1/60:Math.max(0,Math.min(.05,t-d.lastTime));d.lastTime=t;animateBossVariant(g,t,speed,dt);return;}

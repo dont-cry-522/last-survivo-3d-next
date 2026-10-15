@@ -1,7 +1,7 @@
-import {creatureAttackPose} from './creature-gait.js?v=202';
-import {ENEMY_MOTION} from './enemy-motion.js?v=202';
+import {creatureAttackPose} from './creature-gait.js?v=203';
+import {ENEMY_MOTION} from './enemy-motion.js?v=203';
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,tint,joint as organicJoint,leg,stepLeg} from './creature-forms.js?v=202';
+import {form,surface,tube,oval,tint,joint as organicJoint,leg,stepLeg} from './creature-forms.js?v=203';
 const materials=new Map(),geometries=new Map();
 function part(parent,color,x,y,z,sx,sy,sz,shape='sphere',lit=false){
  const key=color+':'+lit;if(!materials.has(key))materials.set(key,new T.MeshStandardMaterial({color,roughness:.78,metalness:.12,emissive:lit?color:0,emissiveIntensity:lit?.8:0}));
@@ -121,7 +121,7 @@ export function animateSandEnemy(g,t,speed,attack,dt){
   r.rotation.set((guard?.025:oracle?.012:.065)*stride+wind*(guard?-.04:oracle?-.055:.11)+strike*(guard?.06:oracle?.035:-.075),Math.sin(p-.35)*.014*stride+(guard?-wind*.09+strike*.11:oracle?wind*.04-strike*.03:0),sway*(guard?.025:oracle?.018:.035));
  }
  for(const l of d.legs)stepLeg(l,r,p,stride,{travel,lift:beetle?.065:guard?.070:oracle?.058:.085});
- if(d.jaws)d.jaws.forEach((j,i)=>j.rotation.y=(i?1:-1)*(wind*.24-strike*.18+Math.max(0,Math.sin(t*2.7+i*.6))*.026*(1-stride)*(1-wind)));
+ if(d.jaws)d.jaws.forEach((j,i)=>j.rotation.y=(i?1:-1)*(wind*(i?.27:.21)-strike*(i?.20:.16)+Math.max(0,Math.sin(t*2.7+i*.6))*.026*(1-stride)*(1-wind)));
  d.arms.forEach((a,i)=>{
   const walk=Math.sin(p+i*Math.PI-.45)*stride,side=i?1:-1,forearm=d.forearms[i];
   if(guard){
@@ -137,6 +137,6 @@ export function animateSandEnemy(g,t,speed,attack,dt){
    forearm.rotation.set(i?-.27-wind*.40+strike*.21:-.20-wind*.39+strike*.12,0,0);
   }
  });
- if(d.hem)d.hem.rotation.set(Math.sin(p-.5)*.045*stride+wind*.03,0,Math.sin(p-.7)*.035*stride);
+ if(d.hem)d.hem.rotation.set(Math.sin(p-.65)*.045*stride+wind*.03,0,Math.sin(p-.85)*.035*stride);
  if(d.head&&!worm)d.head.rotation.set(-r.rotation.x*.45+wind*(oracle?-.035:.045)-strike*.045,Math.sin(t*.8)*.025*(1-stride)-r.rotation.y*.55,-r.rotation.z*.45);
 }

@@ -1,11 +1,11 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 双视角实测</title><style>body{margin:12px;background:#17272b;color:#e2ecea;font:14px system-ui}button{padding:10px;margin:4px;background:#254943;border:1px solid #709582;color:inherit;border-radius:5px}iframe{display:block;border:0;margin-top:8px}pre{white-space:pre-wrap}#view{overflow:auto}</style><button id="run" disabled>运行双视角回归</button><select id="preview-map" aria-label="预览地图"><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="confluence">五境</option></select><select id="preview-place" aria-label="预览位置"><option value="spawn">出生地</option><option value="water">水岸</option><option value="waterbed">浅水石底</option><option value="watercenter">水中近看</option><option value="trees">树丛</option><option value="ruins">遗迹近景</option><option value="ruin-arch">残拱与通道</option><option value="elder">古树空地</option><option value="thicket">幽暗密林</option><option value="floor">地表细节近景</option></select><button id="third" disabled>第三人称预览</button><button id="first" disabled>第一人称预览</button><button id="capture" disabled>保存画面</button><p id="status">正在加载真实游戏（隔离存档，固定帧测试）</p><div id="view"></div><pre id="report"></pre><script type="module">
 import * as T from '../vendor/three.module.js';
-import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=202';
-import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=202';
-import {terrainAt,waterDepth} from '../water.js?v=202';
-import {updateTide} from '../coast.js?v=202';
-import {BOSS_STYLES} from '../boss-combat.js?v=202';
-import {biomeWeights} from '../confluence.js?v=202';
+import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=203';
+import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=203';
+import {terrainAt,waterDepth} from '../water.js?v=203';
+import {updateTide} from '../coast.js?v=203';
+import {BOSS_STYLES} from '../boss-combat.js?v=203';
+import {biomeWeights} from '../confluence.js?v=203';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
 const previewHero=document.createElement('select'),previewWeapon=document.createElement('select'),sourceDocument=new DOMParser().parseFromString(html,'text/html');
@@ -31,7 +31,7 @@ async function load(mobile=false,width=1180,height=720){
  const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
  // LOD generation must run in this renderer's realm: geometry merges compare
  // typed-array constructors, and WebGL uploads use instanceof checks.
- window.qaWorldReady=import('./world.js?v=202').then(module=>{window.qaAnimateWorld=module.animateWorld;});
+ window.qaWorldReady=import('./world.js?v=203').then(module=>{window.qaAnimateWorld=module.animateWorld;});
  <\/script>`;
  frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
  for(let i=0;i<600&&!win.game3d;i++)await sleep(50);assert(win.game3d,'加载超时 '+(win.qaErrors||[]).join(' / '));g=win.game3d;assert(await g.surfaceReady,'本地土石材质未全部加载');g.audio.init=async()=>true;const render=g.renderer.render.bind(g.renderer);g.renderer.render=(scene,camera)=>{if(scene!==g.hero.parent)return render(scene,camera);win.qaCamera=camera;if(g.state==='menu'&&win.document.querySelector('#preview-detail').getAttribute('aria-pressed')!=='true'){
@@ -486,8 +486,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=202');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=202');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=203');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=203');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);

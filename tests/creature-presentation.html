@@ -9,18 +9,18 @@
 <section id="filmstrip"><h2>连续走动对照</h2><p>每组先连续行走 1 秒，再按 0.1 秒间隔截取 8 帧；抽帧之间仍以 1/60 秒推进正式动作。相机跟随，地面刻线保持世界坐标，便于观察脚是否滑地。此页只检查模型动作，不模拟寻路或伤害。</p><pre id="filmstrip-report">尚未生成</pre><div id="filmstrip-images"></div></section>
 <script type="module">
 import * as T from '../vendor/three.module.js';
-import {actor,animateActor} from '../world.js?v=202';
-import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=202';
-import {setCreatureTime} from '../creature-forms.js?v=202';
-import {MAP_ROSTERS,REGIONAL_ENEMIES} from '../map-enemies.js?v=202';
+import {actor,animateActor} from '../world.js?v=203';
+import {AIR_ROSTERS,AIR_ENEMIES,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=203';
+import {setCreatureTime} from '../creature-forms.js?v=203';
+import {MAP_ROSTERS,REGIONAL_ENEMIES} from '../map-enemies.js?v=203';
 import {ENEMIES} from '../rules.js';
-import {BOSS_ROUTES,ADDITIONAL_BOSSES} from '../boss-roster.js?v=202';
-import {BOSS_TRAVEL} from '../boss-patterns.js?v=202';
-import {BOSS_STYLES,bossAttackPlan} from '../boss-combat.js?v=202';
-import {recordEnemyHit} from '../enemy-feedback.js?v=202';
-import {enemyCastFlight} from '../enemy-cast-vfx.js?v=202';
-import {SkillVFX} from '../skill-vfx.js?v=202';
-import {ENEMY_MOTION,gaitPace,advanceEnemyLocomotion} from '../enemy-motion.js?v=202';
+import {BOSS_ROUTES,ADDITIONAL_BOSSES} from '../boss-roster.js?v=203';
+import {BOSS_TRAVEL} from '../boss-patterns.js?v=203';
+import {BOSS_STYLES,bossAttackPlan} from '../boss-combat.js?v=203';
+import {recordEnemyHit} from '../enemy-feedback.js?v=203';
+import {enemyCastFlight} from '../enemy-cast-vfx.js?v=203';
+import {SkillVFX} from '../skill-vfx.js?v=203';
+import {ENEMY_MOTION,gaitPace,advanceEnemyLocomotion} from '../enemy-motion.js?v=203';
 let kinds=[];const scene=new T.Scene(),renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
 renderer.setSize(1120,460);renderer.setClearColor(0x25382f);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
 document.querySelector('#stage').append(renderer.domElement);scene.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));
@@ -78,9 +78,10 @@ function advanceTime(amount){for(let remaining=amount;remaining>1e-9;){const dt=
 function draw(){setCreatureTime(clock);frameModels();renderer.render(scene,camera);document.querySelector('#report').textContent=JSON.stringify({status:'READY',mode:document.querySelector('#mode').value,time:+clock.toFixed(2),biome:document.querySelector('#biome').value,view:document.querySelector('#view').value,translation:document.querySelector('#translate').checked,roots:models.map((m,i)=>({kind:kinds[i],z:+m.position.z.toFixed(4),distance:+m.userData.fixture.distance.toFixed(4),move:m.userData.bossMove,stage:m.userData.bossStage})),polished:!document.querySelector('#old').checked,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles});}
 document.querySelector('#biome').onchange=reset;document.querySelector('#mode').onchange=reset;document.querySelector('#hit').onclick=()=>{for(const m of models)recordEnemyHit(m,{damage:20,kind:'rifle',angle:.5});advanceTime(1/60);draw();};document.querySelector('#still').onclick=()=>{paused=true;document.querySelector('#pause').textContent='继续';document.querySelector('#mode').value='idle';reset();advanceTime(.5);draw();};document.querySelector('#old').onchange=reset;document.querySelector('#pause').onclick=()=>{paused=!paused;document.querySelector('#pause').textContent=paused?'继续':'暂停';};document.querySelector('#step').onclick=()=>{paused=true;document.querySelector('#pause').textContent='继续';advanceTime(.1);draw();};
 document.querySelector('#portraits-button').onclick=()=>{const root=document.querySelector('#portraits');root.replaceChildren();const r=new T.WebGLRenderer({alpha:true,antialias:true,preserveDrawingBuffer:true});r.setSize(256,256);r.setClearColor(0,0);r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.25;const s=new T.Scene();s.add(new T.HemisphereLight(0xd8e6f0,0x293c30,2.0));s.add(sun.clone(),rim.clone());for(const kind of [...Object.values(MAP_ROSTERS).flatMap(roster=>Object.values(roster)),...Object.values(AIR_ROSTERS),...Object.keys(ADDITIONAL_BOSSES)]){const m=AIR_ENEMIES[kind]?makeAirborne(kind):actor(kind);s.add(m);m.userData.expressionSeed=0;if(!AIR_ENEMIES[kind])animateActor(m,.5,0,0,0);const bounds=new T.Box3().setFromObject(m),center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3()),half=Math.max(size.x,size.y,size.z)*.67,c=new T.OrthographicCamera(-half,half,half,-half,.1,60);c.position.copy(center).add(new T.Vector3(4,2.2,6).normalize().multiplyScalar(20));c.lookAt(center);r.render(s,c);const img=document.createElement('img');img.id='portrait-'+kind;img.alt=kind;img.src=r.domElement.toDataURL('image/png');root.append(img);s.remove(m);}r.dispose();};
-document.querySelector('#checks').onclick=()=>{
+document.querySelector('#checks').onclick=async()=>{
+ paused=true;
  const results=[];let error=null;document.querySelector('#focus').value='all';
- try{for(const biome of [...Object.keys(MAP_ROSTERS),'air',...Object.keys(BOSS_ROUTES).map(id=>'boss-'+id)]){document.querySelector('#biome').value=biome;reset();for(const mode of ['idle','walk','attack']){document.querySelector('#mode').value=mode;reset();for(let i=0;i<210;i++){clock=i/60;poseModels(1/60);vfx.update(1/60);draw();}for(const m of models){m.updateMatrixWorld(true);m.traverse(o=>{if(!o.matrixWorld.elements.every(Number.isFinite))throw Error(biome+' '+mode+' invalid pose');});}if(renderer.getContext().getError()!==0||renderer.info.programs.some(p=>p.diagnostics?.runnable===false))throw Error(biome+' shader/GL');results.push({biome,mode,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles});}}
+ try{for(const biome of [...Object.keys(MAP_ROSTERS),'air',...Object.keys(BOSS_ROUTES).map(id=>'boss-'+id)]){document.querySelector('#biome').value=biome;reset();for(const mode of ['idle','walk','attack']){document.querySelector('#mode').value=mode;reset();for(let i=0;i<210;i++){clock=i/60;poseModels(1/60);vfx.update(1/60);draw();if(i%30===0)await new Promise(resolve=>setTimeout(resolve,0));}for(const m of models){m.updateMatrixWorld(true);m.traverse(o=>{if(!o.matrixWorld.elements.every(Number.isFinite))throw Error(biome+' '+mode+' invalid pose');});}if(renderer.getContext().getError()!==0||renderer.info.programs.some(p=>p.diagnostics?.runnable===false))throw Error(biome+' shader/GL');results.push({biome,mode,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles});}}
  }catch(e){error=String(e);}finally{paused=true;document.querySelector('#pause').textContent='继续';document.querySelector('#checks-report').textContent=JSON.stringify({results,error});}
 };
 document.querySelector('#filmstrip-button').onclick=()=>{

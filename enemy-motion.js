@@ -1,7 +1,7 @@
-import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=202';
-import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=202';
+import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=203';
+import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=203';
 import{Vector3,Matrix4,Quaternion}from'./vendor/three.module.js';
-import{creatureGait,gaitDistance}from'./creature-gait.js?v=202';
+import{creatureGait,gaitDistance}from'./creature-gait.js?v=203';
 // Attack timings are shared with the pose driver so the strike matches its hit.
 export const ENEMY_MOTION={
  foamling:{wind:.55,recover:.25,cadence:9,range:2.1},tidecrab:{wind:.7,recover:.35,cadence:10,range:3.1},reefturtle:{wind:1.1,recover:.6,cadence:4,range:4},jellyseer:{wind:.85,recover:.4,cadence:4,range:12},tidestar:{wind:.9,recover:.45,cadence:4,range:11},wreckwarden:{wind:1.25,recover:1.7,cadence:4},
@@ -96,10 +96,10 @@ function animateForestEnemy(d,t,stride,phase,gather,drive,impact){
  }else if(d.kind==='golem'){
   const weight=Math.sin(phase)*stride;
   rig.position.set(weight*.045,Math.abs(sway)*.014*stride-gather*.09-drive*.08-settle*.025,-impact*.13-gather*.045+drive*.04);
-  rig.rotation.set(.035*stride-gather*.09+drive*.18-impact*.12,Math.sin(phase-.4)*.025*stride,weight*.04);
+  rig.rotation.set(.035*stride-gather*.09+drive*.18-impact*.12,Math.sin(phase-.4)*.035*stride-gather*.025+drive*.035,weight*.04);
   d.legs.forEach(leg=>plantStoneFoot(leg,rig,phase+leg.phase,stride));
   d.arms.forEach((arm,i)=>{
-   arm.position.y=1.34-gather*.04-drive*.13;arm.rotation.set(Math.sin(phase+i*Math.PI-.55)*.14*stride-gather*(i?1.34:1.24)-drive*.20,0,(i?1:-1)*(.035*stride+.10*gather));
+   arm.position.y=1.34-gather*.04-drive*.13-settle*.025;arm.rotation.set(Math.sin(phase+i*Math.PI-.55)*.14*stride-gather*(i?1.34:1.24)-drive*(i?.24:.18)+settle*.06,0,(i?1:-1)*(.035*stride+.10*gather));
    // The elbow folds as the shoulder gathers, then extends into the existing
    // strike. A small delayed bend absorbs the recovery, without retiming damage.
    const mesh=arm.children[0];if(mesh.morphTargetInfluences)mesh.morphTargetInfluences[0]=Math.min(1,gather*.78+Math.max(0,Math.sin(phase+i*Math.PI-.7))*.12*stride+settle*.16);

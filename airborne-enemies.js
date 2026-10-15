@@ -1,8 +1,9 @@
+import {installCreatureAnatomy,animateCreatureAnatomy} from './creature-anatomy.js?v=203';
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=202';
-import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=202';
-import {segmentHitsBody} from './adventure-combat.js?v=202';
+import {prepareCreatureSurface,installCreatureSurface} from './creature-surface.js?v=203';
+import{restoreEnemyHit,animateEnemyHit}from'./enemy-feedback.js?v=203';
+import {segmentHitsBody} from './adventure-combat.js?v=203';
 
 export const AIR_ROSTERS={forest:'duskbat',snow:'frostwing',ash:'cinderwing',sand:'sunscarab',coast:'skyray'};
 export const AIR_ENEMIES={
@@ -206,14 +207,16 @@ export function makeAirborne(kind){
  }
  // The continuous ray's morph envelope is deliberately larger than its rest
  // body. Preserve the old gameplay height instead of using its GPU cull bound.
- Object.assign(root.userData,{rig,body,head:body,wings,wingTips,shells,tail:null,combatHeight:.6});return root;
+ Object.assign(root.userData,{rig,body,head:body,wings,wingTips,shells,tail:null,combatHeight:.6});return installCreatureAnatomy(root,kind);
 }
 export function animateAirborne(e,time){
  const d=e.mesh.userData,cfg=AIR_POSES[e.kind],stage=e.flight?.stage||'orbit';
+ animateCreatureAnatomy(e.mesh,time,AIR_ENEMIES[e.kind].speed);
  const p=d.airPose??={time,wind:0,strike:0,recover:0},dt=Math.max(0,Math.min(.05,time-p.time)),blend=1-Math.exp(-dt*7);p.time=time;
  for(const key of AIR_BLEND_KEYS)p[key]+=((stage===key?1:0)-p[key])*blend;
  const phase=time*cfg.rate+e.id,hover=Math.max(0,1-p.wind-p.strike),amplitude=cfg.amp*(1-p.recover*.35);
  const flap=Math.sin(phase)*amplitude*hover+cfg.wind*p.wind+cfg.strike*p.strike,tip=Math.sin(phase-cfg.lag)*cfg.tip*hover-cfg.fold*p.wind+.035*p.strike;
+ d.body.position.y=Math.sin(phase-.65)*.012*hover;
  d.rig.rotation.z=Math.sin(time*1.8+e.id)*.035*(1-p.strike*.7);d.rig.rotation.x=Math.sin(time*2.3)*.022*(1-p.strike)-p.strike*.085;
  if(e.kind==='skyray'){
   d.body.morphTargetInfluences[0]=Math.sin(phase)*hover*.85;d.body.morphTargetInfluences[1]=Math.cos(phase)*hover*.85;d.body.morphTargetInfluences[2]=p.wind*.85+p.strike*.12;return;

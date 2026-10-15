@@ -1,4 +1,4 @@
-import {inMeleeArc} from './melee.js?v=202';
+import {inMeleeArc} from './melee.js?v=203';
 export const SCYTHE={damage:40,rate:1.45,range:3.2,arc:1.0,recovery:.56,hitFraction:.44,resetAfter:1.5};
 export const SCYTHE_ROUTES={rest:1.2,heavy:[0,.45,.60,.75],stagger:[0,.25,.30,.35],slow:[0,.65,.80,.95],refund:[0,.35,.50,.65]};
 export function scytheRestRemaining(p,time){return Math.max(0,SCYTHE_ROUTES.rest-(time-(p.scytheLast??-100)));}

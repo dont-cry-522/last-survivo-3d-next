@@ -1,8 +1,8 @@
-import {creatureGait,gaitDistance} from './creature-gait.js?v=202';
+import {creatureGait,gaitDistance} from './creature-gait.js?v=203';
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,tint,joint,smooth} from './creature-forms.js?v=202';
-import {bossLeg,poseBossLeg} from './boss-appearance.js?v=202';
-import {ADDITIONAL_BOSSES} from './boss-roster.js?v=202';
+import {form,surface,tube,oval,tint,joint,smooth} from './creature-forms.js?v=203';
+import {bossLeg,poseBossLeg} from './boss-appearance.js?v=203';
+import {ADDITIONAL_BOSSES} from './boss-roster.js?v=203';
 
 // Ten anatomical silhouettes, shared shaded geometry and the existing foot IK.
 // No per-instance textures/materials, lights or independent animation timers.
@@ -48,7 +48,7 @@ function buildSpider(d){
 function buildWolf(d){
  const r=d.rig;d.body=part(d,r,'WolfTorso',()=>[
   skin(0x869da5,[[-1.32,.12,.15,0,1.21],[-1.04,.46,.44,0,1.25],[-.50,.47,.40,0,1.35],[.10,.61,.59,0,1.44],[.61,.64,.69,0,1.56],[1.01,.40,.47,0,1.60]],{axis:'z',sides:28,shade:(c,x,y)=>c.lerp(new T.Color(y<1.25?0x4b6471:0xd6ded5),y<1.25?.35:.28)}),
-  ...Array.from({length:18},(_,i)=>{const a=i*2.399;return horn(i%2?0xb6c6c6:0x738e9b,[[Math.cos(a)*.43,1.56+Math.sin(a)*.48,.61],[Math.cos(a)*.66,1.57+Math.sin(a)*.68,.26],[Math.cos(a)*.58,1.46+Math.sin(a)*.58,-.12]],[.14,.19,.008]);})
+  skin(0xa7bdc2,[[-.32,.43,.45,0,1.46],[-.12,.59,.58,0,1.48],[.14,.70,.72,0,1.50],[.38,.71,.75,0,1.56],[.60,.61,.68,0,1.61],[.78,.46,.51,0,1.64],[.96,.34,.39,0,1.65]],{axis:'z',sides:32,flute:.018,deform:(x,y,z,a)=>[x*(1+.024*Math.sin(a*11+z*9)),y+.018*Math.sin(a*13+z*11),z],shade:(c,x,y,z)=>c.lerp(new T.Color(0x526f81),.15+.20*(1-smooth((y-1.05)/1.25)))})
  ]);
  d.head=joint(r,0,1.66,1.0);
  part(d,d.head,'WolfHead',()=>[skin(0xc7d1cd,[[-.27,.25,.23,0,0],[.02,.37,.32,0,0],[.29,.30,.22,0,-.03],[.40,.14,.15,0,-.03]],{sides:26}),horn(0xaabcbf,[[0,.02,.17],[0,-.03,.52],[0,-.06,.79]],[.25,.21,.12]),oval(0x273842,0,-.03,.78,.14,.085,.07),...sides.flatMap(s=>[skin(0x8ca6af,[[0,.18,.10],[.19,.14,.08],[.52,.018,.014]],{sides:12}).rotateZ(-s*.2).translate(s*.23,.29,-.08),horn(0x5a7480,[[s*.06,.19,.29],[s*.24,.24,.30],[s*.36,.23,.13]],[.045,.085,.02]),horn(0xe7e4ce,[[s*.16,-.14,.48],[s*.16,-.29,.52],[s*.13,-.35,.49]],[.055,.035,.002])])]);
@@ -138,9 +138,9 @@ export function animateBossVariant(g,t,speed,dt){
   for(let i=0;i<d.appendages.length;i++)d.appendages[i].rotation.z=(i?1:-1)*(Math.sin(t)*.008+wind*.025);
  }else if(kind==='rimefang'){
   r.position.y+=Math.sin(p*2)*.045*stride-wind*.18;r.rotation.x=wind*(second?-.08:.12)+strike*.10;
-  d.head.rotation.x=wind*(second?-.48:.22)+strike*(second?-.20:.16);d.jaw.rotation.x=.07+(second?.50:.28)*(wind+strike*.5);
+  d.head.position.set(0,1.66-wind*.055,1.0-wind*.08+strike*(second?.025:.13));d.head.rotation.x=wind*(second?-.48:.22)+strike*(second?-.20:.16);d.jaw.rotation.x=.07+(second?.50:.28)*(wind+strike*.5);
  }else if(kind==='webmatriarch'){
-  r.position.y+=Math.sin(p*2)*.035*stride+wind*.10;r.rotation.x=-wind*(second?.16:.09)+strike*.12;d.head.rotation.x=-wind*.12+strike*.18;
+  r.position.y+=Math.sin(p*2)*.035*stride+wind*.10;r.rotation.x=-wind*(second?.16:.09)+strike*.12;d.head.rotation.x=-wind*.12+strike*.18;d.body.scale.y=1+Math.sin(t*1.5)*.009-wind*.025+strike*.018;
  }else if(kind==='moltenrhino'){
   r.position.y+=Math.abs(Math.sin(p))*.06*stride-wind*.08;r.rotation.z=Math.sin(p)*.035*stride;r.rotation.x=wind*.06+strike*(second?.14:0);d.head.rotation.x=wind*(second?-.20:.27)+strike*(second?.38:.06);
  }else if(kind==='icephoenix'||kind==='cinderdrake'||kind==='sailreaper'){
@@ -153,10 +153,10 @@ export function animateBossVariant(g,t,speed,dt){
   for(let i=0;i<d.wings.length;i++){const side=i?1:-1;d.wings[i].rotation.set(wind*(second?.20:-.10)-strike*.15,side*((ray?0:.14)+wind*(second?.46:-.14)-strike*.20),side*((ray?0:bird?-.16:-.35)+Math.sin(flap+.2)*(ray?.13:.20)*free+wind*(second?.75:-.23)-strike*(second?.20:.55)));}
   if(d.head)d.head.rotation.x=wind*(second?.10:-.26)+strike*(second?.2:.32);if(d.jaw)d.jaw.rotation.x=wind*(second?.12:.52)+strike*.37;
  }else if(kind==='dunedevourer'){
-  r.rotation.x=Math.sin(t*.8)*.045+wind*(second?.13:-.17)+strike*(second?-.09:.18);r.rotation.z=Math.sin(t*1.2)*.04;d.head.rotation.x=.85+wind*(second?-.30:.35)-strike*.25;d.body.scale.z=1+Math.sin(p)*.025*stride;
+  r.rotation.x=Math.sin(t*.8)*.045+wind*(second?.13:-.17)+strike*(second?-.09:.18);r.rotation.z=Math.sin(t*1.2)*.04;d.head.rotation.x=.85+wind*(second?-.30:.35)-strike*.25;d.body.scale.z=1+Math.sin(p-.6)*.025*stride;d.head.position.z=.34-wind*.10+strike*.16;
  }else if(kind==='obeliskwarden'){
-  r.position.y+=Math.sin(t)*.07;r.rotation.y=Math.sin(t*.4)*.035;
-  d.appendages.forEach(a=>{const side=a.userData.side,row=a.userData.row;a.position.x=side*(.78+row*.39+wind*(second?.40:.15)-strike*.16);a.position.y=2.13-row*.35+Math.sin(t+row+side)*.08+wind*.26-strike*.18;a.rotation.set(wind*(second?0:-.35)+strike*.18,side*(wind*.4-strike*.25),side*(.12+wind*(second?.55:.18)-strike*.20));});
+  r.position.y+=Math.sin(t)*.07;r.rotation.x=-wind*.035+strike*.045;r.rotation.y=Math.sin(t*.4)*.035;
+  d.appendages.forEach(a=>{const side=a.userData.side,row=a.userData.row;a.position.x=side*(.78+row*.39+wind*(second?.40:.15)-strike*.16);a.position.y=2.13-row*.35+Math.sin(t-row*.45+side)*.08+wind*.26-strike*.18;a.rotation.set(wind*(second?0:-.35)+strike*.18,side*(wind*.4-strike*.25),side*(.12+wind*(second?.55:.18)-strike*.20));});
  }else if(kind==='abyssmedusa'){
   const pulse=Math.sin(t*1.5);r.position.y+=pulse*.08;d.body.scale.set(1+pulse*.035-wind*.10+strike*.09,1-pulse*.025+wind*.05,1+pulse*.035-wind*.10+strike*.09);
   d.appendages.forEach((a,i)=>{const angle=a.userData.angle,open=.04*Math.sin(t*1.2-i*.4)+wind*(second?.18:.42)-strike*.16;a.rotation.set(Math.sin(angle)*open,0,-Math.cos(angle)*open);});d.core.scale.setScalar(1+wind*.07+strike*.04);

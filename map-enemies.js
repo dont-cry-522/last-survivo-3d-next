@@ -1,4 +1,4 @@
-import{ADDITIONAL_BOSSES}from'./boss-roster.js?v=202';
+import{ADDITIONAL_BOSSES}from'./boss-roster.js?v=203';
 // Reuse locomotion roles while giving each biome its own species and attacks.
 export const MAP_ROSTERS={coast:{mushroom:'foamling',wolf:'tidecrab',golem:'reefturtle',spitter:'jellyseer',shaman:'tidestar',boss:'wreckwarden'},sand:{mushroom:'sandworm',wolf:'clawbeetle',golem:'sandguard',spitter:'sandspitter',shaman:'duneoracle',boss:'dunescorpion'},forest:{mushroom:'mushroom',wolf:'wolf',golem:'golem',spitter:'spitter',shaman:'shaman',boss:'boss'},snow:{mushroom:'snowhare',wolf:'frostwolf',golem:'yeti',spitter:'icewitch',shaman:'snowtotem',boss:'frostking'},ash:{mushroom:'emberling',wolf:'ashstalker',golem:'lavabrute',spitter:'cinderwisp',shaman:'ashseer',boss:'cinderlord'}};
 export const REGIONAL_ENEMIES={

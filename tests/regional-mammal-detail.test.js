@@ -52,10 +52,10 @@ test('hare haunches, hocks and long paws form complete chains while the toes fol
 });
 
 test('wolf shoulders have muscle taper above an articulated elbow and keep the support chain inside the chest',()=>{
- const g=actor('frostwolf'),d=g.userData,fore=d.legs.filter(l=>!l.back),source=fore[0].upper.children[0],lower=fore[0].knee.children[0];
+ const g=actor('frostwolf'),d=g.userData,fore=d.legs.filter(l=>!l.back),source=fore[0].softLimb;
  const widthAt=(mesh,y)=>{const m=new T.Mesh(mesh.geometry,mesh.material);m.updateMatrixWorld(true);const hits=new T.Raycaster(new T.Vector3(1,y,0),new T.Vector3(-1,0,0)).intersectObject(m);assert(hits.length,'limb cross section is open');return hits[0].point.x;};
  assert(widthAt(source,.01)>widthAt(source,-.30)*1.5,'upper foreleg is still a uniform cylinder');
- assert(widthAt(lower,-.04)>widthAt(lower,-.27)*1.25,'wrist has no anatomical taper');
+ assert(widthAt(source,-fore[0].upperLength-.04)>widthAt(source,-fore[0].upperLength-.27)*1.25,'wrist has no anatomical taper');
  let elbowFold=0;
  for(let i=0;i<120;i++){
   d.previousAttack=0;animateRegionalAppearance(d,i/60,1,i/120*Math.PI*2,0,0,0);g.updateMatrixWorld(true);
@@ -65,7 +65,7 @@ test('wolf shoulders have muscle taper above an articulated elbow and keep the s
 });
 
 test('new fur and limb surfaces remain cached and finite during real water, hit, attack and restart poses',()=>{
- for(const [id,drawBudget,triBudget]of [['snowhare',21,10200],['frostwolf',23,9300]]){
+ for(const [id,drawBudget,triBudget]of [['snowhare',17,10200],['frostwolf',19,9300]]){
   const a=actor(id),b=actor(id),parts=meshes(a),copies=meshes(b),d=a.userData,positions=parts.map(m=>m.geometry.attributes.position.array.slice());let triangles=0;
   assert.equal(parts.length,drawBudget);
   parts.forEach((m,i)=>{assert.equal(m.geometry,copies[i].geometry);assert.equal(m.material,copies[i].material);assert(!m.material.transparent);triangles+=(m.geometry.index?.count||m.geometry.attributes.position.count)/3;});assert(triangles<=triBudget);

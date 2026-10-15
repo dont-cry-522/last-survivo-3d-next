@@ -34,11 +34,11 @@ test('warm regional construction reuses species fitting without repeating bounds
 });
 
 test('regional anatomy has outward continuous sides, rounded shoulders and correctly oriented limb caps',()=>{
- const probes=[['frostwolf','Body',[1,.72,.05],[-1,0,0]],['ashstalker','Body',[1,.42,.0],[-1,0,0]],['yeti','Body',[1,1.05,0],[-1,0,0]],['yeti','upper',[1,-.1,0],[-1,0,0]],['lavabrute','UpperArm',[1,-.1,0],[-1,0,0]],['icewitch','CastingUpper',[1,-.1,0],[-1,0,0]]];
+ const probes=[['frostwolf','Body',[1,.72,.05],[-1,0,0]],['ashstalker','Body',[1,.42,.0],[-1,0,0]],['yeti','Body',[1,1.05,0],[-1,0,0]],['yeti','ContinuousLimb',[1,-.1,0],[-1,0,0]],['lavabrute','UpperArm',[1,-.1,0],[-1,0,0]],['icewitch','CastingUpper',[1,-.1,0],[-1,0,0]]];
  for(const [id,part,origin,direction]of probes){const source=make(id).getObjectByName('SM_Enemy_'+id+'_'+part),mesh=new T.Mesh(source.geometry,source.material);mesh.updateMatrixWorld(true);const hit=new T.Raycaster(new T.Vector3(...origin),new T.Vector3(...direction)).intersectObject(mesh)[0];assert(hit&&hit.point.x>0,id+' '+part+' has an inward or missing near surface');assert(hit.face.normal.x>.15,id+' inward normal');}
  for(const id of ['yeti','lavabrute']){
-  const source=make(id).getObjectByName('SM_Enemy_'+id+'_'+(id==='yeti'?'upper':'UpperArm')),mesh=new T.Mesh(source.geometry,source.material);mesh.updateMatrixWorld(true);
-  const upper=new T.Raycaster(new T.Vector3(.002,1,0),new T.Vector3(0,-1,0)).intersectObject(mesh)[0],lower=new T.Raycaster(new T.Vector3(.002,-1,0),new T.Vector3(0,1,0)).intersectObject(mesh)[0];assert(upper?.point.y>.14);assert(lower?.point.y<-.49);assert(upper.face.normal.y>0&&lower.face.normal.y<0);
+  const source=make(id).getObjectByName('SM_Enemy_'+id+'_'+(id==='yeti'?'ContinuousLimb':'UpperArm')),mesh=new T.Mesh(source.geometry,source.material);mesh.updateMatrixWorld(true);
+  const upper=new T.Raycaster(new T.Vector3(.002,1,0),new T.Vector3(0,-1,0)).intersectObject(mesh)[0],lower=new T.Raycaster(new T.Vector3(.002,source.geometry.boundingBox.min.y-1,0),new T.Vector3(0,1,0)).intersectObject(mesh)[0];assert(upper?.point.y>.14);assert(lower?.point.y<-.49);assert(upper.face.normal.y>0&&lower.face.normal.y<0);
  }
 });
 

@@ -1,8 +1,8 @@
-import{MAP_HALF}from'./map-layout.js?v=197';
-import{playerHidden}from'./target-awareness.js?v=197';
+import{MAP_HALF}from'./map-layout.js?v=198';
+import{playerHidden}from'./target-awareness.js?v=198';
 import * as T from './vendor/three.module.js';
-import{terrainMesh}from'./map-tactics.js?v=197';
-import{sceneryAllowed}from'./biome-scenery.js?v=197';
+import{terrainMesh}from'./map-tactics.js?v=198';
+import{sceneryAllowed}from'./biome-scenery.js?v=198';
 export const ROAMING_REWARDS={courier:{name:'携宝猎物',xp:30,heal:0},camp:{name:'守卫补给营地',xp:40,heal:.18}};
 export function installRoaming(w,id,rnd){
  w.roaming=[];for(const kind of['courier','camp'])for(let attempt=0;attempt<700;attempt++){

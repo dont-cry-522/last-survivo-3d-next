@@ -1,4 +1,4 @@
-import {inMeleeArc} from './melee.js?v=197';
+import {inMeleeArc} from './melee.js?v=198';
 export const SCYTHE={damage:40,rate:1.45,range:3.2,arc:1.0,recovery:.56,hitFraction:.44,resetAfter:1.5};
 export function beginScythe(p,w,time,angle,pitch){
  const combo=time-(p.scytheLast??-100)>SCYTHE.resetAfter?0:(p.scytheCount||0)%3;

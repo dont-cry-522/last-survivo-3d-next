@@ -1,6 +1,6 @@
-import{newWeaponSample,NEW_WEAPON_SOUNDS}from'./new-weapon-audio.js?v=197';
-import{poisonSample}from'./poison-audio.js?v=197';
-import{mirageSample}from'./mirage-audio.js?v=197';
+import{newWeaponSample,NEW_WEAPON_SOUNDS}from'./new-weapon-audio.js?v=198';
+import{poisonSample}from'./poison-audio.js?v=198';
+import{mirageSample}from'./mirage-audio.js?v=198';
 // Short original material textures synthesized locally; no remote asset load.
 const DURATIONS={hammer:[.3,.4,.2],rifle:[.18,.16,.12],shotgun:[.42,.27,.23],crossbow:[.32,.18,.2],shuriken:[.3,.18,.14],fire:[.55,.65,.3],dark:[.58,.52,.35],shade:[.24,.32,.15],shadowblade:[.4,.28,.33],grimoire:[.4,.68,.3],shield:[.21,.3,.15],harpoon:[.24,.32,.18],boomerang:[.32,.19,.18],badger:[.20,.23,.14]};
 const pulse=(t,start,decay)=>t<start?0:(1-Math.exp(-(t-start)*900))*Math.exp(-(t-start)*decay);

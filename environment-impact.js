@@ -1,8 +1,8 @@
 import * as T from './vendor/three.module.js';
-import {waterDepth} from './water.js?v=197';
-import {onBridge} from './coast.js?v=197';
-import {onIce} from './map-tactics.js?v=197';
-import {bodyContact} from './adventure-combat.js?v=197';
+import {waterDepth} from './water.js?v=198';
+import {onBridge} from './coast.js?v=198';
+import {onIce} from './map-tactics.js?v=198';
+import {bodyContact} from './adventure-combat.js?v=198';
 
 // Visual units are metres/seconds; these profiles never apply damage or status.
 export const ENVIRONMENT_IMPACTS={

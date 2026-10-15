@@ -1,11 +1,11 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NEXT 双视角实测</title><style>body{margin:12px;background:#17272b;color:#e2ecea;font:14px system-ui}button{padding:10px;margin:4px;background:#254943;border:1px solid #709582;color:inherit;border-radius:5px}iframe{display:block;border:0;margin-top:8px}pre{white-space:pre-wrap}#view{overflow:auto}</style><button id="run" disabled>运行双视角回归</button><select id="preview-map" aria-label="预览地图"><option value="forest">林地</option><option value="snow">雪地</option><option value="ash">赤烬</option><option value="sand">沙漠</option><option value="coast">海港</option><option value="confluence">五境</option></select><select id="preview-place" aria-label="预览位置"><option value="spawn">出生地</option><option value="water">水岸</option><option value="waterbed">浅水石底</option><option value="watercenter">水中近看</option><option value="trees">树丛</option><option value="ruins">遗迹近景</option><option value="ruin-arch">残拱与通道</option><option value="elder">古树空地</option><option value="thicket">幽暗密林</option><option value="floor">地表细节近景</option></select><button id="third" disabled>第三人称预览</button><button id="first" disabled>第一人称预览</button><button id="capture" disabled>保存画面</button><p id="status">正在加载真实游戏（隔离存档，固定帧测试）</p><div id="view"></div><pre id="report"></pre><script type="module">
 import * as T from '../vendor/three.module.js';
-import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=197';
-import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=197';
-import {terrainAt,waterDepth} from '../water.js?v=197';
-import {updateTide} from '../coast.js?v=197';
-import {BOSS_STYLES} from '../boss-combat.js?v=197';
-import {biomeWeights} from '../confluence.js?v=197';
+import {AIR_ROSTERS,makeAirborne,animateAirborne} from '../airborne-enemies.js?v=198';
+import {HERO_LOADOUTS,WEAPONS,weaponStats,seeded} from '../rules.js?v=198';
+import {terrainAt,waterDepth} from '../water.js?v=198';
+import {updateTide} from '../coast.js?v=198';
+import {BOSS_STYLES} from '../boss-combat.js?v=198';
+import {biomeWeights} from '../confluence.js?v=198';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const html=await(await fetch('../index.html',{cache:'no-store'})).text(),css=await(await fetch('../style.css',{cache:'no-store'})).text();let frame,g,win,now=0,previewShot=null,previewDodge=null,previewContext=null;const results=[],errors=[];
 const previewHero=document.createElement('select'),previewWeapon=document.createElement('select'),sourceDocument=new DOMParser().parseFromString(html,'text/html');
@@ -31,7 +31,7 @@ async function load(mobile=false,width=1180,height=720){
  const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
  // LOD generation must run in this renderer's realm: geometry merges compare
  // typed-array constructors, and WebGL uploads use instanceof checks.
- window.qaWorldReady=import('./world.js?v=197').then(module=>{window.qaAnimateWorld=module.animateWorld;});
+ window.qaWorldReady=import('./world.js?v=198').then(module=>{window.qaAnimateWorld=module.animateWorld;});
  <\/script>`;
  frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
  for(let i=0;i<600&&!win.game3d;i++)await sleep(50);assert(win.game3d,'加载超时 '+(win.qaErrors||[]).join(' / '));g=win.game3d;assert(await g.surfaceReady,'本地土石材质未全部加载');g.audio.init=async()=>true;const render=g.renderer.render.bind(g.renderer);g.renderer.render=(scene,camera)=>{if(scene!==g.hero.parent)return render(scene,camera);win.qaCamera=camera;if(g.state==='menu'&&win.document.querySelector('#preview-detail').getAttribute('aria-pressed')!=='true'){
@@ -486,8 +486,8 @@ for(const[id,offset]of[['lighting-day',0],['lighting-night',437]])$('#'+id).oncl
  g.environmentLighting.timeOffset=offset;g.environmentLighting.update($('#preview-map').value,null,0,g.time);step(2);$('#status').textContent=(offset?'月夜':'晨光')+' · '+JSON.stringify(reportFrame());
 };
 $('#lighting-whitebox').onclick=async()=>{
- const {EnvironmentLighting}=await import('../environment-lighting.js?v=197');
- const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=197');
+ const {EnvironmentLighting}=await import('../environment-lighting.js?v=198');
+ const {AdventureAtmosphere}=await import('../adventure-atmosphere.js?v=198');
  const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(720,440);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;
  const scene=new T.Scene();scene.fog=new T.FogExp2();scene.background=new T.Color();const hemi=new T.HemisphereLight(),sun=new T.DirectionalLight(),rim=new T.DirectionalLight();sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:.1,far:70});rim.position.set(-10,10,-15);scene.add(hemi,sun,sun.target,rim);
  const material=new T.MeshStandardMaterial({color:0xb8b7ae,roughness:.85}),ground=new T.Mesh(new T.PlaneGeometry(50,50),material);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -1345,8 +1345,71 @@ impactPreview.onclick=async()=>{try{
  for(let i=0;i<90&&!g.environmentImpacts.active.length&&!g.environmentImpacts.lastWater;i++){g.step(1/60);g.vfx.update(1/60);g.environmentImpacts.update(1/60);}step(6);
  assert(water?g.environmentImpacts.lastWater:g.environmentImpacts.active.length,'真实攻击没有产生环境反馈');$('#status').textContent='真实 '+g.player.weaponId+' 命中 '+(water?'水面':'树木')+' · '+JSON.stringify(reportFrame());
  }catch(e){$('#status').textContent='命中预览失败 '+e.message;}};
+
+const forestButton=document.createElement('button');forestButton.id='forest-run';forestButton.textContent='森林成长与路线检查';$('#capture').before(forestButton);
+forestButton.onclick=async()=>{
+ const controls=[...document.querySelectorAll('button')];controls.forEach(b=>b.disabled=true);results.length=0;errors.length=0;
+ const simulate=(seconds)=>{for(let t=0;t<seconds;t+=1/60)g.step(1/60);};
+ const cleanArena=()=>{arena();g.world.ponds=[];g.world.overhead={firstHit:()=>null};g.world.breakables=[];g.world.discoveries=[];g.world.roaming=[];for(const s of g.world.sites)s.claimed=true;};
+ const dummy=(x,z)=>{const e=g.spawn('golem',x,z);assert(e,'无法建立靶怪');e.hp=e.maxHp=1000;e.speed=0;e.cool=999;e.xp=0;return e;};
+ const mobileHold=(held)=>{const b=win.document.querySelector('#aim-stick');b.setPointerCapture=()=>{};b.releasePointerCapture=()=>{};const r=b.getBoundingClientRect();pointer(b,held?'pointerdown':'pointerup',{pointerType:'touch',pointerId:52,clientX:r.x+r.width/2,clientY:r.y+r.height/2});};
+ const charge=()=>{key('keydown','d');simulate(.5);key('keyup','d');assert(g.player.crossbowHunt?.until>g.time,'实际走动未蓄势');step();};
+ async function huntCheck(mobile,mode,aim){
+  select('silver');cleanArena();g.setView(mode);win.document.querySelector('[data-attack-mode="'+aim+'"]').click();g.player.weaponPath={id:'crossbow_hunt',rank:2};charge();
+  const until=g.player.crossbowHunt.until;g.pause();step(10);assert(g.player.crossbowHunt.until===until,'暂停改变蓄势');g.resume();
+  const e=dummy(g.player.x,g.player.z+6);aimAt(e);g.player.attack=0;
+  if(mobile){step(12);assert(e.hp===1000,'手机松手时自动开火');mobileHold(true);}else pointer(win.document.querySelector('#world'),'pointerdown');
+  for(let i=0;i<150&&g.player.crossbowHunt.until>0;i++)step();
+  if(mobile)mobileHold(false);else pointer(win,'pointerup');
+  g.player.attack=9999;assert(g.player.crossbowHunt.until===0,'三连未消耗蓄势');assert(Math.abs(1000-e.hp-18.4*4.4)<.05,'真实三连伤害不符 '+(1000-e.hp));assert(e.slow>0,'二阶追猎未减速');
+  const hp=e.hp;simulate(.12);assert(e.hp===hp,'松手后出现额外追击');g.player.dash=0;g.dash();simulate(.3);assert(g.player.crossbowHunt.distance===0,'瞬移充能');
+  const result={damage:1000-e.hp,mode,aim,...reportFrame()};g.menu();g.start();assert(!g.player.crossbowHunt&&!g.player.weaponPath,'重开残留路线/充能');return result;
+ }
+ try{
+  await load();
+  for(const [view,aim]of[['first','manual'],['third','auto']])await check('电脑 '+view+' / '+aim+' 真实追猎三连',()=>huntCheck(false,view,aim));
+  await check('破甲同箭按空间顺序穿透后排，穿透伤害独立于生成顺序',()=>{
+   select('silver');cleanArena();g.setView('first');win.document.querySelector('[data-attack-mode="manual"]').click();g.player.weaponPath={id:'crossbow_pierce',rank:3};
+   const far=dummy(0,9),mid=dummy(0,7),near=dummy(0,5);for(const e of[far,mid,near]){e.height=5;e.mesh.position.y=0;}
+   aimAt(near);g.hero.rotation.y=g.controls.angle;g.player.attack=0;pointer(win.document.querySelector('#world'),'pointerdown');
+   for(let i=0;i<40&&!g.bullets.length;i++)step();pointer(win,'pointerup');g.player.attack=9999;g.step(.22);g.step(.12);step();
+   assert(Math.abs(1000-near.hp-30)<.05&&Math.abs(1000-mid.hp-37.5)<.05&&Math.abs(1000-far.hp-45)<.05,'贯穿伤害 '+[near,mid,far].map(e=>1000-e.hp));return{damage:[near,mid,far].map(e=>1000-e.hp),...reportFrame()};
+  });
+  await check('林地早期斥候有预告，第一次围猎变种与预告一致',()=>{
+   select('silver');cleanArena();simulate(9.1);assert(win.document.querySelector('#toast').textContent.includes('斥候'),'缺少三秒预告');simulate(3.1);assert(g.enemies.some(e=>e.role==='spitter')&&g.enemies.some(e=>e.role==='wolf'),'早期缺少配合敌人');
+   simulate(14);const notice=win.document.querySelector('#toast').textContent;assert(notice.includes('5 秒'),'围猎缺少五秒预警');simulate(5.5);assert(g.encounter.hunt?.remaining>0,'未生成围猎');assert(notice.includes(g.encounter.hunt.name),'预告与实到队伍不符');return{notice,hunt:g.encounter.hunt,...reportFrame()};
+  });
+  async function trial(choice){
+   select('silver');cleanArena();g.player.level=3;g.player.hp=30;const s=g.world.sites.find(s=>s.event==='purify');assert(s,'森林无净化事件');s.x=g.player.x;s.z=g.player.z;s.claimed=false;s.discovered=true;s.state=null;
+   simulate(2.2);for(let i=0;i<130&&g.state==='playing';i++){for(const e of g.enemies){e.xp=0;g.hurtEnemy(e,9999);}simulate(.1);}
+   assert(g.state==='event-choice'&&win.document.querySelector('#dialog-content').textContent.includes('收下补给'),'未出现风险选择');
+   const buttons=[...win.document.querySelectorAll('#dialog-content .dialog-actions button')];buttons[choice==='heal'?0:1].click();
+   if(choice==='heal'){assert(s.claimed&&g.player.hp===78,'治疗金额或领取状态不对');simulate(.1);assert(g.state==='playing','重复弹出奖励');return{healed:g.player.hp,...reportFrame()};}
+   assert(s.state==='trial-warning'&&!s.claimed,'挑战未预警');simulate(2.8);assert(!s.guards.some(e=>e.alive),'预告结束前已经刷怪');simulate(.3);assert(s.guards.filter(e=>e.alive).length===4,'试炼数量不对');
+   const pending=g.player.pending;for(const e of s.guards){e.xp=0;g.hurtEnemy(e,9999);}simulate(.1);
+   assert(g.state==='event-choice','击败试炼后无成长选择');const cards=[...win.document.querySelectorAll('[data-forest-growth]')];assert(cards.some(b=>b.dataset.forestGrowth==='path:crossbow_hunt')&&cards.some(b=>b.dataset.forestGrowth==='path:crossbow_pierce'),'未展示两条合格路线');
+   cards.find(b=>b.dataset.forestGrowth==='path:crossbow_hunt').click();assert(s.claimed&&g.player.weaponPath.id==='crossbow_hunt'&&g.player.pending===pending,'奖励未应用或误耗升级');simulate(.1);assert(g.state==='playing','重复领取或紧接弹窗');return{route:g.player.weaponPath,pending,...reportFrame()};
+  }
+  await check('净化后安全领取治疗，只领取一次',()=>trial('heal'));
+  await check('净化后挑战、四名守卫、免费路线选择',()=>trial('fight'));
+  await check('旧游侠仍可射击、翻滚与选择成长',()=>{select('scout');cleanArena();g.setView('first');win.document.querySelector('[data-attack-mode="manual"]').click();const e=dummy(0,6);aimAt(e);fire(4);simulate(.3);assert(e.hp<1000,'旧武器不命中');g.dash();assert(g.player.dashTime>0,'旧翻滚失效');simulate(.6);g.grant(60);win.document.querySelector('#upgrade-ready').click();const card=win.document.querySelector('[data-upgrade]');assert(card,'无升级卡');card.click();assert(g.state==='playing','选卡无法返回');return reportFrame();});
+  for(const [width,height]of[[844,390],[390,844]]){
+   await load(true,width,height);await check('手机尺寸 '+width+'×'+height+' 按住攻击 / 移动蓄势',()=>huntCheck(true,'third','auto'));
+   await check('手机尺寸 '+width+'×'+height+' 试炼奖励可点选',()=>trial('fight'));
+  }
+  errors.push(...win.qaErrors);$('#status').textContent='森林成长检查完成 '+results.filter(r=>r.pass).length+'/'+results.length;publish();
+ }catch(e){errors.push(String(e));publish();$('#status').textContent='森林检查中断 '+e.message;}finally{controls.forEach(c=>c.disabled=false);}
+};
+
+const forestPreview=document.createElement('button');forestPreview.id='forest-preview';forestPreview.textContent='林心成长奖励预览';$('#capture').before(forestPreview);
+forestPreview.onclick=async()=>{try{
+ await load();select('silver');g.setView('third');const s=g.world.sites.find(s=>s.event==='purify');assert(s,'没有林心');
+ for(const e of g.enemies){e.alive=false;e.mesh.visible=false;}g.player.level=3;g.player.pending=0;g.player.x=s.x;g.player.z=s.z;g.player.y=g.player.groundHeight=g.world.groundHeightAt?.(s.x,s.z)||0;g.hero.position.set(s.x,g.player.y,s.z);g.adventureCamera._ready=false;
+ s.discovered=true;s.claimed=false;s.mesh.visible=true;s.state='ready';s.eventRun={id:'purify',trial:true,done:true,progress:10,wave:2};step(3);assert(g.state==='event-choice','奖励未显示');$('#status').textContent='实际林心奖励界面 · 展示当前 3 级可选路线';
+ }catch(e){$('#status').textContent='预览失败 '+e.message;}};
+
 const autoCheck=new URLSearchParams(location.search).get('check');
-const autoButtons={impacts:'impacts-run',bosses:'boss-run',creatures:'creatures-run',water:'water-run',identity:'identity-run',lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',slingshot:'slingshot-run',polish:'polish-run',heroes:'run'};
+const autoButtons={forest:'forest-run',impacts:'impacts-run',bosses:'boss-run',creatures:'creatures-run',water:'water-run',identity:'identity-run',lighting:'lighting-run',fullscreen:'fullscreen-environment-run',mobile:'entry-mobile-run',portrait:'entry-portrait-run',models:'model-material-run',weapons:'weapon-run',slingshot:'slingshot-run',polish:'polish-run',heroes:'run'};
 if(g&&autoButtons[autoCheck]){$('#status').textContent='正在运行 '+autoCheck+' 检查…';$('#'+autoButtons[autoCheck]).click();}
 </script>
 </html>

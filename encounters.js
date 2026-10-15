@@ -56,8 +56,13 @@ export function attackSlotAvailable(e,enemies){
  return enemies.filter(q=>q!==e&&q.alive&&(q.wind>0||q.pounce>0)&&['spitter','shaman'].includes(q.role)===ranged).length<(ranged?2:3);
 }
 
-export function huntFormation(map,cycle){
- if(map==='forest'&&cycle%2===1)return{name:'獠牙穿插',tip:'晶冠头狼带队绕侧，远程怪压住后方；优先拦截侧面的狼群。',squad:[
+export function nextForestFormation(previous=-1,random=Math.random){const pool=[0,1,2].filter(id=>id!==previous);return pool[Math.min(pool.length-1,Math.floor(random()*pool.length))];}
+export function huntFormation(map,cycle,variant=cycle%3){
+ if(map==='forest'&&variant===2)return{name:'孢火交叉',tip:'两名吐息者分守两翼，狼群逼近；沿空出的侧面切入，先打掉一翼。',squad:[
+  {role:'spitter',offset:-.9,elite:true},{role:'spitter',offset:1.05},
+  {role:'wolf',offset:-.35,flank:-1},{role:'wolf',offset:.4,flank:1},{role:'mushroom',offset:0},{role:'mushroom',offset:.7}
+ ]};
+ if(map==='forest'&&variant===1)return{name:'獠牙穿插',tip:'晶冠头狼带队绕侧，远程怪压住后方；优先拦截侧面的狼群。',squad:[
   {role:'wolf',offset:-.8,flank:-1,elite:true},{role:'wolf',offset:1.1,flank:1},
   {role:'golem',offset:0},{role:'spitter',offset:-.3},{role:'shaman',offset:.4},{role:'mushroom',offset:.7}
  ]};

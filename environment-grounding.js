@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {forestHabitatAt} from './forest-habitats.js?v=197';
+import {forestHabitatAt} from './forest-habitats.js?v=198';
 
 function bakeForestFloor(world,data,size,extent){
  const habitat=world.forestHabitats;if(!habitat)return 0;

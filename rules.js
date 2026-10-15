@@ -1,14 +1,32 @@
-import{SCYTHE}from'./scythe-combat.js?v=197';
-import{REGIONAL_ENEMIES}from'./map-enemies.js?v=197';
-import{EXTRA_SKILLS,EXTRA_BY_ID}from'./skill-catalog.js?v=197';
-import{POISON}from'./poison-config.js?v=197';
-import{MIRAGE}from'./mirage-config.js?v=197';
+import{SCYTHE}from'./scythe-combat.js?v=198';
+import{REGIONAL_ENEMIES}from'./map-enemies.js?v=198';
+import{EXTRA_SKILLS,EXTRA_BY_ID}from'./skill-catalog.js?v=198';
+import{POISON}from'./poison-config.js?v=198';
+import{MIRAGE}from'./mirage-config.js?v=198';
 export const MAPS={confluence:{name:'五境大远征',subtitle:'林地、雪山、裂谷、遗城与海港无缝相连，沿古道挑战五境守卫',ground:0x536a48,fog:0x526b61,leaf:0x427657,accent:0xdaca96,slow:'地形'},coast:{name:'幽潮遗港',subtitle:'穿过曲折水湾与岛地，走栈桥或退潮浅滩，打捞货箱、点亮古灯塔',ground:0x586e70,fog:0x344f5c,leaf:0x508582,accent:0x8cdde0,slow:'潮湿滩地'},sand:{name:'风蚀遗城',subtitle:'绕开沙暴流沙，风息挖掘古匣、开启遗城机关',ground:0xafa080,fog:0x928a77,leaf:0x938363,accent:0xe6ca87,slow:'流沙'},forest:{name:'翡翠幽林',subtitle:'穿过古木与遗迹，追寻林心的回声',ground:0x284b3b,fog:0x173d39,leaf:0x287456,accent:0xecc988,slow:'泥地'},snow:{name:'霜月峡谷',subtitle:'冰晶照亮雪路，寒风掩藏猎手',ground:0x96b7bd,fog:0x769daa,leaf:0x456e7d,accent:0x9ae9ff,slow:'深雪'},ash:{name:'赤烬荒原',subtitle:'越过熔岩裂隙，唤醒沉睡的守卫',ground:0x5c4544,fog:0x382e3c,leaf:0x69545d,accent:0xffa25d,slow:'灰烬'}};
 // Legacy boomerang ID now identifies the slingshot; save and route keys remain compatible.
 export const WEAPONS={miasmalantern:{id:'miasmalantern',name:'蜃花灯',rate:MIRAGE.rate,damage:MIRAGE.impact,count:1,speed:MIRAGE.speed,range:MIRAGE.range,color:MIRAGE.color,needleDamage:MIRAGE.needleDps,needleDuration:MIRAGE.needleDuration,burstRadius:MIRAGE.burstRadius,splashDamage:MIRAGE.splashDamage,poisonScale:1,lureRank:0,venomRank:0},sporelantern:{id:'sporelantern',name:'孢灯',rate:POISON.rate,damage:POISON.impact,count:1,speed:POISON.speed,range:POISON.range,color:POISON.color,cloudDamage:POISON.dps,cloudRadius:POISON.radius,cloudDuration:POISON.duration,cloudMax:POISON.maxClouds,stillRank:0,roamRank:0},boomerang:{id:'boomerang',name:'芽铃弹弓',rate:1.5,damage:30,count:1,speed:28,range:11,color:0xe2d2aa,petDamage:30,petCooldown:2.35},harpoon:{id:'harpoon',name:'潮汐长叉',rate:1.6,damage:36,count:1,speed:1,range:3.8,color:0x8ad9da,melee:true,width:.48,pull:.85,slow:.6},rifle:{id:'rifle',name:'游侠连发枪',rate:3,damage:12,count:1,speed:27,range:14,color:0xffdc91},shotgun:{id:'shotgun',name:'碎岩霰弹枪',rate:1,damage:10,count:5,speed:25,range:8,color:0xffbe69},fire:{id:'fire',name:'烬火法杖',rate:.9,damage:30,count:1,speed:14,range:11,color:0xff743b},crossbow:{id:'crossbow',name:'夜翎短弩',rate:2.05,damage:20,count:1,speed:35,range:16,color:0xd8edff},shuriken:{id:'shuriken',name:'月刃飞镖',rate:1.4,damage:13,count:3,speed:22,range:12,color:0x95fff0},dark:{id:'dark',name:'夜幕法杖',rate:1,damage:26,count:1,speed:12,range:10,color:0xc5a2ff},shade:{id:'shade',name:'牵影咒',rate:1.6,damage:18,count:1,speed:20,range:8,color:0xf4f3ee},shadowblade:{id:'shadowblade',name:'断魂战镰',rate:SCYTHE.rate,damage:SCYTHE.damage,count:1,speed:1,range:SCYTHE.range,arc:SCYTHE.arc,melee:true,color:0xc6c8c6},grimoire:{id:'grimoire',name:'悬影魔典',rate:.8,damage:34,count:1,speed:1,range:10,color:0xe7e4db}};
 export const HERO_LOADOUTS={scout:['rifle','shotgun','fire'],silver:['crossbow','shuriken','dark'],wraith:['shade','shadowblade','grimoire'],tide:['harpoon'],lingya:['boomerang'],wuling:['sporelantern'],mirage:['miasmalantern']};
 export function weaponFor(hero,index){const ids=Object.hasOwn(HERO_LOADOUTS,hero)?HERO_LOADOUTS[hero]:HERO_LOADOUTS.scout;return WEAPONS[ids[index]||ids[0]];}
 export function registerCrossbowHit(player,targetId,now){const mark=player.crossbowMark;if(!mark||mark.target!==targetId||now-mark.time>2.5)player.crossbowMark={target:targetId,time:now,hits:1};else{mark.time=now;mark.hits++;if(mark.hits===3){mark.hits=0;return true;}}return false;}
+export const CROSSBOW_HUNT={distance:3,window:4,burst:[0,2.2,2.4,2.6],slow:1.2,dodgeRefund:.6};
+// Only actual walking charges the mechanism. A blink, pushing into a wall, pause,
+// or an already armed mechanism cannot stockpile/extend charges.
+export function advanceCrossbowHunt(p,distance,now,walking=true){
+ if(p.weaponId!=='crossbow'||p.weaponPath?.id!=='crossbow_hunt')return false;
+ const h=p.crossbowHunt??={distance:0,until:0};
+ if(now<h.until||!walking)return false;
+ h.distance=Math.min(CROSSBOW_HUNT.distance,h.distance+Math.max(0,distance));
+ if(h.distance<CROSSBOW_HUNT.distance-1e-9)return false;
+ h.distance=0;h.until=now+CROSSBOW_HUNT.window;return true;
+}
+export function crossbowImpact(p,b,targetId,now){
+ const strong=registerCrossbowHit(p,targetId,now),rank=b.pathRank||0;
+ const pursuit=strong&&b.pathId==='crossbow_hunt'&&rank>0&&now<(p.crossbowHunt?.until||0);
+ if(pursuit){p.crossbowHunt.until=0;if(rank>=3)p.dash=Math.max(0,(p.dash||0)-CROSSBOW_HUNT.dodgeRefund);}
+ const penetrations=b.pathId==='crossbow_pierce'?Math.min(3,Math.max(0,(b.maxPierce||1)-b.pierce)):0;
+ return{strong,pursuit,penetrations,multiplier:(pursuit?CROSSBOW_HUNT.burst[Math.min(3,rank)]:strong?1.35:1)*(1+.25*penetrations),slow:pursuit&&rank>=2?CROSSBOW_HUNT.slow:0};
+}
 export function registerShadowHit(target,now){const mark=target.shadowMark;if(!mark||now-mark.time>=2.5)target.shadowMark={hits:1,time:now};else{mark.time=now;mark.hits++;if(mark.hits>=3){mark.hits=0;return true;}}return false;}
 export function seeded(seed){let n=seed>>>0;return()=>{n=(Math.imul(n,1664525)+1013904223)>>>0;return n/4294967296;};}
 export function experienceNeeded(level){return Math.round(48+(level-1)*7);}
@@ -32,8 +50,8 @@ export const WEAPON_PATHS={
  shotgun_slug:route('shotgun','独头重弹','◆',['合为 1 发重弹：55 伤害，贯穿 2 个目标，射程 +45%，射速 -15%','重弹 62 伤害，贯穿 3 个目标','重弹 69 伤害，贯穿 4 个目标']),
  fire_burn:route('fire','余烬灼烧','♨',['命中点燃 3 秒，每秒 7 伤害，直接伤害 -10%','灼烧每秒 10 伤害','灼烧每秒 13 伤害；重复命中刷新，不叠层']),
  fire_blast:route('fire','熔核爆破','✹',['爆炸半径 3，伤害 +12%，射速 -10%','爆炸半径 3.5，伤害 +24%','爆炸半径 4，伤害 +36%']),
- crossbow_pierce:route('crossbow','破甲重矢','➤',['伤害 +22%，贯穿 2 个目标，射速 -12%','伤害 +36%，贯穿 3 个目标','伤害 +50%，贯穿 4 个目标']),
- crossbow_hunt:route('crossbow','追猎机括','»',['射速 +18%，箭速 +10%，单箭伤害 -8%','射速 +32%，箭速 +18%','射速 +46%，箭速 +25%']),
+ crossbow_pierce:route('crossbow','破甲重矢','➤',['伤害 +22%，贯穿 2 个目标，射速 -12%；同箭每穿过一名敌人，后续命中伤害再加 25%（最多 +75%），绕位把敌人引成一线','伤害 +36%，贯穿 3 个目标；第二 / 三名承受 125% / 150% 箭伤，仍受障碍阻挡','伤害 +50%，贯穿 4 个目标；同箭后排最高承受 175% 箭伤，射速仍 -12%']),
+ crossbow_hunt:route('crossbow','追猎机括','»',['步行累计 3 米蓄势 4 秒，期间连续命中同一目标的第三箭造成 220% 箭伤；仅一发、不叠加，瞬移不充能。射速 +18%，箭速 +10%，单箭 -8%','保留移动蓄势；强化第三箭 240% 箭伤，并减速 1.2 秒。射速 +32%，箭速 +18%，单箭仍 -8%','强化第三箭 260% 箭伤，并减速 1.2 秒、缩短当前瞬移冷却 0.6 秒。射速 +46%，箭速 +25%，单箭仍 -8%']),
  shuriken_fan:route('shuriken','月刃齐发','✧',['每次 5 枚飞镖，单枚伤害 -20%','每次 6 枚飞镖','每次 7 枚飞镖']),
  shuriken_return:route('shuriken','回旋月刃','↶',['飞镖折返，可再次命中；单次伤害 -20%，贯穿 3 个目标','贯穿 4 个目标，弹速 +10%','贯穿 5 个目标，弹速 +15%']),
  dark_gravity:route('dark','引力漩涡','✺',['命中留下 1.4 秒牵引区，半径 2.6；直接伤害 -10%','牵引半径 2.9，持续 1.6 秒','牵引半径 3.2，持续 1.8 秒；最多 3 处，首领牵引减弱']),
@@ -47,6 +65,14 @@ export const WEAPON_PATHS={
 };
 const PATH_LEVELS=[3,5,8];
 function routeChoices(p){const rank=p.weaponPath?.rank||0;if(rank>=3||(p.level||1)<PATH_LEVELS[rank])return[];return Object.entries(WEAPON_PATHS).filter(([id,v])=>v.weapon===p.weaponId&&(!p.weaponPath||p.weaponPath.id===id)).map(([id,v])=>({id:'path:'+id,pathId:id,name:v.name,icon:v.icon,text:v.steps[rank],max:3,rank,category:'weapon'}));}
+// Earned exploration rewards show both eligible branches, not a forced level-up
+// draft. The ordinary draft/pity state and its pending cards remain untouched.
+export function forestGrowthChoices(p,random=Math.random){
+ const result=routeChoices(p),pool=UPGRADES.filter(u=>u.category==='skill'&&heroSpell(p.heroId,u.id,p.weaponId)&&(p.upgrades[u.id]||0)<u.max);
+ if(!pool.length)pool.push(...UPGRADES.filter(u=>heroSpell(p.heroId,u.id,p.weaponId)&&(p.upgrades[u.id]||0)<u.max));
+ while(result.length<3&&pool.length){const u=pool.splice(Math.min(pool.length-1,Math.floor(random()*pool.length)),1)[0],rank=p.upgrades[u.id]||0;result.push({...u,rank,text:EXTRA_BY_ID[u.id]?.describe(rank+1)||u.text});}
+ return result;
+}
 export function chooseUpgrades(p,random=Math.random){const pool=UPGRADES.filter(u=>heroSpell(p.heroId,u.id,p.weaponId)&&(p.upgrades[u.id]||0)<u.max).map(u=>{
  const rank=(p.upgrades[u.id]||0)+1;let text=u.text;
  if(u.id==='haste'&&p.heroId==='lingya')text='拉带发射频率 +15%，石弹飞行速度和射程不变';

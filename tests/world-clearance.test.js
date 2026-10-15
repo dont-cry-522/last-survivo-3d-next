@@ -1,11 +1,11 @@
 import test from'node:test';
 import assert from'node:assert/strict';
 import{buildWorld,clearAt,moveActor}from'../world.js';
-import{MAP_HALF}from'../map-layout.js?v=197';
-import{bodyTravel}from'../actor-collision.js?v=197';
+import{MAP_HALF}from'../map-layout.js?v=198';
+import{bodyTravel}from'../actor-collision.js?v=198';
 import{installForestVista}from'../forest-vista.js';
 import{installForestHabitats}from'../forest-habitats.js';
-import{installBiomePlaces}from'../biome-places.js?v=197';
+import{installBiomePlaces}from'../biome-places.js?v=198';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 // Frozen pre-optimization predicate, including its original coercion and bounds.

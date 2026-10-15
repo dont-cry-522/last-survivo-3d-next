@@ -1,93 +1,93 @@
-import{bossZoneEffect}from'./boss-effects.js?v=197';
-import{setCreatureTime}from'./creature-forms.js?v=197';
-import{enemyCastFlight as castEnemyFlight}from'./enemy-cast-vfx.js?v=197';
-import{installClimateLandforms}from'./climate-landforms.js?v=197';
-import{installHarborLife}from'./harbor-life.js?v=197';
-import {createLoadingScreen} from './loading-screen.js?v=197';
-import {warmScene} from './render-prewarm.js?v=197';
-import {prepareCombatSamples} from './combat-prewarm.js?v=197';
-import {loadTreeTextures} from './tree-scenery.js?v=197';
-import {loadFernTextures} from './fern-surfaces.js?v=197';
-import{bodiesClear}from'./actor-collision.js?v=197';
-import{BOSS_ROUTES,BOSS_ROUNDS,BOSS_BREAK,createBossRun,advanceBossRun}from'./boss-expedition.js?v=197';
-import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=197';
-import{beginScythe,scytheHits,scytheDamage}from'./scythe-combat.js?v=197';
-import{AIR_ENEMIES,AIR_ROSTERS,airWaveEligible,makeAirborne,tickAirborne}from'./airborne-enemies.js?v=197';
-import{MOBILITY,resetMobility,airborne,bodyHeight,attackReachesPlayer,beginJump,tickMobility,restoreMobilityPose,applyMobilityPose}from'./adventure-mobility.js?v=197';
-import{installAdventureCampfire,updateAdventureCampfire}from'./adventure-campfire.js?v=197';
-import{loadSurfaceTextures}from'./surface-textures.js?v=197';
-import{createOverheadQuery,mobilityCeiling as queryMobilityCeiling,needsMobilityCeiling}from'./adventure-overheads.js?v=197';
-import{installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail}from'./adventure-ground-detail.js?v=197';
-import{AdventureCamera}from'./adventure-camera.js?v=197';
-import{FirstPersonView}from'./first-person-view.js?v=197';
-import{AdventureAtmosphere}from'./adventure-atmosphere.js?v=197';
-import{aimPoint,groundAim,launchVelocity,segmentHitsBody,bodyContact,segmentBodyEntry,segmentGroundEntry}from'./adventure-combat.js?v=197';
-import{CinematicRenderer}from'./cinematic-renderer.js?v=197';
-import{EnvironmentImpacts,waterCrossing}from'./environment-impact.js?v=197';
-import{lobbyLandscape,entryLandscapeYaw}from'./lobby-landscape.js?v=197';
-import{installForestHabitats}from'./forest-habitats.js?v=197';
-import{installExplorationRoutes}from'./exploration-routes.js?v=197';
-import{installBiomePlaces}from'./biome-places.js?v=197';
-import{installEnvironmentClusters}from'./environment-clusters.js?v=197';
-import{installEnvironmentGrounding}from'./environment-grounding.js?v=197';
-import{installForestTerrain}from'./forest-terrain.js?v=197';
-import{installForestFloorRelief}from'./forest-floor-relief.js?v=197';
-import{installExplorationLandmarks}from'./exploration-landmarks.js?v=197';
-import{installExplorationComposition}from'./exploration-composition.js?v=197';
-import{installForestVista}from'./forest-vista.js?v=197';
-import{installWorldLightShafts,updateWorldLightShafts,installForestMist}from'./world-light-shafts.js?v=197';
-import{mapBrief}from'./expedition-brief.js?v=197';
-import{polishEnvironmentModels}from'./environment-props.js?v=197';
-import{EnvironmentLighting,installDistantLandscape}from'./environment-lighting.js?v=197';
-import{MirageCombat}from'./mirage-combat.js?v=197';
-import{MirageVFX}from'./mirage-vfx.js?v=197';
-import{mirageSound}from'./mirage-audio.js?v=197';
-import{PoisonCombat}from'./poison-combat.js?v=197';
-import{PoisonVFX}from'./poison-vfx.js?v=197';
-import{poisonSound}from'./poison-audio.js?v=197';
-import {HeroPreview} from './hero-preview.js?v=197';
-import {knownMapPoints,mapWaypoint,waypointHint} from './map-navigation.js?v=197';
-import {createExploration,EXPLORATION_SIZE} from './map-exploration.js?v=197';
-import{REGIONS,biomeAt,biomeWeights,biomeColor,CONFLUENCE_TEXT}from'./confluence.js?v=197';
-import{observePlayer}from'./target-awareness.js?v=197';
-import{TERRAIN_TIPS,onIce,iceMotion,damageTerrain,updateTactics,terrainMesh}from'./map-tactics.js?v=197';
-import{advanceRoaming,roamingHint,courierDirection}from'./roaming-events.js?v=197';
-import{discoveryInfo,discoveryVariants,discoveryThreatened,advanceDiscovery,discoveryHint,animateDiscoveries}from'./map-discoveries.js?v=197';
-import{recordEnemyHit,EnemyDeaths}from'./enemy-feedback.js?v=197';
-import{sandWeather}from'./sand-weather.js?v=197';
-import{HERO_DODGES,HERO_ABILITY_TEXT,dodgeTravel}from'./hero-dodge.js?v=197';
-import{LINGYA_HOP_DURATION,lingyaHopScale,planLingyaHop,steerLingyaHop}from'./lingya-motion.js?v=197';
-import{BeastCompanion,PET_TIMING,sideHopTravel}from'./beast-companion.js?v=197';
-import{makeBadger,animateBadger}from'./beast-model.js?v=197';
-import{updateTide,harpoonHit,tideDashTravel,HARPOON_ATTACKS}from'./coast.js?v=197';
-import{tickBoss}from'./boss-combat.js?v=197';
-import{inMeleeArc,meleeDamageScale}from'./melee.js?v=197';
-import{discoverSite}from'./site-discovery.js?v=197';
-import{MAP_EVENTS,createMapEvent,advanceMapEvent,eventProgress}from'./map-events.js?v=197';
-import{MAP_HALF as DEFAULT_HALF}from'./map-layout.js?v=197';
-import{terrainAt,updateWaterLighting}from'./water.js?v=197';
-import{crossedSwimPhase}from'./swim-motion.js?v=197';
-import{RELICS,relicChoices,equipRelic,relicEvent,incomingRelicDamage,readJournal,writeJournal,recordDiscovery,recordVictory}from'./expedition.js?v=197';
-import{EXPEDITION_BOSS_TIME,encounterPhase,enemyGrowth,encounterRole,HUNT_SQUAD,huntFormation,HUNT_BOONS,takeHuntBoon,enemyApproach,separation,attackSlotAvailable}from'./encounters.js?v=197';
-import{setupMobileDisplay}from'./mobile-display.js?v=197';
-import{weaponCuePhases,mirageShotDelay}from'./weapon-performance.js?v=197';
-import{ENEMY_VOICES}from'./enemy-audio.js?v=197';
-import{ENEMY_MOTION,gaitPace,advanceEnemyLocomotion}from'./enemy-motion.js?v=197';
-import{MAP_ROSTERS,REGIONAL_ENEMIES,regionalEnemy}from'./map-enemies.js?v=197';
-import{HeroSkills}from'./hero-skills.js?v=197';
-import{EXTRA_BY_ID,skillPairState,skillPairHint}from'./skill-catalog.js?v=197';
-import{SCOUT_ROLL_DURATION,rollTravel}from'./dodge-motion.js?v=197';
-import{adventureDodgePose}from'./adventure-dodge.js?v=197';
-import{renderPixelRatio,RenderBudget}from'./render-budget.js?v=197';
-import{groundCue,disposeCue,fitGroundCue,fitGroundSurface,disposeGroundSurface}from'./ground-cues.js?v=197';
-import{weaponRouteEffect,WEAPON_ROUTE_LOOKS}from'./weapon-route-vfx.js?v=197';
-import{SkillVFX}from'./skill-vfx.js?v=197';
-import{loadHeroAssets,disposeHero}from'./skinned-hero.js?v=197';
-import{GameAudio,SFX_STYLES}from'./audio.js?v=197';
-import{ENEMY_GUIDE,CIRCLE_GUIDE}from'./battle-guide.js?v=197';
+import{bossZoneEffect}from'./boss-effects.js?v=198';
+import{setCreatureTime}from'./creature-forms.js?v=198';
+import{enemyCastFlight as castEnemyFlight}from'./enemy-cast-vfx.js?v=198';
+import{installClimateLandforms}from'./climate-landforms.js?v=198';
+import{installHarborLife}from'./harbor-life.js?v=198';
+import {createLoadingScreen} from './loading-screen.js?v=198';
+import {warmScene} from './render-prewarm.js?v=198';
+import {prepareCombatSamples} from './combat-prewarm.js?v=198';
+import {loadTreeTextures} from './tree-scenery.js?v=198';
+import {loadFernTextures} from './fern-surfaces.js?v=198';
+import{bodiesClear}from'./actor-collision.js?v=198';
+import{BOSS_ROUTES,BOSS_ROUNDS,BOSS_BREAK,createBossRun,advanceBossRun}from'./boss-expedition.js?v=198';
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=198';
+import{beginScythe,scytheHits,scytheDamage}from'./scythe-combat.js?v=198';
+import{AIR_ENEMIES,AIR_ROSTERS,airWaveEligible,makeAirborne,tickAirborne}from'./airborne-enemies.js?v=198';
+import{MOBILITY,resetMobility,airborne,bodyHeight,attackReachesPlayer,beginJump,tickMobility,restoreMobilityPose,applyMobilityPose}from'./adventure-mobility.js?v=198';
+import{installAdventureCampfire,updateAdventureCampfire}from'./adventure-campfire.js?v=198';
+import{loadSurfaceTextures}from'./surface-textures.js?v=198';
+import{createOverheadQuery,mobilityCeiling as queryMobilityCeiling,needsMobilityCeiling}from'./adventure-overheads.js?v=198';
+import{installAdventureGroundDetail,installHabitatDetail,animateAdventureGroundDetail}from'./adventure-ground-detail.js?v=198';
+import{AdventureCamera}from'./adventure-camera.js?v=198';
+import{FirstPersonView}from'./first-person-view.js?v=198';
+import{AdventureAtmosphere}from'./adventure-atmosphere.js?v=198';
+import{aimPoint,groundAim,launchVelocity,segmentHitsBody,bodyContact,segmentBodyEntry,segmentGroundEntry}from'./adventure-combat.js?v=198';
+import{CinematicRenderer}from'./cinematic-renderer.js?v=198';
+import{EnvironmentImpacts,waterCrossing}from'./environment-impact.js?v=198';
+import{lobbyLandscape,entryLandscapeYaw}from'./lobby-landscape.js?v=198';
+import{installForestHabitats}from'./forest-habitats.js?v=198';
+import{installExplorationRoutes}from'./exploration-routes.js?v=198';
+import{installBiomePlaces}from'./biome-places.js?v=198';
+import{installEnvironmentClusters}from'./environment-clusters.js?v=198';
+import{installEnvironmentGrounding}from'./environment-grounding.js?v=198';
+import{installForestTerrain}from'./forest-terrain.js?v=198';
+import{installForestFloorRelief}from'./forest-floor-relief.js?v=198';
+import{installExplorationLandmarks}from'./exploration-landmarks.js?v=198';
+import{installExplorationComposition}from'./exploration-composition.js?v=198';
+import{installForestVista}from'./forest-vista.js?v=198';
+import{installWorldLightShafts,updateWorldLightShafts,installForestMist}from'./world-light-shafts.js?v=198';
+import{mapBrief}from'./expedition-brief.js?v=198';
+import{polishEnvironmentModels}from'./environment-props.js?v=198';
+import{EnvironmentLighting,installDistantLandscape}from'./environment-lighting.js?v=198';
+import{MirageCombat}from'./mirage-combat.js?v=198';
+import{MirageVFX}from'./mirage-vfx.js?v=198';
+import{mirageSound}from'./mirage-audio.js?v=198';
+import{PoisonCombat}from'./poison-combat.js?v=198';
+import{PoisonVFX}from'./poison-vfx.js?v=198';
+import{poisonSound}from'./poison-audio.js?v=198';
+import {HeroPreview} from './hero-preview.js?v=198';
+import {knownMapPoints,mapWaypoint,waypointHint} from './map-navigation.js?v=198';
+import {createExploration,EXPLORATION_SIZE} from './map-exploration.js?v=198';
+import{REGIONS,biomeAt,biomeWeights,biomeColor,CONFLUENCE_TEXT}from'./confluence.js?v=198';
+import{observePlayer}from'./target-awareness.js?v=198';
+import{TERRAIN_TIPS,onIce,iceMotion,damageTerrain,updateTactics,terrainMesh}from'./map-tactics.js?v=198';
+import{advanceRoaming,roamingHint,courierDirection}from'./roaming-events.js?v=198';
+import{discoveryInfo,discoveryVariants,discoveryThreatened,advanceDiscovery,discoveryHint,animateDiscoveries}from'./map-discoveries.js?v=198';
+import{recordEnemyHit,EnemyDeaths}from'./enemy-feedback.js?v=198';
+import{sandWeather}from'./sand-weather.js?v=198';
+import{HERO_DODGES,HERO_ABILITY_TEXT,dodgeTravel}from'./hero-dodge.js?v=198';
+import{LINGYA_HOP_DURATION,lingyaHopScale,planLingyaHop,steerLingyaHop}from'./lingya-motion.js?v=198';
+import{BeastCompanion,PET_TIMING,sideHopTravel}from'./beast-companion.js?v=198';
+import{makeBadger,animateBadger}from'./beast-model.js?v=198';
+import{updateTide,harpoonHit,tideDashTravel,HARPOON_ATTACKS}from'./coast.js?v=198';
+import{tickBoss}from'./boss-combat.js?v=198';
+import{inMeleeArc,meleeDamageScale}from'./melee.js?v=198';
+import{discoverSite}from'./site-discovery.js?v=198';
+import{MAP_EVENTS,createMapEvent,acceptForestTrial,advanceMapEvent,eventProgress}from'./map-events.js?v=198';
+import{MAP_HALF as DEFAULT_HALF}from'./map-layout.js?v=198';
+import{terrainAt,updateWaterLighting}from'./water.js?v=198';
+import{crossedSwimPhase}from'./swim-motion.js?v=198';
+import{RELICS,relicChoices,equipRelic,relicEvent,incomingRelicDamage,readJournal,writeJournal,recordDiscovery,recordVictory}from'./expedition.js?v=198';
+import{EXPEDITION_BOSS_TIME,encounterPhase,enemyGrowth,encounterRole,HUNT_SQUAD,huntFormation,nextForestFormation,HUNT_BOONS,takeHuntBoon,enemyApproach,separation,attackSlotAvailable}from'./encounters.js?v=198';
+import{setupMobileDisplay}from'./mobile-display.js?v=198';
+import{weaponCuePhases,mirageShotDelay}from'./weapon-performance.js?v=198';
+import{ENEMY_VOICES}from'./enemy-audio.js?v=198';
+import{ENEMY_MOTION,gaitPace,advanceEnemyLocomotion}from'./enemy-motion.js?v=198';
+import{MAP_ROSTERS,REGIONAL_ENEMIES,regionalEnemy}from'./map-enemies.js?v=198';
+import{HeroSkills}from'./hero-skills.js?v=198';
+import{EXTRA_BY_ID,skillPairState,skillPairHint}from'./skill-catalog.js?v=198';
+import{SCOUT_ROLL_DURATION,rollTravel}from'./dodge-motion.js?v=198';
+import{adventureDodgePose}from'./adventure-dodge.js?v=198';
+import{renderPixelRatio,RenderBudget}from'./render-budget.js?v=198';
+import{groundCue,disposeCue,fitGroundCue,fitGroundSurface,disposeGroundSurface}from'./ground-cues.js?v=198';
+import{weaponRouteEffect,WEAPON_ROUTE_LOOKS}from'./weapon-route-vfx.js?v=198';
+import{SkillVFX}from'./skill-vfx.js?v=198';
+import{loadHeroAssets,disposeHero}from'./skinned-hero.js?v=198';
+import{GameAudio,SFX_STYLES}from'./audio.js?v=198';
+import{ENEMY_GUIDE,CIRCLE_GUIDE}from'./battle-guide.js?v=198';
 import * as T from './vendor/three.module.js';
-import{MAPS,WEAPONS,ENEMIES,HERO_LOADOUTS,heroHealth,weaponFor,experienceNeeded,grantExperience,chooseUpgrades,takeUpgrade,weaponStats,weaponReachText,WEAPON_PATHS,segmentDistance,registerCrossbowHit,registerShadowHit,UPGRADES}from'./rules.js?v=197';
-import{actor,animateActor,animateWorld,buildWorld,clearAt,moveActor,followTerrain,supportHeight,mesh,mat}from'./world.js?v=197';
+import{MAPS,WEAPONS,ENEMIES,HERO_LOADOUTS,heroHealth,weaponFor,experienceNeeded,grantExperience,chooseUpgrades,takeUpgrade,weaponStats,weaponReachText,WEAPON_PATHS,segmentDistance,crossbowImpact,advanceCrossbowHunt,CROSSBOW_HUNT,forestGrowthChoices,registerShadowHit,UPGRADES}from'./rules.js?v=198';
+import{actor,animateActor,animateWorld,buildWorld,clearAt,moveActor,followTerrain,supportHeight,mesh,mat}from'./world.js?v=198';
 const $=s=>document.querySelector(s),touch=matchMedia('(pointer:coarse)').matches;
 const loadingScreen=createLoadingScreen();
 let preparing=true,sceneryTime=0;
@@ -122,7 +122,7 @@ for(const light of[hemisphere,sun,rim])light.layers.enable(1);
 const environmentLighting=new EnvironmentLighting(scene,renderer,hemisphere,sun,rim);
 const surfaceReady=Promise.all([loadSurfaceTextures(),loadFernTextures(),loadTreeTextures()]).then(results=>results.every(Boolean));
 let world,hero,heroId='silver',mapId='forest',weaponIndex=0,state='menu',time=0,kills=0,player,enemyId=0,enemies=[],bullets=[],orbs=[],effects=[],zones=[],fields=[],riftStrikes=[],spawnTimer=2,boss=null,bossRun=createBossRun(),toastTimer=0,shake=0,simTimer=0;
-let battlePhase=encounterPhase(0),phaseKey=null,lastAssault=-1,hunt=null,reliefUntil=0,autoTargetLock=null;
+let battlePhase=encounterPhase(0),phaseKey=null,lastAssault=-1,hunt=null,plannedHunt=null,lastForestFormation=-1,openingPatrol=0,reliefUntil=0,autoTargetLock=null;
 let hitConfirmUntil=0,touchCrouch=false;
 let viewUIKey='',freeMousePoint=null,mouseLockRequest=null,mouseWasLocked=false,mouseReleasedAt=-Infinity;
 let storage;try{storage=localStorage;}catch{}
@@ -282,7 +282,7 @@ async function buildPrepared(from=18,to=58){
  let completed=0;
  for(const stage of buildSteps()){loadingScreen.setLoadingProgress(stage,from+(to-from)*++completed/20);await yieldPreparation();}
 }
-function renderChoices(){renderJournalSummary();$('#selected-map-name').textContent=document.querySelector('[data-map='+mapId+']').textContent.replace(/^\d+\s*/, '').split(' · ')[0];$('#preview-map-name').textContent=$('#selected-map-name').textContent;$('#hero-preview').setAttribute('aria-label',document.querySelector('[data-hero='+heroId+']').childNodes[0].textContent+'的全身与武器');$('#hero-preview-description').textContent={scout:'林叶旧铜 · 灵活翻滚',silver:'白发霜羽 · 瞬移穿行',wraith:({shade:'无面旅人 · 张指牵影',shadowblade:'幽魂刺客 · 近战三连',grimoire:'亡魂法师 · 悬书裂隙'}[weaponFor(heroId,weaponIndex).id]),tide:'潮纹卷袖 · 潜潮伏击',lingya:'双辫轻装 · 弹弓合猎',wuling:'菌褶孢灯 · 牵瘴转场',mirage:'镜瓣长发 · 蜕影诱敌'}[heroId];$('#map-description').textContent=MAPS[mapId].subtitle;const brief=mapBrief(mapId);$('#map-boss-name').textContent=brief.name;$('#map-boss-arrival').textContent=brief.arrival;$('#map-boss-threat').textContent=brief.threat;$('#map-win-condition').textContent=brief.goal;for(const b of document.querySelectorAll('[data-hero]'))b.classList.toggle('selected',b.dataset.hero===heroId);for(const b of document.querySelectorAll('[data-map]'))b.classList.toggle('selected',b.dataset.map===mapId);const box=$('#weapons');box.replaceChildren();for(let i=0;i<HERO_LOADOUTS[heroId].length;i++){const w=weaponFor(heroId,i),b=document.createElement('button');b.textContent=w.name;b.classList.toggle('selected',i===weaponIndex);b.onclick=()=>{if(preparing||weaponIndex===i)return;weaponIndex=i;renderChoices();replaceMenuHero();};box.append(b);}const selectedWeapon=weaponFor(heroId,weaponIndex),selected=selectedWeapon.id,identity={miasmalantern:'提灯蓄势放出大颗慢速毒团，击中、触碰障碍或到达射程尽头时破裂扩散，为周围敌人附毒；重复命中刷新而不叠层，障碍会挡住扩散。蜕影在原地留下当前生命的替身，自身遁形 0.85 秒，期间免伤且不能攻击；替身优先诱敌，撑满时间才绽放并留下小片毒雾，被击碎不会爆发。幻瘴强化诱敌布局，蚀影强化重新现身后的反击。',sporelantern:'投出毒囊，在落点留下固定毒雾，最多三片、重叠只取最强伤害；牵瘴步经过第一片主毒雾时将其搬到实际落点，保留剩余寿命。沉瘴在原地成熟，搬运会重置浓度；游瘴靠搬运留下毒带与宽毒幕。',boomerang:'握住木叉、拉开弹带发射石弹，命中为伙伴标记目标；獾兽会在附近游走、嗅探，优先扑击瞄准目标，超出活动范围再归队。普通移动和燕步不会打断伙伴作战，落后超过 18 米才优先归队；主动换位则会命令伙伴撤回。按住方向时优先向该方向燕步，途中可小幅转向；不按方向时向 4—9 米内的伙伴换位，伙伴侧向撤回起点。距离或通路不合适时使用普通燕步，冷却 3.6 秒。伙伴有独立生命，倒地 12 秒后复活。',harpoon:'基础生命 140，出手后 0.3 秒正面减伤 20%；直刺→近身横扫→回钩牵引，第三击牵引普通怪物并减速，保留安全身位；潜潮持续最多 2 秒，期间无敌、可移动但不能攻击，再按闪避或重新按攻击提前浮出；冷却 6.5 秒。',rifle:'细长高速枪弹，快速连续射击。',shotgun:'一枪多颗短弹，近距离扇面散射。',fire:'较大的火球，较慢飞行并留下火焰，命中爆燃。',crossbow:'细长箭杆与箭头，快速直射、三连命中击退。',shuriken:'投出三枚旋转月刃，可穿过敌人。',dark:'较大的暗紫法球，缓慢飞行、命中散开暗雾。',shade:'无面旅人形态：墨黑布衣、窄白衣缘与无面魂痕。张指牵引幽影裂隙，释放影脉；三次命中引爆刻印，并非近身拳法。',shadowblade:'幽魂刺客形态：完整暗色短披肩、黑刃白锋与随刃尾影。挥动断魂战镰近战横斩、反斩，再接重镰；第三击减速，战镰始终握在手中。专属成长：冥镰刻痕、影步斩、残月收割。',grimoire:'亡魂法师形态：暗色开衩长袍、黑封白页魔典与下摆浮影。在瞄准方向撕开延迟裂口，不发射子弹。'};$('#weapon-preview').textContent=identity[selected]+weaponReachText(weaponStats({weaponId:selected}))+(' · 基础频率 '+selectedWeapon.rate+' 次/秒 · ')+(selectedWeapon.count>1?'每次 '+selectedWeapon.count+' 发 · ':'')+'成长路线：'+Object.values(WEAPON_PATHS).filter(p=>p.weapon===selected).map(p=>p.name).join(' / ')+' · 3 级起二选一'+({mirage:' · 专属技能：残蛊 / 诱葬 / 蜃衣',wuling:' · 专属技能：余毒未尽 / 败叶传染 / 苔衣护身',tide:' · 专属技能：破浪锋 / 盐蚀印记 / 潜潮余流',lingya:' · 专属技能：同猎追击 / 燕返藤绊 / 护伴弹'}[heroId]||'');$('.menu-caption span').textContent=heroId==='mirage'?'雾苓·蜃影 / VIOLET MIRAGE':heroId==='wuling'?'雾苓 / FOREST HERBALIST':heroId==='lingya'?'铃芽 / BEAST KEEPER':heroId==='tide'?'潮行者 / TIDE HUNTER':heroId==='wraith'?'影裔 · '+({shade:'无面旅人',shadowblade:'幽魂刺客',grimoire:'亡魂法师'}[selected]):heroId==='silver'?'霜影 / SILVER VEIL':'游侠 / WOODLAND RANGER';}
+function renderChoices(){renderJournalSummary();$('#selected-map-name').textContent=document.querySelector('[data-map='+mapId+']').textContent.replace(/^\d+\s*/, '').split(' · ')[0];$('#preview-map-name').textContent=$('#selected-map-name').textContent;$('#hero-preview').setAttribute('aria-label',document.querySelector('[data-hero='+heroId+']').childNodes[0].textContent+'的全身与武器');$('#hero-preview-description').textContent={scout:'林叶旧铜 · 灵活翻滚',silver:'白发霜羽 · 瞬移穿行',wraith:({shade:'无面旅人 · 张指牵影',shadowblade:'幽魂刺客 · 近战三连',grimoire:'亡魂法师 · 悬书裂隙'}[weaponFor(heroId,weaponIndex).id]),tide:'潮纹卷袖 · 潜潮伏击',lingya:'双辫轻装 · 弹弓合猎',wuling:'菌褶孢灯 · 牵瘴转场',mirage:'镜瓣长发 · 蜕影诱敌'}[heroId];$('#map-description').textContent=MAPS[mapId].subtitle;const brief=mapBrief(mapId);$('#map-boss-name').textContent=brief.name;$('#map-boss-arrival').textContent=brief.arrival;$('#map-boss-threat').textContent=brief.threat;$('#map-win-condition').textContent=brief.goal;for(const b of document.querySelectorAll('[data-hero]'))b.classList.toggle('selected',b.dataset.hero===heroId);for(const b of document.querySelectorAll('[data-map]'))b.classList.toggle('selected',b.dataset.map===mapId);const box=$('#weapons');box.replaceChildren();for(let i=0;i<HERO_LOADOUTS[heroId].length;i++){const w=weaponFor(heroId,i),b=document.createElement('button');b.textContent=w.name;b.classList.toggle('selected',i===weaponIndex);b.onclick=()=>{if(preparing||weaponIndex===i)return;weaponIndex=i;renderChoices();replaceMenuHero();};box.append(b);}const selectedWeapon=weaponFor(heroId,weaponIndex),selected=selectedWeapon.id,identity={miasmalantern:'提灯蓄势放出大颗慢速毒团，击中、触碰障碍或到达射程尽头时破裂扩散，为周围敌人附毒；重复命中刷新而不叠层，障碍会挡住扩散。蜕影在原地留下当前生命的替身，自身遁形 0.85 秒，期间免伤且不能攻击；替身优先诱敌，撑满时间才绽放并留下小片毒雾，被击碎不会爆发。幻瘴强化诱敌布局，蚀影强化重新现身后的反击。',sporelantern:'投出毒囊，在落点留下固定毒雾，最多三片、重叠只取最强伤害；牵瘴步经过第一片主毒雾时将其搬到实际落点，保留剩余寿命。沉瘴在原地成熟，搬运会重置浓度；游瘴靠搬运留下毒带与宽毒幕。',boomerang:'握住木叉、拉开弹带发射石弹，命中为伙伴标记目标；獾兽会在附近游走、嗅探，优先扑击瞄准目标，超出活动范围再归队。普通移动和燕步不会打断伙伴作战，落后超过 18 米才优先归队；主动换位则会命令伙伴撤回。按住方向时优先向该方向燕步，途中可小幅转向；不按方向时向 4—9 米内的伙伴换位，伙伴侧向撤回起点。距离或通路不合适时使用普通燕步，冷却 3.6 秒。伙伴有独立生命，倒地 12 秒后复活。',harpoon:'基础生命 140，出手后 0.3 秒正面减伤 20%；直刺→近身横扫→回钩牵引，第三击牵引普通怪物并减速，保留安全身位；潜潮持续最多 2 秒，期间无敌、可移动但不能攻击，再按闪避或重新按攻击提前浮出；冷却 6.5 秒。',rifle:'细长高速枪弹，快速连续射击。',shotgun:'一枪多颗短弹，近距离扇面散射。',fire:'较大的火球，较慢飞行并留下火焰，命中爆燃。',crossbow:'快速直射，连续命中同一目标的第三箭强化。追猎机括靠步行蓄势强化三连；破甲重矢靠绕位排线、穿透敌群。',shuriken:'投出三枚旋转月刃，可穿过敌人。',dark:'较大的暗紫法球，缓慢飞行、命中散开暗雾。',shade:'无面旅人形态：墨黑布衣、窄白衣缘与无面魂痕。张指牵引幽影裂隙，释放影脉；三次命中引爆刻印，并非近身拳法。',shadowblade:'幽魂刺客形态：完整暗色短披肩、黑刃白锋与随刃尾影。挥动断魂战镰近战横斩、反斩，再接重镰；第三击减速，战镰始终握在手中。专属成长：冥镰刻痕、影步斩、残月收割。',grimoire:'亡魂法师形态：暗色开衩长袍、黑封白页魔典与下摆浮影。在瞄准方向撕开延迟裂口，不发射子弹。'};$('#weapon-preview').textContent=identity[selected]+weaponReachText(weaponStats({weaponId:selected}))+(' · 基础频率 '+selectedWeapon.rate+' 次/秒 · ')+(selectedWeapon.count>1?'每次 '+selectedWeapon.count+' 发 · ':'')+'成长路线：'+Object.values(WEAPON_PATHS).filter(p=>p.weapon===selected).map(p=>p.name).join(' / ')+' · 3 级起二选一'+({mirage:' · 专属技能：残蛊 / 诱葬 / 蜃衣',wuling:' · 专属技能：余毒未尽 / 败叶传染 / 苔衣护身',tide:' · 专属技能：破浪锋 / 盐蚀印记 / 潜潮余流',lingya:' · 专属技能：同猎追击 / 燕返藤绊 / 护伴弹'}[heroId]||'');$('.menu-caption span').textContent=heroId==='mirage'?'雾苓·蜃影 / VIOLET MIRAGE':heroId==='wuling'?'雾苓 / FOREST HERBALIST':heroId==='lingya'?'铃芽 / BEAST KEEPER':heroId==='tide'?'潮行者 / TIDE HUNTER':heroId==='wraith'?'影裔 · '+({shade:'无面旅人',shadowblade:'幽魂刺客',grimoire:'亡魂法师'}[selected]):heroId==='silver'?'霜影 / SILVER VEIL':'游侠 / WOODLAND RANGER';}
 function setMapVisibility(mode){
  if(!['explore','visible'].includes(mode)||state!=='menu')return;
  mapVisibility=mode;
@@ -314,7 +314,7 @@ function setAttackMode(mode){
 for(const button of document.querySelectorAll('[data-attack-mode]'))button.onclick=()=>setAttackMode(button.dataset.attackMode);
 for(const b of document.querySelectorAll('[data-hero]'))b.onclick=()=>{if(preparing||heroId===b.dataset.hero)return;heroId=b.dataset.hero;weaponIndex=0;renderChoices();replaceMenuHero();};
 for(const b of document.querySelectorAll('[data-map]'))b.onclick=()=>prepareMap(b.dataset.map);
-function start(prepared=false){restorePauseControls();unlockAudio();sound.reset(mapId==='confluence'?'forest':mapId);$('#audio-settings').open=false;$('#controls-settings').open=false;$('#offline-panel').open=false;keys.clear();releaseStick();clearAttack();introductions.length=0;encounterTime=0;currentIntroduction=null;nextIntroductionAt=8;nextToastAt=0;nextUpgradeAt=0;$('#encounter').hidden=true;state='playing';if(!prepared)build();time=0;kills=0;spawnTimer=1;battlePhase=encounterPhase(0);phaseKey=null;lastAssault=-1;hunt=null;reliefUntil=0;document.body.classList.add('playing');$('#menu').hidden=true;$('#hud').hidden=false;$('#touch').hidden=!touch;$('#dialog').close();$('#hero-name').textContent=heroId==='mirage'?'雾苓·蜃影':heroId==='wuling'?'雾苓':heroId==='lingya'?'铃芽':heroId==='tide'?'潮行者':heroId==='wraith'?'影裔':heroId==='silver'?'霜影':'林地游侠';updateHUD();toast(world.regions?'五境大远征 · 沿古道探索；完成区域地标后唤醒守卫':'首轮围猎约 31 秒 · '+EXPEDITION_BOSS_TIME/60+' 分钟后迎战'+ENEMY_GUIDE[BOSS_ROUTES[mapId][0]].name+' · 本局三位首领');if(heroId==='wuling')introduce('hero:wuling','雾苓 · 留雾还是转场？','毒囊落地后留下固定毒雾，最多三片。闪避穿过第一片主毒雾会把它牵到落点，保留剩余寿命；重叠毒区只取最强伤害。');if(mapId==='ash')introduceCircle('vent','赤烬地脉','地面亮起橙红色地面预警后会喷发；人和怪物都要避开。');}
+function start(prepared=false){restorePauseControls();unlockAudio();sound.reset(mapId==='confluence'?'forest':mapId);$('#audio-settings').open=false;$('#controls-settings').open=false;$('#offline-panel').open=false;keys.clear();releaseStick();clearAttack();introductions.length=0;encounterTime=0;currentIntroduction=null;nextIntroductionAt=8;nextToastAt=0;nextUpgradeAt=0;$('#encounter').hidden=true;state='playing';if(!prepared)build();time=0;kills=0;spawnTimer=1;battlePhase=encounterPhase(0);phaseKey=null;lastAssault=-1;hunt=null;plannedHunt=null;lastForestFormation=-1;openingPatrol=0;reliefUntil=0;document.body.classList.add('playing');$('#menu').hidden=true;$('#hud').hidden=false;$('#touch').hidden=!touch;$('#dialog').close();$('#hero-name').textContent=heroId==='mirage'?'雾苓·蜃影':heroId==='wuling'?'雾苓':heroId==='lingya'?'铃芽':heroId==='tide'?'潮行者':heroId==='wraith'?'影裔':heroId==='silver'?'霜影':'林地游侠';updateHUD();toast(world.regions?'五境大远征 · 沿古道探索；完成区域地标后唤醒守卫':'首轮围猎约 31 秒 · '+EXPEDITION_BOSS_TIME/60+' 分钟后迎战'+ENEMY_GUIDE[BOSS_ROUTES[mapId][0]].name+' · 本局三位首领');if(heroId==='wuling')introduce('hero:wuling','雾苓 · 留雾还是转场？','毒囊落地后留下固定毒雾，最多三片。闪避穿过第一片主毒雾会把它牵到落点，保留剩余寿命；重叠毒区只取最强伤害。');if(mapId==='ash')introduceCircle('vent','赤烬地脉','地面亮起橙红色地面预警后会喷发；人和怪物都要避开。');}
 $('#start').onclick=prepareStart;
 // Move the existing controls (and their listeners) into the mobile pause dialog.
 // Return them before replacing dialog content, so every ID remains available.
@@ -380,7 +380,7 @@ function chooseRelic(site){
 function expeditionObjective(){
  const roam=world.roaming?.find(s=>s.discovered&&!s.rewarded&&s.state!=='escaped'&&Math.hypot(player.x-s.x,player.z-s.z)<16);if(roam)return roamingHint(roam);
  const find=world.discoveries?.find(n=>n.discovered&&!n.claimed&&Math.hypot(player.x-n.x,player.z-n.z)<5);if(find)return discoveryHint(find);
- const near=world.sites.filter(s=>s.discovered&&s.event&&!s.claimed&&Math.hypot(player.x-s.x,player.z-s.z)<14).sort((a,b)=>Math.hypot(player.x-a.x,player.z-a.z)-Math.hypot(player.x-b.x,player.z-b.z))[0];if(near)return MAP_EVENTS[near.event].name+' · '+(near.eventRun?eventProgress(near.eventRun,near.contested):'靠近触发 · '+(near.type==='altar'?'奖励技能':'奖励治疗'));
+ const near=world.sites.filter(s=>s.discovered&&s.event&&!s.claimed&&Math.hypot(player.x-s.x,player.z-s.z)<14).sort((a,b)=>Math.hypot(player.x-a.x,player.z-a.z)-Math.hypot(player.x-b.x,player.z-b.z))[0];if(near)return MAP_EVENTS[near.event].name+' · '+(near.eventRun?eventProgress(near.eventRun,near.contested):'靠近触发 · '+(near.event==='purify'?'治疗 / 加战换专属成长':near.type==='altar'?'奖励技能':'奖励治疗'));
  if(boss?.alive)return '击败'+ENEMY_GUIDE[boss.kind].name+(world.regions?' · 五境守卫 '+world.regions.filter(r=>r.cleared).length+'/5':' · 首领 '+(bossRun.defeated+1)+'/3');
  if(world.regions){const r=world.regions.find(r=>r.id===localBiome()),target=world.regions.filter(r=>!r.cleared).sort((a,b)=>Math.hypot(a.x-player.x,a.z-player.z)-Math.hypot(b.x-player.x,b.z-player.z))[0];return r.label+' · 守卫 '+world.regions.filter(r=>r.cleared).length+'/5 · '+(r.cleared?(world.visited.has(target?.id)?'沿古道前往'+target.label:'沿古道探索下一片区域'):r.landmark.claimed?'靠近路标迎战守卫':'寻找并完成'+MAP_EVENTS[r.landmark.event].name);}
  const site=world.sites.find(s=>s.discovered&&s.type==='relic'&&!s.claimed);
@@ -412,20 +412,37 @@ function showRunResult(win,first=false){
 }
 function hitPlayer(n,x,z,kind){if(state!=='playing')return false;if(player.inv>0||mirage.hidden||!attackReachesPlayer(player,kind,groundAt(player.x,player.z)))return false;const protection=meleeDamageScale(player,x,z,hero.rotation.y,time);if(protection<1){n*=protection;impactChips(player.x,player.z,0x9fc9cc,3);}const hpBefore=player.hp;player.hp=Math.max(0,player.hp-mirage.absorb(poison.absorb(incomingRelicDamage(player,n))));player.lastHpLoss=Math.ceil(hpBefore-player.hp);player.hpLossTime=1.4;player.hpTrail=Math.max(player.hpTrail||0,hpBefore);player.inv=.7;player.hurt=.35;shake=.16;$('#damage-edge').style.opacity=.7;impactChips(player.x,player.z,0xf49c85,5);sound.hurt();if(player.hp<=0)finish(false);return true;}
 function spawn(kind,x=null,z=null,site=null){if(!site&&enemies.filter(e=>e.alive).length>=60)return null;if(x===null){for(let i=0;i<25;i++){const a=Math.random()*Math.PI*2,d=19+Math.random()*7;const nx=player.x+Math.cos(a)*d,nz=player.z+Math.sin(a)*d;if(clearAt(world,nx,nz,1)){x=nx;z=nz;break;}}}if(x===null||!clearAt(world,x,z,.65))return null;kind=kind==='flyer'?AIR_ROSTERS[localBiome(x,z)]:regionalEnemy(localBiome(x,z),kind);if(!ENEMIES[kind]&&!AIR_ENEMIES[kind])return null;const cfg=ENEMIES[kind]||AIR_ENEMIES[kind],growth=enemyGrowth(time,cfg.xp),e={...cfg,xp:growth.xp,x,z,kind,role:cfg.role||kind,id:++enemyId,alive:true,hp:cfg.hp*growth.health,maxHp:cfg.hp*growth.health,packAngle:Math.atan2(x-player.x,z-player.z),cool:1+Math.random(),wind:0,hurt:0,slow:0,site};if(e.role!=='flyer'&&!bodiesClear(world,e,x,z,e.size*.6)){let spot=null;for(const radius of[1.2,2.4,3.6]){for(let i=0;i<12;i++){const a=i*Math.PI/6,nx=x+Math.sin(a)*radius,nz=z+Math.cos(a)*radius;if(clearAt(world,nx,nz,e.size*.6)&&bodiesClear(world,e,nx,nz,e.size*.6)){spot={x:nx,z:nz};break;}}if(spot)break;}if(!spot)return null;e.x=x=spot.x;e.z=z=spot.z;}e.mesh=e.role==='flyer'?makeAirborne(kind):actor(kind);e.y=groundAt(x,z);e.mesh.position.set(x,e.y,z);scene.add(e.mesh);e.mesh.updateMatrixWorld(true);e.height=Math.max(.6,e.mesh.userData.combatHeight??(new T.Box3().setFromObject(e.mesh).max.y-e.y));if(e.role==='flyer'){e.y=groundAt(x,z)+cfg.altitude;e.mesh.position.y=e.y;}enemies.push(e);introduceEnemy(kind);return e;}
+function planHunt(cycle){
+ const biome=localBiome(),variant=biome==='forest'?nextForestFormation(lastForestFormation):undefined;
+ if(biome==='forest')lastForestFormation=variant;
+ return{cycle,biome,angle:Math.hypot(player.x,player.z)>35?Math.atan2(-player.x,-player.z):Math.random()*Math.PI*2,formation:huntFormation(biome,cycle,variant)};
+}
 function spawnHunt(cycle){
- const angle=Math.hypot(player.x,player.z)>35?Math.atan2(-player.x,-player.z):Math.random()*Math.PI*2,members=[],formation=huntFormation(localBiome(),cycle);
+ const plan=plannedHunt?.cycle===cycle?plannedHunt:planHunt(cycle),{angle,formation}=plan,members=[];
  for(const slot of formation.squad){if(cycle===0&&slot.role==='shaman')continue;let e=null;for(let i=0;i<24&&!e;i++){const a=angle+slot.offset+(Math.random()-.5)*.3,r=17+Math.random()*5;e=spawn(slot.role,player.x+Math.sin(a)*r,player.z+Math.cos(a)*r);}
   if(!e)continue;e.flank=slot.flank;e.packAngle=angle;e.cool+=members.length*.25;
   if(slot.elite){e.elite=true;e.hp*=cycle===0?1.4:1.55;e.maxHp=e.hp;e.xp=Math.round(e.xp*(cycle===0?1.85:2.3));e.damage+=2;e.size*=1.14;e.mesh.scale.setScalar(1.14);for(const x of [-.25,0,.25])mesh('OctahedronGeometry',[.11],0xffd987,x,(e.role==='wolf'?1.2:2.6)+(.25-Math.abs(x)),0,e.mesh,true);}
   members.push(e);
  }
  if(!members.length)return false;
- hunt={cycle,members,rewarded:false,name:formation.name};toast(formation.name+' · '+formation.tip,true);sound.threat('wave');
+ hunt={cycle,members,rewarded:false,name:formation.name,biome:plan.biome};plannedHunt=null;toast(formation.name+' · '+formation.tip,true);sound.threat('wave');
  introduce('hunt','精锐围猎与奖励','金色晶冠标出精锐领队。狼群从两侧接近，远程怪借重甲掩护；清理整队可获得额外经验、少量治疗，并回收地上的灵光。林地首次清队还可二选一领取本局战利品。');return true;
 }
 function updateBattleFlow(dt){
+ // One small, telegraphed scouting party creates an early target-priority choice.
+ if(localBiome()==='forest'&&!boss?.alive&&time<26){
+  if(!openingPatrol&&time>=9){openingPatrol=1;toast('林间斥候 · 3 秒后接近，留意狼与吐息者',true);sound.threat('wave');}
+  if(openingPatrol===1&&time>=12){
+   openingPatrol=2;const angle=adventureCamera.yaw+(Math.random()<.5?-.65:.65);
+   for(const [i,role]of ['wolf','spitter','mushroom'].entries())for(let n=0;n<16;n++){
+    const a=angle+(i-1)*.38+n*.12,r=16+n*.2,e=spawn(role,player.x+Math.sin(a)*r,player.z+Math.cos(a)*r);
+    if(e){e.flank=i===0?-1:1;e.packAngle=angle;e.cool+=i*.45;break;}
+   }
+  }
+ }
+
  if(hunt&&!hunt.rewarded&&hunt.members.every(e=>!e.alive)){
-  hunt.rewarded=true;if(localBiome()==='forest'&&!player.huntBoon)player.huntRewardPending=true;const reward=28+hunt.cycle*12;collectExperience(reward);player.hp=Math.min(player.maxHp,player.hp+Math.ceil(player.maxHp*.08));for(const o of orbs)o.attract=true;
+  hunt.rewarded=true;if(hunt.biome==='forest'&&!player.huntBoon)player.huntRewardPending=true;const reward=28+hunt.cycle*12;collectExperience(reward);player.hp=Math.min(player.maxHp,player.hp+Math.ceil(player.maxHp*.08));for(const o of orbs)o.attract=true;
   reliefUntil=time+8;sound.resolve();toast('围猎击破 · +'+reward+'经验，治疗8%，回收灵光');
  }
  battlePhase=encounterPhase(time,!!boss?.alive);
@@ -433,7 +450,7 @@ function updateBattleFlow(dt){
  if(!boss?.alive&&time<reliefUntil)battlePhase={...battlePhase,key:'clear:'+(hunt?.cycle??'guardian'),mode:'rest',label:'围猎击破 · 喘息',remaining:reliefUntil-time,interval:Infinity,cap:0,mood:.06};
  if(battlePhase.key!==phaseKey){
   phaseKey=battlePhase.key;spawnTimer=Math.min(spawnTimer,1);
-  if(battlePhase.mode==='warning'){toast('精锐围猎将在5秒后到来 · 留出侧面退路',true);sound.threat('wave');}
+  if(battlePhase.mode==='warning'){plannedHunt=planHunt(battlePhase.cycle);toast(plannedHunt.formation.name+' · 5 秒后到来 · '+plannedHunt.formation.tip,true);sound.threat('wave');}
   if(battlePhase.mode==='rest'){for(const o of orbs)o.attract=true;if(time>=reliefUntil)toast('增援暂歇 · 收集灵光，寻找补给');}
  }
  if(player.huntRewardPending&&state==='playing'){showHuntReward();return;}
@@ -441,7 +458,9 @@ function updateBattleFlow(dt){
  spawnTimer=Number.isFinite(battlePhase.interval)?battlePhase.interval:1;
  const alive=enemies.filter(e=>e.alive).length,pendingHunt=battlePhase.mode==='assault'&&lastAssault!==battlePhase.cycle&&(!hunt||hunt.rewarded);
  if(pendingHunt){if(alive<=battlePhase.cap-HUNT_SQUAD.length&&spawnHunt(battlePhase.cycle))lastAssault=battlePhase.cycle;return;}
- if(Number.isFinite(battlePhase.interval)&&alive<battlePhase.cap)spawn(airWaveEligible(time,enemies)?'flyer':encounterRole(time,Math.random,!!boss?.alive));
+ // Reserve the announced squad's slots during forest build-up, rather than delaying a promised hunt behind a full crowd.
+ const reserve=localBiome()==='forest'&&battlePhase.mode==='build'?HUNT_SQUAD.length:0;
+ if(Number.isFinite(battlePhase.interval)&&alive<battlePhase.cap-reserve)spawn(airWaveEligible(time,enemies)?'flyer':encounterRole(time,Math.random,!!boss?.alive));
 }
 function showHuntReward(){
  state='event-choice';keys.clear();releaseStick();clearAttack();sound.stopWeapons();sound.stopCreatures();
@@ -695,24 +714,48 @@ function updateBoss(dt){if(!boss?.alive)return;const b=boss;updateStatus(b,dt);i
 }
 function updateSiteEvent(s,dt,d){
  const info=MAP_EVENTS[s.event];
- if(!s.state&&d<6){s.state='warning';s.timer=2;introduce('event:'+s.event,info.name,info.tip+' 完成后'+(s.type==='altar'?'获得一次技能选择。':'恢复 40% 生命并吸引灵光。'));toast(info.name+' · '+(s.event==='excavation'?'清除守卫，风息时靠近挖掘':s.event==='salvage'?'清除守卫，退潮时靠近打捞':'留意遭遇说明，靠近推进目标'));}
+ if(!s.state&&d<6){s.state='warning';s.timer=2;introduce('event:'+s.event,info.name,info.tip+(s.event==='purify'?'':' 完成后'+(s.type==='altar'?'获得一次技能选择。':'恢复 40% 生命并吸引灵光。')));toast(info.name+' · '+(s.event==='excavation'?'清除守卫，风息时靠近挖掘':s.event==='salvage'?'清除守卫，退潮时靠近打捞':'留意遭遇说明，靠近推进目标'));}
+ if(s.state==='trial-warning'){s.timer-=dt;if(s.timer<=0)s.state='active';}
  if(s.state==='warning'){s.timer-=dt;if(s.timer<=0){s.state='active';s.guards=[];s.eventRun=createMapEvent(s.event);}}
  if(s.state!=='active')return;
  s.contested=enemies.some(e=>e.alive&&Math.hypot(e.x-s.x,e.z-s.z)<4.5)||!!(boss?.alive&&Math.hypot(boss.x-s.x,boss.z-s.z)<4.5);
- const e=s.eventRun,result=advanceMapEvent(e,dt,{near:d<22,atCenter:d<3,contested:s.contested,guards:s.guards.filter(e=>e.alive).length,nodes:s.nodes,player,tide:world.tide,sandstorm:world.sandstorm});
+ const e=s.eventRun,result=advanceMapEvent(e,dt,{near:d<22,atCenter:d<3,contested:s.contested,guards:s.guards.filter(e=>e.alive).length+(s.eventSpawnQueue?.length||0),nodes:s.nodes,player,tide:world.tide,sandstorm:world.sandstorm});
  if(result.choice){state='event-choice';keys.clear();releaseStick();clearAttack();sound.stopWeapons();sound.stopCreatures();dialog('遗城机关 · 选择一条路','开启捷径可拆除机关外的封路石墙并恢复 25% 生命；挑战宝库需击退额外一批守卫，获得一次技能选择。两项只可选一项。',[
  ['开启捷径',()=>{for(const gate of s.gates||[]){world.group.remove(gate.mesh);world.obstacles=world.obstacles.filter(o=>o!==gate);}s.gates=[];s.eventRun.choice='shortcut';s.eventRun.done=true;s.claimed=true;s.state='ready';s.ring.visible=false;player.hp=Math.min(player.maxHp,player.hp+player.maxHp*.25);renderer.shadowMap.needsUpdate=true;resume();toast('石墙已打开 · 恢复 25% 生命');}],
  ['挑战宝库',()=>{s.eventRun.choice='treasure';resume();toast('宝库守卫来袭 · 击退后领取技能');}]]);return;}
  if(result.wave){
-  const roles=s.event==='excavation'?(result.wave===1?['mushroom','golem','wolf']:['wolf','wolf','shaman']):s.event==='salvage'?(result.wave===1?['golem','mushroom','spitter']:['wolf','wolf','shaman']):s.event==='mechanism'&&result.wave===2?['golem','golem','shaman']:s.event==='ambush'?(result.wave===1?(s.eventVariant?['wolf','mushroom','wolf']:['wolf','wolf','spitter']):['golem','spitter','shaman']):['wolf','mushroom','spitter'];
-  for(const [i,role]of roles.entries()){for(let attempt=0;attempt<8;attempt++){const a=s.eventAngle+result.wave*1.6+i*2.1+attempt*.3,enemy=spawn(role,s.x+Math.sin(a)*7,s.z+Math.cos(a)*7,s);if(enemy){s.guards.push(enemy);break;}}}
+  const roles=e.trial?['golem','wolf','wolf','spitter']:s.event==='excavation'?(result.wave===1?['mushroom','golem','wolf']:['wolf','wolf','shaman']):s.event==='salvage'?(result.wave===1?['golem','mushroom','spitter']:['wolf','wolf','shaman']):s.event==='mechanism'&&result.wave===2?['golem','golem','shaman']:s.event==='ambush'?(result.wave===1?(s.eventVariant?['wolf','mushroom','wolf']:['wolf','wolf','spitter']):['golem','spitter','shaman']):['wolf','mushroom','spitter'];
+  if(e.trial)s.eventSpawnQueue=roles.map((role,index)=>({role,index}));
+  else for(const [i,role]of roles.entries()){for(let attempt=0;attempt<8;attempt++){const a=s.eventAngle+result.wave*1.6+i*2.1+attempt*.3,enemy=spawn(role,s.x+Math.sin(a)*7,s.z+Math.cos(a)*7,s);if(enemy){s.guards.push(enemy);break;}}}
   toast(info.name+' · '+(s.event==='ambush'?'第 '+result.wave+' 批猎群来袭':'威胁出现，留意事件目标'));sound.threat('hunt');
+ }
+ if(s.eventSpawnQueue?.length&&d<22&&time>=(s.eventRetryAt||0)){
+  s.eventRetryAt=time+.5;s.eventSpawnQueue=s.eventSpawnQueue.filter(({role,index})=>{
+   for(let attempt=0;attempt<16;attempt++){const a=s.eventAngle+index*1.6+attempt*.39,r=7+attempt%3,enemy=spawn(role,s.x+Math.sin(a)*r,s.z+Math.cos(a)*r,s);if(enemy){s.guards.push(enemy);return false;}}return true;
+  });
  }
  if(result.warning){addZone(s.x,s.z,3.2,1,12,'ember');toast('熔炉即将喷发 · 退到 4 米外');}
  for(const i of result.lit){s.nodes[i].mesh.material=mat(0xbcefff,true);vfx.rise(s.nodes[i].x,s.nodes[i].z,0xa3e9ff,1);sound.resolve();}
  if(s.furnace)s.furnace.scale.setScalar(e.elapsed%6<3?.8:1.15);
  if(s.eventGlow){s.eventGlow.rotation.y+=dt*1.8;s.eventGlow.scale.setScalar(.9+Math.sin(time*3)*.12);}
  if(result.complete){s.state='ready';s.eventGlow.material=mat(0xe7edb8,true);toast(info.name+'完成 · 靠近领取奖励');sound.resolve();}
+}
+function claimForestSite(s){s.claimed=true;s.ring.visible=false;nextUpgradeAt=time+18;}
+function chooseForestTrial(s){
+ state='event-choice';keys.clear();releaseStick();clearAttack();sound.stopWeapons();sound.stopCreatures();
+ dialog('林心已净化 · 收下补给，还是再战？','可以现在恢复 40% 生命并回收灵光；也可以迎战额外一批猎群，换一次专属成长。成长优先提供当前等级可选的武器路线；未达进阶等级时提供角色技能。奖励仅本局生效。',[
+  ['收下治疗',()=>{if(state!=='event-choice'||s.claimed)return;claimForestSite(s);player.hp=Math.min(player.maxHp,player.hp+player.maxHp*.4);for(const o of orbs)o.attract=true;resume();sound.resolve();toast('林心补给 · 恢复 40% 生命');}],
+  ['再战 · 专属成长',()=>{if(state!=='event-choice'||!acceptForestTrial(s.eventRun))return;s.state='trial-warning';s.timer=3;resume();sound.threat('wave');toast('林心试炼 · 3 秒后猎群来袭，可离开再回来',true);}]
+ ]);
+}
+function chooseForestGrowth(s){
+ state='event-choice';keys.clear();releaseStick();clearAttack();sound.stopWeapons();sound.stopCreatures();
+ s.growthChoices??=forestGrowthChoices(player);
+ if(!s.growthChoices.length){claimForestSite(s);player.hp=Math.min(player.maxHp,player.hp+player.maxHp*.4);resume();toast('成长已满 · 改为恢复 40% 生命');return;}
+ dialog('林心试炼完成 · 选择专属成长','本次选择不消耗升级次数。路线仍互斥，进阶仍需 3 / 5 / 8 级；选好后继续远征。');
+ const cards=document.createElement('div');cards.className='cards';
+ for(const u of s.growthChoices){const b=document.createElement('button');b.dataset.forestGrowth=u.id;b.innerHTML='<span class="upgrade-kind">'+(u.category==='weapon'?'武器路线':'角色成长')+'</span><em>'+u.icon+'</em><strong>'+u.name+'</strong><small>'+u.text+'</small>';b.onclick=()=>{if(state!=='event-choice'||s.claimed||!takeUpgrade(player,u.id))return;claimForestSite(s);player.pendingDraft=null;resume();sound.resolve();updateHUD();toast('林心馈赠 · '+u.name);};cards.append(b);}
+ $('#dialog-content').append(cards);
 }
 function updateBiomeVisuals(dt){
  if(!(localBiome()==='sand'&&world.sandstorm?.active||localBiome()==='coast'&&world.tide?.high))return;world.environmentPulse=(world.environmentPulse||0)-dt;if(world.environmentPulse>0)return;world.environmentPulse=.45;
@@ -757,6 +800,7 @@ function updateSites(dt){for(const s of world.sites){
  if(!s.event&&s.state==='warning'){s.timer-=dt;if(s.timer<=0){s.state='guarded';s.guards=[];for(let i=0;i<4;i++){const a=i*Math.PI/2,e=spawn(i===0?'golem':i===1?'spitter':'wolf',s.x+Math.sin(a)*4,s.z+Math.cos(a)*4,s);if(e)s.guards.push(e);}}}
  if(s.state==='guarded'&&s.guards.every(e=>!e.alive)){s.state='ready';toast('守卫已清除 · 靠近领取奖励');}
  if(s.state==='ready'&&d<2.5){
+  if(s.event==='purify'){if(s.eventRun.trial)chooseForestGrowth(s);else chooseForestTrial(s);return;}
   if(s.type==='relic'){chooseRelic(s);return;}
   s.claimed=true;s.ring.visible=false;burst('heal',s.x,s.z,3);
   if(s.type==='altar'){player.pending++;toast('祭坛祝福 · 获得一项技能');}
@@ -789,6 +833,7 @@ function update(dt){const rollStart=['scout','wuling','mirage'].includes(heroId)
  if(player.dashTime>0)player.iceVX=player.iceVZ=0;
  const movedX=player.x-oldX,movedZ=player.z-oldZ,actualSpeed=Math.hypot(movedX,movedZ)/Math.max(dt,.001),travelAngle=actualSpeed>.05?Math.atan2(movedX,movedZ):null,gaitSpeed=rollStart>0&&!player.waterDash||lingyaHopStart>0?Math.min(speed,actualSpeed):actualSpeed;
  player.vx=movedX/Math.max(dt,.001);player.vz=movedZ/Math.max(dt,.001);if(moving>.1)player.angle=Math.atan2(dx,dz);
+ if(advanceCrossbowHunt(player,Math.hypot(movedX,movedZ),time,moving>.1&&player.dashTime===0&&!airborne(player))){sound.mechanism('crossbow',1);vfx.muzzle(weaponStats(player),player.x,player.z,hero.rotation.y,(player.y||0)+.9);}
  const rolling=['scout','wuling','mirage'].includes(heroId)&&player.dashTime>0;
  const autoTarget=attackMode==='auto'?closestAutoTarget(weaponStats(player).range*(heroId==='tide'?HARPOON_ATTACKS[(player.harpoonCount||0)%3].reach:1)):null;if(attackMode==='auto'){aimInput.hasAim=!!autoTarget;if(autoTarget)aimInput.angle=Math.atan2(autoTarget.x-player.x,autoTarget.z-player.z);}
  const desired=heroId==='lingya'&&player.dashTime>0?player.dashFacing:rolling?player.dashAngle:player.melee?player.melee.angle:aimInput.hasAim?aimInput.angle:player.aimTime>0?player.aimAngle:player.angle;
@@ -811,7 +856,8 @@ function update(dt){const rollStart=['scout','wuling','mirage'].includes(heroId)
   else if(overheadHit)environmentImpacts.hit(b,{...overheadHit.point,normal:overheadHit.normal,object:overheadHit.object});
   if(obstacle?.tactic&&obstacle.state==='standing')terrainHit(obstacle,b.damage,{x:ox,z:oz});b.life=0;}
  vfx.flight(b,dt);
- for(const e of targets()){if(!e.alive||b.hits.has(e.id??'boss')||b.life<=0||b.pierce<=0)continue;if(b.spatial?segmentHitsBody(ox,oy,oz,b.x,b.height,b.z,e,b.hitRadius):segmentDistance(e.x,e.z,ox,oz,b.x,b.z)<e.size+b.hitRadius){const contact=closeContact(bodyContact(ox,oy,oz,b.x,b.height??.82,b.z,e,b.hitRadius));b.hits.add(e.id??'boss');const strong=b.kind==='crossbow'&&registerCrossbowHit(player,e.id??'boss',time);hurtEnemy(e,b.damage*(strong?1.35:1),true,{kind:b.kind,angle:Math.atan2(b.vx,b.vz)});heroSkills.onHit(e);if(b.bounceOrigin){weaponRouteEffect(vfx,b,'bounce',e.x,e.z,Math.atan2(b.vx,b.vz),{x2:b.bounceOrigin.x,y2:b.bounceOrigin.y,z2:b.bounceOrigin.z,contact});b.bounceOrigin=null;}if(b.kind==='boomerang'){companion?.marked(e);if(!b.careCounted){b.careCounted=true;heroSkills.newHeroes.slingHit();}vfx.weaponContact('boomerang',e.x,e.z,Math.atan2(b.vx,b.vz),b.returning?2:0,contact);}inflictStatus(e,b);const visualHit=(e.id??'boss')+':'+b.returning;if(!b.visualHits.has(visualHit)){b.visualHits.add(visualHit);weaponRouteEffect(vfx,b,'hit',e.x,e.z,Math.atan2(b.vx,b.vz),{returning:b.returning,empowered:strong||!!b.w?.miragePursuit,combo:player.crossbowMark?.hits||0,targetSize:e.size,radius:b.radius,contact});}if(b.kind!=='miasmalantern')sound.impact(b.kind,strong,b.kind==='boomerang'&&b.returning?1:strong?1:0,e.x-player.x,e.z-player.z);if(b.kind==='shuriken'||b.kind==='shadowblade')vfx.bladeImpact(e.x,e.z,Math.atan2(b.vx,b.vz),b.kind==='shadowblade',contact);else if(b.kind==='rifle'||b.kind==='shotgun')vfx.enemyContact(ENEMY_VOICES[e.kind]?.texture,ENEMY_VOICES[e.kind]?.color||0xb8baa2,e.x,e.z,Math.atan2(b.vx,b.vz),b.kind==='shotgun',contact);if(b.kind==='crossbow'){vfx.boltImpact(e.x,e.z,strong,Math.atan2(b.vx,b.vz),contact);if(strong&&e.alive&&e!==boss){const d=Math.hypot(e.x-player.x,e.z-player.z)||1;moveActor(world,e,(e.x-player.x)/d*1.8,(e.z-player.z)/d*1.8,e.size*.6);e.mesh.position.set(e.x,e.y||0,e.z);e.stagger=Math.max(e.stagger||0,.3);e.hurt=.3;}}
+ const candidates=targets();if(b.kind==='crossbow'&&b.pathId==='crossbow_pierce'){const from={x:ox,y:oy,z:oz},to={x:b.x,y:b.height,z:b.z};for(const e of candidates)e.crossbowEntry=segmentBodyEntry(from,to,e,b.hitRadius)??Infinity;candidates.sort((a,c)=>a.crossbowEntry-c.crossbowEntry);}
+ for(const e of candidates){if(!e.alive||b.hits.has(e.id??'boss')||b.life<=0||b.pierce<=0)continue;if(b.spatial?segmentHitsBody(ox,oy,oz,b.x,b.height,b.z,e,b.hitRadius):segmentDistance(e.x,e.z,ox,oz,b.x,b.z)<e.size+b.hitRadius){const contact=closeContact(bodyContact(ox,oy,oz,b.x,b.height??.82,b.z,e,b.hitRadius));b.hits.add(e.id??'boss');const bolt=b.kind==='crossbow'?crossbowImpact(player,b,e.id??'boss',time):null,strong=!!bolt?.strong;if(bolt?.slow)e.slow=Math.max(e.slow||0,bolt.slow);hurtEnemy(e,b.damage*(bolt?.multiplier||1),true,{kind:b.kind,angle:Math.atan2(b.vx,b.vz)});heroSkills.onHit(e);if(b.bounceOrigin){weaponRouteEffect(vfx,b,'bounce',e.x,e.z,Math.atan2(b.vx,b.vz),{x2:b.bounceOrigin.x,y2:b.bounceOrigin.y,z2:b.bounceOrigin.z,contact});b.bounceOrigin=null;}if(b.kind==='boomerang'){companion?.marked(e);if(!b.careCounted){b.careCounted=true;heroSkills.newHeroes.slingHit();}vfx.weaponContact('boomerang',e.x,e.z,Math.atan2(b.vx,b.vz),b.returning?2:0,contact);}inflictStatus(e,b);const visualHit=(e.id??'boss')+':'+b.returning;if(!b.visualHits.has(visualHit)){b.visualHits.add(visualHit);weaponRouteEffect(vfx,b,'hit',e.x,e.z,Math.atan2(b.vx,b.vz),{returning:b.returning,pursuit:bolt?.pursuit,penetrations:bolt?.penetrations,empowered:strong||!!b.w?.miragePursuit,combo:player.crossbowMark?.hits||0,targetSize:e.size,radius:b.radius,contact});}if(b.kind!=='miasmalantern')sound.impact(b.kind,strong,b.kind==='boomerang'&&b.returning?1:strong?1:0,e.x-player.x,e.z-player.z);if(b.kind==='shuriken'||b.kind==='shadowblade')vfx.bladeImpact(e.x,e.z,Math.atan2(b.vx,b.vz),b.kind==='shadowblade',contact);else if(b.kind==='rifle'||b.kind==='shotgun')vfx.enemyContact(ENEMY_VOICES[e.kind]?.texture,ENEMY_VOICES[e.kind]?.color||0xb8baa2,e.x,e.z,Math.atan2(b.vx,b.vz),b.kind==='shotgun',contact);if(bolt?.pursuit)sound.mechanism('crossbow',1);if(b.kind==='crossbow'){vfx.boltImpact(e.x,e.z,strong,Math.atan2(b.vx,b.vz),contact);if(strong&&e.alive&&e!==boss){const d=Math.hypot(e.x-player.x,e.z-player.z)||1;moveActor(world,e,(e.x-player.x)/d*1.8,(e.z-player.z)/d*1.8,e.size*.6);e.mesh.position.set(e.x,e.y||0,e.z);e.stagger=Math.max(e.stagger||0,.3);e.hurt=.3;}}
  if(b.kind==='shade'){const marked=registerShadowHit(e,time);vfx.shadowMark(e.x,e.z,marked,contact);weaponRouteEffect(vfx,b,'mark',e.x,e.z,Math.atan2(b.vx,b.vz),{empowered:marked,combo:e.shadowMark?.hits||0,radius:b.markRadius,contact});if(marked){sound.spell('rift');hurtEnemy(e,b.markDamage);for(const other of targets())if(other!==e&&other.alive&&Math.hypot(other.x-e.x,other.z-e.z)<b.markRadius)hurtEnemy(other,b.markDamage*.5);}}
  if(['fire','dark'].includes(b.kind)){if(b.kind==='fire')vfx.fire(e.x,e.z,b.radius);else vfx.dark(e.x,e.z,b.radius);if(b.gravity)addGravity(e.x,e.z,b.gravity,{id:b.id,pathId:b.pathId,pathRank:b.pathRank});for(const other of targets())if(other!==e&&other.alive&&Math.hypot(other.x-e.x,other.z-e.z)<b.radius){hurtEnemy(other,b.damage*.65);inflictStatus(other,b);}}
  if(b.bounces>0){const next=targets().filter(q=>q.alive&&!b.hits.has(q.id??'boss')&&Math.hypot(q.x-e.x,q.z-e.z)<7).sort((a,c)=>Math.hypot(a.x-e.x,a.z-e.z)-Math.hypot(c.x-e.x,c.z-e.z))[0];if(next){const a=Math.atan2(next.x-e.x,next.z-e.z);b.x=e.x;b.z=e.z;b.vx=Math.sin(a)*b.speed;b.vz=Math.cos(a)*b.speed;if(b.spatial){const velocity=launchVelocity({x:b.x,y:b.height,z:b.z},{x:next.x,y:(next.y||0)+(next.height||1.4)*.55,z:next.z},b.speed);Object.assign(b,velocity);}b.damage*=.75;b.bounces--;b.bounceOrigin={x:contact.x,y:contact.y,z:contact.z};weaponRouteEffect(vfx,b,'bounce',e.x,e.z,a,{contact});b.life=Math.min(7,visibleWeaponRange(a,7,b.x,b.z))/b.speed;redirected=true;b.mesh.position.set(b.x,b.height??.82,b.z);break;}}
@@ -878,7 +924,7 @@ function showCompanionDetails(){if(!companion||state!=='playing')return;companio
  $('#dialog-content>p').insertAdjacentHTML('beforebegin','<div class="companion-detail-stats"><span>生命<b>'+Math.ceil(p.hp)+' / '+p.maxHp+'</b></span><span>扑击伤害<b>'+Number(w.petDamage.toFixed(1))+'</b></span><span>扑击后休息<b>'+w.petCooldown.toFixed(2)+' 秒</b></span><span>自动复活<b>12 秒 · 满血</b></span></div>');
 }
 $('#companion-status').addEventListener('click',showCompanionDetails);
-function updateHUD(){updateCompanionHUD();const region=localBiome();const ratio=player.hp/player.maxHp;$('#level').textContent='Lv.'+player.level;$('.hp i').style.width=ratio*100+'%';$('.hp i').style.background=ratio<.3?'#e56b65':'';$('.hp b').textContent=Math.ceil(player.hp)+' / '+player.maxHp+(player.hpLossTime>0?' · −'+player.lastHpLoss:'')+(heroId==='wuling'&&poison.shield.amount>0?' · 盾'+Math.ceil(poison.shield.amount):heroId==='mirage'&&mirage.shield.amount>0?' · 盾'+Math.ceil(mirage.shield.amount):'');$('.hp-trail').style.width=Math.min(100,Math.max(player.hp,player.hpTrail||0)/player.maxHp*100)+'%';$('.status').dataset.danger=String(ratio<.3);$('.hp').setAttribute('aria-valuenow',Math.ceil(player.hp));$('.hp').setAttribute('aria-valuemax',player.maxHp);const needed=experienceNeeded(player.level);$('.xp i').style.width=player.xp/needed*100+'%';$('.xp').setAttribute('aria-valuenow',player.xp);$('.xp').setAttribute('aria-valuemax',needed);$('#xp-value').textContent=player.xp+' / '+needed;$('#xp-next').textContent='→ Lv.'+(player.level+1);$('.status').classList.toggle('gaining',player.xpFlash>0);$('#xp-gain').textContent=player.xpFlash>0?'+'+player.xpGain+' 经验':'';$('#timer').textContent=String(Math.floor(time/60)).padStart(2,'0')+':'+String(Math.floor(time%60)).padStart(2,'0');$('#kills').textContent='击败 '+kills;$('#upgrade-ready').hidden=player.pending<=0;$('#upgrade-ready').textContent='选择成长 · '+player.pending+' 次可选';$('#boss-arrival').hidden=!!boss?.alive;$('#boss-arrival').textContent=world.regions?'守卫 '+world.regions.filter(r=>r.cleared).length+'/5 · 地标唤醒':'首领 '+(bossRun.defeated+1)+'/3 · '+Math.max(0,Math.ceil(bossRun.nextAt-time))+' 秒';$('#boss-hud').hidden=!boss?.alive;if(boss?.alive){$('#boss-hud i').style.width=Math.max(0,boss.hp/boss.maxHp)*100+'%';$('#boss-hud span').textContent=boss.recover>0?'破绽 · 伤害 +25%':ENEMY_GUIDE[boss.kind].name+(world.regions?'':' '+(bossRun.defeated+1)+'/3')+' · '+(boss.phase===2?'狂暴':'觉醒');}$('#battle-phase').textContent=battlePhase.label+(battlePhase.remaining>0?' · '+Math.ceil(battlePhase.remaining)+'秒':'');$('#battle-phase').dataset.mode=battlePhase.mode;$('#objective-detail').textContent=expeditionObjective();$('#waypoint-hint').textContent=waypointHint(player,world.waypoint,adventureCamera.yaw);$('#waypoint-hint').hidden=!world.waypoint;$('#hint').textContent=(region==='coast'?(world.tide?.label||'海港')+' · ':region==='sand'?(world.sandstorm?.label||'风息 · 可以挖掘古匣')+' · ':'')+(ratio<.3?'生命危险 · 闪避并寻找补给':weaponFor(heroId,weaponIndex).name+' · '+(player.waterDepth>.55?'游泳 · 移速 '+Math.round(terrainAt(world,player.x,player.z).speed*100)+'%':player.waterDepth>0?'浅水涉行 · 向岸边移动':onIce(world,player.x,player.z)?'冰面滑行 · 提前转向':terrainAt(world,player.x,player.z).kind==='ford'?'退潮浅滩 · 涨潮时改走栈桥':terrainAt(world,player.x,player.z).kind==='slow'?MAPS[region].slow+'减速':'移动迎战'));if(heroId==='wuling'&&ratio>=.3){const clouds=poison.clouds.filter(q=>q.expires>poison.now);$('#hint').textContent='孢灯 · 毒雾 '+clouds.length+'/3'+(clouds.length?' · 剩余 '+clouds.map(q=>(q.expires-poison.now).toFixed(1)).join(' / ')+' 秒':' · 投毒后闪避牵引')+(poison.dodge?.cloud?' · 牵引中':'');}if(heroId==='mirage'&&ratio>=.3)$('#hint').textContent=mirage.hidden?'蜕影 · 遁形免伤，现身后继续攻击':mirage.decoy?'替身 · '+Math.ceil(mirage.decoy.hp)+' 生命 / '+Math.max(0,mirage.decoy.expires-mirage.now).toFixed(1)+' 秒后绽放':'幽紫毒针 · 蜕影留替身诱敌';if(heroId==='tide'&&player.dashTime>0)$('#hint').textContent='潜潮 · 无敌 / 无法锁定 '+player.dashTime.toFixed(1)+' 秒 · 再次闪避或重新攻击可浮出';$('#dash').textContent=heroId==='tide'&&player.dashTime>0?'浮出 '+player.dashTime.toFixed(1):player.dash>0?player.dash.toFixed(1)+'s':heroId==='mirage'?'蜕影':heroId==='wuling'?'牵瘴步':heroId==='lingya'?'换位':heroId==='tide'?'潜潮':heroId==='silver'?'瞬移':heroId==='wraith'?'影步':player.waterDepth>.42?'划水':'翻滚';const nextSkills=(player.huntBoon?'<button class=skill-chip data-hunt-detail>'+HUNT_BOONS[player.huntBoon].name+' <small id=hunt-boon-ready></small></button>':'')+'<button class=skill-chip data-pair-detail>技能搭配 <small id=pair-state></small></button>'+(HERO_DODGES[heroId]?'<button class=skill-chip data-ability-detail>'+HERO_DODGES[heroId].name+' · 闪避键 <small id=ability-ready></small></button>':'')+(companion?'<button class=skill-chip data-companion-detail>獾兽伙伴</button>':'')+(player.relic?'<button class="skill-chip relic-chip" data-relic-detail>'+RELICS[player.relic.id].name+' <small class=relic-count></small></button>':'')+(player.weaponPath?'<button class="skill-chip weapon-path" data-path-detail>'+WEAPON_PATHS[player.weaponPath.id].name+' '+player.weaponPath.rank+'阶</button>':'')+Object.entries(player.upgrades).map(([id,n])=>'<button class=skill-chip data-skill="'+id+'" aria-label="查看'+(UPGRADES.find(u=>u.id===id)?.name||id)+'详情">'+(UPGRADES.find(u=>u.id===id)?.name||id)+' '+n+'</button>').join('');if(nextSkills!==skillsHTML){$('#skills').innerHTML=nextSkills;skillsHTML=nextSkills;}if(player.huntBoon)$('#hunt-boon-ready').textContent=player.huntBoon==='rush'?(player.huntRush>0?'强化 '+player.huntRush.toFixed(1)+'s':'闪避后强化'):'生命强化';const pair=skillPairState(player);$('#pair-state').textContent=heroSkills.newHeroes.primeUntil>heroSkills.now?'蓄能 '+(heroSkills.newHeroes.primeUntil-heroSkills.now).toFixed(1)+'s':pair?.active?'已成型':pair?String(2-pair.missing.length)+'/2':'';if(HERO_DODGES[heroId])$('#ability-ready').textContent=player.dashTime>0?'使用中':player.dash>0?player.dash.toFixed(1)+'s':'就绪';if(player.relic)$('#skills .relic-count').textContent=relicLabel();$('#damage-edge').style.opacity=player.hurt>0?.6:ratio<.3?.16+Math.sin(time*4)*.05:0;
+function updateHUD(){updateCompanionHUD();const region=localBiome();const ratio=player.hp/player.maxHp;$('#level').textContent='Lv.'+player.level;$('.hp i').style.width=ratio*100+'%';$('.hp i').style.background=ratio<.3?'#e56b65':'';$('.hp b').textContent=Math.ceil(player.hp)+' / '+player.maxHp+(player.hpLossTime>0?' · −'+player.lastHpLoss:'')+(heroId==='wuling'&&poison.shield.amount>0?' · 盾'+Math.ceil(poison.shield.amount):heroId==='mirage'&&mirage.shield.amount>0?' · 盾'+Math.ceil(mirage.shield.amount):'');$('.hp-trail').style.width=Math.min(100,Math.max(player.hp,player.hpTrail||0)/player.maxHp*100)+'%';$('.status').dataset.danger=String(ratio<.3);$('.hp').setAttribute('aria-valuenow',Math.ceil(player.hp));$('.hp').setAttribute('aria-valuemax',player.maxHp);const needed=experienceNeeded(player.level);$('.xp i').style.width=player.xp/needed*100+'%';$('.xp').setAttribute('aria-valuenow',player.xp);$('.xp').setAttribute('aria-valuemax',needed);$('#xp-value').textContent=player.xp+' / '+needed;$('#xp-next').textContent='→ Lv.'+(player.level+1);$('.status').classList.toggle('gaining',player.xpFlash>0);$('#xp-gain').textContent=player.xpFlash>0?'+'+player.xpGain+' 经验':'';$('#timer').textContent=String(Math.floor(time/60)).padStart(2,'0')+':'+String(Math.floor(time%60)).padStart(2,'0');$('#kills').textContent='击败 '+kills;$('#upgrade-ready').hidden=player.pending<=0;$('#upgrade-ready').textContent='选择成长 · '+player.pending+' 次可选';$('#boss-arrival').hidden=!!boss?.alive;$('#boss-arrival').textContent=world.regions?'守卫 '+world.regions.filter(r=>r.cleared).length+'/5 · 地标唤醒':'首领 '+(bossRun.defeated+1)+'/3 · '+Math.max(0,Math.ceil(bossRun.nextAt-time))+' 秒';$('#boss-hud').hidden=!boss?.alive;if(boss?.alive){$('#boss-hud i').style.width=Math.max(0,boss.hp/boss.maxHp)*100+'%';$('#boss-hud span').textContent=boss.recover>0?'破绽 · 伤害 +25%':ENEMY_GUIDE[boss.kind].name+(world.regions?'':' '+(bossRun.defeated+1)+'/3')+' · '+(boss.phase===2?'狂暴':'觉醒');}$('#battle-phase').textContent=battlePhase.label+(battlePhase.remaining>0?' · '+Math.ceil(battlePhase.remaining)+'秒':'');$('#battle-phase').dataset.mode=battlePhase.mode;$('#objective-detail').textContent=expeditionObjective();$('#waypoint-hint').textContent=waypointHint(player,world.waypoint,adventureCamera.yaw);$('#waypoint-hint').hidden=!world.waypoint;$('#hint').textContent=(region==='coast'?(world.tide?.label||'海港')+' · ':region==='sand'?(world.sandstorm?.label||'风息 · 可以挖掘古匣')+' · ':'')+(ratio<.3?'生命危险 · 闪避并寻找补给':weaponFor(heroId,weaponIndex).name+' · '+(player.waterDepth>.55?'游泳 · 移速 '+Math.round(terrainAt(world,player.x,player.z).speed*100)+'%':player.waterDepth>0?'浅水涉行 · 向岸边移动':onIce(world,player.x,player.z)?'冰面滑行 · 提前转向':terrainAt(world,player.x,player.z).kind==='ford'?'退潮浅滩 · 涨潮时改走栈桥':terrainAt(world,player.x,player.z).kind==='slow'?MAPS[region].slow+'减速':'移动迎战'));if(player.weaponId==='crossbow'&&player.weaponPath&&ratio>=.3){const h=player.crossbowHunt;$('#hint').textContent=player.weaponPath.id==='crossbow_hunt'?(h?.until>time?'追猎已蓄势 '+(h.until-time).toFixed(1)+'s · 三连 '+(time-(player.crossbowMark?.time||0)<=2.5?player.crossbowMark?.hits||0:0)+'/3':'追猎 · 步行 '+Math.min(CROSSBOW_HUNT.distance,h?.distance||0).toFixed(1)+'/'+CROSSBOW_HUNT.distance+'米蓄势'):'破甲重矢 · 绕位排成一线，后续穿透伤害递增';}if(heroId==='wuling'&&ratio>=.3){const clouds=poison.clouds.filter(q=>q.expires>poison.now);$('#hint').textContent='孢灯 · 毒雾 '+clouds.length+'/3'+(clouds.length?' · 剩余 '+clouds.map(q=>(q.expires-poison.now).toFixed(1)).join(' / ')+' 秒':' · 投毒后闪避牵引')+(poison.dodge?.cloud?' · 牵引中':'');}if(heroId==='mirage'&&ratio>=.3)$('#hint').textContent=mirage.hidden?'蜕影 · 遁形免伤，现身后继续攻击':mirage.decoy?'替身 · '+Math.ceil(mirage.decoy.hp)+' 生命 / '+Math.max(0,mirage.decoy.expires-mirage.now).toFixed(1)+' 秒后绽放':'幽紫毒针 · 蜕影留替身诱敌';if(heroId==='tide'&&player.dashTime>0)$('#hint').textContent='潜潮 · 无敌 / 无法锁定 '+player.dashTime.toFixed(1)+' 秒 · 再次闪避或重新攻击可浮出';$('#dash').textContent=heroId==='tide'&&player.dashTime>0?'浮出 '+player.dashTime.toFixed(1):player.dash>0?player.dash.toFixed(1)+'s':heroId==='mirage'?'蜕影':heroId==='wuling'?'牵瘴步':heroId==='lingya'?'换位':heroId==='tide'?'潜潮':heroId==='silver'?'瞬移':heroId==='wraith'?'影步':player.waterDepth>.42?'划水':'翻滚';const nextSkills=(player.huntBoon?'<button class=skill-chip data-hunt-detail>'+HUNT_BOONS[player.huntBoon].name+' <small id=hunt-boon-ready></small></button>':'')+'<button class=skill-chip data-pair-detail>技能搭配 <small id=pair-state></small></button>'+(HERO_DODGES[heroId]?'<button class=skill-chip data-ability-detail>'+HERO_DODGES[heroId].name+' · 闪避键 <small id=ability-ready></small></button>':'')+(companion?'<button class=skill-chip data-companion-detail>獾兽伙伴</button>':'')+(player.relic?'<button class="skill-chip relic-chip" data-relic-detail>'+RELICS[player.relic.id].name+' <small class=relic-count></small></button>':'')+(player.weaponPath?'<button class="skill-chip weapon-path" data-path-detail>'+WEAPON_PATHS[player.weaponPath.id].name+' '+player.weaponPath.rank+'阶</button>':'')+Object.entries(player.upgrades).map(([id,n])=>'<button class=skill-chip data-skill="'+id+'" aria-label="查看'+(UPGRADES.find(u=>u.id===id)?.name||id)+'详情">'+(UPGRADES.find(u=>u.id===id)?.name||id)+' '+n+'</button>').join('');if(nextSkills!==skillsHTML){$('#skills').innerHTML=nextSkills;skillsHTML=nextSkills;}if(player.huntBoon)$('#hunt-boon-ready').textContent=player.huntBoon==='rush'?(player.huntRush>0?'强化 '+player.huntRush.toFixed(1)+'s':'闪避后强化'):'生命强化';const pair=skillPairState(player);$('#pair-state').textContent=heroSkills.newHeroes.primeUntil>heroSkills.now?'蓄能 '+(heroSkills.newHeroes.primeUntil-heroSkills.now).toFixed(1)+'s':pair?.active?'已成型':pair?String(2-pair.missing.length)+'/2':'';if(HERO_DODGES[heroId])$('#ability-ready').textContent=player.dashTime>0?'使用中':player.dash>0?player.dash.toFixed(1)+'s':'就绪';if(player.relic)$('#skills .relic-count').textContent=relicLabel();$('#damage-edge').style.opacity=player.hurt>0?.6:ratio<.3?.16+Math.sin(time*4)*.05:0;
  drawMap($('#map canvas').getContext('2d'));}
 function drawMap(c,detailed=false){const MINIMAP_SCALE=64/mapHalf(),mapPixel=value=>72+value*MINIMAP_SCALE;c.fillStyle='#'+new T.Color(MAPS[localBiome()].ground).getHexString();c.fillRect(0,0,144,144);if(world.regions)drawConfluenceMap(c);c.strokeStyle='#43664e';c.strokeRect(6,6,132,132);c.fillStyle='#498f9b';for(const p of world.ponds||[]){c.beginPath();c.ellipse(mapPixel(p.x),mapPixel(p.z),p.rx*MINIMAP_SCALE,p.rz*MINIMAP_SCALE,-p.angle,0,Math.PI*2);c.fill();}c.fillStyle='#baa27b';for(const b of world.bridges||[]){c.save();c.translate(mapPixel(b.x),mapPixel(b.z));c.rotate(-(b.angle||0));c.fillRect(-b.width*MINIMAP_SCALE/2,-b.length*MINIMAP_SCALE/2,b.width*MINIMAP_SCALE,b.length*MINIMAP_SCALE);c.restore();}c.fillStyle='#72947a';for(const o of world.obstacles)c.fillRect(mapPixel(o.x),mapPixel(o.z),1.5,1.5);const points=knownMapPoints(world);for(const [i,p]of points.entries()){const x=mapPixel(p.x),z=mapPixel(p.z);c.fillStyle=p.done?'#819087':({relic:'#ffd572',skill:'#ceb3ff',heal:'#96d8b4',find:'#d9dcaf',encounter:'#dea974'}[p.kind]);c.beginPath();if(p.kind==='relic'){c.moveTo(x,z-3);c.lineTo(x+3,z);c.lineTo(x,z+3);c.lineTo(x-3,z);c.closePath();c.fill();}else if(p.kind==='skill'||p.kind==='encounter'){c.moveTo(x,z-3);c.lineTo(x+3,z+2);c.lineTo(x-3,z+2);c.closePath();if(p.kind==='encounter'){c.strokeStyle=c.fillStyle;c.lineWidth=.8;c.stroke();}else c.fill();}else if(p.kind==='heal'){c.fillRect(x-3,z-1,6,2);c.fillRect(x-1,z-3,2,6);}else c.fillRect(x-1.5,z-1.5,3,3);if(detailed){c.font='4px sans-serif';c.textAlign='left';c.fillStyle='#fff0cd';c.fillText(String(i+1),x+3,z-3);}}c.fillStyle='#e78275';for(const e of enemies)if(e.alive&&Math.hypot(e.x-player.x,e.z-player.z)<20)c.fillRect(mapPixel(e.x),mapPixel(e.z),2,2);if(boss?.alive&&Math.hypot(boss.x-player.x,boss.z-player.z)<26){c.fillStyle='#ffb070';c.fillRect(mapPixel(boss.x)-3,mapPixel(boss.z)-3,6,6);}drawExplorationFog(c);if(world.waypoint){const x=mapPixel(world.waypoint.x),z=mapPixel(world.waypoint.z);c.strokeStyle='#ffe3a5';c.lineWidth=1.2;c.beginPath();c.moveTo(x,z-5);c.lineTo(x+3,z-2);c.lineTo(x,z+1);c.lineTo(x-3,z-2);c.closePath();c.stroke();c.beginPath();c.moveTo(x,z+1);c.lineTo(x,z+4);c.stroke();}c.save();c.translate(mapPixel(player.x),mapPixel(player.z));c.rotate(-hero.rotation.y);c.fillStyle='#fff9d6';c.beginPath();c.moveTo(0,5);c.lineTo(-2,2);c.lineTo(2,2);c.closePath();c.fill();c.restore();c.fillStyle='#fff9d6';c.beginPath();c.arc(mapPixel(player.x),mapPixel(player.z),3,0,Math.PI*2);c.fill();}
 function showExplorationMap(){
@@ -1046,4 +1092,4 @@ function frame(now){
  if(!active&&now-last<1000/30-.5){requestAnimationFrame(frame);return;}
  const frameSeconds=(now-last)/1000,dt=Math.max(0,Math.min(.04,frameSeconds));last=now;if(renderWidth!==innerWidth||renderHeight!==innerHeight||renderDpr!==devicePixelRatio){resizeRendering();renderBudget.reset();}else if(renderBudget.sample(frameSeconds,active))resizeRendering();if(active){shadowClock+=dt;const shadowInterval=state==='menu'||touch||renderBudget.quality<.8?1/20:1/30;if(shadowClock>=shadowInterval){renderer.shadowMap.needsUpdate=true;shadowClock%=shadowInterval;}}if(state==='playing'||state==='menu'){sceneryTime+=dt;animateWorld(world,sceneryTime,player.x,player.z);}sound.update(dt,{map:world.activeBiome||localBiome(),seamless:!!world.regions,mode:state,boss:!!boss?.alive,pressure:state==='playing'?Math.max(world.roaming?.some(s=>s.state==='running')?.5:0,localBiome()==='sand'&&world.sandstorm?.active ? .42 : localBiome()==='coast'&&world.tide?.high ? .30 : 0,battlePhase.mood,Math.min(1,enemies.filter(e=>e.alive&&Math.hypot(e.x-player.x,e.z-player.z)<12).length/12)):0});if(state==='playing'){update(dt);updateEffects(dt);}else if(state==='menu'){if(companionMesh){companionMesh.rotation.y=heroPreview.landscapeYaw-.2;animateBadger(companionMesh,now/1000,0);}animateActor(hero,now/1000,0);hero.rotation.y=heroPreview.landscapeYaw+heroPreview.yaw+Math.sin(now/3000)*.07;world.light.intensity=9+Math.sin(now/100)*1.5;}for(let i=0;i<world.motes.length;i++){const m=world.motes[i];m.position.y+=Math.sin(now/1200+i)*dt*.15;m.scale.setScalar(.5+Math.sin(now/550+i)*.3);}updateAdventureCampfire(world,sceneryTime);animateAdventureGroundDetail(sceneryTime);
  if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0){$('#toast').style.opacity=0;syncMobileNotices();}}if(state==='playing'){if(encounterTime>0){encounterTime-=dt;if(encounterTime<=0){$('#encounter').hidden=true;currentIntroduction=null;nextIntroductionAt=time+(touch?35:20);syncMobileNotices();}}else showNextIntroduction();}shake=Math.max(0,shake-dt);if(active){environmentLighting.update(mapId,world.regions?biomeWeights(player.x,player.z):null,dt,state==='menu'?0:time);updateWaterLighting(mapId,environmentLighting);updateWorldLightShafts(world,sceneryTime,environmentLighting);if(world.forestMist)world.forestMist.visible=renderBudget.quality>=.8;}updateCamera(dt);uiTime+=dt;if(uiTime>.1&&state!=='menu'){uiTime=0;updateHUD();}contactShadow.position.set(player.x,(player.groundHeight||0)+.018,player.z);if(adventureCamera.mode!=='first')fitGroundSurface(contactShadow,world.groundHeightAt,{centerHeight:true});contactShadow.visible=(player.waterDepth||0)<.08;contactShadow.material.opacity=(heroId==='wraith'?.24:.52)*(heroId==='tide'?1-(viewDodge()?.weight||0):heroId==='mirage'?1-(hero.userData.mirageFade||0):1);firstPerson.update(time,active?dt:0,{moving:player.dashTime>0||airborne(player)?0:Math.min(1,Math.hypot(player.vx||0,player.vz||0)/6.5),strafe:player.dashTime>0?0:(-(player.vx||0)*Math.cos(adventureCamera.yaw)+(player.vz||0)*Math.sin(adventureCamera.yaw))/6.5,yaw:adventureCamera.yaw,pitch:adventureCamera.pitch,attack:hero.userData.shoot,dodgePose:viewDodge(),visible:state!=='menu'&&adventureCamera.mode==='first'});if(state==='playing'&&dt>0)vfx.trackMelee(player.dashTime>0?null:adventureCamera.mode==='first'?firstPerson.model:hero.userData.gun,player.weaponId,hero.userData.shotSerial,hero.userData.attackAge,hero.userData.reloadDuration);else if(state!=='paused')vfx.meleeEdge=null;atmosphere.update(sceneryTime,camera,{mapId:world.activeBiome||localBiome(),visible:state!=='menu',skyColor:hemisphere.color,fogColor:scene.fog.color,sunColor:sun.color,sunDirection:environmentLighting.direction,sunStrength:Math.min(1,sun.intensity/3.25),skyStrength:.55+.45*environmentLighting.day});$('#crosshair').hidden=state!=='playing';$('#crosshair').classList.toggle('confirmed',time<hitConfirmUntil);if(state!=='playing'&&document.pointerLockElement===canvas)document.exitPointerLock();syncViewUI();cinema.render(renderWorld,renderBudget.quality);requestAnimationFrame(frame);}requestAnimationFrame(frame);
-window.game3d={surfaceReady,get environmentLighting(){return environmentLighting;},get adventureCamera(){return adventureCamera;},get firstPerson(){return firstPerson;},get atmosphere(){return atmosphere;},setView,get cinema(){return cinema;},get environmentImpacts(){return environmentImpacts;},get mirage(){return mirage;},get mirageVFX(){return mirageVFX;},get poison(){return poison;},get poisonVFX(){return poisonVFX;},get companion(){return companion;},get companionMesh(){return companionMesh;},get encounter(){return{...battlePhase,hunt:hunt?{cycle:hunt.cycle,remaining:hunt.members.filter(e=>e.alive).length,rewarded:hunt.rewarded}:null};},get orbs(){return orbs;},get heroSkills(){return heroSkills;},get renderQuality(){return renderBudget.quality;},get audio(){return sound;},get hero(){return hero;},get state(){return state;},get player(){return player;},get enemies(){return enemies;},get boss(){return boss;},get bossRun(){return {...bossRun};},get world(){return world;},get time(){return time;},get renderer(){return renderer;},get camera(){return camera;},get controls(){return aimInput;},get vfx(){return vfx;},get bullets(){return bullets;},get fields(){return fields;},get riftStrikes(){return riftStrikes;},get zones(){return zones;},start,prepareStart,pause,resume,menu,dash,jump,spawn,spawnBoss,step(dt){if(state==='playing')update(dt);},grant(n){collectExperience(n);upgrade();},damage:hitPlayer,hurtEnemy,select(hero,map,index){heroId=Object.hasOwn(HERO_LOADOUTS,hero)?hero:'silver';mapId=Object.hasOwn(MAPS,map)?map:'forest';weaponIndex=Number.isInteger(index)&&index>=0&&index<HERO_LOADOUTS[heroId].length?index:0;renderChoices();build();}};
+window.game3d={surfaceReady,get environmentLighting(){return environmentLighting;},get adventureCamera(){return adventureCamera;},get firstPerson(){return firstPerson;},get atmosphere(){return atmosphere;},setView,get cinema(){return cinema;},get environmentImpacts(){return environmentImpacts;},get mirage(){return mirage;},get mirageVFX(){return mirageVFX;},get poison(){return poison;},get poisonVFX(){return poisonVFX;},get companion(){return companion;},get companionMesh(){return companionMesh;},get encounter(){return{...battlePhase,hunt:hunt?{cycle:hunt.cycle,name:hunt.name,remaining:hunt.members.filter(e=>e.alive).length,rewarded:hunt.rewarded}:null};},get orbs(){return orbs;},get heroSkills(){return heroSkills;},get renderQuality(){return renderBudget.quality;},get audio(){return sound;},get hero(){return hero;},get state(){return state;},get player(){return player;},get enemies(){return enemies;},get boss(){return boss;},get bossRun(){return {...bossRun};},get world(){return world;},get time(){return time;},get renderer(){return renderer;},get camera(){return camera;},get controls(){return aimInput;},get vfx(){return vfx;},get bullets(){return bullets;},get fields(){return fields;},get riftStrikes(){return riftStrikes;},get zones(){return zones;},start,prepareStart,pause,resume,menu,dash,jump,spawn,spawnBoss,step(dt){if(state==='playing')update(dt);},grant(n){collectExperience(n);upgrade();},damage:hitPlayer,hurtEnemy,select(hero,map,index){heroId=Object.hasOwn(HERO_LOADOUTS,hero)?hero:'silver';mapId=Object.hasOwn(MAPS,map)?map:'forest';weaponIndex=Number.isInteger(index)&&index>=0&&index<HERO_LOADOUTS[heroId].length?index:0;renderChoices();build();}};

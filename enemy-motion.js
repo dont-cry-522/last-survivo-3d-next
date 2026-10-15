@@ -1,5 +1,5 @@
-import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=197';
-import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=197';
+import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=198';
+import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=198';
 import{Vector3,Matrix4,Quaternion}from'./vendor/three.module.js';
 // Attack timings are shared with the pose driver so the strike matches its hit.
 export const ENEMY_MOTION={

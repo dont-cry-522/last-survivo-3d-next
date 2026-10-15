@@ -15,8 +15,8 @@ export const WEAPON_ROUTE_LOOKS=Object.freeze({
  shotgun_slug:look('shotgun','独头重弹','聚束枪焰与命中后厚重的穿刺残痕',['cast','hit']),
  fire_burn:look('fire','余烬灼烧','沿目标边缘向上舔动的暗红余焰',['hit']),
  fire_blast:look('fire','熔核爆破','低位熔核裂开，橙红火舌向外翻卷',['hit']),
- crossbow_pierce:look('crossbow','破甲重矢','贯穿出口留下冰蓝针线与分叉羽痕',['hit']),
- crossbow_hunt:look('crossbow','追猎机括','前两击累积短羽痕，第三击三道羽锋迸发',['hit']),
+ crossbow_pierce:look('crossbow','破甲重矢','贯穿出口留下冰蓝针线；同箭穿过更多敌人后，出口针线逐级加长',['hit']),
+ crossbow_hunt:look('crossbow','追猎机括','前两击累积短羽痕，第三击三道羽锋迸发；移动蓄势后的第三击额外展开一对银白羽锋',['hit']),
  shuriken_fan:look('shuriken','月刃齐发','放射形分刃切纹与交错命中痕',['cast','hit']),
  shuriken_return:look('shuriken','回旋月刃','转向处的青绿回钩，返程命中的反向月痕',['turn','hit','catch']),
  dark_gravity:look('dark','引力漩涡','牵引区内的暗紫碎光向核心回旋收拢',['field']),
@@ -124,7 +124,7 @@ export function weaponRouteEffect(vfx,w,phase,x,z,angle=0,detail={}){
   break;
  }
  case'crossbow_pierce':
-  line([target*.55,0,1.03],[target+.57*level,0,1.03],0xbdd8e6,.021,.17,1,.85);
+  line([target*.55,0,1.03],[target+.57*level+.15*Math.min(3,detail.penetrations||0),0,1.03],0xbdd8e6,.021,.17,1,.85);
   for(const side of[-1,1]){
    line([target*.6,0,1.03],[target*.32,side*.17,1.08],0x8cacbf,.027,.24,0,.6);
    chip('crystal',0xa3bfcc,target*.55,side*.07,1.04,[.025,.11,.025],1.7,.18);
@@ -137,6 +137,7 @@ export function weaponRouteEffect(vfx,w,phase,x,z,angle=0,detail={}){
    line([-.16,side-.09,.73],[.12,side+.08,strong?1.35:1.06],strong?0xc3e8db:0x87b0b7,strong?.033:.024,strong?.27:.18,i===0?1:0,strong?.8:.62);
   }
   if(strong)chip('crystal',0x94c7bb,.1,0,1.03,[.06,.17*level,.06],2,.6);
+  if(detail.pursuit)for(const side of[-1,1])line([0,0,.82],[.18,side*.38,1.38],0xe3f1ff,.035,.28,0,.8);
   break;
  }
  case'shuriken_fan':

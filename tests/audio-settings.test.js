@@ -36,6 +36,16 @@ test('all sound styles use the slingshot snap instead of the retired boomerang r
  h.audio.stopWeapons();assert.equal(h.audio.nodes,0);
 });
 
+test('melee wind cues stop at contact in recorded and generated modes without extending their source lifetime',()=>{
+ for(const style of ['standard','legacy'])for(const id of ['harpoon','shadowblade'])for(const duration of [.018,.08,.25]){
+  const h=harness();h.audio.setSfxStyle(style,{persist:false});h.audio.shot(id,1,duration);
+  assert.equal(h.sources.length,1);const source=h.last();
+  if(style==='standard')assert.equal(source.startArgs[2],Math.min(h.cue.duration,duration));
+  else assert.equal(source.stops,1,'generated wind has no bounded stop');
+  h.audio.stopWeapons();assert.equal(h.audio.nodes,0);assert.equal(h.audio.weaponSources.size,0);
+ }
+});
+
 test('old volume preferences migrate to the current sound without changing saved progress',t=>{
   const h=storage(t,{muted:true,music:.23,sfx:.57}),audio=new GameAudio();
   h.data.set('forest3d-next-progress','existing progress');h.data.set('forest3d-audio','original game preferences');

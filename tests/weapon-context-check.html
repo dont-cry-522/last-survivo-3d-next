@@ -10,12 +10,13 @@
 <div class="controls"><select id="weapon" aria-label="选择人物与武器"></select><select id="mix" aria-label="声音对比"><option value="A">A · 当前版</option><option value="B">B · 减轻出手与装填</option><option value="C">C · 减轻命中与受击</option></select><button id="listen" disabled>播放所选片段</button><button id="compare" disabled>依次听 A / B / C</button><button id="stop" disabled>停止</button></div>
 <p id="status" role="status">正在载入真实游戏…</p><div id="view"></div><details><summary>开发检查与对比记录</summary><button id="run" disabled>运行动作音效检查</button><pre id="report">等待开始。</pre><pre id="comparison">尚未比较。</pre></details>
 <script type="module">
-import{HERO_LOADOUTS,WEAPONS}from'../rules.js?v=203';
+import{HERO_LOADOUTS,WEAPONS}from'../rules.js?v=204';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),assert=(ok,message)=>{if(!ok)throw Error(message);};
 const heroNames={scout:'游侠',silver:'霜影',wraith:'影裔',tide:'潮行者',lingya:'铃芽',wuling:'雾苓',mirage:'蜃影'};
 for(const[hero,ids]of Object.entries(HERO_LOADOUTS))for(const[idIndex,id]of ids.entries()){const o=document.createElement('option');o.value=hero+':'+idIndex;o.textContent=heroNames[hero]+' · '+WEAPONS[id].name;$('#weapon').append(o);}
 $('#weapon').value='silver:0';
 let g,win,busy=false,stopRequested=false,events=[],clock=0,listening=false,activeMix='A';
+const eventSources=new WeakMap();
 const mixes={A:'standard',B:'lightAttack',C:'lightImpact'};
 const records=[];
 function publish(){window.weaponContextReport={checks:records,events};$('#report').textContent=JSON.stringify(window.weaponContextReport,null,2);}
@@ -38,11 +39,11 @@ $('#run').onclick=async()=>{
  if(busy)return;lock(true);stopRequested=false;records.length=0;
  try{
   await readyAudio();
-  await check('潮行者挥空：声音随实际击出，不在起手提前',async()=>{
-   setup('tide');fire();assert(!matching('shot','harpoon').length,'挥叉声在起手提前播放');await advance(.09);assert(!matching('shot','harpoon').length,'蓄势期间提前播放挥叉声');await advance(.12);
-   const shots=matching('shot','harpoon');assert(shots.length===1,'挥空必须播放一次挥叉声');assert(shots[0].time>=.15&&shots[0].time<=.23,'挥叉声没有落在实际击出时刻');assert(!matching('impact','harpoon').length,'挥空错误播放命中声');return{events:[...events]};
+  await check('潮行者挥空：起手有短挥动声，命中时不补播',async()=>{
+   setup('tide');fire();const shots=matching('shot','harpoon');assert(shots.length===1&&shots[0].time<.04,'起手没有播放一次挥动声');assert(shots[0].args[2]>.1&&shots[0].args[2]<.2,'挥动声没有限制到接触窗口');await advance(.28);
+   assert(matching('shot','harpoon').length===1,'挥空在伤害时刻补播了挥动声');assert(!matching('impact','harpoon').length,'挥空错误播放命中声');return{events:[...events]};
   });
-  await check('潮行者起手被潜潮取消后不补播攻击',async()=>{setup('tide');fire();g.dash();await advance(.35);assert(!matching('shot','harpoon').length,'取消攻击仍补播挥叉声');return{events:[...events]};});
+  await check('潮行者起手被潜潮取消后不补播或遗留攻击声',async()=>{setup('tide');fire();const wind=matching('weapon','harpoon').find(e=>e.args[1]==='shot');g.dash();await advance(.35);assert(matching('shot','harpoon').length===1,'取消后又补播挥叉声');assert(!matching('impact','harpoon').length,'取消攻击仍播放命中声');assert((eventSources.get(wind)||[]).every(source=>!g.audio.weaponSources.has(source)),'取消后挥动声仍未结束');return{events:[...events]};});
   await check('霜影短弩：两阶段拉栓与回扣使用不同事件',async()=>{
    setup('silver');fire();await advance(.42);const reload=matching('mechanism','crossbow');assert(matching('shot','crossbow').length===1,'单次输入重复射击');assert(reload.length===2,'短弩缺少两阶段收放');assert(reload[0].args[1]===0&&reload[1].args[1]===1,'两阶段事件没有区分');assert(reload[0].time<reload[1].time,'收放顺序颠倒');
    const a=g.audio.materialEffects.get('crossbow:mechanism'),b=g.audio.materialEffects.get('crossbow:mechanism:1');assert(a&&b&&a.offset!==b.offset,'拉栓与回扣仍引用同一音频片段');return{events:[...events],firstDuration:a.duration,secondDuration:b.duration};
@@ -59,9 +60,9 @@ $('#run').onclick=async()=>{
     assert(!stopRequested,'检查已停止');$('#status').textContent='连续攻击检查：'+heroNames[hero]+' · '+WEAPONS[id].name;
     setup(hero,index);target(0,hero==='tide'?2.8:6);g.controls.held=true;await advance(.85);g.controls.held=false;
     const shots=matching('weapon',id).filter(e=>e.args[1]==='shot');assert(shots.length>0,hero+' / '+id+' 没有实际出手音效');
-    assert(shots.every(e=>e.played&&e.sources===1&&e.material),hero+' / '+id+' 出手未创建材质取样播放源');
+    assert(shots.every(e=>e.played&&e.sources===1&&(id==='boomerang'?!e.material:e.material)),hero+' / '+id+' 出手未创建对应取样播放源');
     assert(!events.some(e=>e.kind==='weapon'&&e.args[1]==='shot'&&e.args[0]!=='companion'&&e.args[0]!==id),hero+' / '+id+' 错用了其他武器出手声');
-    loadouts.push({hero,weapon:id,shots:shots.length,firstShotAt:shots[0].time,allShotsUseMaterial:true});g.audio.stopWeapons();g.audio.stopCreatures();
+    loadouts.push({hero,weapon:id,shots:shots.length,firstShotAt:shots[0].time,sample:id==='boomerang'?'slingshot-snap':'recorded-material'});g.audio.stopWeapons();g.audio.stopCreatures();
    }
    assert(new Set(loadouts.map(e=>e.hero)).size===7&&loadouts.length===13,'英雄或武器覆盖不完整');return{heroes:7,weapons:13,loadouts};
   });
@@ -110,7 +111,7 @@ try{
  frame.srcdoc=html.replace('<head>','<head>'+bootstrap);win=frame.contentWindow;
  for(let i=0;i<500;i++){if(win.game3d&&!win.document.querySelector('#start')?.disabled)break;await sleep(50);}
  assert(win.game3d&&!win.document.querySelector('#start')?.disabled,'游戏资源载入超时');g=win.game3d;
- for(const kind of['shot','mechanism','impact','weapon','spell','dodge']){const original=g.audio[kind].bind(g.audio);g.audio[kind]=(...args)=>{const event={kind,time:+clock.toFixed(4),args},before=kind==='weapon'?new Set(g.audio.weaponSources):null;events.push(event);const result=original(...args);if(before){const sources=[...g.audio.weaponSources].filter(source=>!before.has(source));const key=args[0]+':'+args[1]+':'+(args[2]??0),take=(g.audio.weaponTakes.get(key)||2)-1,cue=g.audio.materialCue(g.audio.materialEffects.count(key)?key:args[0]+':'+args[1],take);Object.assign(event,{actualVolume:(args[3]??1)*(g.audio.effectProfile[args[1]]??1),gain:cue?.gain,offset:cue?.offset,played:result===true,sources:sources.length,material:sources.length>0&&sources.every(source=>source.buffer===g.audio.materialEffects.buffer)});}return result;};}
+ for(const kind of['shot','mechanism','impact','weapon','spell','dodge']){const original=g.audio[kind].bind(g.audio);g.audio[kind]=(...args)=>{const event={kind,time:+clock.toFixed(4),args},before=kind==='weapon'?new Set(g.audio.weaponSources):null;events.push(event);const result=original(...args);if(before){const sources=[...g.audio.weaponSources].filter(source=>!before.has(source));eventSources.set(event,sources);const key=args[0]+':'+args[1]+':'+(args[2]??0),take=(g.audio.weaponTakes.get(key)||2)-1,cue=g.audio.materialCue(g.audio.materialEffects.count(key)?key:args[0]+':'+args[1],take);Object.assign(event,{actualVolume:(args[3]??1)*(g.audio.effectProfile[args[1]]??1),gain:cue?.gain,offset:cue?.offset,played:result===true,sources:sources.length,material:sources.length>0&&sources.every(source=>source.buffer===g.audio.materialEffects.buffer)});}return result;};}
  const creature=g.audio.creature.bind(g.audio);
  g.audio.creature=(...args)=>{if(!listening)return creature(...args);const before=new Set(g.audio.creatureSources),volume=args[1]==='hurt'?g.audio.effectProfile.hurt:1,result=creature(...args);
   const sources=[...g.audio.creatureSources].filter(source=>!before.has(source));events.push({kind:'creature',time:+clock.toFixed(4),args,played:result===true,sources:sources.length,actualVolume:volume,take:g.audio.weaponTakes.get('creature-'+args[0]+'-'+args[1])});return result;

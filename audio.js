@@ -1,9 +1,10 @@
-import{BIOME_THEMES,instrumentSample,scoreBiome,biomeThreat}from'./biome-music.js?v=203';
-import{companionSample}from'./companion-audio.js?v=203';
-import{weaponSample,weaponTakeCount}from'./weapon-audio.js?v=203';
-import{creatureSample,creatureFoleySample,creatureSpatial,ENEMY_VOICES,CREATURE_FOLEY}from'./enemy-audio.js?v=203';
-import{RecordedMusic}from'./recorded-music.js?v=203';
-import{RecordedEffects}from'./recorded-effects.js?v=203';
+import{BIOME_THEMES,instrumentSample,scoreBiome,biomeThreat}from'./biome-music.js?v=204';
+import{companionSample}from'./companion-audio.js?v=204';
+import{weaponSample,weaponTakeCount}from'./weapon-audio.js?v=204';
+import{enemySurface}from'./enemy-surfaces.js?v=204';
+import{creatureSample,creatureFoleySample,creatureSpatial,ENEMY_VOICES,CREATURE_FOLEY}from'./enemy-audio.js?v=204';
+import{RecordedMusic}from'./recorded-music.js?v=204';
+import{RecordedEffects}from'./recorded-effects.js?v=204';
 // Local licensed recordings, with the original procedural score as a loading/offline fallback.
 const midi=n=>440*2**((n-69)/12);
 // Sound preferences only: attack timing, damage and music keep their existing behavior.
@@ -117,7 +118,7 @@ export class GameAudio{
     const limit=event==='impact'?10:event==='mechanism'?12:16;
     if(!this.available()||this.weaponSources.size>=limit)return false;
     const takeKey=id+':'+event+':'+variant,take=this.weaponTakes.get(takeKey)||0,key=takeKey+':'+take;
-    const cueKey=this.materialEffects?.count(takeKey)?takeKey:id+':'+event,material=id==='boomerang'?null:this.materialCue(cueKey,take);
+    const cueKey=this.materialEffects?.count(takeKey)?takeKey:id+':'+event,material=id==='boomerang'||id.startsWith('surface:')?null:this.materialCue(cueKey,take);
     let buffer=material?.buffer||this.weaponBuffers.get(key);
     if(!buffer){const samples=id==='companion'?companionSample(event,this.ctx.sampleRate):id==='material:wood'||id==='material:stone'?creatureSample(id==='material:wood'?'shaman':'golem','impact',this.ctx.sampleRate):weaponSample(id,event,this.ctx.sampleRate,variant,take);if(!samples)return false;buffer=this.ctx.createBuffer(1,samples.length,this.ctx.sampleRate);buffer.copyToChannel(samples,0);this.weaponBuffers.set(key,buffer);}
     this.weaponTakes.set(takeKey,(take+1)%(material?this.materialEffects?.count(cueKey):weaponTakeCount(id)));
@@ -131,9 +132,18 @@ export class GameAudio{
     return this.weapon('companion',event,0,volume*(1-d/range)**1.2,Math.max(-1,Math.min(1,(dx-dz)/12)));
   }
   stopWeapons(preserveLevel=false){for(const s of new Set([...this.weaponSources,...this.proceduralSources].filter(s=>!this.musicVoices.has(s)&&!(preserveLevel&&s.levelCue))))s.stop();}
-  shot(id,variant=0){if(this.allow('shot',.045))this.weapon(id,'shot',variant);}
+  // A melee wind cue starts with the swing and ends at its contact window.
+  // Reuse the existing envelope/cleanup path; impact is still a separate event.
+  shot(id,variant=0,duration=null){if(this.allow('shot',.045))this.weapon(id,'shot',variant,1,0,Number.isFinite(duration)&&duration>0?duration:null);}
   mechanism(id,stage=0,period=null){if(this.allow('mechanism',.065))this.weapon(id,'mechanism',stage,1,0,period?Math.max(.035,period*.28):null);}
   impact(id,strong=false,variant=strong?1:0,dx=0,dz=0){if(this.allow('impact-'+id+(strong?'-strong':''),.10)){const p=contactSpatial(dx,dz);this.weapon(id,'impact',variant,p.gain,p.pan);}}
+  contact(id,kind,dx=0,dz=0){
+    // Called only for direct confirmed damage. One layer per volley/sweep and
+    // fewer than eight active effects leave room for the main weapon impact.
+    if(!kind||!['rifle','shotgun','crossbow','shuriken','fire','dark','shade','shadowblade','grimoire','harpoon','boomerang','sporelantern','miasmalantern','hammer','shield'].includes(id)||this.weaponSources.size>=8||!this.allow('body-contact',.14))return false;
+    const p=contactSpatial(dx,dz),physical=['rifle','shotgun','crossbow','shuriken','shadowblade','harpoon','boomerang','hammer','shield'].includes(id);
+    return this.weapon('surface:'+enemySurface(kind),'impact',0,p.gain*(physical?.30:.16),p.pan);
+  }
   terrain(texture,dx=0,dz=0,strong=false){if(!this.allow('terrain-'+texture,.18))return;const p=contactSpatial(dx,dz);this.weapon('material:'+texture,'impact',0,p.gain*(strong?.48:.30),p.pan);}
   threat(kind='wave'){if(!this.allow('threat',2))return;const t=this.ctx.currentTime,deep=kind==='boss';if(this.recorded?.active){this.voice(deep?80:105,.32,deep?.13:.08,'sine',42);this.noise(.22,deep?.07:.04,850,160);return;}if(BIOME_THEMES[this.map]){biomeThreat(this,BIOME_THEMES[this.map],this.beat,t,deep);return;}this.voice(deep?58:82,.9,deep?.15:.105,'sawtooth',deep?35:48,t,'music',.04);this.noise(deep?.75:.42,deep?.16:.085,1400,170,t,'music');for(let i=0;i<(deep?4:3);i++)this.voice((deep?147:196)*2**(i/12),.19,.052,'triangle',null,t+i*.105,'music',.008);}
   spell(kind){if(!this.allow('spell-'+kind,.11))return;const t=this.ctx.currentTime;

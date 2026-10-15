@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {WEAPONS} from '../rules.js';
 import {weaponSample} from '../weapon-audio.js';
-import {weaponGesture,shotStarted,WEAPON_RECOVERY,meleeSwing,scythePose,crossbowMechanism,slingshotMechanism} from '../weapon-performance.js';
+import {weaponGesture,weaponDuration,shotStarted,WEAPON_RECOVERY,meleeSwing,scythePose,crossbowMechanism,slingshotMechanism} from '../weapon-performance.js';
 import {POISON} from '../poison-config.js';
 
 test('seed pod and slingshot retain their existing combat release clocks',()=>{
@@ -22,6 +22,19 @@ test('slingshot release follows real projectile timing even above the old animat
   const release=Math.min(.55,period*.9)*.24;
   assert(slingshotMechanism(release-1e-7,period).stoneVisible);assert(!slingshotMechanism(release+1e-7,period).stoneVisible);assert.equal(slingshotMechanism(release,period).pull,1);
   assert.equal(slingshotMechanism(period,period).handPull,0);assert(slingshotMechanism(period,period).stoneVisible);
+ }
+});
+
+test('melee and seed pod stay on combat contact/release timing at very high attack speed',()=>{
+ for(const period of [.025,.05,.08,.10,.16,1]){
+  for(const[id,hit]of[['harpoon',.34],['shadowblade',.44]]){
+   const duration=Math.min(WEAPON_RECOVERY[id],period*.9),contact=duration*hit;
+   assert.equal(weaponDuration(id,period),duration);assert(meleeSwing(id,contact,period).kick>.999);assert.equal(meleeSwing(id,period,period).weight,0);
+   if(id==='shadowblade'){const pose=scythePose(contact,period),base=scythePose(.56*.44,1);for(const key of Object.keys(base))assert(Math.abs(pose[key]-base[key])<1e-12);}
+  }
+  const release=Math.min(POISON.castRecovery,period*.9)*POISON.releaseFraction;
+  assert(weaponGesture('sporelantern',release-1e-7,0,period).podHeld);assert(!weaponGesture('sporelantern',release+1e-7,0,period).podHeld);
+  for(const id of Object.keys(WEAPONS)){const pose=weaponGesture(id,period,1,period);assert.equal(pose.kick,0,id+' does not settle before the next shot');}
  }
 });
 

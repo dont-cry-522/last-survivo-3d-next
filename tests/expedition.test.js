@@ -1,6 +1,6 @@
 import{test}from'node:test';
 import assert from'node:assert/strict';
-import{RELICS,relicChoices,equipRelic,relicEvent,incomingRelicDamage,readJournal,writeJournal,recordDiscovery,recordVictory}from'../expedition.js';
+import{RELICS,relicChoices,equipRelic,relicEvent,incomingRelicDamage,readJournal,writeJournal,recordDiscovery,recordVictory,FIELD_SUPPLIES,equipFieldSupply,fieldSupplyEvent,fieldSupplyLabel}from'../expedition.js';
 const player=id=>{const p={hp:90,maxHp:100};equipRelic(p,id);return p;};
 test('relic offers contain three different choices; one relic per expedition',()=>{
  const discovered=new Set();for(let i=0;i<100;i++){const choices=relicChoices(()=>i/100);assert.equal(new Set(choices).size,3);for(const id of choices){assert(RELICS[id]);discovered.add(id);}}
@@ -40,4 +40,22 @@ test('spore lantern victories persist on every map without discarding retired we
  const storage={getItem:()=>raw,setItem:(_,v)=>raw=v},journal=readJournal(storage),old=[...journal.wins];
  for(const map of['forest','snow','ash','sand','coast','confluence']){assert(recordVictory(journal,map,'sporelantern'));assert(!recordVictory(journal,map,'sporelantern'));}
  assert(writeJournal(storage,journal));const restored=readJournal(storage);assert.deepEqual(restored,journal);for(const win of old)assert(restored.wins.includes(win));assert.equal(restored.wins.length,10);assert(!recordVictory(restored,'bad-map','sporelantern'));
+});
+test('all five preparations consume only their relevant committed actions and stop at their stated limit',()=>{
+ const names=new Set();for(const [id,info]of Object.entries(FIELD_SUPPLIES)){
+  const p={hp:80,maxHp:100};assert(equipFieldSupply(p,id));names.add(info.name);assert.equal(p.fieldSupply.charges,info.charges);
+  for(const event of['shot','dodge','kill','wait','paused'].filter(event=>event!==info.event))assert.equal(fieldSupplyEvent(p,event),null);
+  assert.equal(p.fieldSupply.charges,info.charges);assert.match(fieldSupplyLabel(p),new RegExp(info.name));
+  for(let i=0;i<info.charges;i++){const effect=fieldSupplyEvent(p,info.event);assert.equal(effect.kind,info.effect.kind);assert.notStrictEqual(effect,info.effect);}
+  assert.equal(p.fieldSupply,null);assert.equal(fieldSupplyLabel(p),'');assert.equal(fieldSupplyEvent(p,info.event),null);
+  if(id==='forest')assert.equal(p.hp,92);
+ }assert.equal(names.size,5);
+});
+test('a fresh preparation replaces remaining charges without touching a relic, its counters or the journal',()=>{
+ const p=player('storm'),journal={relics:['storm'],wins:['forest:crossbow']};relicEvent(p,'shot',1);relicEvent(p,'shot',2);const before=JSON.stringify(p.relic),record=JSON.stringify(journal);
+ equipFieldSupply(p,'sand');fieldSupplyEvent(p,'shot');assert.equal(p.fieldSupply.charges,2);equipFieldSupply(p,'coast');assert.deepEqual(p.fieldSupply,{id:'coast',charges:2});
+ assert.equal(fieldSupplyEvent(p,'shot').kind,'storm');assert.equal(JSON.stringify(p.relic),before);assert.equal(JSON.stringify(journal),record);
+ assert(!equipFieldSupply(p,'__proto__'));assert(!equipFieldSupply(p,'unknown'));assert.deepEqual(p.fieldSupply,{id:'coast',charges:1});
+ const fresh=player('wind');assert.equal(fieldSupplyEvent(fresh,'shot'),null);assert.equal(fieldSupplyLabel(fresh),'');assert.equal(fresh.fieldSupply,undefined);
+ const healed={hp:99,maxHp:100};equipFieldSupply(healed,'forest');assert.equal(fieldSupplyEvent(healed,'kill').amount,1);assert.equal(fieldSupplyEvent(healed,'kill').amount,0);assert.equal(healed.hp,100);
 });

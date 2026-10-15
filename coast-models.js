@@ -1,8 +1,8 @@
-import {creatureAttackPose} from './creature-gait.js?v=203';
-import {ENEMY_MOTION} from './enemy-motion.js?v=203';
+import {creatureAttackPose} from './creature-gait.js?v=204';
+import {ENEMY_MOTION} from './enemy-motion.js?v=204';
 import * as T from './vendor/three.module.js';
-import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=203';
-import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=203';
+import{weaponInlay,nameWeapon}from'./weapon-identity.js?v=204';
+import{form,surface,tube,oval,face,joint as organicJoint,leg,stepLeg}from'./creature-forms.js?v=204';
 const geometries=new Map(),materials=new Map();
 function part(p,color,pos,size,type='sphere',glow=false){
  if(!geometries.has(type))geometries.set(type,type==='rock'?new T.DodecahedronGeometry(1,1):type==='box'?new T.BoxGeometry(2,2,2):type==='cone'?new T.ConeGeometry(1,2,12):type==='barrel'?new T.CylinderGeometry(.88,1,2,10):type==='hoop'?new T.TorusGeometry(1,.055,5,12):new T.SphereGeometry(1,16,12));

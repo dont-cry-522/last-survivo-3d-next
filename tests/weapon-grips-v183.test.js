@@ -68,7 +68,7 @@ test('actual lamp rigs retain palm contact and the pod release clock while movin
     animateSkinnedHero(hero,time+=dt,4,Math.max(0,.18-age),0);hero.updateMatrixWorld(true);
     const palm=d.support.rightHand.localToWorld(new T.Vector3(-.036,.097,0)),grip=d.gun.localToWorld(new T.Vector3(...GRIP_POINTS[id]));assert(palm.distanceTo(grip)<1e-6,'the carrying hand left the ring');
     if(kind==='wuling'){
-     const cycle=Math.min(POISON.castRecovery,Math.max(.12,period*.9));
+     const cycle=Math.min(POISON.castRecovery,period*.9);
      assert.equal(d.sporePod.visible,age<cycle*POISON.releaseFraction||age>cycle*.76);
      const cup=d.support.hand.localToWorld(new T.Vector3(.036,.097,0));assert(cup.distanceTo(d.sporePod.getWorldPosition(new T.Vector3()))<1e-8,'pod no longer belongs to the actual left palm');
      // The opposed thumb was previously omitted entirely for this left hand.

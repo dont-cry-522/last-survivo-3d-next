@@ -22,12 +22,12 @@ export const WEAPON_ROUTE_LOOKS=Object.freeze({
  dark_gravity:look('dark','引力漩涡','牵引区内的暗紫碎光向核心回旋收拢',['field']),
  dark_seek:look('dark','追魂魔矢','紫黑彗尾包住淡紫核心，命中留下短尾迹',['cast','hit']),
  shade_echo:look('shade','残响弹射','转折碎影与已完成弹射路径的短暂连线',['bounce']),
- shade_blight:look('shade','蚀影刻印','逐击加深的刻痕，第三击向外撕开',['mark']),
+ shade_blight:look('shade','蚀影刻印','第一击留下刻痕，第二击向外撕开',['mark']),
  shadowblade_fan:look('shadowblade','横月收割','近战横斩更宽，第三斩命中交叠月白切痕',['cast','hit']),
  shadowblade_return:look('shadowblade','断魂重镰','普通命中留暗影裂痕，间隔蓄势重击的主目标裂口向两侧张开',['hit']),
- grimoire_wide:look('grimoire','裂界之页','裂口两翼向外展开的裂页和碎纸',['cast','hit']),
+ grimoire_wide:look('grimoire','裂界之页','裂口两翼展开裂页与碎纸，收拢时牵住敌人脚步',['cast','hit']),
  grimoire_echo:look('grimoire','复诵禁咒','窄裂页留下余痕，二次爆发重新撕开双层裂缝',['cast','hit','echo']),
- harpoon_reef:look('harpoon','破礁长锋','三叉形窄穿刺与低位礁石碎片',['hit']),
+ harpoon_reef:look('harpoon','破礁长锋','三叉形窄穿刺与低位礁石碎片；远端强化命中时显出明亮叉锋',['hit']),
  harpoon_tow:look('harpoon','回潮牵引','第三击接触处的水痕与水珠向持叉者倒流',['hit']),
  boomerang_pincer:look('boomerang','同心夹击','伙伴扑击留下并列爪痕，标记目标呈浅绿夹击亮锋',['pet']),
  boomerang_snare:look('boomerang','林间设伏','落地生出低矮藤芽，触发时双藤抬升收拢',['trap'])
@@ -218,7 +218,7 @@ export function weaponRouteEffect(vfx,w,phase,x,z,angle=0,detail={}){
   break;
  }
  case'harpoon_reef':
-  line([-.15,0,.84],[target+.33,0,.86],0x9abfba,.032*level,.18,1,.75);
+  line([-.15,0,.84],[target+(detail.empowered?.58:.33),0,.86],detail.empowered?0xe6f4ee:0x9abfba,(detail.empowered?.045:.032)*level,.18,1,.75);
   for(const side of[-1,1]){
    line([.12,side*.16,.83],[.47,side*.1,.85],0x7da2a0,.018,.16,0,.6);
    chip('stone',0x77918a,.05,side*.13,.22,[.055,.075,.065],.75,.65);

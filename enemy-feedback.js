@@ -1,4 +1,8 @@
 import * as T from './vendor/three.module.js';
+import{enemySurface}from'./enemy-surfaces.js?v=204';
+// Strength, settle time, lean and torsion: a bullet pricks, a bolt drives, a
+// blade turns the body, and slower magic releases pressure over a longer beat.
+const REACTIONS={rifle:[.065,.16,.35,0],shotgun:[.19,.26,.85,.10],crossbow:[.12,.22,.60,0],shuriken:[.075,.18,.40,.55],fire:[.14,.26,.65,.08],dark:[.11,.32,.45,-.35],shade:[.085,.24,.40,-.25],shadowblade:[.13,.24,.65,.85],grimoire:[.16,.34,.70,-.45],harpoon:[.12,.23,.65,.10],boomerang:[.095,.18,.50,.15],sporelantern:[.055,.20,.30,.10],miasmalantern:[.075,.28,.40,-.15],hammer:[.19,.30,.75,0],shield:[.19,.30,.75,0]};
 // One brief warm contact tint per shared surface, never a material per monster.
 const contactMaterials=new WeakMap(),contactColor=new T.Color(0xd6b9a4);
 function contactMaterial(base){
@@ -19,21 +23,24 @@ function tintContact(mesh,active){
  d.contactTint=active;
 }
 // Visual recoil only: gameplay positions, attack clocks and collision never move.
-export function recordEnemyHit(mesh,{kind='magic',angle=0,damage=0,maxHp=1,heavy=false,boss=false}={}){
+export function recordEnemyHit(mesh,{kind='magic',targetKind,combo=0,angle=0,damage=0,maxHp=1,heavy=false,boss=false}={}){
  if(!(damage>0)||!mesh.userData.rig)return;
  tintContact(mesh,true);
- const strong=['hammer','shield','shotgun'].includes(kind),weight=(strong?.19:kind==='rifle'?.065:.115)*(heavy?.6:1)*(boss?.35:1),ratio=Math.min(1,damage/Math.max(1,maxHp));
+ const profile=REACTIONS[kind]||[.115,.20,.75,0],surface=enemySurface(targetKind),stiffness=surface==='rock'?.72:surface==='shell'?.86:1,weight=profile[0]*stiffness*(heavy?.6:1)*(boss?.35:1),ratio=Math.min(1,damage/Math.max(1,maxHp));
+ let turn=profile[3];
+ if(kind==='shadowblade'){turn=combo===2?0:turn*(combo===1?-1:1);angle+=combo===2?0:combo===1?-.42:.42;}
+ if(kind==='harpoon'){if(combo===1){angle+=.50;turn=.65;}else if(combo===2){angle+=Math.PI;turn=-.15;}}
  const d=mesh.userData,old=d.hitReaction;
  // A shotgun pellet group strengthens one reaction, rather than resetting the pose repeatedly.
  if(old&&old.age<.04){old.strength=Math.min(.24,Math.max(old.strength,weight*(1+ratio*.6)));return;}
- d.hitReaction={age:0,duration:strong?.30:.20,strength:Math.min(.24,weight*(1+ratio*.6)),angle,start:old?.amount||0};
+ d.hitReaction={age:0,duration:profile[1],strength:Math.min(.24,weight*(1+ratio*.6)),angle,start:old?.amount||0,lean:profile[2],turn};
 }
 export function restoreEnemyHit(mesh){const d=mesh.userData,b=d.hitBase;if(b){d.rig.position.copy(b.position);d.rig.quaternion.copy(b.rotation);d.rig.scale.copy(b.scale);d.hitBase=null;}}
 export function animateEnemyHit(mesh,dt){
  const d=mesh.userData,h=d.hitReaction;if(!h)return;h.age+=dt;if(h.age>=.10)tintContact(mesh,false);if(h.age>=h.duration){d.hitReaction=null;return;}
  const rig=d.rig,u=h.age/h.duration,v=Math.max(0,(u-.18)/.82),push=1-v*v*(3-2*v),a=h.angle-mesh.rotation.y;
  d.hitBase={position:rig.position.clone(),rotation:rig.quaternion.clone(),scale:rig.scale.clone()};
- const amount=u<.18?T.MathUtils.lerp(h.start,h.strength,Math.sin(u/.18*Math.PI/2)):h.strength*push;h.amount=amount;rig.position.x+=Math.sin(a)*amount;rig.position.z+=Math.cos(a)*amount;rig.rotation.x+=Math.cos(a)*amount*.75;rig.rotation.z-=Math.sin(a)*amount*.75;
+ const amount=u<.18?T.MathUtils.lerp(h.start,h.strength,Math.sin(u/.18*Math.PI/2)):h.strength*push;h.amount=amount;rig.position.x+=Math.sin(a)*amount;rig.position.z+=Math.cos(a)*amount;rig.rotation.x+=Math.cos(a)*amount*h.lean;rig.rotation.z-=Math.sin(a)*amount*h.lean;rig.rotation.y+=amount*h.turn;
 }
 export class EnemyDeaths{
  constructor(scene,limit=12){this.scene=scene;this.limit=limit;this.items=[];}

@@ -211,7 +211,7 @@ test('harpoon fork meets the committed contact on screen, including moving and p
   for(const aspect of[16/9,390/844])for(const combo of[0,1,2])for(const moving of[0,1]){
    camera.aspect=aspect;camera.updateProjectionMatrix();
    const target=camera.localToWorld(new T.Vector3(.15,-.45,-3.3));
-   Object.assign(actor.userData,{attackAge:.192,reloadDuration:1,reloadPhase:.192,harpoonCombo:combo,harpoonTarget:target});
+   Object.assign(actor.userData,{attackAge:.48*.34,reloadDuration:1,reloadPhase:.48*.34,harpoonCombo:combo,harpoonTarget:target});
    view.update(3,.016,{visible:true,moving});camera.updateMatrixWorld(true);
    const fork=view.weapon.localToWorld(new T.Vector3(0,0,1.75).sub(view.center)).project(camera),contact=target.clone().project(camera);
    assert(Math.hypot(fork.x-contact.x,fork.y-contact.y)<1e-6,'fork misses its screen contact');
@@ -223,6 +223,20 @@ test('harpoon fork meets the committed contact on screen, including moving and p
   actor.userData.attackAge=1;view.update(5,.016,{visible:true});const recovered=view.weapon.position.clone();
   actor.userData.harpoonTarget=null;view.update(5,.016,{visible:true});assert(view.weapon.position.equals(recovered),'old target affects recovery');
  }finally{view.dispose();}
+});
+
+test('targeted harpoon sweep crosses contact and follows through instead of pinning the fork',()=>{
+ const camera=new T.PerspectiveCamera(70,16/9,.1,100),view=new FirstPersonView(camera),actor=hero(weapon('harpoon'));
+ try{view.setHero(actor,'harpoon');for(const aspect of [16/9,390/844])for(const period of [.05,.16,1]){
+  camera.aspect=aspect;camera.updateProjectionMatrix();const duration=Math.min(.48,period*.9),target=new T.Vector3(.12,-.25,-2.5),samples=[];
+  for(const phase of [.30,.34,.38]){
+   Object.assign(actor.userData,{attackAge:duration*phase,reloadDuration:period,reloadPhase:duration*phase/period,harpoonCombo:1,harpoonTarget:target});view.update(1,1/60,{visible:true});camera.updateMatrixWorld(true);
+   samples.push(view.model.localToWorld(new T.Vector3(0,0,1.75)).project(camera));
+  }
+  const contact=target.clone().project(camera);assert(Math.hypot(samples[1].x-contact.x,samples[1].y-contact.y)<1e-6);
+  assert(samples[0].distanceTo(samples[1])>.005);assert(samples[1].distanceTo(samples[2])>.005,'fork pinned after contact');
+  assert((samples[1].x-samples[0].x)*(samples[2].x-samples[1].x)>0,'fork reverses at contact');
+ }}finally{view.dispose();}
 });
 
 test('all 13 actual weapon graphs fit ahead of the camera, without mutating source poses or materials',()=>{

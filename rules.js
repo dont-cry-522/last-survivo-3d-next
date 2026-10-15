@@ -1,8 +1,8 @@
-import{SCYTHE}from'./scythe-combat.js?v=203';
-import{REGIONAL_ENEMIES}from'./map-enemies.js?v=203';
-import{EXTRA_SKILLS,EXTRA_BY_ID}from'./skill-catalog.js?v=203';
-import{POISON}from'./poison-config.js?v=203';
-import{MIRAGE}from'./mirage-config.js?v=203';
+import{SCYTHE}from'./scythe-combat.js?v=204';
+import{REGIONAL_ENEMIES}from'./map-enemies.js?v=204';
+import{EXTRA_SKILLS,EXTRA_BY_ID}from'./skill-catalog.js?v=204';
+import{POISON}from'./poison-config.js?v=204';
+import{MIRAGE}from'./mirage-config.js?v=204';
 export const MAPS={confluence:{name:'五境大远征',subtitle:'林地、雪山、裂谷、遗城与海港无缝相连，沿古道挑战五境守卫',ground:0x536a48,fog:0x526b61,leaf:0x427657,accent:0xdaca96,slow:'地形'},coast:{name:'幽潮遗港',subtitle:'穿过曲折水湾与岛地，走栈桥或退潮浅滩，打捞货箱、点亮古灯塔',ground:0x586e70,fog:0x344f5c,leaf:0x508582,accent:0x8cdde0,slow:'潮湿滩地'},sand:{name:'风蚀遗城',subtitle:'绕开沙暴流沙，风息挖掘古匣、开启遗城机关',ground:0xafa080,fog:0x928a77,leaf:0x938363,accent:0xe6ca87,slow:'流沙'},forest:{name:'翡翠幽林',subtitle:'穿过古木与遗迹，追寻林心的回声',ground:0x284b3b,fog:0x173d39,leaf:0x287456,accent:0xecc988,slow:'泥地'},snow:{name:'霜月峡谷',subtitle:'冰晶照亮雪路，寒风掩藏猎手',ground:0x96b7bd,fog:0x769daa,leaf:0x456e7d,accent:0x9ae9ff,slow:'深雪'},ash:{name:'赤烬荒原',subtitle:'越过熔岩裂隙，唤醒沉睡的守卫',ground:0x5c4544,fog:0x382e3c,leaf:0x69545d,accent:0xffa25d,slow:'灰烬'}};
 // Legacy boomerang ID now identifies the slingshot; save and route keys remain compatible.
 export const WEAPONS={miasmalantern:{id:'miasmalantern',name:'蜃花灯',rate:MIRAGE.rate,damage:MIRAGE.impact,count:1,speed:MIRAGE.speed,range:MIRAGE.range,color:MIRAGE.color,needleDamage:MIRAGE.needleDps,needleDuration:MIRAGE.needleDuration,burstRadius:MIRAGE.burstRadius,splashDamage:MIRAGE.splashDamage,poisonScale:1,lureRank:0,venomRank:0},sporelantern:{id:'sporelantern',name:'孢灯',rate:POISON.rate,damage:POISON.impact,count:1,speed:POISON.speed,range:POISON.range,color:POISON.color,cloudDamage:POISON.dps,cloudRadius:POISON.radius,cloudDuration:POISON.duration,cloudMax:POISON.maxClouds,stillRank:0,roamRank:0},boomerang:{id:'boomerang',name:'芽铃弹弓',rate:1.5,damage:30,count:1,speed:28,range:11,color:0xe2d2aa,petDamage:30,petCooldown:2.35},harpoon:{id:'harpoon',name:'潮汐长叉',rate:1.6,damage:36,count:1,speed:1,range:3.8,color:0x8ad9da,melee:true,width:.48,pull:.85,slow:.6},rifle:{id:'rifle',name:'游侠连发枪',rate:3,damage:12,count:1,speed:27,range:14,color:0xffdc91},shotgun:{id:'shotgun',name:'碎岩霰弹枪',rate:1,damage:10,count:5,speed:25,range:8,color:0xffbe69},fire:{id:'fire',name:'烬火法杖',rate:.9,damage:30,count:1,speed:14,range:11,color:0xff743b},crossbow:{id:'crossbow',name:'夜翎短弩',rate:2.05,damage:20,count:1,speed:35,range:16,color:0xd8edff},shuriken:{id:'shuriken',name:'月刃飞镖',rate:1.4,damage:13,count:3,speed:22,range:12,color:0x95fff0},dark:{id:'dark',name:'夜幕法杖',rate:1,damage:26,count:1,speed:12,range:10,color:0xc5a2ff},shade:{id:'shade',name:'牵影咒',rate:1.6,damage:18,count:1,speed:20,range:8,color:0xf4f3ee},shadowblade:{id:'shadowblade',name:'断魂战镰',rate:SCYTHE.rate,damage:SCYTHE.damage,count:1,speed:1,range:SCYTHE.range,arc:SCYTHE.arc,melee:true,color:0xc6c8c6},grimoire:{id:'grimoire',name:'悬影魔典',rate:.8,damage:34,count:1,speed:1,range:10,color:0xe7e4db}};
@@ -27,7 +27,7 @@ export function crossbowImpact(p,b,targetId,now){
  const penetrations=b.pathId==='crossbow_pierce'?Math.min(3,Math.max(0,(b.maxPierce||1)-b.pierce)):0;
  return{strong,pursuit,penetrations,multiplier:(pursuit?CROSSBOW_HUNT.burst[Math.min(3,rank)]:strong?1.35:1)*(1+.25*penetrations),slow:pursuit&&rank>=2?CROSSBOW_HUNT.slow:0};
 }
-export function registerShadowHit(target,now){const mark=target.shadowMark;if(!mark||now-mark.time>=2.5)target.shadowMark={hits:1,time:now};else{mark.time=now;mark.hits++;if(mark.hits>=3){mark.hits=0;return true;}}return false;}
+export function registerShadowHit(target,now,required=3){const mark=target.shadowMark;if(!mark||now-mark.time>=2.5)target.shadowMark={hits:1,time:now};else{mark.time=now;mark.hits++;if(mark.hits>=required){mark.hits=0;return true;}}return false;}
 export function seeded(seed){let n=seed>>>0;return()=>{n=(Math.imul(n,1664525)+1013904223)>>>0;return n/4294967296;};}
 export function experienceNeeded(level){return Math.round(48+(level-1)*7);}
 export function grantExperience(p,n){p.xp+=n;while(p.xp>=experienceNeeded(p.level)){p.xp-=experienceNeeded(p.level);p.level++;p.pending++;p.maxHp+=4;p.hp=Math.min(p.maxHp,p.hp+4);}}
@@ -42,7 +42,7 @@ export const WEAPON_PATHS={
  sporelantern_roam:route('sporelantern','游瘴','↝',[`毒雾半径扩大至 ${POISON.radius*POISON.roamRadius} 米，持续缩短至 ${POISON.duration-POISON.roamDuration} 秒；适合搬运布阵`,`闪避搬运留下短毒带：每秒伤害为毒雾的 ${POISON.bandMultiplier*100}%，半宽 ${POISON.bandRadius} 米，最多 ${POISON.maxBands} 条、${POISON.bandDuration} 秒；不超过源毒区剩余寿命`,`搬运落点短暂展开横向毒幕：宽 ${POISON.curtainHalfWidth*2} 米、深 ${POISON.curtainHalfDepth*2} 米，最多 ${POISON.curtainDuration} 秒；不延长源毒区寿命`]),
  boomerang_pincer:route('boomerang','同心夹击','✦',['石弹伤害 +10%；伙伴扑击 +22%，优先绕侧；追击已被石弹标记的敌人额外 +22%','石弹 +20%，伙伴 +44%，标记额外 +44%，扑击休息缩短','石弹 +30%，伙伴 +66%，标记额外 +66%，扑击休息缩短至 1.75 秒']),
  boomerang_snare:route('boomerang','林间设伏','♧',['石弹伤害 +8%；每第三次发射在脚下留下藤绊，触发造成 18 伤害并减速；最多 3 处','石弹 +16%；藤绊 26 伤害，范围和减速增强','石弹 +24%；藤绊 34 伤害，普通怪短暂停步 0.6 秒；首领只减速']),
- harpoon_reef:route('harpoon','破礁长锋','➤',['伤害 +18%，距离 +0.25 米，贯穿宽度 +0.08 米','伤害 +36%，距离 +0.5 米，宽度 +0.16 米','伤害 +54%，距离 +0.75 米，宽度 +0.24 米']),
+ harpoon_reef:route('harpoon','破礁长锋','➤',['伤害 +18%，距离 +0.25 米，宽度 +0.08 米；前刺和第三刺以远端 35% 命中时再增伤 20%','伤害 +36%，距离 +0.5 米，宽度 +0.16 米；远端刺击再增伤 25%','伤害 +54%，距离 +0.75 米，宽度 +0.24 米；远端刺击再增伤 30%']),
  harpoon_tow:route('harpoon','回潮牵引','≈',['第三击牵引 1.3 米、减速 1.1 秒，伤害 +8%','第三击牵引 1.7 米、减速 1.5 秒，伤害 +16%','第三击牵引 2.1 米、减速 1.9 秒，伤害 +24%；首领只减速']),
  rifle_pierce:route('rifle','贯穿弹道','➤',['贯穿 2 个目标，伤害 +8%，射速 -10%','贯穿 3 个目标，伤害 +16%','贯穿 4 个目标，伤害 +24%']),
  rifle_rapid:route('rifle','疾速机括','»',['射速 +20%，单发伤害 -8%','射速 +40%，弹速 +10%','射速 +60%，弹速 +15%']),
@@ -57,14 +57,45 @@ export const WEAPON_PATHS={
  dark_gravity:route('dark','引力漩涡','✺',['命中留下 1.4 秒牵引区，半径 2.6；直接伤害 -10%','牵引半径 2.9，持续 1.6 秒','牵引半径 3.2，持续 1.8 秒；最多 3 处，首领牵引减弱']),
  dark_seek:route('dark','追魂魔矢','♦',['追踪弹速 +35%，射速 +15%，伤害 -10%','双追踪魔矢，每枚伤害 -30%，射速恢复基础值','双魔矢射速 +15%，每枚伤害 -30%']),
  shade_echo:route('shade','残响弹射','◇',['影脉弹射 1 次','影脉弹射 2 次，伤害 +10%','影脉弹射 3 次，伤害 +20%']),
- shade_blight:route('shade','蚀影刻印','◈',['三次命中引爆刻印，额外 24 伤害','刻印伤害 36，爆炸半径增加','刻印伤害 48，爆炸半径增加']),
+ shade_blight:route('shade','蚀影刻印','◈',['同一目标在 2.5 秒内两次命中即引爆刻印，额外 24 伤害；改变目标分别计数','保留两击引爆；刻印伤害 36，爆炸半径增加','保留两击引爆；刻印伤害 48，爆炸半径增加']),
  shadowblade_fan:route('shadowblade','横月收割','✧',['距离 +0.25 米、半角 +7°、伤害 +8%；第三斩减速 0.65 秒，同时命中至少两敌缩短影步冷却 0.35 秒','距离 +0.5 米、半角 +14°、伤害 +16%；第三斩减速 0.8 秒，多敌命中回转影步 0.5 秒','距离 +0.75 米、半角 +21°、伤害 +24%；第三斩减速 0.95 秒，多敌命中回转影步 0.65 秒']),
  shadowblade_return:route('shadowblade','断魂重镰','↶',['伤害 +25%，攻速 -10%；两次出手间隔至少 1.2 秒，最近命中目标额外 +45% 斩击伤害；空挥消耗蓄势','伤害 +50%，攻速 -10%；两次出手间隔至少 1.2 秒，最近命中目标额外 +60% 斩击伤害；空挥消耗蓄势','伤害 +75%，攻速 -10%；两次出手间隔至少 1.2 秒，最近命中目标额外 +75% 斩击伤害；空挥消耗蓄势']),
- grimoire_wide:route('grimoire','裂界之页','▱',['裂口半径 2.1，伤害 +8%','裂口半径 2.5，伤害 +16%','裂口半径 2.9，伤害 +24%']),
+ grimoire_wide:route('grimoire','裂界之页','▱',['裂口半径 2.1，伤害 +8%；命中减速 0.6 秒，限制群怪推进','裂口半径 2.5，伤害 +16%；减速 0.8 秒','裂口半径 2.9，伤害 +24%；减速 1 秒']),
  grimoire_echo:route('grimoire','复诵禁咒','◈',['裂口延迟再次爆发，造成 40% 伤害','再次爆发造成 55% 伤害','再次爆发造成 70% 伤害'])
 };
+export const WEAPON_PATH_PLAYS={
+ miasmalantern_lure:'留替身引怪，等它自然绽放；被打碎不会绽爆。',
+ miasmalantern_venom:'蜕影后集中追击，把附毒留给高血量目标。',
+ sporelantern_still:'围着固定毒区走位；搬运会失去成熟度。',
+ sporelantern_roam:'用闪避搬雾堵路；更大毒区也会更快消散。',
+ boomerang_pincer:'石弹点名目标，让伙伴绕侧扑击同一个敌人。',
+ boomerang_snare:'边退边放藤绊，把追兵带过自己走过的路。',
+ harpoon_reef:'保持长叉尖端距离，用前刺和第三刺打远端。',
+ harpoon_tow:'第三击回拉并减速，把敌人拖离队伍再处理。',
+ rifle_pierce:'侧移把怪物排成一线，一发处理前后排。',
+ rifle_rapid:'集中跟枪压制单体，留意更频繁的开火节奏。',
+ shotgun_fan:'近距离迎接宽面怪群；边缘弹丸容易落空。',
+ shotgun_slug:'拉开距离瞄准直线，以慢射速换一发重击。',
+ fire_burn:'给追兵点燃后换位，利用持续灼烧收尾。',
+ fire_blast:'让怪物聚拢，再把熔核送进它们中间。',
+ crossbow_pierce:'把后排排进箭路，同箭越往后伤害越高。',
+ crossbow_hunt:'步行蓄势，再连续三箭追打同一个目标。',
+ shuriken_fan:'横向覆盖迫近怪群，靠距离控制散刃命中。',
+ shuriken_return:'出手后横移，改变返程月刃穿过的敌人。',
+ dark_gravity:'把追兵引入落点，让漩涡集中它们。',
+ dark_seek:'朝目标附近瞄准，利用追踪追击移动敌人。',
+ shade_echo:'打向相邻敌群，让残响逐个弹射。',
+ shade_blight:'两击锁定同一目标引爆，再转向下一个。',
+ shadowblade_fan:'侧步扫入敌群，第三斩命中多敌回转影步。',
+ shadowblade_return:'留出蓄势间隔，再切入斩击；空挥也消耗蓄势。',
+ grimoire_wide:'在怪群前方开裂口，用宽面减速创造退路。',
+ grimoire_echo:'让敌人继续停留在裂口，吃到第二次爆发。',
+};
+// Targets supply horizontal centre distance; project it onto the committed
+// attack ray so aiming up/down preserves the same outer 35% of spear reach.
+export function harpoonEdgeMultiplier(w,distance,combo=0,pitch=0){const along=distance/Math.max(1e-6,Math.abs(Math.cos(pitch)));return w.pathId==='harpoon_reef'&&w.pathRank>0&&(combo===0||combo===2)&&along>=w.range*.65-1e-9&&along<=w.range+1e-9?1.15+.05*Math.min(3,w.pathRank):1;}
 const PATH_LEVELS=[3,5,8];
-function routeChoices(p){const rank=p.weaponPath?.rank||0;if(rank>=3||(p.level||1)<PATH_LEVELS[rank])return[];return Object.entries(WEAPON_PATHS).filter(([id,v])=>v.weapon===p.weaponId&&(!p.weaponPath||p.weaponPath.id===id)).map(([id,v])=>({id:'path:'+id,pathId:id,name:v.name,icon:v.icon,text:v.steps[rank],max:3,rank,category:'weapon'}));}
+function routeChoices(p){const rank=p.weaponPath?.rank||0;if(rank>=3||(p.level||1)<PATH_LEVELS[rank])return[];return Object.entries(WEAPON_PATHS).filter(([id,v])=>v.weapon===p.weaponId&&(!p.weaponPath||p.weaponPath.id===id)).map(([id,v])=>({id:'path:'+id,pathId:id,name:v.name,icon:v.icon,text:v.steps[rank],play:WEAPON_PATH_PLAYS[id],max:3,rank,category:'weapon'}));}
 // Earned exploration rewards show both eligible branches, not a forced level-up
 // draft. The ordinary draft/pity state and its pending cards remain untouched.
 export function forestGrowthChoices(p,random=Math.random){
@@ -142,7 +173,7 @@ export function weaponStats(p){
  case'shade_blight':w.markDamage=12+12*r;w.markRadius=1.6+.3*r;break;
  case'shadowblade_fan':w.range+=.25*r;w.arc+=Math.PI/180*7*r;w.damage*=1+.08*r;break;
  case'shadowblade_return':w.damage*=1+.25*r;w.rate*=.9;break;
- case'grimoire_wide':w.radius=1.7+.4*r;w.damage*=1+.08*r;break;
+ case'grimoire_wide':w.radius=1.7+.4*r;w.damage*=1+.08*r;w.riftSlow=.4+.2*r;break;
  case'grimoire_echo':w.echo=.25+.15*r;break;
  }
  w.damage*=1+.18*(p.upgrades?.power||0);if(w.id==='miasmalantern'){w.poisonScale=1+.18*(p.upgrades?.power||0);w.needleDamage*=w.poisonScale;w.splashDamage*=w.poisonScale;}if(w.cloudDamage!==undefined)w.cloudDamage*=1+.18*(p.upgrades?.power||0);if(w.petDamage)w.petDamage*=1+.18*(p.upgrades?.power||0);w.rate*=1+.15*(p.upgrades?.haste||0);if(p.huntBoon==='rush'&&p.huntRush>0){w.damage*=1.25;if(w.petDamage)w.petDamage*=1.25;}return w;

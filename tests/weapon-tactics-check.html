@@ -1,0 +1,104 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>十三武器与二十六路线实战检查</title>
+<style>body{margin:12px;background:#13242b;color:#e1e9e4;font:14px system-ui}button{padding:10px;margin:0 6px 6px 0;background:#254943;color:inherit;border:1px solid #709582;border-radius:6px}iframe{border:0;display:block;margin-top:12px}#view{overflow:auto}pre{white-space:pre-wrap}summary{cursor:pointer}</style>
+<button id="desktop" disabled>检查电脑全部武器</button><button id="landscape" disabled>检查手机横屏</button><button id="portrait" disabled>检查手机竖屏</button><button id="mirage" disabled>诊断蜃花灯命中</button><button id="preview" disabled>预览长叉命中姿态</button>
+<p id="status">加载中。使用隔离存档、固定帧和加高的静止受击目标；检查真实攻击流程与声音播放源。手机尺寸为模拟。</p><details open><summary>失败诊断</summary><pre id="diagnostic">尚无失败。</pre></details><details open><summary>检查结果</summary><pre id="report"></pre></details><div id="view"></div>
+<script type="module">
+const $=s=>document.querySelector(s),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),assert=(value,message)=>{if(!value)throw Error(message);};
+const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text(),version=html.match(/main\.js\?v=([^"']+)/)?.[1]||'',suffix=version?'?v='+version:'';
+const {HERO_LOADOUTS,WEAPON_PATHS,weaponStats,takeUpgrade}=await import('../rules.js'+suffix),{enemySurface}=await import('../enemy-surfaces.js'+suffix);
+const dimensions={desktop:{width:1440,height:900,mobile:false},landscape:{width:844,height:390,mobile:true},portrait:{width:390,height:844,mobile:true}};
+const cases=Object.entries(HERO_LOADOUTS).flatMap(([hero,ids])=>ids.map((id,index)=>({hero,index,id}))),materials=[['forest','mushroom'],['snow','wolf'],['ash','golem'],['sand','wolf'],['forest','shaman']];
+let frame,win,g,now=0,events=[],activeTarget=null,reaction=null,trace=[],initial=null;const results=[],errors=[];
+const publish=()=>{window.weaponTacticsReport={version,results,errors};$('#report').textContent=JSON.stringify(window.weaponTacticsReport,null,2);};
+const buttons=disabled=>{for(const button of document.querySelectorAll('button'))button.disabled=disabled;};
+function render(){win.qaFrame(now+=1000/60);}
+const point=p=>p?{x:p.x,y:p.y??p.height,z:p.z}:null;
+function step(){
+ const before=[...g.bullets];g.step(1/60);g.vfx.update(1/60);
+ if(activeTarget?.mesh.userData.hitReaction&&events.some(e=>e.kind==='contact'&&e.id===g.player.weaponId))reaction??={...activeTarget.mesh.userData.hitReaction};
+ if(g.player.weaponId==='miasmalantern'&&trace.length<75){const bullets=[...new Set([...before,...g.bullets])];trace.push({time:+g.time.toFixed(4),player:point(g.player),target:point(activeTarget),hp:activeTarget?.hp,bullets:bullets.map(b=>({position:{x:b.x,y:b.height,z:b.z},velocity:{x:b.vx,y:b.vy,z:b.vz},life:b.life,releaseDelay:b.releaseDelay,aim:b.aimPoint,removed:!g.bullets.includes(b)}))});}
+}
+function advance(seconds){for(let i=0;i<Math.ceil(seconds*60);i++)step();}
+async function load(size){
+ if(g){errors.push(...win.qaErrors);g.audio.stopMusic();g.audio.stopWeapons();g.audio.stopCreatures();g.cinema?.dispose();g.renderer.dispose();g.renderer.forceContextLoss();}frame?.remove();
+ frame=document.createElement('iframe');frame.title='真实武器与路线检查';frame.style.width=size.width+'px';frame.style.height=size.height+'px';$('#view').append(frame);
+ const boot=`<base href="../"><script>
+ window.qaErrors=[];addEventListener('error',e=>qaErrors.push(e.message));addEventListener('unhandledrejection',e=>qaErrors.push(String(e.reason)));
+ let seed=204;window.qaSeed=()=>seed=204;Math.random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};
+ window.requestAnimationFrame=cb=>{window.qaFrame=cb;return 0};
+ const data=new Map();Object.defineProperty(window,'localStorage',{value:{getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,String(v)),removeItem:k=>data.delete(k)}});
+ const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${size.mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
+ <\/script>`;
+ frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
+ for(let i=0;i<1200&&!win.game3d;i++)await sleep(50);assert(win.game3d,'游戏加载超时');g=win.game3d;await g.surfaceReady;
+ if(size.mobile){const style=win.document.createElement('style');style.textContent=css.replaceAll(/\(pointer:\s*coarse\)/g,'(min-width:0px)');win.document.head.append(style);}
+ for(let i=0;i<1200&&win.document.querySelector('#start').disabled;i++)await sleep(50);assert(!win.document.querySelector('#start').disabled,'模型预热超时');
+ now=win.performance.now();render();
+ for(const kind of ['shot','impact','contact','weapon']){
+  const original=g.audio[kind].bind(g.audio);g.audio[kind]=(...args)=>{const event={kind,id:args[0],time:g.time,args};events.push(event);const played=original(...args);event.played=played===true;return played;};
+ }
+ assert(win.document.body.classList.contains('touch')===size.mobile,'操作分支与检查尺寸不符');
+}
+async function audioReady(){assert(await g.audio.init(),'浏览器尚未允许音效');await g.audio.materialEffects.prepare();g.audio.musicVolume=0;g.audio.sfxVolume=.15;g.audio.muted=false;g.audio.applyVolumes(true);}
+function setup(c,biome='forest'){
+ g.menu();win.qaSeed();g.select(c.hero,biome,c.index);win.document.querySelector('[data-attack-mode=manual]').click();g.start();win.document.querySelector('#dialog').close();
+ Object.assign(g.world,{obstacles:[],patches:[],ponds:[],ice:[],fords:[],bridges:[],sites:[],roaming:[],discoveries:[],breakables:[],groundHeightAt:()=>0});
+ g.world.overhead.firstHit=()=>null;
+ // Only ambient spawn probes meet this boundary; all actual attacks stay inside.
+ g.world.obstacles=Array.from({length:32},(_,i)=>({x:Math.sin(i*Math.PI/16)*23,z:Math.cos(i*Math.PI/16)*23,r:8}));
+ Object.assign(g.player,{x:0,y:0,z:0,groundHeight:0,attack:999,inv:999,pending:0,level:1});g.hero.position.set(0,0,0);g.hero.rotation.y=0;
+ // Fixture placement is a teleport; reset the camera pivot just like gameplay
+ // teleportation, otherwise fixed simulation steps retain the old map spawn.
+ g.adventureCamera.yaw=0;g.adventureCamera.pitch=-.08;g.adventureCamera._ready=false;g.setView('third');Object.assign(g.controls,{angle:0,held:false,hasAim:true});
+ if(g.companion){g.companion.alive=false;g.companion.state='down';g.companion.reviveLeft=999;}
+ events=[];activeTarget=null;reaction=null;trace=[];initial=null;
+}
+function spawn(role='golem',distance=2.7){
+ const e=g.spawn(role,0,distance);assert(e,'静止目标创建失败');Object.assign(e,{hp:100000,maxHp:100000,speed:0,cool:999,damage:0,xp:0,height:6,size:1});activeTarget=e;
+ // Spawn may move a body out of occupied ground. Aim at its accepted position,
+ // keeping the test's camera ray and manual facing on the same actual target.
+ const angle=Math.atan2(e.x-g.player.x,e.z-g.player.z);g.hero.rotation.y=angle;g.controls.angle=angle;g.adventureCamera.yaw=angle;
+ g.adventureCamera._ready=false;g.setView('third');return e;
+}
+function fire(){const before=g.hero.userData.shotSerial||0;g.player.attack=0;g.controls.held=true;step();g.controls.held=false;g.player.attack=999;assert(g.hero.userData.shotSerial===before+1,'一次输入未产生一次真实攻击');}
+async function cleanup(){
+ g.menu();g.audio.stopMusic();g.audio.stopWeapons();g.audio.stopCreatures();await sleep(45);
+ assert(!g.bullets.length&&!g.riftStrikes.length&&!g.fields.length,'离场遗留弹体、裂口或法场');assert(!g.poison.pods.length&&!g.poison.clouds.length,'离场遗留毒囊或毒雾');
+ assert(!g.audio.weaponSources.size&&!g.audio.creatureSources.size,'离场遗留声音源');assert(!win.qaErrors.length,win.qaErrors.join('\n'));
+}
+async function attackCase(c,{route,miss=false,material=0}={}){
+ const[biome,role]=materials[material%materials.length];setup(c,biome);
+ if(route){g.player.level=3;assert(takeUpgrade(g.player,'path:'+route),'无法合法领取路线第一阶');assert(g.player.weaponPath.rank===1,'路线没有停留在第一阶');}
+ const target=miss?null:spawn(role),expected=target?enemySurface(target.kind):null;
+ initial={biome,weapon:c.id,route:route||null,player:point(g.player),target:target?{...point(target),kind:target.kind,height:target.height,size:target.size,radius:target.radius}:null,camera:point(g.camera.position),direction:point(g.adventureCamera.getRay().direction),stats:weaponStats(g.player)};
+ fire();advance(1.45);
+ const snapshot={weapon:c.id,route:route||null,target:target?.kind||null,surface:expected,damage:target?100000-target.hp:0,serial:g.hero.userData.shotSerial,reaction,events:events.map(e=>({kind:e.kind,id:e.id,time:+e.time.toFixed(3),played:e.played}))};
+ assert(snapshot.serial===1,'一次按键生成了多轮攻击');assert(events.some(e=>e.kind==='weapon'&&e.id===c.id&&e.args[1]==='shot'&&e.played),'对应武器没有真正创建出手播放源');
+ const contacts=events.filter(e=>e.kind==='contact'&&e.id===c.id);
+ if(miss){assert(!contacts.length,'挥空产生肉体接触反馈');assert(!g.enemies.some(e=>e.alive),'空场受环境刷新干扰');}
+ else{
+  assert(target.hp<100000,'攻击没有击中静止目标');assert(contacts.length,'命中未传递武器身份');assert(reaction,'命中没有受击姿态');
+  assert(events.some(e=>e.kind==='weapon'&&e.id==='surface:'+expected&&e.played),'目标表面没有创建对应接触音');
+  if(route==='grimoire_wide')assert(snapshot.reaction.duration>.3,'宽裂口丢失魔典受击表现');
+ }
+ await cleanup();return snapshot;
+}
+async function check(name,fn){$('#status').textContent='检查 '+name;await sleep(0);try{results.push({name,pass:true,detail:await fn()});}catch(error){const diagnostics={initial,final:{player:point(g.player),target:point(activeTarget),hp:activeTarget?.hp,bullets:g.bullets.length},trace,events};results.push({name,pass:false,error:error.message,diagnostics});$('#diagnostic').textContent=JSON.stringify({name,error:error.message,...diagnostics},null,2);try{await cleanup();}catch{}}publish();}
+async function run(id){
+ buttons(true);results.length=0;errors.length=0;publish();
+ try{
+  await load(dimensions[id]);await audioReady();
+  for(const[i,c]of cases.entries())await check(id+' / 命中 / '+c.id,()=>attackCase(c,{material:i}));
+  for(const c of cases)await check(id+' / 挥空收尾 / '+c.id,()=>attackCase(c,{miss:true}));
+  for(const[route,path]of Object.entries(WEAPON_PATHS))await check(id+' / 一阶路线 / '+route,()=>attackCase(cases.find(c=>c.id===path.weapon),{route}));
+ }catch(error){results.push({name:'初始化',pass:false,error:error.message});}
+ errors.push(...(win?.qaErrors||[]));publish();buttons(false);$('#status').textContent=results.every(r=>r.pass)&&!errors.length?'全部 '+results.length+' 组真实攻击检查通过；手机仅为尺寸模拟。':'有检查失败，请查看报告。';
+}
+async function preview(){
+ buttons(true);try{await audioReady();setup(cases.find(c=>c.id==='harpoon'));spawn('golem');g.setView('first');g.adventureCamera.yaw=0;g.adventureCamera.pitch=-.08;render();fire();advance(.18);g.pause();render();$('#status').textContent='长叉命中后姿态已冻结。';}catch(error){$('#status').textContent=error.message;}finally{buttons(false);}
+}
+for(const id of Object.keys(dimensions))$('#'+id).onclick=()=>run(id);$('#preview').onclick=preview;
+$('#mirage').onclick=async()=>{buttons(true);results.length=0;errors.length=0;$('#diagnostic').textContent='尚无失败。';try{await audioReady();const c=cases.find(c=>c.id==='miasmalantern');for(const material of [2,0])await check('蜃花灯 / '+materials[material].join(' / '),()=>attackCase(c,{material}));}catch(error){errors.push(error.message);}finally{errors.push(...win.qaErrors);publish();buttons(false);$('#status').textContent=results.every(r=>r.pass)&&!errors.length?'蜃花灯两类目标均通过。':'诊断完成，请查看失败诊断。';}};
+try{await load(dimensions.desktop);buttons(false);$('#status').textContent='准备完成。每组包含 13 次命中、13 次挥空、26 条一阶路线，以及离场资源回收检查。';}catch(error){$('#status').textContent='加载失败：'+error.message;}
+</script></html>

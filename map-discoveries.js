@@ -1,7 +1,8 @@
 import * as T from './vendor/three.module.js';
 import{mergeGeometries}from'./vendor/BufferGeometryUtils.js';
-import{sceneryAllowed}from'./biome-scenery.js?v=203';
-import{createDiscoveryScenery}from'./discovery-scenery.js?v=203';
+import{sceneryAllowed}from'./biome-scenery.js?v=204';
+import{createDiscoveryScenery}from'./discovery-scenery.js?v=204';
+import{FIELD_SUPPLIES}from'./expedition.js?v=204';
 export const SMALL_FINDS={
  forest:{name:'蜜露花丛',tip:'靠近花心采集；附近有怪物时先脱离战斗。',xp:6,heal:.12,color:0xb8dc8f},
  snow:{name:'双霜晶',tip:'分别碰触两侧霜晶，点亮后领取。',xp:18,heal:.08,color:0xa5dbea},
@@ -12,9 +13,9 @@ export const SMALL_FINDS={
 const findNames={forest:['采药人的遗篮','林间萤石踪迹'],snow:['远征队的雪橇','风雪引路残片'],ash:['矿工的遗留箱','余烬矿脉碎片'],sand:['旅人的覆沙行李','古道刻石残片'],coast:['沉船漂流物','潮岸贝光踪迹']};
 const extraFinds=Object.fromEntries(Object.entries(findNames).map(([id,names])=>[id,{
  cache:{name:names[0],tip:'安全时靠近整理 1.8 秒；离开或遇敌暂停，进度保留。',xp:20,heal:.08,color:SMALL_FINDS[id].color},
- trail:{name:names[1],tip:'依次走近三处微光残片；收齐后获得经验，离开保留进度。',xp:24,heal:0,color:SMALL_FINDS[id].color}
+ trail:{name:names[1],tip:'依次收齐三处残片，获得'+FIELD_SUPPLIES[id].name+'。'+FIELD_SUPPLIES[id].text+'仅携带一份备战，替换旧备战；离开保留进度。',xp:24,heal:0,preparation:id,color:SMALL_FINDS[id].color}
 }]));
-export function discoveryInfo(n){return extraFinds[n.id]?.[n.variant]||SMALL_FINDS[n.id];}
+export function discoveryInfo(n){const info=extraFinds[n.id]?.[n.variant]||SMALL_FINDS[n.id];return n.preparation&&n.variant!=='trail'?{...info,preparation:n.preparation,tip:info.tip+'附带'+FIELD_SUPPLIES[n.preparation].name+'：'+FIELD_SUPPLIES[n.preparation].text+'仅携带一份备战，替换旧备战。'}:info;}
 export function discoveryVariants(id){return[SMALL_FINDS[id],...Object.values(extraFinds[id]||{})];}
 export function discoveryThreatened(n,x,z,radius){return Math.hypot(x-n.x,z-n.z)<radius||n.variant==='trail'&&n.nodes.some(p=>Math.hypot(x-p.x,z-p.z)<radius);}
 const footprints=new Map();
@@ -90,7 +91,9 @@ export function installDiscoveries(w,id,rnd){
   base.rotation.y=angle;if(layout)base.scale.setScalar(layout.scale);base.receiveShadow=true;mesh.add(base);
   const nodes=layout?.nodes??(variant==='native'&&id==='snow'?[-1.25,1.25].map(dx=>({x:x+dx,z,lit:false})):[]);
   const markers=(nodes.length?nodes:[{x,z}]).map(n=>{const m=new T.Mesh(id==='coast'?pearlGeometry:crystalGeometry,light(SMALL_FINDS[id].color));m.position.set(n.x-x,variant==='trail'?.20:variant==='cache'?.36:id==='snow'?.98:id==='forest'?.55:.25,n.z-z);m.visible=false;mesh.add(m);return m;});
-  mesh.visible=variant!=='native';w.group.add(mesh);w.discoveries.push({id,variant,x,z,mesh,markers,nodes,availableAt:10+i*35,discovered:false,claimed:false,progress:0,phase:rnd()*8});break;
+  // A dry-fit fallback retains this slot's preparation without shrinking or
+  // relocating its interaction footprint, including coastal joined regions.
+  mesh.visible=variant!=='native';w.group.add(mesh);w.discoveries.push({id,variant,preparation:i===1?id:null,x,z,mesh,markers,nodes,availableAt:10+i*35,discovered:false,claimed:false,progress:0,phase:rnd()*8});break;
  }
 }
 export function advanceDiscovery(n,dt,{time,player,contested=false,tide,sandstorm}){
@@ -104,5 +107,5 @@ export function advanceDiscovery(n,dt,{time,player,contested=false,tide,sandstor
  else if(distance<1.7){if(n.id==='sand'){n.progress=Math.min(2.5,n.progress+dt);n.claimed=n.progress>=2.5;}else n.claimed=true;}
  result.complete=n.claimed;return result;
 }
-export function discoveryHint(n){const info=discoveryInfo(n);if(n.contested)return info.name+' · 先击退附近怪物';if(n.blocked)return info.name+' · '+({ash:'余烬灼热，暗下再拾取',sand:'等待风息，进度保留',coast:'等待退潮'}[n.id]);return info.name+' · '+(n.variant==='trail'?'循亮点寻找残片 '+n.progress+'/3':n.variant==='cache'?'整理补给 '+Math.floor(n.progress/1.8*100)+'%':n.id==='snow'?'点亮霜晶 '+n.progress+'/2':n.id==='sand'?'清理积沙 '+Math.floor(n.progress/2.5*100)+'%':info.tip);}
+export function discoveryHint(n){const info=discoveryInfo(n);if(n.contested)return info.name+' · 先击退附近怪物';if(n.blocked)return info.name+' · '+({ash:'余烬灼热，暗下再拾取',sand:'等待风息，进度保留',coast:'等待退潮'}[n.id]);return info.name+' · '+(n.variant==='trail'?'残片 '+n.progress+'/3 · 获得'+FIELD_SUPPLIES[n.id].name:n.variant==='cache'?'整理补给 '+Math.floor(n.progress/1.8*100)+'% · 恢复 8% 生命':n.id==='snow'?'点亮霜晶 '+n.progress+'/2':n.id==='sand'?'清理积沙 '+Math.floor(n.progress/2.5*100)+'%':info.tip)+(n.variant!=='trail'&&info.preparation?' · 附带'+FIELD_SUPPLIES[info.preparation].name:'');}
 export function animateDiscoveries(w,t){for(const n of w.discoveries||[]){n.mesh.visible=n.discovered||n.variant==='cache'||n.variant==='trail';for(const [i,m]of n.markers.entries()){m.visible=n.discovered&&!n.claimed;if(!m.visible)continue;const hot=n.id==='ash'&&(t+n.phase)%8>=4,lit=n.nodes[i]?.lit,waiting=n.variant==='trail'&&i>n.progress;m.material=light(hot?0xe76637:lit?0xe7f6ec:discoveryInfo(n).color);const pulse=(waiting?.48:lit?.68:1)+Math.sin(t*2+n.phase+i)*.08;m.scale.setScalar(pulse);m.rotation.y=t*.3+n.phase;}}}

@@ -1,5 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import * as T from '../vendor/three.module.js';
 import {recordEnemyHit,restoreEnemyHit,animateEnemyHit,EnemyDeaths} from '../enemy-feedback.js';
+import {WEAPONS} from '../rules.js';
 const target=()=>{const mesh=new T.Group(),rig=new T.Group();mesh.add(rig);mesh.userData.rig=rig;return mesh;};
 test('contact tint is isolated, cached, pause-safe and restored on recovery/death',()=>{
  const base=new T.MeshStandardMaterial({color:0x476754}),color=base.color.clone(),a=target(),b=target();
@@ -27,4 +28,25 @@ test('death poses expire, obey their cap, and leave shared materials and scene o
  for(let i=0;i<20;i++){const mesh=target();scene.add(mesh);meshes.push(mesh);deaths.add({mesh,role:roles[i%4]});assert(deaths.items.length<=4);}assert.equal(scene.children.length,4);
  deaths.update(.2);const poses=deaths.items.map(p=>[p.rig.scale.y,p.rig.rotation.z,p.rig.rotation.x]);assert(new Set(poses.map(JSON.stringify)).size===4);for(const m of meshes)m.traverse(n=>assert(n.matrix.elements.every(Number.isFinite)));
  deaths.update(.3);assert.equal(deaths.items.length,0);assert.equal(scene.children.length,0);const mesh=target();scene.add(mesh);deaths.add({mesh,role:'wolf'});deaths.clear();assert.equal(scene.children.length,0);
+});
+
+test('all thirteen weapon reactions have readable distinct weight and recovery without altering collisions',()=>{
+ const signatures=new Set();
+ for(const kind of Object.keys(WEAPONS)){
+  const mesh=target(),rig=mesh.userData.rig;recordEnemyHit(mesh,{kind,damage:20,maxHp:100,targetKind:'mushroom'});
+  const h=mesh.userData.hitReaction;signatures.add([h.strength,h.duration,h.lean,h.turn].join(':'));
+  for(let n=0;n<60;n++){restoreEnemyHit(mesh);animateEnemyHit(mesh,1/60);assert.equal(mesh.position.length(),0);assert(rig.position.length()<=.24);assert(rig.rotation.toArray().slice(0,3).every(Number.isFinite));}
+  assert(rig.position.length()<1e-9);assert(rig.quaternion.angleTo(new T.Quaternion())<1e-8);
+ }
+ assert.equal(signatures.size,13);
+ const flesh=target(),shell=target(),rock=target();
+ for(const[mesh,targetKind]of[[flesh,'mushroom'],[shell,'tidecrab'],[rock,'sandguard']])recordEnemyHit(mesh,{kind:'harpoon',targetKind,damage:20,maxHp:100});
+ assert(flesh.userData.hitReaction.strength>shell.userData.hitReaction.strength);assert(shell.userData.hitReaction.strength>rock.userData.hitReaction.strength);
+});
+
+test('scythe cuts turn bodies in opposite directions and the harpoon hook draws its visual response back',()=>{
+ const hits=[];for(const combo of [0,1,2]){const mesh=target();recordEnemyHit(mesh,{kind:'shadowblade',combo,damage:20,maxHp:100});animateEnemyHit(mesh,.03);hits.push(mesh.userData.rig.rotation.y);}
+ assert(hits[0]>0&&hits[1]<0&&hits[2]===0);
+ const thrust=target(),hook=target();recordEnemyHit(thrust,{kind:'harpoon',combo:0,damage:20});recordEnemyHit(hook,{kind:'harpoon',combo:2,damage:20});animateEnemyHit(thrust,.03);animateEnemyHit(hook,.03);
+ assert(thrust.userData.rig.position.z>0&&hook.userData.rig.position.z<0);
 });

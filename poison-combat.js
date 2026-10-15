@@ -1,4 +1,4 @@
-import{POISON as C}from'./poison-config.js?v=203';
+import{POISON as C}from'./poison-config.js?v=204';
 const EPS=1e-8,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function nearestPoint(p,a,b){const dx=b.x-a.x,dz=b.z-a.z,l=dx*dx+dz*dz,t=l?clamp(((p.x-a.x)*dx+(p.z-a.z)*dz)/l,0,1):0;return{x:a.x+dx*t,z:a.z+dz*t};}
 function local(q,p){const c=Math.cos(q.angle||0),s=Math.sin(q.angle||0),x=p.x-q.x,z=p.z-q.z;return{x:x*c-z*s,z:x*s+z*c};}
@@ -93,7 +93,7 @@ export class PoisonCombat{
   while(this.active()){
    const eventAt=q=>q.released?q.landAt:q.releaseAt,pod=this.pods.reduce((best,q)=>!best||eventAt(q)<eventAt(best)?q:best,null),tickAt=this.tickIndex*C.tick,next=Math.min(tickAt,pod?eventAt(pod):Infinity);
    if(next>end+EPS)break;this.now=next;
-   if(pod&&eventAt(pod)<=tickAt){if(!pod.released){pod.released=true;const origin=this.api.release?.(pod);if(origin){pod.startX=origin.x;pod.startZ=origin.z;pod.startY=origin.y;}this.fx('poisonThrow',pod.startX,pod.startZ);}else{this.pods.splice(this.pods.indexOf(pod),1);this.land(pod);}}else{this.tick(tickAt);this.tickIndex++;}
+   if(pod&&eventAt(pod)<=tickAt){if(!pod.released){pod.released=true;const origin=this.api.release?.(pod);if(!this.active())return;if(origin){pod.startX=origin.x;pod.startZ=origin.z;pod.startY=origin.y;}this.fx('poisonThrow',pod.startX,pod.startZ);}else{this.pods.splice(this.pods.indexOf(pod),1);this.land(pod);}}else{this.tick(tickAt);this.tickIndex++;}
   }
   if(!this.active())return;this.now=end;this.clouds=this.clouds.filter(q=>q.expires>this.now);this.bands=this.bands.filter(q=>q.expires>this.now);if(this.shield.until<=this.now)this.shield.amount=0;
  }

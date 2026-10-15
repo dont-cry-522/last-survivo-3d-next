@@ -1,16 +1,18 @@
-import{SCYTHE}from'./scythe-combat.js?v=203';
-import{POISON}from'./poison-config.js?v=203';
-import{MIRAGE}from'./mirage-config.js?v=203';
+import{SCYTHE}from'./scythe-combat.js?v=204';
+import{POISON}from'./poison-config.js?v=204';
+import{MIRAGE}from'./mirage-config.js?v=204';
 const clamp=x=>Math.max(0,Math.min(1,x));
 const smooth=(a,b,t)=>{const x=clamp((t-a)/(b-a));return x*x*(3-2*x);};
 const pulse=(t,a,b,c)=>smooth(a,b,t)*(1-smooth(b,c,t));
 export const WEAPON_RECOVERY={miasmalantern:.72,sporelantern:POISON.castRecovery,boomerang:.55,harpoon:.48,hammer:.7,rifle:.22,shotgun:.48,crossbow:.26,shuriken:.46,fire:.62,dark:.68,shade:.36,shadowblade:SCYTHE.recovery,grimoire:.72};
+// Combat compresses release with attack speed without a 120 ms animation floor.
+export const weaponDuration=(id,period=1)=>Math.min(WEAPON_RECOVERY[id]||.3,Math.max(.001,period*.9));
 // Cycle fractions also drive the audible mechanism cues, so haste preserves sync.
 export const WEAPON_CUES={miasmalantern:[],sporelantern:[.73],boomerang:[],harpoon:[],hammer:[],rifle:[],shotgun:[.25,.6],crossbow:[.22,.68],shuriken:[.68],fire:[.68],dark:[.68],shade:[],shadowblade:[],grimoire:[.58]};
 export function mirageShotDelay(rate){return Math.min(MIRAGE.releaseDelay,.3/Math.max(.01,rate));}
 // One clock drives both held poses and their blade trails; damage timings stay unchanged.
 export function meleeSwing(id,age,period=1){
- const hit=id==='shadowblade'?SCYTHE.hitFraction:.34,duration=Math.min(WEAPON_RECOVERY[id],Math.max(.12,period*.9)),t=age/duration;
+ const hit=id==='shadowblade'?SCYTHE.hitFraction:.34,duration=weaponDuration(id,period),t=age/duration;
  const gather=pulse(t,0,hit*.42,hit),follow=smooth(hit*.48,hit+.19,t)*(1-smooth(.72,1,t));
  return{kick:pulse(t,hit*.20,hit,.95),gather,sweep:follow,cut:-.70*gather+follow,draw:0,
   // Weight transfer begins before the hands and fades into the original gait.
@@ -19,10 +21,9 @@ export function meleeSwing(id,age,period=1){
   recover:pulse(t,.60,.82,1),weight:1-smooth(.78,1,t),trail:t>hit*.46&&t<hit+.22};
 }
 export function weaponGesture(id,age,cycle=1,period=1){
-  const duration=WEAPON_RECOVERY[id]||.3;
-  const t=age/Math.min(duration,Math.max(.12,period*.9));
+  const t=age/weaponDuration(id,period);
   if(id==='miasmalantern'){
-    const release=mirageShotDelay(1/period),settle=Math.min(duration,Math.max(.12,period*.9));
+    const release=mirageShotDelay(1/period),settle=weaponDuration(id,period);
     return{kick:pulse(age,release*.40,release,settle),sweep:pulse(age,release*.55,release+(settle-release)*.23,settle),draw:0,gather:pulse(age,0,release*.42,release)};
   }
   if(id==='shadowblade'||id==='harpoon')return meleeSwing(id,age,period);
@@ -45,7 +46,7 @@ export function shotStarted(d,attack,previous){
   d.lastShotSerial=d.shotSerial;return fired;
 }
 
-export function weaponCuePhases(id,period){const scale=['crossbow','shotgun','rifle'].includes(id)?1:Math.min(WEAPON_RECOVERY[id],Math.max(.12,period*.9))/period;return (WEAPON_CUES[id]||[]).map(t=>t*scale);}
+export function weaponCuePhases(id,period){const scale=['crossbow','shotgun','rifle'].includes(id)?1:weaponDuration(id,period)/period;return (WEAPON_CUES[id]||[]).map(t=>t*scale);}
 
 // Reload is driven by the existing attack cycle. The string catches at the rear
 // while the support hand returns below the stock; it must not spring forward a
@@ -68,7 +69,7 @@ const SCYTHE_POSES=[
 ];
 const SCYTHE_TIMES=[0,.24,SCYTHE.hitFraction,.62,.80,1];
 export function scythePose(age,period=1,combo=0){
- const duration=Math.min(SCYTHE.recovery,Math.max(.12,period*.9)),t=clamp(age/duration),frames=[SCYTHE_REST,...SCYTHE_POSES[combo===1?1:combo===2?2:0],SCYTHE_REST];
+ const duration=weaponDuration('shadowblade',period),t=clamp(age/duration),frames=[SCYTHE_REST,...SCYTHE_POSES[combo===1?1:combo===2?2:0],SCYTHE_REST];
  let i=0;while(i<4&&t>SCYTHE_TIMES[i+1])i++;
  const span=SCYTHE_TIMES[i+1]-SCYTHE_TIMES[i],u=(t-SCYTHE_TIMES[i])/span,u2=u*u,u3=u2*u,pose={};
  // Time-aware Hermite tangents keep velocity through contact; only idle endpoints

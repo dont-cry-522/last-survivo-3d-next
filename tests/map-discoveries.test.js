@@ -4,6 +4,7 @@ import{createHash}from'node:crypto';import * as T from'../vendor/three.module.js
 import{buildWorld,clearAt}from'../world.js';
 import{terrainAt,waterDepth}from'../water.js';
 import{installDiscoveries,advanceDiscovery,animateDiscoveries,discoveryHint,discoveryInfo,discoveryVariants,discoveryThreatened}from'../map-discoveries.js';
+import{FIELD_SUPPLIES}from'../expedition.js';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const ids=['forest','snow','ash','sand','coast'];
 function dispose(w){w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});}
@@ -52,6 +53,18 @@ test('trails require nodes in order and retain progress through pause, leaving a
  visit(n,10,{player:n.nodes[2]});assert.equal(n.progress,0);visit(n,10,{player:n.nodes[0]});assert.equal(n.progress,1);assert.match(discoveryHint(n),/1\/3/);
  visit(n,10,{player:n.nodes[1],contested:true});advanceDiscovery(n,0,{time:20,player:n.nodes[1]});visit(n,10,{player:{x:30,z:0}});assert.equal(n.progress,1);
  visit(n,10,{player:n.nodes[1]});assert.equal(n.progress,2);assert(visit(n,10,{player:n.nodes[2]}).complete);assert(n.nodes.every(p=>p.lit));assert(!visit(n,10,{player:n.nodes[2]}).complete);
+});
+test('all biome trails advertise finite preparation while safe caches retain immediate recovery',()=>{
+ for(const id of ids){const n={...node(id),variant:'trail'},info=discoveryInfo(n);assert.equal(info.preparation,id);assert.match(info.tip,new RegExp(FIELD_SUPPLIES[id].name));assert(info.tip.includes(FIELD_SUPPLIES[id].text));assert.match(info.tip,/替换旧备战/);assert.match(discoveryHint(n),new RegExp(FIELD_SUPPLIES[id].name));
+  const supply=discoveryInfo({...n,variant:'cache'});assert.equal(supply.preparation,undefined);assert.equal(supply.heal,.08);assert.equal(supply.xp,20);assert.equal(discoveryInfo({...n,variant:'native'}).preparation,undefined);
+ }
+});
+test('all six worlds retain one preparation per biome even when a whole dry trail cannot fit',()=>{
+ let fallbacks=0;for(const map of[...ids,'confluence'])for(const seed of[7,522,43837033]){
+  const w=buildWorld(map,seed),preparations=w.discoveries.filter(n=>discoveryInfo(n).preparation);assert.equal(preparations.length,map==='confluence'?5:1);assert.equal(new Set(preparations.map(n=>discoveryInfo(n).preparation)).size,preparations.length);
+  for(const n of preparations){const info=discoveryInfo(n);assert.equal(info.preparation,n.id);assert.match(discoveryHint(n),new RegExp(FIELD_SUPPLIES[n.id].name));if(n.variant!=='trail'){fallbacks++;assert(info.tip.includes(FIELD_SUPPLIES[n.id].text));assert.equal(info.heal,discoveryInfo({...n,preparation:null}).heal);}}
+  dispose(w);
+ }assert(fallbacks>0,'fallback reward path was not exercised');
 });
 test('cache gathering takes 1.8 game seconds and pauses outside safety or during weather',()=>{
  for(const id of ids){const n={...node(id),variant:'cache'};const time=id==='ash'?16:10;visit(n,time);assert.equal(n.progress,.5);visit(n,time,{contested:true});visit(n,time,{player:{x:3,z:0}});advanceDiscovery(n,0,{time,player:{x:0,z:0}});assert.equal(n.progress,.5);

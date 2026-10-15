@@ -1,12 +1,12 @@
-import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=203';
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=204';
 import * as T from './vendor/three.module.js';
-import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=203';
-import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=203';
-import {sporePod} from './wuling-appearance.js?v=203';
+import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=204';
+import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=204';
+import {sporePod} from './wuling-appearance.js?v=204';
 import {poseSlingshot} from './slingshot-model.js';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=203';
+import {weaponGesture,weaponDuration,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=204';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
@@ -160,7 +160,7 @@ function detailBatch(){
 export class FirstPersonView {
  constructor(camera){
   this.camera=camera;this.root=new T.Group();this.root.name='First_person_equipment';this.root.layers.set(1);this.root.visible=false;camera.add(this.root);
-  this.materials=new Map();this.parts=[];this.ownedGeometry=[];this.gait=0;this.sway=0;this.disposed=false;this.scratch=new T.Vector3();this.wrist=new T.Vector3();this.restRotation=new T.Quaternion();this.elbow=new T.Vector3();this.dodgeBasePosition=new T.Vector3();this.dodgeBaseRotation=new T.Euler();this.scytheContact=new T.Object3D();this.handRotation=new T.Quaternion();
+  this.materials=new Map();this.parts=[];this.ownedGeometry=[];this.gait=0;this.sway=0;this.disposed=false;this.scratch=new T.Vector3();this.wrist=new T.Vector3();this.restRotation=new T.Quaternion();this.elbow=new T.Vector3();this.dodgeBasePosition=new T.Vector3();this.dodgeBaseRotation=new T.Euler();this.meleeContact=new T.Object3D();this.handRotation=new T.Quaternion();
  }
  clear(){
   this.root.clear();for(const material of this.materials.values())material.dispose();for(const geometry of this.ownedGeometry)geometry.dispose();
@@ -299,6 +299,16 @@ export class FirstPersonView {
   this.scratch.copy(this.grip).multiplyScalar(scale);object.position.add(this.wrist.copy(this.scratch).applyQuaternion(this.restRotation)).sub(this.scratch.applyQuaternion(object.quaternion));
   object.updateMatrix();
  }
+ poseHarpoon(object,motion,scale,halfW,combo){
+  const {kick,sweep,gather}=motion;
+  object.scale.setScalar(scale);object.position.set(0,0,0);object.rotation.set(this.profile.pitch,Math.PI+Math.atan2(halfW*this.profile.x*.72,1.6*scale),0,'XYZ');
+  if(combo===1){
+   object.position.set(-.18*motion.cut,.025*kick,-.15*kick+.06*gather);
+   object.rotation.y-=.45*motion.cut;object.rotation.z=-.11*sweep;object.rotation.x+=.035*kick;
+  }else if(combo===2){object.position.set(-.035*sweep,.035*kick-.035*sweep,-.16*kick+.095*sweep);object.rotation.x-=.09*sweep;}
+  else{object.position.set(-.025*kick,.018*kick,-.27*kick+.04*gather);object.rotation.x-=.02*kick;}
+  object.position.x+=.035*motion.recover;object.position.y-=.025*motion.recover;
+ }
  update(time,dt,{moving=0,strafe=0,yaw=0,pitch=0,attack=0,attackDuration=.18,visible=false,dodgePose=null}={}){
   if(this.disposed||!this.weapon)return;this.root.visible=!!visible;
   if(!visible){if(dodgePose===null){this.poseReady=false;this.dodgeWeight=0;}return;}
@@ -350,15 +360,7 @@ export class FirstPersonView {
   }else if(profile.type==='thrust'){
    // Aim the distant fork inward from the rear-hand position. Narrow screens retain
    // that perspective instead of rotating the entire two-metre pole across the view.
-   this.weapon.rotation.y=Math.PI+Math.atan2(halfW*profile.x*.72,1.6*scale);
-   const combo=data.harpoonCombo||0,gather=motion.gather;
-   if(combo===1){
-    this.weapon.position.set(-.18*motion.cut,.025*kick,-.15*kick+.06*gather);
-    this.weapon.rotation.y-=.45*motion.cut;this.weapon.rotation.z=-.11*sweep;this.weapon.rotation.x+=.035*kick;
-   }else if(combo===2){
-    this.weapon.position.set(-.035*sweep,.035*kick-.035*sweep,-.16*kick+.095*sweep);this.weapon.rotation.x-=.09*sweep;
-   }else{this.weapon.position.set(-.025*kick,.018*kick,-.27*kick+.04*gather);this.weapon.rotation.x-=.02*kick;}
-   this.weapon.position.x+=.035*motion.recover;this.weapon.position.y-=.025*motion.recover;
+   this.poseHarpoon(this.weapon,motion,scale,halfW,data.harpoonCombo||0);
   }else if(profile.type==='scythe'){
    this.poseScythe(this.weapon,scythePose(age,period,data.scytheCombo||0),scale);
   }else if(id==='boomerang'){
@@ -387,20 +389,19 @@ export class FirstPersonView {
    if(profile.type==='staff')this.weapon.position.y=motion.gather*.018;
   }
   const meleeTarget=id==='harpoon'?data.harpoonTarget:id==='shadowblade'?data.scytheTarget:null;
-  if(meleeTarget&&age<Math.min(WEAPON_RECOVERY[id],period*.9)){
+  if(meleeTarget&&age<weaponDuration(id,period)){
    // Match the visible fork to the committed hit's screen position. The held rig
    // has its own depth layer; copying full world distance would stretch the arms.
-   const hit=id==='harpoon'?.34:.44,u=age/Math.min(WEAPON_RECOVERY[id],Math.max(.12,period*.9)),ease=(a,b)=>{const q=T.MathUtils.clamp((u-a)/(b-a),0,1);return q*q*(3-2*q);},drive=id==='shadowblade'?ease(0,.24)*(1-ease(.68,1)):ease(.08,hit)*(1-ease(hit+.12,.96));
+   const hit=id==='harpoon'?.34:.44,u=age/weaponDuration(id,period),ease=(a,b)=>{const q=T.MathUtils.clamp((u-a)/(b-a),0,1);return q*q*(3-2*q);},drive=id==='shadowblade'?ease(0,.24)*(1-ease(.68,1)):ease(.08,hit)*(1-ease(hit+.12,.96));
    this.weapon.position.z-=drive*(id==='shadowblade'?.12:data.harpoonCombo===1?.22:.45);
    this.weapon.updateMatrix();
-   // Calibrate the scythe once at its contact phase, not at every current pose.
-   // Chasing the target with the current blade cancelled the lateral cutting arc.
-   let contactMatrix=this.weapon.matrix;
+   // Calibrate both rigid poles at the contact phase. Chasing a target on every
+   // frame pins the visible edge in place and cancels a horizontal cutting arc.
    if(id==='shadowblade'){
-    this.poseScythe(this.scytheContact,scythePose(Math.min(WEAPON_RECOVERY[id],Math.max(.12,period*.9))*hit,period,data.scytheCombo||0),scale);
-    this.scytheContact.position.z-=.12;this.scytheContact.updateMatrix();contactMatrix=this.scytheContact.matrix;
-   }
-   this.scratch.set(...(id==='harpoon'?[0,0,1.75]:[.78,.54,.045])).sub(this.center).applyMatrix4(contactMatrix).applyQuaternion(this.root.quaternion).add(this.root.position);
+    this.poseScythe(this.meleeContact,scythePose(weaponDuration(id,period)*hit,period,data.scytheCombo||0),scale);this.meleeContact.position.z-=.12;
+   }else{this.poseHarpoon(this.meleeContact,weaponGesture(id,weaponDuration(id,period)*hit,0,period),scale,halfW,data.harpoonCombo||0);this.meleeContact.position.z-=data.harpoonCombo===1?.22:.45;}
+   this.meleeContact.updateMatrix();
+   this.scratch.set(...(id==='harpoon'?[0,0,1.75]:[.78,.54,.045])).sub(this.center).applyMatrix4(this.meleeContact.matrix).applyQuaternion(this.root.quaternion).add(this.root.position);
    this.camera.updateWorldMatrix(true,false);this.wrist.set(meleeTarget.x,meleeTarget.y,meleeTarget.z);this.camera.worldToLocal(this.wrist);
    if(this.wrist.z<-.3&&Math.abs(this.wrist.x/this.wrist.z)<halfW/depth*1.1&&Math.abs(this.wrist.y/this.wrist.z)<halfH/depth*1.1){const ratio=this.scratch.z/this.wrist.z,dx=this.wrist.x*ratio-this.scratch.x,dy=this.wrist.y*ratio-this.scratch.y,c=Math.cos(this.root.rotation.z),s=Math.sin(this.root.rotation.z);this.weapon.position.x+=(dx*c+dy*s)*drive;this.weapon.position.y+=(dy*c-dx*s)*drive;}
   }

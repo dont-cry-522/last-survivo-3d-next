@@ -75,5 +75,13 @@ test('dodging cancels a not-yet-released pod but leaves released flight intact',
 test('boss with no adds takes main poison and a finished game halts the tick immediately',()=>{
  const s=setup({poison_spread:3}),boss=s.foe(0,0,1);boss.boss=true;const api=s.combat.api.damage;s.combat.api.damage=(...args)=>{api(...args);if(!boss.alive)s.pause();};s.cloud();s.combat.update(1);assert.equal(boss.kills,1);assert.equal(s.events.filter(e=>e.kind==='poisonSpread').length,0);assert.equal(s.hits.length,1);
 });
+test('a preparation killing the final boss on pod release cannot emit a throw after finish resets combat',()=>{
+ const s=setup(),boss=s.foe(0,5,1),w=weaponStats(s.player);let releases=0;
+ s.combat.api.release=()=>{releases++;s.combat.api.damage(boss,18,true,{source:'field-storm'});s.pause();s.combat.reset();return{x:2,y:1,z:3};};
+ s.combat.cast(w,{x:0,z:0},0,{x:0,z:5});s.combat.update(1);
+ assert.equal(releases,1);assert.equal(boss.kills,1);assert.equal(s.hits.length,1);assert.deepEqual(s.events,[]);assert.equal(s.combat.now,0);assert.equal(s.combat.tickIndex,1);assert.equal(s.combat.pods.length+s.combat.clouds.length+s.combat.bands.length+s.combat.marks.size,0);
+ s.combat.update(2);assert.equal(releases,1);assert.deepEqual(s.events,[]);
+ delete s.combat.api.release;s.resume();s.combat.cast(w,{x:0,z:0},0,{x:0,z:5});s.combat.update(.3);assert.equal(s.events.filter(e=>e.kind==='poisonThrow').length,1,'fresh run must still release normally');
+});
 
 test('floor poison misses flying bodies, resumes after a low dive and preserves its lifetime',()=>{const s=setup(),e=s.foe();e.y=3;s.cloud();s.combat.update(1);near(e.hp,10000);e.y=.25;s.combat.update(1);assert(e.hp<10000);const hp=e.hp;e.y=3;s.combat.update(1);near(e.hp,hp);near(s.combat.clouds[0].expires,4.8);});

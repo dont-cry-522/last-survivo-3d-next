@@ -1,0 +1,114 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>探索奖励实战检查</title><style>body{margin:12px;background:#13242b;color:#e1e9e4;font:14px system-ui}button,select{padding:10px;background:#254943;color:inherit;border:1px solid #709582;border-radius:6px}iframe{border:0;display:block;margin-top:12px}#view{overflow:auto}pre{white-space:pre-wrap}</style>
+<button id="run" disabled>运行探索奖励检查</button><select id="preview-size" aria-label="预览尺寸"><option value="desktop">电脑 1180×720</option><option value="landscape">手机横屏 844×390</option><option value="portrait">手机竖屏 390×844</option></select><button id="preview" disabled>预览营地奖励</button><p id="status">载入中。本页使用隔离存档、固定帧和真实游戏流程；手机尺寸为模拟。</p><div id="view"></div><pre id="report"></pre>
+<script type="module">
+const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(value,message)=>{if(!value)throw Error(message);};
+const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text(),results=[],errors=[];
+const biomes=['forest','snow','ash','sand','coast'],charges={forest:3,snow:1,ash:1,sand:3,coast:2};
+let frame,win,g,now=0,frames=0;const dom=s=>win.document.querySelector(s);
+function publish(){$('#report').textContent=JSON.stringify({results,errors},null,2);}
+async function load(mobile=false,width=1180,height=720){
+ if(g){errors.push(...win.qaErrors);g.audio.stopMusic();g.cinema?.dispose();g.renderer.dispose();g.renderer.forceContextLoss();}frame?.remove();
+ frame=document.createElement('iframe');frame.title='探索奖励真实游戏检查';frame.style.width=width+'px';frame.style.height=height+'px';$('#view').append(frame);
+ const boot=`<base href="../"><script>
+ window.qaErrors=[];addEventListener('error',e=>qaErrors.push(e.message));addEventListener('unhandledrejection',e=>qaErrors.push(String(e.reason)));
+ const log=console.error.bind(console);console.error=(...a)=>{qaErrors.push(a.map(String).join(' '));log(...a)};
+ let seed=522;window.qaSeed=()=>seed=522;Math.random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};
+ window.requestAnimationFrame=cb=>{window.qaFrame=cb;return 0};
+ const data=new Map();Object.defineProperty(window,'localStorage',{value:{getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,String(v)),removeItem:k=>data.delete(k)}});
+ const media=matchMedia.bind(window);window.matchMedia=q=>q.includes('pointer:coarse')||q.includes('pointer: coarse')?{matches:${mobile},media:q,addEventListener(){},removeEventListener(){}}:media(q);
+ <\/script>`;
+ frame.srcdoc=html.replace('<head>','<head>'+boot);win=frame.contentWindow;
+ for(let i=0;i<1200&&(!win.game3d||win.document.querySelector('#start')?.disabled);i++)await sleep(50);
+ assert(win.game3d&&!win.document.querySelector('#start').disabled,'大厅资源预热超时');g=win.game3d;assert(await g.surfaceReady,'场景材质未就绪');g.audio.setMuted(true);
+ if(mobile){const style=win.document.createElement('style');style.textContent=css.replaceAll(/\(pointer:\s*coarse\)/g,'(min-width:0px)');win.document.head.append(style);}
+ const render=g.renderer.render.bind(g.renderer);g.renderer.render=(...args)=>{if(win.qaDraw||frames%30===0)return render(...args);};now=win.performance.now();frames=0;draw();
+}
+function quiet(){for(const e of g.enemies)if(e.alive){e.speed=0;e.cool=999;e.wind=0;e.pounce=0;e.damage=0;}}
+function tick(){quiet();frames++;win.qaFrame(now+=1000/60);}
+function draw(){win.qaDraw=true;tick();win.qaDraw=false;}
+function advance(seconds){for(let left=seconds;left>1e-8;left-=1/60)tick();}
+function reset(hero='silver',map='forest',index=0){
+ g.menu();win.qaSeed();g.select(hero,map,index);win.qaSeed();g.start();dom('[data-attack-mode="manual"]').click();
+ Object.assign(g.world,{sites:[],roaming:[],obstacles:[],patches:[],ponds:[],ice:[],fords:[],bridges:[],breakables:[]});
+ Object.assign(g.player,{attack:999,inv:999,pending:0,level:20,xp:0});g.controls.held=false;
+}
+function at(point){g.player.x=point.x;g.player.z=point.z;g.player.y=g.player.groundHeight=g.world.groundHeightAt?.(point.x,point.z)||0;g.player.jumpVelocity=0;g.player.iceVX=g.player.iceVZ=0;g.adventureCamera.yaw=0;g.adventureCamera.pitch=-.25;g.adventureCamera.update(0,g.player,[],{groundHeight:g.world.groundHeightAt,snap:true});}
+function target(x,z,hp=1000){const e=g.spawn('mushroom',x,z);assert(e,'标靶生成失败');Object.assign(e,{hp,maxHp:hp,xp:0,speed:0,cool:999,damage:0});return e;}
+function suppress(e){e.alive=false;e.mesh.visible=false;}
+function findSupply(id){const n=g.world.discoveries.find(n=>n.preparation===id||n.id===id&&n.variant==='trail');assert(n,id+' 没有寻迹备战点');return n;}
+function collect(n){
+ g.world.discoveries=[n];n.availableAt=0;n.phase=0;
+ if(n.variant==='trail'){for(const node of n.nodes){at(node);tick();}}
+ else if(n.variant==='native'&&n.id==='snow'){for(const node of n.nodes){at(node);tick();}}
+ else{at(n);advance(n.variant==='cache'?1.9:n.id==='sand'?2.6:.05);}
+ assert(n.claimed,n.id+' 发现未完成');assert(g.player.fieldSupply?.id===n.id,n.id+' 备战没有实战入账');assert(g.player.fieldSupply.charges===charges[n.id],n.id+' 初始份数不符');
+ const snapshot=JSON.stringify(g.player.fieldSupply),xp=g.player.xp;advance(.1);assert(JSON.stringify(g.player.fieldSupply)===snapshot&&g.player.xp===xp,'已领取发现重复发奖');return{biome:n.id,variant:n.variant,charges:g.player.fieldSupply.charges,xp};
+}
+function fire(){g.player.attack=0;g.controls.held=true;tick();g.controls.held=false;g.player.attack=999;}
+const campCards=()=>dom('#dialog')?.open?[...win.document.querySelectorAll('[data-camp-reward]')]:[];
+function cardId(card){return card.dataset.campReward;}
+function makeCamp({level=3,path=null,pending=2,boss=false}={}){
+ g.menu();win.qaSeed();g.select('silver','forest',0);win.qaSeed();g.start();dom('[data-attack-mode="manual"]').click();
+ const camp=g.world.roaming.find(s=>s.kind==='camp');assert(camp,'缺少营地');Object.assign(g.world,{sites:[],discoveries:[],roaming:[camp],obstacles:[],patches:[],ponds:[],ice:[],fords:[],bridges:[],breakables:[]});
+ Object.assign(g.player,{level,xp:0,pending,hp:40,attack:999,inv:999,weaponPath:path});g.controls.held=false;camp.availableAt=0;
+ at({x:camp.x+5,z:camp.z});const blocker=target(camp.x+2.8,camp.z+1.8);tick();assert(camp.state==='active'&&camp.members.length>0,'营地没有真实唤醒守卫');
+ for(const e of camp.members){e.xp=0;g.hurtEnemy(e,1e6);}tick();assert(camp.state==='reward','清营后没有宝箱');
+ if(boss){g.spawnBoss();assert(g.boss?.alive,'首领阻断检查未生成首领');g.boss.cool=999;}
+ const hp=g.player.hp;at(camp);tick();assert(camp.rewarded&&camp.state==='claimed','靠近箱子没有领取');assert(g.player.xp===40,'营地经验必须仅入账40');assert(g.player.hp===hp,'营地在选择治疗前自动回血');assert(g.state==='playing'&&!campCards().length,'近敌或首领期间强制弹奖励');
+ return{camp,blocker,hp,pending};
+}
+function openCamp(fixture){suppress(fixture.blocker);for(const e of g.enemies)if(e.alive)suppress(e);for(let i=0;i<180&&!campCards().length;i++)tick();assert(g.state==='event-choice'&&campCards().length>=1,'安全后没有展示营地奖励');return campCards();}
+function assertCardFits(card){card.scrollIntoView({block:'center'});const r=card.getBoundingClientRect();assert(r.width>30&&r.height>30&&r.left>=-.5&&r.right<=win.innerWidth+.5,'营地卡片超出屏幕');return{width:Math.round(r.width),height:Math.round(r.height)};}
+async function check(name,fn){$('#status').textContent=name;try{results.push({name,pass:true,detail:await fn()});}catch(e){results.push({name,pass:false,error:e.stack||e.message});}publish();await sleep(0);}
+async function run(){
+ $('#run').disabled=$('#preview').disabled=true;results.length=0;errors.length=0;
+ try{
+  await load();
+  await check('五张独立地图：真实寻迹领取、一次性与遗物隔离',()=>{const report=[];for(const id of biomes){reset('silver',id);const n=findSupply(id);g.player.relic={id:'wind',kills:0,shots:0,charges:2,until:999};const relic=JSON.stringify(g.player.relic);report.push(collect(n));assert(JSON.stringify(g.player.relic)===relic,'寻迹改变了遗物');}return report;});
+  await check('五境：跨区替换、安全落点退化与重开清理',()=>{reset('silver','confluence');const finds=biomes.map(findSupply),report=[];for(const n of finds){report.push(collect(n));}assert(new Set(report.map(x=>x.biome)).size===5,'五境缺少备战');reset('silver','confluence');assert(!g.player.fieldSupply,'重开残留备战');assert(g.world.discoveries.every(n=>!n.claimed),'重开残留发现领奖');return report;});
+  await check('有限备战：真实击杀、闪避、爆燃不递归和齐射只扣一次',()=>{
+   reset();g.world.discoveries=[];at({x:0,z:0});g.player.hp=50;g.player.fieldSupply={id:'forest',charges:3};for(let i=0;i<3;i++)g.hurtEnemy(target(3+i,0),1e6);assert(g.player.hp===62&&!g.player.fieldSupply,'回生备战次数或治疗错误');
+   reset();g.world.discoveries=[];at({x:0,z:0});g.player.fieldSupply={id:'snow',charges:1};const frost=target(1,0);g.dash();assert(frost.hp===988&&frost.slow===1.6&&!g.player.fieldSupply,'闪避霜晶未结算或未消耗 '+JSON.stringify({hp:frost.hp,slow:frost.slow,supply:g.player.fieldSupply,dash:g.player.dash,dashTime:g.player.dashTime,y:g.player.y,ground:g.player.groundHeight}));
+   reset();g.world.discoveries=[];at({x:0,z:0});g.player.fieldSupply={id:'ash',charges:1};g.player.relic={id:'ember',kills:0,shots:0,charges:0,until:0};const first=target(2,0,1),second=target(3,0,1),outside=target(5.3,0);g.hurtEnemy(first,1e6);assert(!second.alive&&outside.hp===1000&&!g.player.fieldSupply,'余烬范围、消耗或二次爆燃错误');assert(g.player.relic.kills===1,'爆燃击杀递归累计遗物');
+   reset('scout','forest',1);g.world.discoveries=[];at({x:0,z:0});g.player.fieldSupply={id:'sand',charges:3};fire();assert(g.bullets.length===5,'霰弹测试没有真实出手');assert(g.player.fieldSupply.charges===2,'齐射按弹丸重复扣份');assert(g.bullets.every(b=>Math.abs(b.damage-12.5)<.001),'磨锋砂没有作用于整次齐射');
+   reset('scout');g.world.discoveries=[];at({x:0,z:0});const front=target(0,6);dom('[data-attack-mode="auto"]').click();advance(.4);g.player.fieldSupply={id:'coast',charges:2};fire();assert(front.hp===982&&g.player.fieldSupply.charges===1,'潮电未按真实攻击触发');fire();assert(front.hp===964&&!g.player.fieldSupply,'潮电末次消耗或伤害错误');return{heal:12,frost:12,ember:18,coast:18,shotgunPellets:5};
+  });
+  await check('延迟投射：蓄力、暂停、闪避取消均不扣份，实际释放只扣一次',()=>{
+   reset('mirage');g.world.discoveries=[];at({x:0,z:0});g.player.fieldSupply={id:'sand',charges:3};fire();assert(g.bullets.some(b=>b.releaseDelay>0),'没有捕捉到延迟释放');assert(g.player.fieldSupply.charges===3,'蓄力时提前消耗备战');
+   const before=JSON.stringify(g.player.fieldSupply),time=g.time;g.pause();advance(.4);g.step(3);assert(g.time===time&&JSON.stringify(g.player.fieldSupply)===before,'暂停消耗备战或推进时间');g.resume();g.dash();advance(.5);assert(g.player.fieldSupply.charges===3&&!g.bullets.length,'取消蓄力仍消耗或发射');
+   advance(.6);g.player.dashTime=0;fire();advance(.3);assert(g.player.fieldSupply.charges===2,'真实释放没有恰好扣一次');reset('mirage');assert(!g.player.fieldSupply&&!g.bullets.length,'重开残留份数或延迟弹');return{chargePreserved:3,afterRelease:2};
+  });
+  await check('营地：经验即时入账，近敌延后，路线选择不扣升级次数',()=>{
+   const f=makeCamp(),cards=openCamp(f),ids=cards.map(cardId);assert(ids.includes('recover')&&ids.includes('path:crossbow_pierce')&&ids.includes('path:crossbow_hunt'),'3级营地没有治疗与双路线');const frozen=g.time;advance(.3);assert(g.time===frozen&&g.player.hp===f.hp,'奖励暂停不完整');
+   dom('#camp-later').click();assert(g.state==='playing'&&g.player.campRewards.length===1,'稍后领取丢失奖励');advance(.3);assert(!campCards().length,'稍后选择立即重新弹出');const pending=dom('[data-camp-pending]');assert(pending,'没有待领入口');pending.click();const resumed=campCards();assert(JSON.stringify(resumed.map(cardId))===JSON.stringify(ids),'稍后再打开刷新了候选');
+   const chosen=resumed.find(b=>cardId(b)==='path:crossbow_pierce');chosen.click();chosen.click();assert(g.player.weaponPath?.id==='crossbow_pierce'&&g.player.weaponPath.rank===1,'路线未领取或重复领取');assert(g.player.pending===f.pending&&g.player.xp===40,'营地成长消耗升级或重复经验');assert(g.player.hp===f.hp,'成长同时领取了治疗');advance(.4);assert(!campCards().length&&g.state==='playing'&&!g.player.campRewards.length,'离开/重访又弹营地奖励');return{choices:ids,pending:g.player.pending,hp:g.player.hp};
+  });
+  await check('营地：3/5/8门槛、路线互斥与治疗保底',()=>{
+   const cases=[];for(const [level,rank,allowed]of[[2,0,false],[4,1,false],[5,1,true],[7,2,false],[8,2,true],[20,3,false]]){
+    const f=makeCamp({level,path:rank?{id:'crossbow_pierce',rank}:null,pending:0}),cards=openCamp(f),ids=cards.map(cardId),paths=ids.filter(id=>id.startsWith('path:'));assert(paths.length===(allowed?1:0),'错误等级提供路线：'+level);assert(!paths.includes('path:crossbow_hunt'),'既有路线仍允许转支');
+    cards.find(b=>cardId(b)==='recover').click();assert(g.player.hp===Math.min(g.player.maxHp,f.hp+Math.ceil(g.player.maxHp*.18)),'治疗比例错误');assert(g.player.pending===0,'治疗制造或消耗升级次数');cases.push({level,rank,paths});
+   }return cases;
+  });
+  await check('营地延后期间普通成长改变路线，重开候选仍合法',()=>{
+   const f=makeCamp(),cards=openCamp(f),original=cards.map(cardId);assert(original.includes('path:crossbow_pierce')&&original.includes('path:crossbow_hunt'),'前置双路线缺失');
+   // Fix the normal draft to two genuinely eligible choices generated above;
+   // the selection itself still runs through the actual ordinary upgrade UI.
+   g.player.pendingDraft=f.camp.growthChoices.filter(u=>u.category==='weapon');dom('#camp-later').click();dom('#upgrade-ready').click();assert(g.state==='upgrade','普通成长入口未打开');const branch=dom('[data-upgrade="path:crossbow_pierce"]');assert(branch,'固定合法路线未显示');branch.click();assert(g.player.weaponPath?.id==='crossbow_pierce'&&g.player.pending===1,'普通成长未正确消费');
+   dom('[data-camp-pending]').click();const refreshed=campCards(),ids=refreshed.map(cardId);assert(g.state==='event-choice'&&ids.includes('recover'),'待领营地没有重开');assert(ids.every(id=>!id.startsWith('path:')),'营地仍显示互斥或越级路线');refreshed.find(b=>cardId(b)==='recover').click();assert(g.player.pending===1&&!g.player.campRewards.length,'营地重开结算影响普通升级');return{original,afterOrdinaryUpgrade:ids,pending:g.player.pending};
+  });
+  await check('首领期间营地成长保持待领，重开不会残留',()=>{const f=makeCamp({pending:0,boss:true});suppress(f.blocker);advance(.4);assert(g.state==='playing'&&!campCards().length,'首领期间打开营地选择');g.start();g.player.attack=999;advance(.2);assert(!campCards().length&&g.state==='playing'&&!g.player.fieldSupply,'重开弹出旧营地');return{bossBlocked:true,restartClean:true};});
+  for(const [width,height]of[[844,390],[390,844]])await check(width+'×'+height+' 手机模拟奖励布局',async()=>{await load(true,width,height);const f=makeCamp({pending:0}),cards=openCamp(f),sizes=cards.map(assertCardFits);draw();cards.find(b=>cardId(b)==='recover').click();assert(g.state==='playing','手机领取后未继续');return{width,height,cards:sizes};});
+  await check('运行日志与图形错误',()=>{errors.push(...win.qaErrors);assert(!errors.length,errors.join('\n'));assert(g.renderer.getContext().getError()===0,'WebGL错误');return{errors};});
+ }catch(e){results.push({name:'测试启动',pass:false,error:e.stack||e.message});}
+ publish();$('#run').disabled=$('#preview').disabled=false;$('#status').textContent=results.every(r=>r.pass)?'全部 '+results.length+' 项通过':'存在失败，请查看报告';
+}
+$('#run').onclick=run;
+$('#preview').onclick=async()=>{
+ $('#run').disabled=$('#preview').disabled=true;$('#status').textContent='正在准备营地奖励画面';
+ try{const [mobile,width,height]=({desktop:[false,1180,720],landscape:[true,844,390],portrait:[true,390,844]})[$('#preview-size').value];await load(mobile,width,height);const f=makeCamp({pending:0});openCamp(f);draw();$('#status').textContent=width+'×'+height+' 营地奖励：真实守卫清理后领取，游戏已暂停；手机为尺寸模拟。';}
+ catch(e){$('#status').textContent='预览失败：'+e.message;}
+ finally{$('#run').disabled=$('#preview').disabled=false;}
+};
+await load();$('#run').disabled=$('#preview').disabled=false;$('#status').textContent='准备完成，点击运行或预览。仅操作本页隔离存档。';
+</script></html>

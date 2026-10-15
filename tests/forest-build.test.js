@@ -39,7 +39,7 @@ test('earned forest rewards respect exclusivity, rank gates, caps and leave ordi
 test('forest lineups vary without repeats, retain attack slots and a full retreat side',()=>{
  const random=seeded(19),seen=new Set();let previous=-1;
  for(let i=0;i<30;i++){const next=nextForestFormation(previous,random);assert.notEqual(next,previous);seen.add(next);previous=next;const f=huntFormation('forest',i,next);assert.equal(f.squad.length,6);assert.equal(f.squad.filter(s=>s.elite).length,1);assert(Math.max(...f.squad.map(s=>s.offset))-Math.min(...f.squad.map(s=>s.offset))<Math.PI);}
- assert.equal(seen.size,3);assert.deepEqual(huntFormation('snow',1,2),huntFormation('snow',1,0));
+ assert.equal(seen.size,3);assert.notDeepEqual(huntFormation('snow',1,2),huntFormation('snow',1,0));
 });
 
 test('purification optional trial sends one additional wave, awaits guards, pauses and cannot repeat',()=>{

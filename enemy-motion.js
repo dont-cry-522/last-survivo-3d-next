@@ -1,5 +1,5 @@
-import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=200';
-import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=200';
+import{animateRegionalAppearance}from'./regional-enemy-appearance.js?v=201';
+import{updateEnemyGrip,animateEnemyExpression,prepareCreatureFeet,plantCreatureFoot}from'./enemy-appearance.js?v=201';
 import{Vector3,Matrix4,Quaternion}from'./vendor/three.module.js';
 // Attack timings are shared with the pose driver so the strike matches its hit.
 export const ENEMY_MOTION={
@@ -82,11 +82,14 @@ function animateForestEnemy(d,t,stride,phase,gather,drive,impact){
  }else if(d.kind==='wolf'){
   rig.position.set(sway*.012*stride+look*adjust*.018,(Math.abs(sway)*.015-.015)*stride-gather*.09+airborne*.26-landing*.07-brake*.02,-impact*.13-gather*.035+drive*.04-brake*.025);
   rig.rotation.set(.045*stride+Math.sin(phase*2)*.018*stride-gather*.04+drive*.09+landing*.08+brake*.055,0,sway*.025*stride-turn*.045*stride);
-  d.head.rotation.set(.07*stride+lag*.025*stride+gather*.17-drive*.25+landing*.10-brake*.025,Math.sin(t*1.35)*.025*(1-stride)+look*(.34+adjust*.08)-turn*.065,-sway*.018*stride+turn*.025);
-  d.jaw.position.y=-.21-gather*.012-drive*.022-pounce*.012;d.jaw.rotation.x=gather*.10+drive*.16+pounce*.10;
+  // Stalk below the withers, draw back before biting, then lead with the muzzle.
+  // These are local poses only; leap travel and the damage clock stay unchanged.
+  d.head.position.set(0,.87-gather*.035+landing*.015,.49-gather*.025+drive*.045);
+  d.head.rotation.set(.07+.07*stride+lag*.025*stride+gather*.12-drive*.24+landing*.10-brake*.025,Math.sin(t*1.35)*.025*(1-stride)+look*(.34+adjust*.08)-turn*.065,-sway*.018*stride+turn*.025);
+  d.jaw.position.y=-.21-gather*.015-drive*.018-pounce*.012;d.jaw.rotation.x=gather*.24+drive*.17+pounce*.10;
   d.tail.rotation.set(-.05-gather*.2+airborne*.18+brake*.09,Math.sin(phase*.65-.5)*(.07+.18*stride)-turn*.22,0);
   if(d.tailTip)d.tailTip.rotation.set(Math.sin(phase*.65-.9)*.055*stride,Math.sin(phase*.65-1.25)*(.055+.11*stride)-turn*.28,0);
-  d.ears?.forEach((ear,i)=>ear.rotation.set(-.06-Math.sin(phase-.8+i*.35)*.075*stride-gather*.19+drive*.11,look*.05,(i?1:-1)*.07+breath*.025+turn*.045));
+  d.ears?.forEach((ear,i)=>ear.rotation.set(-.16-Math.sin(phase-.8+i*.35)*.055*stride-gather*.30+drive*.11,look*.05,(i?1:-1)*.12+breath*.015+turn*.045));
   prepareCreatureFeet(d);for(const leg of d.legs)plantCreatureFoot(leg,phase,stride,{travel:.38,lift:.115,air:airborne*.26,reachZ:airborne*(leg.back?-.11:.11),toeRoll:.18});
  }else if(d.kind==='golem'){
   const weight=Math.sin(phase)*stride;

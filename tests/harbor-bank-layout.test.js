@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
-import {buildWorld} from '../world.js?v=200';
-import {placeTemplate} from '../biome-places.js?v=200';
-import {waterDepth,terrainAt} from '../water.js?v=200';
-import {bridgeContains,updateTide} from '../coast.js?v=200';
+import {buildWorld} from '../world.js?v=201';
+import {placeTemplate} from '../biome-places.js?v=201';
+import {waterDepth,terrainAt} from '../water.js?v=201';
+import {bridgeContains,updateTide} from '../coast.js?v=201';
 import {coastPlaceCandidates,harborPierPlan} from '../harbor-bank-layout.js';
 
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};

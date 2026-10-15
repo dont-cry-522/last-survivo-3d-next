@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=200';
+import {prepareCreatureSurface,installCreatureSurface,installCreatureEmission} from './creature-surface.js?v=201';
 
 // Five finite, shared sets of geometry. Articulation moves groups, never vertices.
 const templates=new Map();
@@ -63,7 +63,7 @@ function wolfCoat(rings,head=false,steps=0){
  for(let j=0;j<rings.length-3;j++)for(let i=0;i<sides;i++){const a=j*sides+i,b=j*sides+(i+1)%sides;indices.push(a,b,a+sides,b,b+sides,a+sides);}
  for(const end of[0,1]){const ring=rings[end?rings.length-1:0],center=p.length/3,offset=end?(rings.length-3)*sides:0;p.push(0,ring[3],ring[0]);for(let i=0;i<sides;i++){const a=offset+i,b=offset+(i+1)%sides;indices.push(...(end?[center,a,b]:[center,b,a]));}}
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setIndex(indices);g.computeVertexNormals();colored(g,0x677574);
- const c=g.attributes.color,base=new T.Color(head?0x8b948b:0x79827b),belly=new T.Color(0xc3c2ad),back=new T.Color(0x424e4b),shade=new T.Color();
+ const c=g.attributes.color,base=new T.Color(steps?(head?0x758475:0x626f65):(head?0x8b948b:0x79827b)),belly=new T.Color(steps?0xb3b49a:0xc3c2ad),back=new T.Color(steps?0x303c35:0x424e4b),shade=new T.Color();
  for(let i=0;i<c.count;i++){const x=p[i*3],y=p[i*3+1],z=p[i*3+2],low=1-T.MathUtils.smoothstep(y,head?-.14:.50,head?-.015:.76),ridge=T.MathUtils.smoothstep(y,head?.07:.83,head?.23:1.07)*(1-Math.min(1,Math.abs(x)/.26)),throat=head?0:T.MathUtils.smoothstep(z,.15,.46)*(1-T.MathUtils.smoothstep(y,.79,.98));shade.copy(base).lerp(belly,Math.max(low*.76,throat*.66)).lerp(back,ridge*.78);c.setXYZ(i,shade.r,shade.g,shade.b);}
  return g;
 }
@@ -130,15 +130,15 @@ function template(kind){
   for(let i=0;i<11;i++){const a=i*2.399,r=.16+(i%4)*.089;cap.push(capPatch(Math.cos(a)*r,Math.sin(a)*r,.037+i%2*.022,.028+i%3*.009,i%2?0xe1cc9e:0xc3a478));}
   p.cap=joined(cap);const capColors=p.cap.attributes.color,capPos=p.cap.attributes.position;for(let i=0;i<capColors.count;i++){const r=Math.hypot(capPos.getX(i),capPos.getZ(i)/.95),y=capPos.getY(i);if(y>.025){const band=1-.09*Math.exp(-(((r-.49)/.065)**2)),edge=.96+.04*Math.sin(Math.atan2(capPos.getZ(i),capPos.getX(i))*6+.4);capColors.setXYZ(i,capColors.getX(i)*band*edge,capColors.getY(i)*band*edge,capColors.getZ(i)*band*edge);}}p.foot=joined([profile([[0,.10],[.07,.08],[.095,-.025],[0,-.06]],0xa88e65,{depth:1.2,segments:10}),...[-1,0,1].map(s=>rootlet(0x93815d,[[s*.025,0,0],[s*.045,-.032,.09],[s*.077,-.042,.17]],[.044,.028,.002]))]);
  }else if(kind==='wolf'){
-  p.body=joined([wolfCoat([[-.68,0,0,.72],[-.59,.18,.185,.715],[-.40,.228,.22,.735],[-.13,.202,.19,.758],[.055,.245,.265,.775],[.23,.264,.29,.795],[.36,.221,.27,.81],[.465,.168,.215,.86],[.57,.13,.155,.89],[.61,0,0,.90]],false,10)]);
+  p.body=joined([wolfCoat([[-.68,0,0,.69],[-.59,.18,.185,.69],[-.40,.228,.22,.72],[-.13,.202,.19,.758],[.055,.265,.285,.79],[.23,.285,.31,.83],[.36,.245,.29,.85],[.465,.188,.225,.87],[.57,.145,.175,.87],[.61,0,0,.87]],false,10)]);
   p.head=joined([
-   wolfCoat([[-.25,0,0,.045],[-.20,.135,.175,.042],[-.075,.245,.216,.04],[.075,.205,.194,.018],[.19,.18,.16,-.008],[.29,.132,.108,-.055],[.397,.091,.069,-.055],[.437,0,0,-.044]],true,10),
-   oval(0x354039,0,-.150,.32,.105,.025,.14),
-   ...[-1,1].flatMap(s=>[oval(0x34463e,s*.155,.08,.180,.056,.031,.046),oval(0xdcc181,s*.163,.083,.215,.025,.013,.011),oval(0x334035,s*.166,.085,.225,.006,.013,.006,6,4),oval(0xe8ddbe,s*.156,.088,.232,.0035,.003,.002,6,4),rootlet(0x7d877d,[[s*.11,.13,.19],[s*.17,.132,.14],[s*.205,.10,.08]],[.025,.027,.010]),
-    branch(0x45554c,[[s*.096,-.128,.23],[s*.117,-.133,.33],[s*.076,-.115,.429]],.007,6),piece(new T.ConeGeometry(.017,.057,6),0xd4ceb1,s*.09,-.173,.325,1,1,1,Math.PI)])
+   wolfCoat([[-.25,0,0,.035],[-.20,.14,.18,.035],[-.075,.245,.216,.04],[.075,.225,.195,.025],[.19,.205,.165,-.008],[.29,.128,.10,-.055],[.397,.080,.061,-.055],[.437,0,0,-.044]],true,10),
+   oval(0x25302c,0,-.160,.30,.11,.038,.14),
+   ...[-1,1].flatMap(s=>[oval(0x283832,s*.150,.067,.198,.044,.022,.018),oval(0xc7a15c,s*.151,.065,.212,.023,.010,.009),oval(0x182821,s*.151,.066,.220,.007,.010,.004,6,4),oval(0xf1dab1,s*.146,.068,.224,.0035,.002,.002,6,4),rootlet(0x778477,[[s*.108,.067,.202],[s*.155,.087,.165],[s*.206,.09,.08]],[.020,.027,.020]),
+    branch(0x3a493f,[[s*.104,-.108,.23],[s*.114,-.113,.32],[s*.066,-.113,.429]],.009,6),piece(new T.ConeGeometry(.022,.109,6),0xd4ceb1,s*.09,-.183,.325,1,1,1,Math.PI)])
   ]);
   p.ear=joined([profile([[0,0],[.105,.02],[.075,.14],[.019,.29],[0,.30]],0x7d8e82,{depth:.48,bend:-.018}),oval(0x48584c,0,.12,.040,.048,.10,.008)]);
-  p.jaw=joined([oval(0x7b8d80,0,.044,.29,.12,.046,.18),oval(0x575447,0,.079,.34,.085,.008,.115),...[-1,1].map(s=>piece(new T.ConeGeometry(.012,.030,5),0xd4ceb1,s*.081,.089,.37))]);
+  p.jaw=joined([oval(0x6d8073,0,.024,.28,.11,.048,.175),oval(0x343c31,0,.062,.32,.088,.012,.115),...[-1,1].map(s=>piece(new T.ConeGeometry(.014,.045,5),0xd4ceb1,s*.075,.080,.37))]);
   p.tail=joined([rootlet(0x677b70,[[0,0,0],[0,-.015,-.10],[0,-.055,-.21],[0,-.09,-.29]],[.11,.094,.075,.051])]);
   p.tailTip=joined([rootlet(0xa8b4af,[[0,0,0],[0,-.028,-.075],[0,-.034,-.17]],[.067,.059,.002])]);
   // Muscular shoulder / thigh taper into wrist / hock, with a real separate
@@ -224,7 +224,7 @@ function template(kind){
    p.hatTip=joined([frond(0x587f58,-.06,.20,0,.12,.24,-.10),frond(0x9aab70,.045,.11,.035,.085,.20,.09)]);
   }
  }
- if(kind==='wolf'){p.lids=lids(0x66796b,.162,.059,.030);p.nose=joined([oval(0x26332e,0,0,0,.096,.056,.052),...[-1,1].map(side=>oval(0x101b18,side*.052,-.015,.041,.026,.013,.011,8,5)),oval(0x61706a,-.022,.019,.046,.032,.012,.005,8,4)]);}
+ if(kind==='wolf'){p.lids=lids(0x66796b,.151,.028,.017);p.nose=joined([oval(0x26332e,0,0,0,.079,.045,.042),...[-1,1].map(side=>oval(0x101b18,side*.043,-.012,.033,.020,.010,.009,8,5)),oval(0x61706a,-.018,.014,.038,.024,.008,.004,8,4)]);}
  else if(kind==='mushroom')p.lids=lids(0xbeac88,.083,.039,.024);
  else if(kind==='spitter')p.lids=lids(0x778162,.213,.084,.038);
  if(kind==='golem')stoneElbow(p.arm);
@@ -260,7 +260,7 @@ export function polishEnemyAppearance(g){
   d.castingArm={upper,forearm,upperLength:.23,lowerLength:.25};updateEnemyGrip(d);
   d.feet=[-1,1].map(s=>{const foot=group(rig,s*.15,.08,.07);add(foot,p.foot,'caster-foot');return foot;});
  }
- if(p.lids){const parent=kind==='mushroom'?rig:d.head,anchor=kind==='mushroom'?[0,.724,.211]:kind==='wolf'?[0,.113,.242]:[0,.129,.203];d.expressionLids=group(parent,...anchor);add(d.expressionLids,p.lids,kind+'-eyelids');d.expressionLids.scale.y=.08;}
+ if(p.lids){const parent=kind==='mushroom'?rig:d.head,anchor=kind==='mushroom'?[0,.724,.211]:kind==='wolf'?[0,.082,.224]:[0,.129,.203];d.expressionLids=group(parent,...anchor);add(d.expressionLids,p.lids,kind+'-eyelids');d.expressionLids.scale.y=.08;}
  if(p.nose){d.expressionNose=group(d.head,0,-.031,.426);const nose=add(d.expressionNose,p.nose,kind+'-nose');nose.userData.creatureFinish='nose';d.expressionNose.userData.rest=[0,-.031,.426];}
  d.expressionSeed=(g.id*.61803398875)%1;
  return g;

@@ -4,7 +4,7 @@ import * as T from '../vendor/three.module.js';
 import {actor,animateActor} from '../world.js';
 import {recordEnemyHit} from '../enemy-feedback.js';
 
-const faces={mushroom:[.083,.70],wolf:[.162,.083],spitter:[.213,.091],snowhare:[.135,.047],frostwolf:[.148,.058],yeti:[.102,.034],emberling:[.096,.025]};
+const faces={mushroom:[.083,.70],wolf:[.151,.066],spitter:[.213,.091],snowhare:[.145,.045],frostwolf:[.137,.044],yeti:[.115,.024],emberling:[.096,.025]};
 const snapshot=g=>{const result=[];g.traverse(n=>result.push(...n.position.toArray(),...n.quaternion.toArray(),...n.scale.toArray()));return result;};
 
 test('paired eyelids close over the existing eyes and use shared geometry without changing actors',()=>{
@@ -18,7 +18,7 @@ test('paired eyelids close over the existing eyes and use shared geometry withou
   for(const side of [-1,1]){
    const origin=new T.Vector3(side*spread,height,lids.position.z+.3).applyMatrix4(lids.parent.matrixWorld),direction=new T.Vector3(0,0,-1).transformDirection(lids.parent.matrixWorld);
    const hit=new T.Raycaster(origin,direction).intersectObject(lids.parent,true)[0];
-   assert.equal(hit?.object,lids.children[0],id+' closed eyelid is behind the visible eye');
+   assert.equal(hit?.object.uuid,lids.children[0].uuid,id+' closed eyelid is behind the visible eye');
   }
   assert.deepEqual(g.position.toArray(),[0,0,0]);assert.deepEqual(g.scale.toArray(),[1,1,1]);
  }

@@ -96,7 +96,7 @@ test('fern cutouts use alpha-tested green-channel masks and retain the shared in
 });
 
 test('shrub leaves use isolated scan regions on curved midribs, not solid pointed silhouettes',async()=>{
- const module=await fresh(),{TREE_LEAF_UVS}=await import('../tree-scenery.js?v=200'),h=habitat(module),g=h.shrub.geometry,{position:p,uv,color}=g.attributes;
+ const module=await fresh(),{TREE_LEAF_UVS}=await import('../tree-scenery.js?v=201'),h=habitat(module),g=h.shrub.geometry,{position:p,uv,color}=g.attributes;
  assert.equal(g.index.count/3,120);assert.equal(uv.count,p.count);assert([...uv.array].every(v=>Number.isFinite(v)&&v>=0&&v<=1));
  for(let branch=0;branch<3;branch++){
   const first=branch*46;

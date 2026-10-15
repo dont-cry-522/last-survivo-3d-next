@@ -6,10 +6,12 @@ import * as T from'../vendor/three.module.js';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(v,n)=>{if(!v)throw Error(n);};
 const pixelButton=document.createElement('button');pixelButton.id='pixels';pixelButton.disabled=true;pixelButton.textContent='深度解析像素诊断';$('#gpu').after(pixelButton);
 const pixelCaptures=document.createElement('div');pixelCaptures.id='pixel-captures';$('#capture').after(pixelCaptures);
+const creatureButton=document.createElement('button');creatureButton.id='creature-near';creatureButton.disabled=true;creatureButton.textContent='近看当前地图怪物';$('#first-view').after(creatureButton);
 const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text();let frame,g,win,now=0;const results=[],errors=[];
 function step(n=1,ms=1000/60){for(let i=0;i<n;i++)win.qaFrame(now+=ms);}
 function publish(){document.querySelector('#report').textContent=JSON.stringify({results,errors},null,2);}
 async function load(mobile=false,width=1180,height=720){
+ creatureButton.disabled=true;
  if(g){errors.push(...win.qaErrors);g.audio.stopMusic();g.cinema?.dispose();g.renderer.dispose();g.renderer.forceContextLoss();}frame?.remove();
  frame=document.createElement('iframe');frame.title='真实游戏环境预览';frame.style.width=width+'px';frame.style.height=height+'px';$('#view').append(frame);
  const boot=`<base href="../"><script>
@@ -30,7 +32,7 @@ async function load(mobile=false,width=1180,height=720){
  // Do not test the loading camera or race the startup world reconstruction.
  for(let i=0;i<1200&&win.document.querySelector('#start').disabled;i++)await sleep(50);
  assert(!win.document.querySelector('#start').disabled,'角色与场景预热超时');
- now=win.performance.now();step(2);
+ now=win.performance.now();step(2);creatureButton.disabled=false;
 }
 function select(map,hero='silver',battle=false){g.menu();win.qaSeed();g.select(hero,map,0);if(battle){win.qaSeed();g.start();g.player.inv=9999;g.player.attack=9999;}step(12);}
 function spellBattle(){
@@ -140,6 +142,21 @@ $('#run').onclick=async()=>{
 async function preview(battle=false,mobile=false){await load(mobile,mobile?844:1180,mobile?390:720);select($('#map').value,'silver',battle);$('#status').textContent='固定帧画面预览 · '+$('#map').selectedOptions[0].text+' · '+JSON.stringify({view:g.world.lobbyView,heroYaw:g.hero.rotation.y,cameraYaw:Math.atan2(win.qaCamera.position.x-g.hero.position.x,win.qaCamera.position.z-g.hero.position.z)});}
 $('#capture-button').onclick=()=>{step();const image=$('#capture');image.src=g.renderer.domElement.toDataURL('image/png');image.hidden=false;const link=document.createElement('a');link.href=image.src;link.download='forest-echoes-environment.png';link.click();};
 $('#first-view').onclick=async()=>{await preview(true);g.setView('first');step(60);$('#status').textContent='第一人称实景 · '+JSON.stringify(reportFrame());};
+$('#creature-near').onclick=()=>{
+ if(g.state!=='playing'){if(g.state==='paused')g.resume();else g.start();}
+ g.player.inv=9999;g.player.attack=9999;
+ // Place real regional actors in an existing clearing; keep the map's assets,
+ // lighting and collision obstacles. Only this isolated fixture freezes AI.
+ const kinds=['wolf','golem','mushroom'];let spots=null,yaw=0;
+ for(let i=0;i<24;i++){
+  const angle=i*Math.PI/12,next=kinds.map((kind,j)=>({kind,x:g.player.x+Math.sin(angle+(j-1)*.43)*4.8,z:g.player.z+Math.cos(angle+(j-1)*.43)*4.8}));
+  if(next.every(p=>g.world.obstacles.every(o=>Math.hypot(p.x-o.x,p.z-o.z)>o.r+1))){spots=next;yaw=angle;break;}
+ }
+ assert(spots,'出生点周围没有足够展示空间');
+ const enemies=spots.map(p=>{const e=g.spawn(p.kind,p.x,p.z);assert(e,'怪物生成失败');e.speed=0;e.cool=999;return e;});
+ g.adventureCamera.yaw=yaw;g.adventureCamera.pitch=-.08;g.setView('first');step(45);
+ $('#status').textContent='实际地图怪物近景（测试场景冻结 AI，非难度测试） · '+JSON.stringify({kinds:enemies.map(e=>e.kind),width:win.innerWidth,height:win.innerHeight,...reportFrame()});
+};
 $('#lobby').onclick=()=>preview();$('#battle').onclick=()=>preview(true);$('#mobile').onclick=()=>preview(true,true);
 $('#paths').onclick=()=>{for(const site of g.world.sites)site.trail.visible=!site.trail.visible;step();};
 $('#ruins').onclick=async()=>{if(!['forest','confluence'].includes($('#map').value))$('#map').value='forest';await preview(true);const a=g.world.forestVista?.gateCenter||g.world.forestVista?.anchors?.[0];if(!a){$('#status').textContent='当前地形没有可用古迹锚点';return;}let p={x:a.x,z:a.z+5};for(const dz of [5,6,7,-5,-6])if(g.world.obstacles.every(o=>Math.hypot(a.x-o.x,a.z+dz-o.z)>o.r+.7)){p={x:a.x,z:a.z+dz};break;}g.player.x=p.x;g.player.z=p.z;step(90);$('#status').textContent='林中古迹实景 · '+JSON.stringify({columns:g.world.forestVista.columns,arches:g.world.forestVista.arches,triangles:g.world.forestVista.triangles,drawCalls:g.world.forestVista.drawCalls,anchors:g.world.forestVista.anchors});};

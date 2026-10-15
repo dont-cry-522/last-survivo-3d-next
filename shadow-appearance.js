@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {smoothSeams} from './hero-finish.js?v=200';
+import {smoothSeams} from './hero-finish.js?v=201';
 
 // Dark values belong to the lining and veil; the outer cloth must retain shape.
 export const SHADOW_PALETTE=Object.freeze({cloth:0x24252a,fold:0x393b41,lining:0x101115,leather:0x202126,edge:0xc6c8c6,ivory:0xe7e4db,soul:0xf4f3ee,metal:0x999f9f});

@@ -1,0 +1,26 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>小地图像素对照</title>
+<style>body{background:#172b29;color:#eee;font:15px system-ui}button{padding:12px}canvas{margin:12px;border:1px solid #789}pre{white-space:pre-wrap}</style>
+<h1>小地图：原始绘制／缓存绘制</h1><p>核对不规则坐标、重叠、障碍消失与倒木新增，保留大地图细节。</p><button id="run">运行像素对照</button><p id="status">等待运行</p><div id="images"></div><pre id="report"></pre>
+<script type="module">
+import {drawMapObstacles} from '../map-navigation.js?v=205';
+const $=s=>document.querySelector(s);
+$('#run').onclick=()=>{
+ const results=[];$('#images').replaceChildren();
+ const world={obstacles:Array.from({length:300},(_,i)=>({x:Math.sin(i*1.317)*90,z:Math.cos(i*.733)*90}))};
+ for(const [name,mutate,detailed]of[
+  ['首次绘制',()=>{},false],['复用缓存',()=>{},false],['同长度换位',()=>world.obstacles=world.obstacles.map((o,i)=>i===0?{x:9.3,z:18.2}:o),false],
+  ['树木消失',()=>world.obstacles=world.obstacles.slice(1),false],['新增倒木',()=>world.obstacles.push({x:4.7,z:-6.2}),false],['详细地图',()=>{},true]
+ ]){
+  mutate();const size=detailed?576:144,canvases=[document.createElement('canvas'),document.createElement('canvas')];
+  for(const c of canvases){c.width=c.height=size;const ctx=c.getContext('2d');ctx.scale(size/144,size/144);ctx.fillStyle='#284a42';ctx.fillRect(0,0,144,144);ctx.fillStyle='#498f9b';ctx.fillRect(30,40,70,50);}
+  const a=canvases[0].getContext('2d'),b=canvases[1].getContext('2d'),scale=64/96;
+  a.fillStyle='#72947a';for(const o of world.obstacles)a.fillRect(72+o.x*scale,72+o.z*scale,1.5,1.5);
+  drawMapObstacles(b,world,scale,detailed);
+  const x=a.getImageData(0,0,size,size).data,y=b.getImageData(0,0,size,size).data;let largest=0;
+  for(let i=0;i<x.length;i++)largest=Math.max(largest,Math.abs(x[i]-y[i]));
+  results.push({name,pass:largest<=1,maxChannelDifference:largest});
+  if(name==='新增倒木'){for(const c of canvases)$('#images').append(c);}
+ }
+ $('#report').textContent=JSON.stringify(results,null,2);$('#status').textContent=results.every(x=>x.pass)?'六组像素对照通过（最多允许一次8位混合取整差）':'发现绘制差异';
+};
+</script></html>

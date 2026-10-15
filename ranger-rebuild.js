@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.js';
-import {smoothSeams} from './hero-finish.js?v=204';
+import {smoothSeams} from './hero-finish.js?v=205';
 
 // These garments replace the old Ranger torso, keeping its authored skin binding.
 // All coordinates are in the existing shared T-pose, not attached rigid props.

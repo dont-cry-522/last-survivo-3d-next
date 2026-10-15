@@ -1,9 +1,9 @@
-import {applyFernSurface} from './fern-surfaces.js?v=204';
+import {applyFernSurface} from './fern-surfaces.js?v=205';
 import * as T from './vendor/three.module.js';
-import{MAP_HALF}from'./map-layout.js?v=204';
-import{bridgeContains}from'./coast.js?v=204';
-import{seeded}from'./rules.js?v=204';
-import{surfaceUniforms}from'./surface-textures.js?v=204';
+import{MAP_HALF}from'./map-layout.js?v=205';
+import{bridgeContains}from'./coast.js?v=205';
+import{seeded}from'./rules.js?v=205';
+import{surfaceUniforms}from'./surface-textures.js?v=205';
 // One jointed silhouette is shared by boulders, bank stones and instanced scree.
 function rockGeometry(width=10,height=7){
  const g=new T.SphereGeometry(1,width,height),p=g.attributes.position,colors=[],planes=[[1,.18,1,1.16],[-1,.18,.78,1.02],[-.8,-.12,-1,1.04],[1,.30,-.78,1.07]];

@@ -1,6 +1,6 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>五境围猎与反击窗口检查</title>
-<style>body{margin:12px;background:#13242b;color:#e1e9e4;font:14px system-ui}button{padding:10px;margin:0 6px 6px 0;background:#254943;color:inherit;border:1px solid #709582;border-radius:6px}iframe{border:0;display:block;margin-top:12px}#view{overflow:auto}pre{white-space:pre-wrap}</style>
+<style>body{margin:12px;background:#13242b;color:#e1e9e4;font:14px system-ui}button{padding:10px;margin:0 6px 6px 0;background:#254943;color:inherit;border:1px solid #709582;border-radius:6px}iframe{border:0;display:block;margin-top:12px}#view{overflow:auto}pre{white-space:pre-wrap;max-height:180px;overflow:auto}</style>
 <button id="desktop" disabled>检查电脑五境</button><button id="landscape" disabled>检查手机横屏五境</button><button id="portrait" disabled>检查手机竖屏五境</button><button id="all" disabled>运行全部十五组检查</button>
 <p id="status">加载中。本页使用隔离存档与固定帧；手机尺寸为模拟，不代表真机帧率。</p><pre id="report"></pre><div id="view"></div>
 <script type="module">
@@ -8,6 +8,7 @@ import {Vector3} from '../vendor/three.module.js';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),assert=(value,message)=>{if(!value)throw Error(message);};
 const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text(),version=html.match(/main\.js\?v=([^"']+)/)?.[1]||'';
 const {MAP_ROSTERS}=await import('../map-enemies.js'+(version?'?v='+version:''));
+const {ENEMIES}=await import('../rules.js'+(version?'?v='+version:''));
 let frame,win,g,now=0;const results=[],errors=[];
 const publish=()=>$('#report').textContent=JSON.stringify({version,results,errors},null,2);
 const buttons=disabled=>{for(const button of document.querySelectorAll('button'))button.disabled=disabled;};
@@ -71,8 +72,20 @@ function checkBiome(biome){
  assert(left!==right&&Math.hypot(left.x-right.x,left.z-right.z)>1,'两名远程怪须保留独立站位');
  until(()=>Number.isFinite(left.attackStartedAt)&&Number.isFinite(right.attackStartedAt),'远程怪没有分批出手');
  const gap=Math.abs(left.attackStartedAt-right.attackStartedAt);assert(gap>=.38-1e-8,'两名远程怪在同一拍蓄力');
+ // Exercise actual walking at native speeds, rather than just helper outputs.
+ const settled=[];
+ for(const role of['wolf','spitter','shaman']){
+  clearEnemies();Object.assign(g.player,origin);faceTestLane('first');
+  const e=spawn(role,origin.x,origin.z+(role==='wolf'?3:8));e.speed=ENEMIES[e.kind].speed;e.cool=20;
+  const start={x:e.x,z:e.z};advance(3.5);const at={x:e.x,z:e.z};advance(.5);
+  const travelled=Math.hypot(at.x-start.x,at.z-start.z),drift=Math.hypot(e.x-at.x,e.z-at.z);
+  assert(travelled>.25&&travelled<3,role+' 没有完成短距离侧移 '+travelled);
+  assert(drift<.10,role+' 抵达侧位后仍在持续绕圈 '+drift);
+  const pauseAt={x:e.x,z:e.z,cool:e.cool};g.pause();g.step(1);assert(e.x===pauseAt.x&&e.z===pauseAt.z&&e.cool===pauseAt.cool,'暂停改变侧位或冷却');g.resume();
+  settled.push({kind:e.kind,travelled,drift});
+ }
  assert(!win.qaErrors.length,win.qaErrors.join('\n'));g.pause();faceTestLane();
- return{heavy:heavy.kind,heavyRecovery:frozen.recovery,heavyScreenX:heavyScreen.x,flanker:flanker.kind,missedRecovery:recovery,flankerScreenX:flankerScreen.x,castGap:gap,casterScreenX:projections.map(p=>p.x),controls:win.document.body.classList.contains('touch')?'touch':'desktop',width:win.innerWidth,height:win.innerHeight};
+ return{settled,heavy:heavy.kind,heavyRecovery:frozen.recovery,heavyScreenX:heavyScreen.x,flanker:flanker.kind,missedRecovery:recovery,flankerScreenX:flankerScreen.x,castGap:gap,casterScreenX:projections.map(p=>p.x),controls:win.document.body.classList.contains('touch')?'touch':'desktop',width:win.innerWidth,height:win.innerHeight};
 }
 const dimensions={desktop:{width:1440,height:900,mobile:false},landscape:{width:844,height:390,mobile:true},portrait:{width:390,height:844,mobile:true}};
 async function run(ids){

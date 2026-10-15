@@ -64,9 +64,9 @@ export function weaponRouteEffect(vfx,w,phase,x,z,angle=0,detail={}){
  const velocity=(forward,side=0,up=0)=>[dx*forward+sx*side,dy*forward+up,dz*forward+sz*side];
  // Yaw in world space after tilting; preserve the pool's default Euler order.
  const orient=(m,tilt,yaw=a,roll=0)=>{if(m){if(contact){m.lookAt(m.position.x+nx,m.position.y+ny,m.position.z+nz);m.rotateZ(roll);}else{m.rotation.set(tilt,0,roll);m.rotateOnWorldAxis({x:0,y:1,z:0},yaw);}}return m;};
- const curl=(color,forward,side,y,width,height,{rotation=-Math.PI/2,roll=0,...options}={})=>{
+ const curl=(color,forward,side,y,width,height,{rotation=-Math.PI/2,roll=0,bank=side<0?-.4:.4,...options}={})=>{
   const m=particle('sweep',color,forward,side,y,{life:.24,size:[width,height,1],motion:'lash',roll,...options});
-  return orient(m,rotation,a,side<0?-.4:.4);
+  return orient(m,rotation,a,bank);
  };
  const chip=(shape,color,forward,side,y,size,speed,up=.7,priority=0)=>particle(shape,color,forward,side,y,{life:.25,size,velocity:velocity(speed,side*2,up),gravity:4,spin:6,priority});
 
@@ -187,15 +187,19 @@ export function weaponRouteEffect(vfx,w,phase,x,z,angle=0,detail={}){
   if(strong){if(!contact)particle('veil',0x101115,0,0,.07,{life:.28,size:[.58,.46,1],opacity:.24});for(const side of[-1,1])chip('crystal',0xe7e4db,.03,side*.15,.7,[.04,.13,.04],.6,1);}
   break;
  }
- case'shadowblade_fan':
+ case'shadowblade_fan':{
+  const cut=Number.isFinite(contact?.slashRoll)?contact.slashRoll:detail.combo===2?-1.05:detail.combo===1?-.16:.16;
   if(phase==='cast')for(const side of[-1,1])curl(side<0?0x24252a:0xf4f3ee,.17,side*.25,1,.46,.38*level,{roll:side*2,velocity:velocity(.5,side*.55),priority:side<0?1:0,opacity:.76});
-  else{curl(0xe7e4db,.02,0,.95,.38,.27,{rotation:-.5,roll:2,life:.19,priority:1,opacity:.62});if(detail.combo===2)curl(0x999da8,.01,.08,.95,.40,.22,{rotation:-.5,roll:-1.6,life:.24,opacity:.52});}
+  else{curl(0xe7e4db,.02,0,.95,.38,.27,{rotation:-.5,bank:cut,roll:detail.combo===1?-2:2,life:.19,priority:1,opacity:.62});if(detail.combo===2)curl(0x999da8,.01,.08,.95,.40,.22,{rotation:-.5,bank:cut+.13,roll:-1.6,life:.24,opacity:.52});}
   break;
- case'shadowblade_return':
-  curl(0xf4f3ee,0,0,.95,.52*level,.42,{rotation:phase==='hit'?-.65:-Math.PI/2,roll:-2.4,priority:1,opacity:.76});
-  curl(0x101115,-.14,.13,.9,.38,.3,{roll:-1.9,life:.32,opacity:.43});
+ }
+ case'shadowblade_return':{
+  const cut=Number.isFinite(contact?.slashRoll)?contact.slashRoll:detail.combo===2?-1.05:detail.combo===1?-.16:.16;
+  curl(0xf4f3ee,0,0,.95,.52*level,.42,{rotation:phase==='hit'?-.65:-Math.PI/2,bank:cut,roll:detail.combo===1?2.4:-2.4,priority:1,opacity:.76});
+  curl(0x101115,-.14,.13,.9,.38,.3,{bank:cut,roll:detail.combo===1?1.9:-1.9,life:.32,opacity:.43});
   if(detail.heavy)for(const side of[-1,1])line([0,side*.04,1],[.04,side*.28,1.18],side<0?0xe7e4db:0x999da8,.032,.24,0,.68);
   break;
+ }
  case'grimoire_wide':{
   const r=Math.max(.5,detail.radius||w.radius||1.7+.4*rank),release=phase==='hit';
   for(const side of[-1,1]){

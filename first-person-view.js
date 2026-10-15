@@ -1,12 +1,12 @@
-import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=204';
+import{WEAPON_OUTLETS}from'./weapon-outlets.js?v=205';
 import * as T from './vendor/three.module.js';
-import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=204';
-import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=204';
-import {sporePod} from './wuling-appearance.js?v=204';
+import {GRIP_POINTS,SCYTHE_SUPPORT} from './weapon-grips.js?v=205';
+import {finishShadowTone,SHADOW_PALETTE} from './shadow-appearance.js?v=205';
+import {sporePod} from './wuling-appearance.js?v=205';
 import {poseSlingshot} from './slingshot-model.js';
 
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
-import {weaponGesture,weaponDuration,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=204';
+import {weaponGesture,weaponDuration,WEAPON_RECOVERY,scythePose,crossbowMechanism} from './weapon-performance.js?v=205';
 
 // Camera-space equipment assembled from the actual weapon plus a small procedural hand rig.
 // This is not a new authored arm-animation asset. Layer 1 gets a small depth-correct overlay pass.
@@ -160,11 +160,11 @@ function detailBatch(){
 export class FirstPersonView {
  constructor(camera){
   this.camera=camera;this.root=new T.Group();this.root.name='First_person_equipment';this.root.layers.set(1);this.root.visible=false;camera.add(this.root);
-  this.materials=new Map();this.parts=[];this.ownedGeometry=[];this.gait=0;this.sway=0;this.disposed=false;this.scratch=new T.Vector3();this.wrist=new T.Vector3();this.restRotation=new T.Quaternion();this.elbow=new T.Vector3();this.dodgeBasePosition=new T.Vector3();this.dodgeBaseRotation=new T.Euler();this.meleeContact=new T.Object3D();this.handRotation=new T.Quaternion();
+  this.materials=new Map();this.parts=[];this.ownedGeometry=[];this.gait=0;this.sway=0;this.disposed=false;this.scratch=new T.Vector3();this.wrist=new T.Vector3();this.restRotation=new T.Quaternion();this.elbow=new T.Vector3();this.dodgeBasePosition=new T.Vector3();this.dodgeBaseRotation=new T.Euler();this.meleeContact=new T.Object3D();this.handRotation=new T.Quaternion();this.restGripRotation=new T.Quaternion();this.poseEuler=new T.Euler();this.contactAge=1;this.contactSerial=-1;this.contactCombo=0;
  }
  clear(){
   this.root.clear();for(const material of this.materials.values())material.dispose();for(const geometry of this.ownedGeometry)geometry.dispose();
-  this.materials.clear();this.ownedGeometry.length=0;this.parts.length=0;this.weapon=null;this.model=null;this.source=null;this.hero=null;this.pod=null;this.hands=[];this.arms=[];this.handPoints=[];this.bowStrings=[];this.charged=[];this.details=[];this.poseReady=false;this.dodgeWeight=0;this.root.visible=false;
+  this.materials.clear();this.ownedGeometry.length=0;this.parts.length=0;this.weapon=null;this.model=null;this.source=null;this.hero=null;this.pod=null;this.hands=[];this.arms=[];this.handPoints=[];this.bowStrings=[];this.charged=[];this.details=[];this.poseReady=false;this.dodgeWeight=0;this.contactAge=1;this.contactSerial=-1;this.root.visible=false;
  }
  material(source){
   if(this.materials.has(source))return this.materials.get(source);
@@ -287,6 +287,7 @@ export class FirstPersonView {
    this.pod=new T.Group();this.pod.name='First_person_held_seed_pod';this.pod.position.set(0,.062,-.044);this.pod.scale.setScalar(.78);this.hands[1].add(this.pod);
    for(const child of(hero.userData.sporePod||sporePod()).children)this.pod.add(this.copyPart(child));
   }
+  this.restGripRotation.setFromEuler(this.poseEuler.set(this.profile.pitch,Math.PI-.045,0)).invert();
   this.gait=0;this.sway=0;this.attackAge=10;this.previousAttack=0;this.update(0,0,{visible:false});
  }
  poseScythe(object,pose,scale){
@@ -309,9 +310,15 @@ export class FirstPersonView {
   else{object.position.set(-.025*kick,.018*kick,-.27*kick+.04*gather);object.rotation.x-=.02*kick;}
   object.position.x+=.035*motion.recover;object.position.y-=.025*motion.recover;
  }
+ // One small grip reaction per confirmed melee strike, not per enemy or damage tick.
+ confirmMeleeHit(kind,combo=0){
+  if(this.disposed||!this.root.visible||kind!==this.weaponId||!['harpoon','shadowblade'].includes(kind))return false;
+  const serial=this.hero?.userData.shotSerial;if(serial===this.contactSerial)return false;
+  this.contactSerial=serial;this.contactAge=0;this.contactCombo=combo;return true;
+ }
  update(time,dt,{moving=0,strafe=0,yaw=0,pitch=0,attack=0,attackDuration=.18,visible=false,dodgePose=null}={}){
   if(this.disposed||!this.weapon)return;this.root.visible=!!visible;
-  if(!visible){if(dodgePose===null){this.poseReady=false;this.dodgeWeight=0;}return;}
+  if(!visible){this.contactAge=1;if(dodgePose===null){this.poseReady=false;this.dodgeWeight=0;}return;}
   const step=Math.max(0,Math.min(.05,Number.isFinite(dt)?dt:0)),speed=T.MathUtils.clamp(Number(moving)||0,0,1);
   // A paused render may receive a later wall clock or input; never advance the held pose.
   if(step===0&&this.poseReady){
@@ -319,6 +326,7 @@ export class FirstPersonView {
    if(dodgePose===null&&this.dodgeWeight>0){this.root.position.copy(this.dodgeBasePosition);this.root.rotation.copy(this.dodgeBaseRotation);this.dodgeWeight=0;}
    return;
   }
+  this.contactAge=Math.min(1,this.contactAge+step);if(dodgePose?.weight>0||this.hero.userData.cancelAttack)this.contactAge=1;
   const blend=1-Math.exp(-step*12),safeYaw=Number.isFinite(yaw)?yaw:0,safePitch=Number.isFinite(pitch)?pitch:0;
   if(!this.poseReady){this.lastYaw=safeYaw;this.lastPitch=safePitch;this.lookSwayX=this.lookSwayY=this.sideSway=0;}
   // Only the held rig lags a few millimetres. Camera aim and hit direction stay immediate.
@@ -351,9 +359,11 @@ export class FirstPersonView {
    this.wrist.set(i?.44:-.44,.11,.36);this.scratch.set(0,.16,.29-crossbowMechanism(cycle).pull).sub(this.wrist);
    clone.position.copy(this.wrist).addScaledVector(this.scratch,.5);clone.scale.y=this.scratch.length();clone.quaternion.setFromUnitVectors(UP,this.scratch.normalize());
   }
-  const breath=Math.sin((Number(time)||0)*1.65)*.0018*(1-this.sway),settle=1-Math.min(1,motion.kick+motion.gather);
-  this.root.position.set(halfW*profile.x*(this.camera.aspect<.8?.88:1)+Math.sin(this.gait)*.009*this.sway+this.lookSwayX-this.sideSway*.012,halfH*profile.y+Math.cos(this.gait*2)*.005*this.sway+this.lookSwayY+breath*settle,-depth);
-  this.root.rotation.set(0,0,Math.sin(this.gait)*.010*this.sway-this.sideSway*.018);
+  const breath=Math.sin((Number(time)||0)*1.65)*.0018*(1-this.sway),settle=1-Math.min(1,motion.kick+motion.gather),steady=1-.72*Math.min(1,motion.body??motion.kick+motion.gather);
+  // Brace the held rig while loaded, then let normal stride and turn lag return.
+  // Camera aim and damage timing remain immediate and unchanged.
+  this.root.position.set(halfW*profile.x*(this.camera.aspect<.8?.88:1)+(Math.sin(this.gait)*.009*this.sway+this.lookSwayX-this.sideSway*.012)*steady,halfH*profile.y+(Math.cos(this.gait*2)*.005*this.sway+this.lookSwayY)*steady+breath*settle,-depth);
+  this.root.rotation.set(0,0,(Math.sin(this.gait)*.010*this.sway-this.sideSway*.018)*steady);
   this.weapon.scale.setScalar(scale);this.weapon.position.set(0,0,0);this.weapon.rotation.set(profile.pitch,Math.PI-.045,0);
   if(profile.type==='gun'||profile.type==='bow'){
    this.weapon.position.z=kick*(id==='shotgun'?.075:.035);this.weapon.rotation.x+=kick*(id==='shotgun'?.17:.075);this.weapon.rotation.z-=draw*.045;
@@ -405,6 +415,12 @@ export class FirstPersonView {
    this.camera.updateWorldMatrix(true,false);this.wrist.set(meleeTarget.x,meleeTarget.y,meleeTarget.z);this.camera.worldToLocal(this.wrist);
    if(this.wrist.z<-.3&&Math.abs(this.wrist.x/this.wrist.z)<halfW/depth*1.1&&Math.abs(this.wrist.y/this.wrist.z)<halfH/depth*1.1){const ratio=this.scratch.z/this.wrist.z,dx=this.wrist.x*ratio-this.scratch.x,dy=this.wrist.y*ratio-this.scratch.y,c=Math.cos(this.root.rotation.z),s=Math.sin(this.root.rotation.z);this.weapon.position.x+=(dx*c+dy*s)*drive;this.weapon.position.y+=(dy*c-dx*s)*drive;}
   }
+  // Contact loads the hands briefly; misses continue the unchanged free swing.
+  // Bounded to the current strike so a fast follow-up cannot inherit old recoil.
+  if(this.contactSerial===data.shotSerial&&this.contactAge<.11){
+   const hit=Math.sin(Math.PI*Math.min(1,this.contactAge/.11))**2,side=this.contactCombo===1?-1:1;
+   this.weapon.position.z+=.018*hit;this.weapon.position.y-=.009*hit;this.weapon.rotation.z+=side*.012*hit;
+  }
   this.weapon.updateMatrix();
   const handScale=T.MathUtils.clamp(halfW/.29,.66,1.10),support=!!profile.support;
   for(let i=0;i<2;i++){
@@ -427,11 +443,12 @@ export class FirstPersonView {
    if(profile.type==='palm'&&i)hand.rotation.set(-.94-.08*motion.gather+.10*kick,-.22,.20-.08*motion.gather);
    if(profile.type==='staff'&&i)hand.rotation.set(-.52-(id==='fire'?.12:.22)*motion.gather,-.20+(id==='fire'?.12:-.14)*kick,.18+(id==='fire'?-.10:.10)*kick);
    if(profile.type==='book')hand.rotation.x-=.045*motion.sweep;
-   if(!i&&(profile.type==='lamp'||id==='boomerang')){
-    // Follow the handle's rotation delta, retaining the calibrated resting palm.
-    this.restRotation.setFromEuler(new T.Euler(profile.pitch,Math.PI-.045,0)).invert();this.handRotation.copy(this.weapon.quaternion).multiply(this.restRotation);hand.quaternion.premultiply(this.handRotation);
+   if(profile.type!=='palm'&&profile.type!=='scythe'&&profile.type!=='thrust'&&(!i||support)){
+    // The grip frame follows the held object, not just its position. Both palms
+    // retain their authored resting angle as guns recoil, staves tip and pages lift.
+    this.handRotation.copy(this.weapon.quaternion).multiply(this.restGripRotation);hand.quaternion.premultiply(this.handRotation);
    }
-   if(id==='shadowblade'){this.handRotation.setFromEuler(new T.Euler(-.18,-Math.PI,i?.38:-.38));hand.quaternion.copy(this.weapon.quaternion).multiply(this.handRotation);}
+   if(id==='shadowblade'){this.handRotation.setFromEuler(this.poseEuler.set(-.18,-Math.PI,i?.38:-.38));hand.quaternion.copy(this.weapon.quaternion).multiply(this.handRotation);}
    if(id==='harpoon')hand.rotation.set(-.10,(i?-1:1)*Math.PI/2+this.weapon.rotation.y-Math.PI,i?.35:-.35);
    hand.scale.set(i?-handScale:handScale,handScale,handScale);
    hand.position.copy(point).sub(this.wrist.copy(CONTACT).multiply(hand.scale).applyQuaternion(hand.quaternion));

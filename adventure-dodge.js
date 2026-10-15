@@ -1,5 +1,5 @@
-import{HERO_DODGES,heroDodgePose}from'./hero-dodge.js?v=204';
-import{SCOUT_ROLL_DURATION,rollWeight}from'./dodge-motion.js?v=204';
+import{HERO_DODGES,heroDodgePose}from'./hero-dodge.js?v=205';
+import{SCOUT_ROLL_DURATION,rollWeight}from'./dodge-motion.js?v=205';
 
 const clamp=x=>Math.max(0,Math.min(1,x)),smooth=x=>{x=clamp(x);return x*x*(3-2*x);};
 // Presentation reads the existing ability clock. It never moves the actor,

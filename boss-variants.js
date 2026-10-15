@@ -1,8 +1,8 @@
-import {creatureGait,gaitDistance} from './creature-gait.js?v=204';
+import {creatureGait,gaitDistance} from './creature-gait.js?v=205';
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,tint,joint,smooth} from './creature-forms.js?v=204';
-import {bossLeg,poseBossLeg} from './boss-appearance.js?v=204';
-import {ADDITIONAL_BOSSES} from './boss-roster.js?v=204';
+import {form,surface,tube,oval,tint,joint,smooth} from './creature-forms.js?v=205';
+import {bossLeg,poseBossLeg} from './boss-appearance.js?v=205';
+import {ADDITIONAL_BOSSES} from './boss-roster.js?v=205';
 
 // Ten anatomical silhouettes, shared shaded geometry and the existing foot IK.
 // No per-instance textures/materials, lights or independent animation timers.

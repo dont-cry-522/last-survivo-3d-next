@@ -1,6 +1,21 @@
-import {MAP_EVENTS} from './map-events.js?v=204';
-import {discoveryInfo} from './map-discoveries.js?v=204';
-import {ROAMING_REWARDS} from './roaming-events.js?v=204';
+import {MAP_EVENTS} from './map-events.js?v=205';
+import {discoveryInfo} from './map-discoveries.js?v=205';
+import {ROAMING_REWARDS} from './roaming-events.js?v=205';
+
+// Obstacle coordinates stay fixed during play. Destruction replaces the list;
+// fallen trunks append entries. Keep only the small-map layer, leaving the
+// enlarged map vector-drawn and tide/markers/fog live on both maps.
+export function drawMapObstacles(context,world,scale,detailed=false){
+ const paint=c=>{c.fillStyle='#72947a';for(const o of world.obstacles)c.fillRect(72+o.x*scale,72+o.z*scale,1.5,1.5);};
+ if(detailed){paint(context);return;}
+ let layer=world.obstacleMap;
+ if(!layer){const canvas=document.createElement('canvas');canvas.width=canvas.height=144;layer=world.obstacleMap={canvas};}
+ if(layer.list!==world.obstacles||layer.count!==world.obstacles.length||layer.scale!==scale){
+  const c=layer.canvas.getContext('2d');c.clearRect(0,0,144,144);paint(c);
+  layer.list=world.obstacles;layer.count=world.obstacles.length;layer.scale=scale;
+ }
+ context.drawImage(layer.canvas,0,0);
+}
 
 export function knownMapPoints(world){
  const points=[],known=p=>world.exploration.known(p.x,p.z);

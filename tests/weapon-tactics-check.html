@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>十三武器与二十六路线实战检查</title>
 <style>body{margin:12px;background:#13242b;color:#e1e9e4;font:14px system-ui}button{padding:10px;margin:0 6px 6px 0;background:#254943;color:inherit;border:1px solid #709582;border-radius:6px}iframe{border:0;display:block;margin-top:12px}#view{overflow:auto}pre{white-space:pre-wrap}summary{cursor:pointer}</style>
-<button id="desktop" disabled>检查电脑全部武器</button><button id="landscape" disabled>检查手机横屏</button><button id="portrait" disabled>检查手机竖屏</button><button id="mirage" disabled>诊断蜃花灯命中</button><button id="preview" disabled>预览长叉命中姿态</button>
+<button id="desktop" disabled>检查电脑全部武器</button><button id="landscape" disabled>检查手机横屏</button><button id="portrait" disabled>检查手机竖屏</button><button id="mirage" disabled>诊断蜃花灯命中</button><button id="preview" disabled>预览长叉命中姿态</button><select id="grip-size"><option value="desktop">电脑近景</option><option value="landscape">手机横屏近景</option><option value="portrait">手机竖屏近景</option></select><button id="grips" disabled>检查第一人称持械</button>
 <p id="status">加载中。使用隔离存档、固定帧和加高的静止受击目标；检查真实攻击流程与声音播放源。手机尺寸为模拟。</p><details open><summary>失败诊断</summary><pre id="diagnostic">尚无失败。</pre></details><details open><summary>检查结果</summary><pre id="report"></pre></details><div id="view"></div>
 <script type="module">
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),assert=(value,message)=>{if(!value)throw Error(message);};
@@ -84,6 +84,26 @@ async function attackCase(c,{route,miss=false,material=0}={}){
  }
  await cleanup();return snapshot;
 }
+async function gripCase(c,{miss=false}={}){
+ setup(c);const target=miss?null:spawn('mushroom');g.setView('first');render();
+ assert(g.firstPerson.root.visible,'第一人称持械未显示');
+ const serial=g.hero.userData.shotSerial||0;g.player.attack=0;g.controls.held=true;render();g.controls.held=false;g.player.attack=999;
+ let recoil=false,gripGap=0;for(let i=0;i<95;i++){
+  render();const view=g.firstPerson;recoil ||= view.contactAge<.11;
+  const hand=view.hands[0],p=hand.localToWorld(hand.position.clone().set(0,.045,-.023)),anchor=view.weapon.localToWorld(view.grip.clone());gripGap=Math.max(gripGap,p.distanceTo(anchor));
+  assert(view.hands.every(h=>h.position.toArray().every(Number.isFinite)),'持械姿态出现非数值');
+ }
+ assert(g.hero.userData.shotSerial===serial+1,'一次按键触发多次攻击');assert(gripGap<1e-6,'手掌脱离握点');
+ if(target)assert(target.hp<100000,'第一人称真实攻击没有命中');else assert(!events.some(e=>e.kind==='contact'),'挥空产生接触事件');
+ if(['harpoon','shadowblade'].includes(c.id))assert(recoil===!miss,'近战受力回收未区分命中与挥空');else assert(!recoil,'远程射击错误触发近战受力');
+ assert(g.firstPerson.contactAge>=.11,'接触反应未正常消退');const detail={weapon:c.id,miss,damage:target?100000-target.hp:0,recoil,gripGap};await cleanup();return detail;
+}
+async function runGrips(){
+ const id=$('#grip-size').value;buttons(true);results.length=0;errors.length=0;publish();
+ try{await load(dimensions[id]);await audioReady();for(const c of cases){await check(id+' / 第一人称命中 / '+c.id,()=>gripCase(c));await check(id+' / 第一人称挥空 / '+c.id,()=>gripCase(c,{miss:true}));}}
+ catch(error){results.push({name:'初始化',pass:false,error:error.message});}
+ errors.push(...(win?.qaErrors||[]));publish();buttons(false);$('#status').textContent=results.every(r=>r.pass)&&!errors.length?'全部 '+results.length+' 组第一人称检查通过；手机仅为尺寸模拟。':'有第一人称检查失败，请查看报告。';
+}
 async function check(name,fn){$('#status').textContent='检查 '+name;await sleep(0);try{results.push({name,pass:true,detail:await fn()});}catch(error){const diagnostics={initial,final:{player:point(g.player),target:point(activeTarget),hp:activeTarget?.hp,bullets:g.bullets.length},trace,events};results.push({name,pass:false,error:error.message,diagnostics});$('#diagnostic').textContent=JSON.stringify({name,error:error.message,...diagnostics},null,2);try{await cleanup();}catch{}}publish();}
 async function run(id){
  buttons(true);results.length=0;errors.length=0;publish();
@@ -98,7 +118,7 @@ async function run(id){
 async function preview(){
  buttons(true);try{await audioReady();setup(cases.find(c=>c.id==='harpoon'));spawn('golem');g.setView('first');g.adventureCamera.yaw=0;g.adventureCamera.pitch=-.08;render();fire();advance(.18);g.pause();render();$('#status').textContent='长叉命中后姿态已冻结。';}catch(error){$('#status').textContent=error.message;}finally{buttons(false);}
 }
-for(const id of Object.keys(dimensions))$('#'+id).onclick=()=>run(id);$('#preview').onclick=preview;
+for(const id of Object.keys(dimensions))$('#'+id).onclick=()=>run(id);$('#preview').onclick=preview;$('#grips').onclick=runGrips;
 $('#mirage').onclick=async()=>{buttons(true);results.length=0;errors.length=0;$('#diagnostic').textContent='尚无失败。';try{await audioReady();const c=cases.find(c=>c.id==='miasmalantern');for(const material of [2,0])await check('蜃花灯 / '+materials[material].join(' / '),()=>attackCase(c,{material}));}catch(error){errors.push(error.message);}finally{errors.push(...win.qaErrors);publish();buttons(false);$('#status').textContent=results.every(r=>r.pass)&&!errors.length?'蜃花灯两类目标均通过。':'诊断完成，请查看失败诊断。';}};
 try{await load(dimensions.desktop);buttons(false);$('#status').textContent='准备完成。每组包含 13 次命中、13 次挥空、26 条一阶路线，以及离场资源回收检查。';}catch(error){$('#status').textContent='加载失败：'+error.message;}
 </script></html>

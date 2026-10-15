@@ -57,5 +57,14 @@ test('a fresh preparation replaces remaining charges without touching a relic, i
  assert.equal(fieldSupplyEvent(p,'shot').kind,'storm');assert.equal(JSON.stringify(p.relic),before);assert.equal(JSON.stringify(journal),record);
  assert(!equipFieldSupply(p,'__proto__'));assert(!equipFieldSupply(p,'unknown'));assert.deepEqual(p.fieldSupply,{id:'coast',charges:1});
  const fresh=player('wind');assert.equal(fieldSupplyEvent(fresh,'shot'),null);assert.equal(fieldSupplyLabel(fresh),'');assert.equal(fresh.fieldSupply,undefined);
- const healed={hp:99,maxHp:100};equipFieldSupply(healed,'forest');assert.equal(fieldSupplyEvent(healed,'kill').amount,1);assert.equal(fieldSupplyEvent(healed,'kill').amount,0);assert.equal(healed.hp,100);
+ const healed={hp:99,maxHp:100};equipFieldSupply(healed,'forest');assert.equal(fieldSupplyEvent(healed,'kill').amount,1);assert.equal(fieldSupplyEvent(healed,'kill'),null);assert.equal(healed.fieldSupply.charges,2);assert.equal(healed.hp,100);
+});
+
+test('carried recovery survives full-health kills and is spent only when it can restore health',()=>{
+ const p={hp:100,maxHp:100};equipFieldSupply(p,'forest');const before=JSON.stringify(p.fieldSupply);
+ for(let i=0;i<20;i++)assert.equal(fieldSupplyEvent(p,'kill'),null);
+ assert.equal(JSON.stringify(p.fieldSupply),before);assert.match(fieldSupplyLabel(p),/满血保留/);
+ p.hp=99;assert.equal(fieldSupplyEvent(p,'kill').amount,1);assert.equal(p.hp,100);assert.equal(p.fieldSupply.charges,2);
+ assert.equal(fieldSupplyEvent(p,'kill'),null);p.hp=90;
+ assert.equal(fieldSupplyEvent(p,'kill').amount,4);assert.equal(fieldSupplyEvent(p,'kill').amount,4);assert.equal(p.hp,98);assert.equal(p.fieldSupply,null);
 });

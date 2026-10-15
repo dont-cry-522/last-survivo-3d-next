@@ -1,17 +1,24 @@
-import{MAP_HALF}from'./map-layout.js?v=204';
-import{playerHidden}from'./target-awareness.js?v=204';
+import{MAP_HALF}from'./map-layout.js?v=205';
+import{playerHidden}from'./target-awareness.js?v=205';
 import * as T from './vendor/three.module.js';
-import{terrainMesh}from'./map-tactics.js?v=204';
-import{sceneryAllowed}from'./biome-scenery.js?v=204';
-import{forestGrowthChoices}from'./rules.js?v=204';
+import{terrainMesh}from'./map-tactics.js?v=205';
+import{sceneryAllowed}from'./biome-scenery.js?v=205';
+import{forestGrowthChoices}from'./rules.js?v=205';
+import{skillPairHint}from'./skill-catalog.js?v=205';
 export const ROAMING_REWARDS={courier:{name:'携宝猎物',xp:30,heal:0},camp:{name:'守卫补给营地',xp:40,heal:.18,choice:true}};
 const campNames={forest:'巡林者营地',snow:'雪线远征营',ash:'矿工余烬营',sand:'古道商旅营',coast:'潮岸补给营'};
 const campGuards={forest:[['golem','mushroom','shaman'],['wolf','wolf','spitter']],snow:[['golem','wolf','spitter'],['wolf','wolf','shaman']],ash:[['golem','spitter','shaman'],['mushroom','spitter','spitter']],sand:[['golem','wolf','shaman'],['golem','mushroom','spitter']],coast:[['golem','spitter','wolf'],['mushroom','spitter','shaman']]};
 export function campGuardRoles(s){return(campGuards[s.biome]||campGuards.forest)[s.variant?1:0];}
 export function roamingReward(s){const reward=ROAMING_REWARDS[s.kind];return s.kind==='camp'?{...reward,name:campNames[s.biome]||reward.name}:reward;}
-// Reuse the same eligibility and mutually exclusive routes as earned trials.
-// Recovery stays available when all growth is full, without touching level drafts.
-export function campRewardChoices(p,random=Math.random){return[{id:'recover',name:'整理急救补给',icon:'♧',category:'recovery',text:'恢复 18% 最大生命。',heal:ROAMING_REWARDS.camp.heal},...forestGrowthChoices(p,random).slice(0,2)];}
+// Cache three legal growth cards once. Health only changes the visible recovery
+// alternative, so deferring / healing / taking damage cannot reroll the reward.
+export function campRewardPool(p,random=Math.random){return forestGrowthChoices(p,random,{preferOwned:true}).map(u=>u.category==='weapon'?u:{...u,play:[u.rank>0?'已学招式 · '+u.rank+' → '+(u.rank+1)+' 级':'新成长 · 1 级',skillPairHint(p,u.id)].filter(Boolean).join(' · ')});}
+export function campRewardChoices(p,random=Math.random,pool=null){
+ const growth=pool??campRewardPool(p,random),missing=Math.max(0,p.maxHp-p.hp);
+ if(!missing&&growth.length)return growth.slice(0,3);
+ const amount=Math.min(missing,Math.ceil(p.maxHp*ROAMING_REWARDS.camp.heal));
+ return[{id:'recover',name:'整理急救补给',icon:'♧',category:'recovery',text:missing?'恢复 18% 最大生命，本次可恢复 '+Math.ceil(amount)+' 点。':'当前生命已满，成长已全部完成；可以稍后受伤时再领取治疗。',heal:ROAMING_REWARDS.camp.heal,disabled:!missing},...growth.slice(0,2)];
+}
 export function installRoaming(w,id,rnd){
  w.roaming=[];for(const kind of['courier','camp'])for(let attempt=0;attempt<700;attempt++){
   const a=rnd()*Math.PI*2,r=kind==='courier'?23+rnd()*12:w.regional?42+rnd()*12:55+rnd()*15,x=w.spawn.x+Math.sin(a)*r,z=w.spawn.z+Math.cos(a)*r;

@@ -1,7 +1,7 @@
-import {creatureAttackPose} from './creature-gait.js?v=204';
-import {ENEMY_MOTION} from './enemy-motion.js?v=204';
+import {creatureAttackPose} from './creature-gait.js?v=205';
+import {ENEMY_MOTION} from './enemy-motion.js?v=205';
 import * as T from './vendor/three.module.js';
-import {form,surface,tube,oval,tint,joint as organicJoint,leg,stepLeg} from './creature-forms.js?v=204';
+import {form,surface,tube,oval,tint,joint as organicJoint,leg,stepLeg} from './creature-forms.js?v=205';
 const materials=new Map(),geometries=new Map();
 function part(parent,color,x,y,z,sx,sy,sz,shape='sphere',lit=false){
  const key=color+':'+lit;if(!materials.has(key))materials.set(key,new T.MeshStandardMaterial({color,roughness:.78,metalness:.12,emissive:lit?color:0,emissiveIntensity:lit?.8:0}));

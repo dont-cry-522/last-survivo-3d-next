@@ -2,6 +2,7 @@
 <title>探索奖励实战检查</title><style>body{margin:12px;background:#13242b;color:#e1e9e4;font:14px system-ui}button,select{padding:10px;background:#254943;color:inherit;border:1px solid #709582;border-radius:6px}iframe{border:0;display:block;margin-top:12px}#view{overflow:auto}pre{white-space:pre-wrap}</style>
 <button id="run" disabled>运行探索奖励检查</button><select id="preview-size" aria-label="预览尺寸"><option value="desktop">电脑 1180×720</option><option value="landscape">手机横屏 844×390</option><option value="portrait">手机竖屏 390×844</option></select><button id="preview" disabled>预览营地奖励</button><p id="status">载入中。本页使用隔离存档、固定帧和真实游戏流程；手机尺寸为模拟。</p><div id="view"></div><pre id="report"></pre>
 <script type="module">
+import{UPGRADES}from'../rules.js?v=205';
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),assert=(value,message)=>{if(!value)throw Error(message);};
 const html=await(await fetch('../index.html')).text(),css=await(await fetch('../style.css')).text(),results=[],errors=[];
 const biomes=['forest','snow','ash','sand','coast'],charges={forest:3,snow:1,ash:1,sand:3,coast:2};
@@ -74,6 +75,14 @@ async function run(){
    reset('scout','forest',1);g.world.discoveries=[];at({x:0,z:0});g.player.fieldSupply={id:'sand',charges:3};fire();assert(g.bullets.length===5,'霰弹测试没有真实出手');assert(g.player.fieldSupply.charges===2,'齐射按弹丸重复扣份');assert(g.bullets.every(b=>Math.abs(b.damage-12.5)<.001),'磨锋砂没有作用于整次齐射');
    reset('scout');g.world.discoveries=[];at({x:0,z:0});const front=target(0,6);dom('[data-attack-mode="auto"]').click();advance(.4);g.player.fieldSupply={id:'coast',charges:2};fire();assert(front.hp===982&&g.player.fieldSupply.charges===1,'潮电未按真实攻击触发');fire();assert(front.hp===964&&!g.player.fieldSupply,'潮电末次消耗或伤害错误');return{heal:12,frost:12,ember:18,coast:18,shotgunPellets:5};
   });
+  await check('回生药束：满血真实击杀保留，受伤击杀消耗，溢出不加生命',()=>{
+   reset();g.world.discoveries=[];at({x:0,z:0});g.player.hp=g.player.maxHp;g.player.fieldSupply={id:'forest',charges:3};
+   g.hurtEnemy(target(3,0),1e6);assert(g.player.fieldSupply.charges===3,'满血击杀浪费药束');
+   g.player.hp=g.player.maxHp-7;g.hurtEnemy(target(4,0),1e6);assert(g.player.hp===g.player.maxHp-3&&g.player.fieldSupply.charges===2,'受伤击杀没有恢复并扣一份');
+   g.hurtEnemy(target(5,0),1e6);assert(g.player.hp===g.player.maxHp&&g.player.fieldSupply.charges===1,'临近满血溢出或重复扣份');
+   g.hurtEnemy(target(6,0),1e6);assert(g.player.fieldSupply.charges===1,'恢复满血后的击杀仍扣份');
+   g.player.hp--;g.hurtEnemy(target(7,0),1e6);assert(g.player.hp===g.player.maxHp&&!g.player.fieldSupply,'末份治疗未正确清理');return{fullHealthPreserved:3,injuredCharges:[2,1,0]};
+  });
   await check('延迟投射：蓄力、暂停、闪避取消均不扣份，实际释放只扣一次',()=>{
    reset('mirage');g.world.discoveries=[];at({x:0,z:0});g.player.fieldSupply={id:'sand',charges:3};fire();assert(g.bullets.some(b=>b.releaseDelay>0),'没有捕捉到延迟释放');assert(g.player.fieldSupply.charges===3,'蓄力时提前消耗备战');
    const before=JSON.stringify(g.player.fieldSupply),time=g.time;g.pause();advance(.4);g.step(3);assert(g.time===time&&JSON.stringify(g.player.fieldSupply)===before,'暂停消耗备战或推进时间');g.resume();g.dash();advance(.5);assert(g.player.fieldSupply.charges===3&&!g.bullets.length,'取消蓄力仍消耗或发射');
@@ -96,6 +105,18 @@ async function run(){
    // the selection itself still runs through the actual ordinary upgrade UI.
    g.player.pendingDraft=f.camp.growthChoices.filter(u=>u.category==='weapon');dom('#camp-later').click();dom('#upgrade-ready').click();assert(g.state==='upgrade','普通成长入口未打开');const branch=dom('[data-upgrade="path:crossbow_pierce"]');assert(branch,'固定合法路线未显示');branch.click();assert(g.player.weaponPath?.id==='crossbow_pierce'&&g.player.pending===1,'普通成长未正确消费');
    dom('[data-camp-pending]').click();const refreshed=campCards(),ids=refreshed.map(cardId);assert(g.state==='event-choice'&&ids.includes('recover'),'待领营地没有重开');assert(ids.every(id=>!id.startsWith('path:')),'营地仍显示互斥或越级路线');refreshed.find(b=>cardId(b)==='recover').click();assert(g.player.pending===1&&!g.player.campRewards.length,'营地重开结算影响普通升级');return{original,afterOrdinaryUpgrade:ids,pending:g.player.pending};
+  });
+  // The real HUD refreshes at 10 Hz; allow its next frame after resuming before clicking the pending chip.
+  await check('营地满血三成长，伤血可治疗；健康切换不刷新已缓存成长',()=>{
+   const f=makeCamp({pending:0});g.player.upgrades.trail=1;g.player.hp=g.player.maxHp;const cards=openCamp(f),ids=cards.map(cardId),cache=f.camp.growthChoices.map(u=>u.id);
+   assert(cards.length===3&&!ids.includes('recover'),'满血仍展示无效治疗');assert(ids.includes('trail'),'已有专属成长未保留');const learned=cards.find(b=>cardId(b)==='trail');assert(learned.textContent.includes('1 → 2'),'已有技能缺少等级变化说明');
+   dom('#camp-later').click();g.player.hp=g.player.maxHp-7;advance(.2);const pendingHurt=dom('[data-camp-pending]');assert(pendingHurt,'恢复战斗后没有营地待领入口');pendingHurt.click();const hurt=campCards(),hurtIds=hurt.map(cardId);assert(hurtIds[0]==='recover'&&hurt.length===3,'受伤未展示治疗');assert(hurt[0].textContent.includes('本次可恢复 7 点'),'治疗卡没有显示实际恢复量');assert(JSON.stringify(hurtIds.slice(1))===JSON.stringify(cache.slice(0,2)),'健康变化重新抽了成长');
+   dom('#camp-later').click();g.player.hp=g.player.maxHp;advance(.2);const pendingFull=dom('[data-camp-pending]');assert(pendingFull,'满血恢复战斗后没有营地待领入口');pendingFull.click();const restored=campCards();assert(JSON.stringify(restored.map(cardId))===JSON.stringify(ids),'满血恢复后第三卡改变');assert(JSON.stringify(f.camp.growthChoices.map(u=>u.id))===JSON.stringify(cache),'健康切换改写原始候选');restored.find(b=>cardId(b)==='trail').click();assert(g.player.upgrades.trail===2&&!g.player.campRewards.length,'已有专属成长未正确升级');return{full:ids,injured:hurtIds,learnedRank:2};
+  });
+  await check('生命和成长全满：不自动弹无收益奖励，受伤后原战利品仍可治疗',()=>{
+   const f=makeCamp({level:20,path:{id:'crossbow_pierce',rank:3},pending:0});g.player.upgrades=Object.fromEntries(UPGRADES.map(u=>[u.id,u.max]));g.player.hp=g.player.maxHp;suppress(f.blocker);for(const e of g.enemies)if(e.alive)suppress(e);advance(3);
+   assert(g.state==='playing'&&!campCards().length&&g.player.campRewards.length===1,'全满状态弹空奖励或丢弃战利品');const pending=dom('[data-camp-pending]');assert(pending,'全满状态没有待领入口');pending.click();assert(g.state==='playing'&&!campCards().length&&g.player.campRewards.length===1,'主动领取全满奖励仍打开无用选择');
+   g.player.hp=g.player.maxHp-10;pending.click();const cards=campCards();assert(cards.length===1&&cardId(cards[0])==='recover'&&!cards[0].disabled,'受伤后没有保留可用治疗');cards[0].click();assert(g.player.hp===g.player.maxHp&&!g.player.campRewards.length&&g.state==='playing','受伤后的原营地奖励未结算');return{fullPending:1,injuredRecovery:10,afterClaim:0};
   });
   await check('首领期间营地成长保持待领，重开不会残留',()=>{const f=makeCamp({pending:0,boss:true});suppress(f.blocker);advance(.4);assert(g.state==='playing'&&!campCards().length,'首领期间打开营地选择');g.start();g.player.attack=999;advance(.2);assert(!campCards().length&&g.state==='playing'&&!g.player.fieldSupply,'重开弹出旧营地');return{bossBlocked:true,restartClean:true};});
   for(const [width,height]of[[844,390],[390,844]])await check(width+'×'+height+' 手机模拟奖励布局',async()=>{await load(true,width,height);const f=makeCamp({pending:0}),cards=openCamp(f),sizes=cards.map(assertCardFits);draw();cards.find(b=>cardId(b)==='recover').click();assert(g.state==='playing','手机领取后未继续');return{width,height,cards:sizes};});

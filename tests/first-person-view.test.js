@@ -601,3 +601,42 @@ test('first two scythe cuts cross the screen in opposite directions, with and wi
   assert(turn<1,'side cut twists the shaft through a large rotation');
  }}finally{view.dispose();}
 });
+
+
+test('held firearm, staff and book palms rotate with their handles instead of slipping around them',()=>{
+ const view=new FirstPersonView(new T.PerspectiveCamera(70,16/9,.1,100));
+ try{for(const id of ['rifle','shotgun','crossbow','fire','dark','grimoire']){
+  const actor=hero(weapon(id));view.setHero(actor,id);Object.assign(actor.userData,{attackAge:1,reloadPhase:1,reloadDuration:1});view.update(1,1/60,{visible:true});
+  const grip=view.weapon.quaternion.clone().invert().multiply(view.hands[0].quaternion);
+  for(const age of [.015,.035,.08,.15,.3,.6,1]){
+   Object.assign(actor.userData,{attackAge:age,reloadPhase:age});view.update(1,1/60,{visible:true});
+   const local=view.weapon.quaternion.clone().invert().multiply(view.hands[0].quaternion);
+   // The reading finger has its own tiny authored sweep; the solid grip frame is fixed.
+   assert(grip.angleTo(local)<(id==='grimoire'?.046:1e-7),id+' handle rotates through the palm');
+  }
+ }}finally{view.dispose();}
+});
+
+test('confirmed melee contact gives one bounded local grip recoil; misses, pause and cancellation do not repeat it',()=>{
+ const camera=new T.PerspectiveCamera(70,16/9,.1,100),view=new FirstPersonView(camera),other=new FirstPersonView(new T.PerspectiveCamera(70,16/9,.1,100));
+ try{for(const id of ['harpoon','shadowblade']){
+  const actor=hero(weapon(id)),miss=hero(weapon(id));view.setHero(actor,id);other.setHero(miss,id);
+  const data={attackAge:id==='harpoon'?.17:.25,reloadPhase:.25,reloadDuration:1,shotSerial:1};Object.assign(actor.userData,data);Object.assign(miss.userData,data);
+  view.update(1,.016,{visible:true});other.update(1,.016,{visible:true});assert.equal(view.confirmMeleeHit('rifle'),false);assert(view.confirmMeleeHit(id,1));assert.equal(view.confirmMeleeHit(id,1),false);
+  view.update(1,.05,{visible:true});other.update(1,.05,{visible:true});const delta=view.weapon.position.clone().sub(other.weapon.position);assert(delta.z>.015&&delta.z<=.018);assert(delta.length()<.021,'recoil overwhelms the swing');
+  const pose=view.weapon.position.clone(),age=view.contactAge;view.update(20,0,{visible:true});assert(view.weapon.position.equals(pose));assert.equal(view.contactAge,age);
+  view.update(1,.05,{visible:true,dodgePose:{kind:'roll',weight:.5}});assert.equal(view.contactAge,1);
+  actor.userData.shotSerial=2;assert(view.confirmMeleeHit(id));view.update(1,.016,{visible:false});assert.equal(view.contactAge,1);assert.equal(view.confirmMeleeHit(id),false);
+  view.update(1,.016,{visible:true});actor.userData.shotSerial=3;assert(view.confirmMeleeHit(id));view.clear();assert.equal(view.contactAge,1);assert.equal(view.contactSerial,-1);
+ }}finally{view.dispose();other.dispose();}
+});
+
+test('the held rig braces during a loaded attack and restores its stride without filtering the camera',()=>{
+ const camera=new T.PerspectiveCamera(70,16/9,.1,100),view=new FirstPersonView(camera),actor=hero(weapon('shadowblade'));
+ try{
+  view.setHero(actor,'shadowblade');Object.assign(actor.userData,{reloadDuration:1,attackAge:.56*.44,shotSerial:1});
+  view.update(1,1/60,{visible:true,moving:1,strafe:1,yaw:.4});const attack=view.root.rotation.z;
+  Object.assign(actor.userData,{attackAge:2});view.update(1,1/60,{visible:true,moving:1,strafe:1,yaw:.4});assert(Math.abs(view.root.rotation.z)>Math.abs(attack)*2,'loaded pose keeps the full running bank');
+  assert(camera.position.equals(new T.Vector3()));assert(camera.quaternion.equals(new T.Quaternion()));
+ }finally{view.dispose();}
+});

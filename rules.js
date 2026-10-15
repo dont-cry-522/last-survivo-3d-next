@@ -1,8 +1,8 @@
-import{SCYTHE}from'./scythe-combat.js?v=204';
-import{REGIONAL_ENEMIES}from'./map-enemies.js?v=204';
-import{EXTRA_SKILLS,EXTRA_BY_ID}from'./skill-catalog.js?v=204';
-import{POISON}from'./poison-config.js?v=204';
-import{MIRAGE}from'./mirage-config.js?v=204';
+import{SCYTHE}from'./scythe-combat.js?v=205';
+import{REGIONAL_ENEMIES}from'./map-enemies.js?v=205';
+import{EXTRA_SKILLS,EXTRA_BY_ID}from'./skill-catalog.js?v=205';
+import{POISON}from'./poison-config.js?v=205';
+import{MIRAGE}from'./mirage-config.js?v=205';
 export const MAPS={confluence:{name:'五境大远征',subtitle:'林地、雪山、裂谷、遗城与海港无缝相连，沿古道挑战五境守卫',ground:0x536a48,fog:0x526b61,leaf:0x427657,accent:0xdaca96,slow:'地形'},coast:{name:'幽潮遗港',subtitle:'穿过曲折水湾与岛地，走栈桥或退潮浅滩，打捞货箱、点亮古灯塔',ground:0x586e70,fog:0x344f5c,leaf:0x508582,accent:0x8cdde0,slow:'潮湿滩地'},sand:{name:'风蚀遗城',subtitle:'绕开沙暴流沙，风息挖掘古匣、开启遗城机关',ground:0xafa080,fog:0x928a77,leaf:0x938363,accent:0xe6ca87,slow:'流沙'},forest:{name:'翡翠幽林',subtitle:'穿过古木与遗迹，追寻林心的回声',ground:0x284b3b,fog:0x173d39,leaf:0x287456,accent:0xecc988,slow:'泥地'},snow:{name:'霜月峡谷',subtitle:'冰晶照亮雪路，寒风掩藏猎手',ground:0x96b7bd,fog:0x769daa,leaf:0x456e7d,accent:0x9ae9ff,slow:'深雪'},ash:{name:'赤烬荒原',subtitle:'越过熔岩裂隙，唤醒沉睡的守卫',ground:0x5c4544,fog:0x382e3c,leaf:0x69545d,accent:0xffa25d,slow:'灰烬'}};
 // Legacy boomerang ID now identifies the slingshot; save and route keys remain compatible.
 export const WEAPONS={miasmalantern:{id:'miasmalantern',name:'蜃花灯',rate:MIRAGE.rate,damage:MIRAGE.impact,count:1,speed:MIRAGE.speed,range:MIRAGE.range,color:MIRAGE.color,needleDamage:MIRAGE.needleDps,needleDuration:MIRAGE.needleDuration,burstRadius:MIRAGE.burstRadius,splashDamage:MIRAGE.splashDamage,poisonScale:1,lureRank:0,venomRank:0},sporelantern:{id:'sporelantern',name:'孢灯',rate:POISON.rate,damage:POISON.impact,count:1,speed:POISON.speed,range:POISON.range,color:POISON.color,cloudDamage:POISON.dps,cloudRadius:POISON.radius,cloudDuration:POISON.duration,cloudMax:POISON.maxClouds,stillRank:0,roamRank:0},boomerang:{id:'boomerang',name:'芽铃弹弓',rate:1.5,damage:30,count:1,speed:28,range:11,color:0xe2d2aa,petDamage:30,petCooldown:2.35},harpoon:{id:'harpoon',name:'潮汐长叉',rate:1.6,damage:36,count:1,speed:1,range:3.8,color:0x8ad9da,melee:true,width:.48,pull:.85,slow:.6},rifle:{id:'rifle',name:'游侠连发枪',rate:3,damage:12,count:1,speed:27,range:14,color:0xffdc91},shotgun:{id:'shotgun',name:'碎岩霰弹枪',rate:1,damage:10,count:5,speed:25,range:8,color:0xffbe69},fire:{id:'fire',name:'烬火法杖',rate:.9,damage:30,count:1,speed:14,range:11,color:0xff743b},crossbow:{id:'crossbow',name:'夜翎短弩',rate:2.05,damage:20,count:1,speed:35,range:16,color:0xd8edff},shuriken:{id:'shuriken',name:'月刃飞镖',rate:1.4,damage:13,count:3,speed:22,range:12,color:0x95fff0},dark:{id:'dark',name:'夜幕法杖',rate:1,damage:26,count:1,speed:12,range:10,color:0xc5a2ff},shade:{id:'shade',name:'牵影咒',rate:1.6,damage:18,count:1,speed:20,range:8,color:0xf4f3ee},shadowblade:{id:'shadowblade',name:'断魂战镰',rate:SCYTHE.rate,damage:SCYTHE.damage,count:1,speed:1,range:SCYTHE.range,arc:SCYTHE.arc,melee:true,color:0xc6c8c6},grimoire:{id:'grimoire',name:'悬影魔典',rate:.8,damage:34,count:1,speed:1,range:10,color:0xe7e4db}};
@@ -98,10 +98,13 @@ const PATH_LEVELS=[3,5,8];
 function routeChoices(p){const rank=p.weaponPath?.rank||0;if(rank>=3||(p.level||1)<PATH_LEVELS[rank])return[];return Object.entries(WEAPON_PATHS).filter(([id,v])=>v.weapon===p.weaponId&&(!p.weaponPath||p.weaponPath.id===id)).map(([id,v])=>({id:'path:'+id,pathId:id,name:v.name,icon:v.icon,text:v.steps[rank],play:WEAPON_PATH_PLAYS[id],max:3,rank,category:'weapon'}));}
 // Earned exploration rewards show both eligible branches, not a forced level-up
 // draft. The ordinary draft/pity state and its pending cards remain untouched.
-export function forestGrowthChoices(p,random=Math.random){
+export function forestGrowthChoices(p,random=Math.random,{preferOwned=false}={}){
  const result=routeChoices(p),pool=UPGRADES.filter(u=>u.category==='skill'&&heroSpell(p.heroId,u.id,p.weaponId)&&(p.upgrades[u.id]||0)<u.max);
  if(!pool.length)pool.push(...UPGRADES.filter(u=>heroSpell(p.heroId,u.id,p.weaponId)&&(p.upgrades[u.id]||0)<u.max));
- while(result.length<3&&pool.length){const u=pool.splice(Math.min(pool.length-1,Math.floor(random()*pool.length)),1)[0],rank=p.upgrades[u.id]||0;result.push({...u,rank,text:EXTRA_BY_ID[u.id]?.describe(rank+1)||u.text});}
+ // A camp can deepen one learned, legal signature skill; ordinary drafts and
+ // forest trials keep their original sampling and both eligible route branches.
+ let owned=preferOwned?pool.filter(u=>u.category==='skill'&&p.upgrades[u.id]>0):[];
+ while(result.length<3&&pool.length){const choices=owned.length?owned:pool,u=choices[Math.min(choices.length-1,Math.floor(random()*choices.length))],rank=p.upgrades[u.id]||0;pool.splice(pool.indexOf(u),1);owned=[];result.push({...u,rank,text:EXTRA_BY_ID[u.id]?.describe(rank+1)||u.text});}
  return result;
 }
 export function chooseUpgrades(p,random=Math.random){const pool=UPGRADES.filter(u=>heroSpell(p.heroId,u.id,p.weaponId)&&(p.upgrades[u.id]||0)<u.max).map(u=>{

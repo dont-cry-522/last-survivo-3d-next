@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildWorld} from '../world.js';
-import {takeUpgrade,UPGRADES} from '../rules.js';
-import {advanceRoaming,campGuardRoles,campRewardChoices,roamingHint,roamingReward} from '../roaming-events.js';
+import {takeUpgrade,UPGRADES,HERO_LOADOUTS} from '../rules.js';
+import {advanceRoaming,campGuardRoles,campRewardPool,campRewardChoices,roamingHint,roamingReward} from '../roaming-events.js';
+import{EXTRA_SKILLS}from'../skill-catalog.js';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){}})})};
 const biomes=['forest','snow','ash','sand','coast'];
 const clean=w=>w.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.userData.ownedGeometry)o.geometry.dispose();});
@@ -32,4 +33,27 @@ test('a cleared camp queues its choice once at the chest; pausing, leaving and r
   s.members.forEach(e=>e.alive=false);advanceRoaming(s,.1,c);assert.equal(s.state,'reward');assert.equal(queue.length,0);p.x=0;advanceRoaming(s,0,c);assert.equal(queue.length,0);advanceRoaming(s,.1,c);assert.equal(queue.length,1);assert.equal(s.state,'claimed');assert(queue[0].reward.choice);
   p.x=50;advanceRoaming(s,20,c);p.x=0;advanceRoaming(s,20,c);assert.equal(queue.length,1);assert(s.rewarded);
  }
+});
+
+test('camp health alternatives preserve the same three growth cards and never spend a useless full-health recovery',()=>{
+ const p=player();p.hp=p.maxHp;let rolls=0;
+ const pool=campRewardPool(p,()=>{rolls++;return .7;}),before=JSON.stringify(pool),draws=rolls;
+ const stable=()=>{throw Error('health changes must not draw new cards');};
+ assert.deepEqual(campRewardChoices(p,stable,pool).map(u=>u.id),pool.map(u=>u.id));assert.equal(pool.length,3);
+ p.hp=95;const hurt=campRewardChoices(p,stable,pool);assert.equal(hurt[0].id,'recover');assert(!hurt[0].disabled);assert.match(hurt[0].text,/本次可恢复 5 点/);
+ assert.deepEqual(hurt.slice(1).map(u=>u.id),pool.slice(0,2).map(u=>u.id));
+ p.hp=100;assert.deepEqual(campRewardChoices(p,stable,pool).map(u=>u.id),pool.map(u=>u.id));assert.equal(JSON.stringify(pool),before);assert.equal(rolls,draws);
+ const full={...p,level:20,weaponPath:{id:'crossbow_pierce',rank:3},upgrades:Object.fromEntries(UPGRADES.map(u=>[u.id,u.max]))},empty=campRewardPool(full);
+ assert.equal(empty.length,0);const maxed=campRewardChoices(full,stable,empty);assert.equal(maxed.length,1);assert.equal(maxed[0].id,'recover');assert(maxed[0].disabled);assert.match(maxed[0].text,/稍后/);
+ full.hp=70;const recovery=campRewardChoices(full,stable,empty);assert(!recovery[0].disabled);assert.equal(recovery[0].heal,.18);
+});
+test('camps offer one learned eligible signature skill before random growth, without mixing hero or weapon pools',()=>{
+ for(const[heroId,weapons]of Object.entries(HERO_LOADOUTS))for(const weaponId of weapons){
+  const own=EXTRA_SKILLS.filter(u=>u.hero===heroId&&(!u.weapon||u.weapon===weaponId));
+  const p={...player(),heroId,weaponId,level:2,upgrades:{[own[0].id]:1}},snapshot=JSON.stringify(p),pool=campRewardPool(p,()=>.999);
+  assert.equal(pool[0].id,own[0].id,weaponId+' lost learned growth');assert.equal(pool[0].rank,1);assert.match(pool[0].play,/1 → 2/);
+  assert.equal(new Set(pool.map(u=>u.id)).size,pool.length);assert(pool.every(u=>own.some(o=>o.id===u.id)),weaponId+' wrong signature pool');assert.equal(JSON.stringify(p),snapshot);
+  p.upgrades[own[0].id]=own[0].max;assert(!campRewardPool(p,()=>0).some(u=>u.id===own[0].id));
+ }
+ const p={...player(),level:2,upgrades:{trail:1}},pool=campRewardPool(p,()=>0),rain=pool.find(u=>u.id==='rain');assert(rain);assert.match(rain.play,/选取后组成搭配.*霜痕追猎/);
 });

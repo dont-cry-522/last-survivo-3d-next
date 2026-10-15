@@ -30,7 +30,7 @@ export function incomingRelicDamage(p,damage){return damage*(p.relic?.id==='glas
 // A found preparation is spent by the next relevant actions, never by walking
 // or waiting. It shares relic effects but neither equips nor changes a relic.
 export const FIELD_SUPPLIES={
- forest:{name:'回生药束',icon:'♧',event:'kill',charges:3,text:'接下来 3 次击杀各恢复 4 点生命。',effect:{kind:'heal',amount:4}},
+ forest:{name:'回生药束',icon:'♧',event:'kill',charges:3,text:'受伤时接下来 3 次击杀各恢复 4 点生命；满血击杀保留次数。',effect:{kind:'heal',amount:4}},
  snow:{name:'霜晶护符',icon:'❄',event:'dodge',charges:1,text:'下一次闪避在起点释放霜晶：3 米内可见敌人受到 12 伤害并减速 1.6 秒。',effect:{kind:'frost',radius:3,damage:12,slow:1.6}},
  ash:{name:'封存余烬',icon:'✹',event:'kill',charges:1,text:'下一次击杀在目标处爆燃：2.6 米内可见敌人受到 18 伤害；爆燃击杀不连锁。',effect:{kind:'ember',radius:2.6,damage:18}},
  sand:{name:'磨锋砂',icon:'◇',event:'shot',charges:3,text:'接下来 3 次武器攻击的直接伤害 +25%，每次出手消耗一份。',effect:{kind:'power',multiplier:1.25}},
@@ -39,10 +39,12 @@ export const FIELD_SUPPLIES={
 export function equipFieldSupply(p,id){if(!Object.hasOwn(FIELD_SUPPLIES,id))return false;p.fieldSupply={id,charges:FIELD_SUPPLIES[id].charges};return true;}
 export function fieldSupplyEvent(p,event){
  const supply=p.fieldSupply,info=supply&&FIELD_SUPPLIES[supply.id];if(!info||supply.charges<=0||event!==info.event)return null;
+ // Recovery is a carried preparation, not a timer: a full-health kill must not waste it.
+ if(info.effect.kind==='heal'&&p.hp>=p.maxHp)return null;
  supply.charges--;if(!supply.charges)p.fieldSupply=null;
  const effect={...info.effect};if(effect.kind==='heal'){const before=p.hp;p.hp=Math.min(p.maxHp,p.hp+effect.amount);effect.amount=p.hp-before;}return effect;
 }
-export function fieldSupplyLabel(p){const supply=p.fieldSupply,info=supply&&FIELD_SUPPLIES[supply.id];return info&&supply.charges>0?info.name+' · 剩余 '+supply.charges+' 次':'';}
+export function fieldSupplyLabel(p){const supply=p.fieldSupply,info=supply&&FIELD_SUPPLIES[supply.id];return info&&supply.charges>0?info.name+' · 剩余 '+supply.charges+' 次'+(supply.id==='forest'&&p.hp>=p.maxHp?' · 满血保留':''):'';}
 export const JOURNAL_KEY='forest-echoes-next-expedition-v1';
 const maps=['forest','snow','ash','sand','coast','confluence'],weapons=['boomerang','harpoon','hammer','rifle','shotgun','fire','crossbow','shuriken','dark','shade','shadowblade','grimoire','sporelantern','miasmalantern'];
 const validWins=new Set(maps.flatMap(m=>weapons.map(w=>m+':'+w)));

@@ -176,3 +176,19 @@ test('scythe finisher and charged primary use distinct compact accents within th
  v.clear();cast(v,'shadowblade_return','hit',{heavy:true,contact});assert.equal(v.active.length,4);
  assert(v.active.every(p=>p.life<=.32&&p.opacity<=.76));v.clear();assert.equal(v.active.length,0);
 });
+
+
+test('scythe route accents follow the confirmed left, right and overhead cutting plane',()=>{
+ const v=new SkillVFX(new T.Scene(),{mobile:true});
+ for(const id of ['shadowblade_fan','shadowblade_return']){
+  const rolls=[.16,-.16,-1.05],orientations=[];
+  for(let combo=0;combo<3;combo++){
+   v.clear();const contact={x:1,y:1.2,z:2,normal:{x:0,y:0,z:-1},compact:true,slashRoll:rolls[combo]};cast(v,id,'hit',{combo,contact});
+   const primary=v.active.find(p=>p.shape==='sweep');assert(primary);orientations.push(primary.mesh.quaternion.clone());
+   const expected=new T.Object3D();expected.position.copy(primary.mesh.position);expected.lookAt(primary.mesh.position.x,primary.mesh.position.y,primary.mesh.position.z-1);expected.rotateZ(rolls[combo]);
+   assert(expected.quaternion.angleTo(primary.mesh.quaternion)<1e-7,'route trail disagrees with confirmed contact plane');assert(v.active.length<=4);
+  }
+  assert(orientations[0].angleTo(orientations[1])>.3);assert(orientations[0].angleTo(orientations[2])>1);
+ }
+ v.update(1);assert.equal(v.active.length,0);
+});

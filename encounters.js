@@ -31,22 +31,31 @@ export const HUNT_SQUAD=[
  {role:'mushroom',offset:.7}
 ];
 export function enemyApproach(e,player,enemies,visible){
- const dx=player.x-e.x,dz=player.z-e.z,d=Math.hypot(dx,dz),a=Math.atan2(dx,dz);
- // Between lunges, flankers reposition within reach instead of pushing through
- // the player. This uses their own cooldown, never a player's input or dodge.
- if(e.role==='wolf'&&e.cool>.5&&d>1.8&&d<=4.2){
-  const angle=Math.atan2(e.x-player.x,e.z-player.z)+(e.flank||((e.id%2)?1:-1))*.32;
+ const dx=player.x-e.x,dz=player.z-e.z,d=Math.hypot(dx,dz),side=e.flank||(e.id%2?1:-1);
+ // Use the last committed attack (or spawn bearing), not a new tangent to the
+ // current position every frame. Each cooldown now has a reachable side-step.
+ const bearing=Number.isFinite(e.attackAngle)?e.attackAngle+Math.PI:e.packAngle??Math.atan2(-dx,-dz);
+ if(e.role==='wolf'&&e.cool>.5&&d>.8&&d<=4.2){
+  const origin=bearing+(Math.sin(bearing)*(e.x-player.x)+Math.cos(bearing)*(e.z-player.z)<0?Math.PI:0),angle=origin+side*.32;
   return{x:player.x+Math.sin(angle)*3.6,z:player.z+Math.cos(angle)*3.6};
  }
  if(e.role==='wolf'&&d>4.2&&d<14){
-  const angle=(e.packAngle??Math.atan2(e.x-player.x,e.z-player.z))+(e.flank||((e.id%2)?1:-1))*.95;
+  const angle=(e.packAngle??Math.atan2(-dx,-dz))+side*.95;
   return{x:player.x+Math.sin(angle)*3.3,z:player.z+Math.cos(angle)*3.3};
  }
  if(['spitter','shaman'].includes(e.role)&&visible){
   if(d<5)return{x:e.x-dx,z:e.z-dz};
-  const tank=enemies.find(q=>q!==e&&q.alive&&q.role==='golem'&&Math.hypot(q.x-e.x,q.z-e.z)<8);
-  if(tank){const ta=Math.atan2(tank.x-player.x,tank.z-player.z),side=(e.id%2?1:-1)*1.4;return{x:tank.x+Math.sin(ta)*2.7+Math.cos(ta)*side,z:tank.z+Math.cos(ta)*2.7-Math.sin(ta)*side};}
-  if(d<11){const side=e.id%2?1:-1;return{x:e.x+Math.cos(a)*side,z:e.z-Math.sin(a)*side};}
+  // Only shelter behind a live front line actually between caster and target.
+  // A recovering/staggered heavy is exposed; the caster must find its own lane.
+  let tank=null,nearest=64;
+  for(const q of enemies){
+   if(q===e||!q.alive||q.role!=='golem'||q.recovery>0||q.stagger>0||q.targetLost)continue;
+   const qx=q.x-player.x,qz=q.z-player.z,qd=Math.hypot(qx,qz),distance=(q.x-e.x)**2+(q.z-e.z)**2;
+   if(qd>=d-.35||qd<.01||(-dx*qx-dz*qz)<d*qd*.6||distance>=nearest)continue;
+   tank=q;nearest=distance;
+  }
+  if(tank){const ta=Math.atan2(tank.x-player.x,tank.z-player.z),offset=side*1.4;return{x:tank.x+Math.sin(ta)*2.7+Math.cos(ta)*offset,z:tank.z+Math.cos(ta)*2.7-Math.sin(ta)*offset};}
+  if(d<11){const angle=bearing+side*.18,radius=e.role==='shaman'?8.5:7.8;return{x:player.x+Math.sin(angle)*radius,z:player.z+Math.cos(angle)*radius};}
  }
  return{x:player.x,z:player.z};
 }
